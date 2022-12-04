@@ -1,7 +1,8 @@
+#include <memory>
+
 #include "KAS/Search/ShapeNode.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Core/Iterator.hpp"
-#include <memory>
 
 
 namespace kas {
@@ -12,7 +13,7 @@ ShapeNode::ShapeNode(std::shared_ptr<ShapeNode> child, std::unique_ptr<Primitive
     shapeOp { std::move(shapeOp) }
 {}
 
-TensorView ShapeNode::buildTensor() const {
+TensorView ShapeNode::buildTensorView() const {
     auto tensor = std::make_shared<PureTensor>(shape);
     TensorView tensorView { tensor->shared_from_this() };
     auto curr = this;

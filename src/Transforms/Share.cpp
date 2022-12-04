@@ -1,9 +1,10 @@
-#include "KAS/Transforms/Share.hpp"
-#include "KAS/Core/Iterator.hpp"
-#include "KAS/Search/PrimitiveShapeOp.hpp"
-#include "KAS/Utils/Common.hpp"
 #include <algorithm>
 #include <utility>
+
+#include "KAS/Transforms/Share.hpp"
+#include "KAS/Core/Iterator.hpp"
+#include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
@@ -26,11 +27,19 @@ Shape ShareShapeOp::transformShapeInverse(const Shape& outputShape) const {
 void ShareShapeOp::transformTensor(TensorView &tensor) const {
     KAS_ASSERT(tensor.interface.size() > output);
     KAS_ASSERT(inputLhs != inputRhs);
-    auto op = MergeLikePrimitiveOp { tensor[inputLhs], tensor[inputRhs] };
-    auto it = std::make_shared<Iterator>(IteratorTransform { op });
+    std::unique_ptr<MergeLikePrimitiveOp> op { new ShareOp { tensor[inputLhs], tensor[inputRhs] } };
+    auto it = std::make_shared<Iterator>(IteratorTransform { std::move(op) });
     tensor.replaceInterface({ inputLhs, inputRhs }, {
         std::make_pair(output, it)
     });
+}
+
+ShareOp::ShareOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> parentRhs):
+    MergeLikePrimitiveOp { std::move(parentLhs), std::move(parentRhs) }
+{}
+
+DoubleIteratorValue ShareOp::value(SingleIteratorValue output) const {
+    return { output, output };
 }
 
 } // namespace kas

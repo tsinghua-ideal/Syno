@@ -1,1 +1,1 @@
-add_library(search-lib STATIC PrimitiveShapeOp.cpp ShapeNode.cpp)
+add_library(search-lib STATIC ShapeNode.cpp)

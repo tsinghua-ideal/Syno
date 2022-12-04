@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "KAS/Search/PrimitiveShapeOp.hpp"
+#include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Tensor.hpp"
 
 
@@ -20,7 +20,7 @@ public:
     ShapeNode(T&& shape): shape { std::forward<T>(shape) }, child { nullptr }, shapeOp { nullptr } {}
     ShapeNode(std::shared_ptr<ShapeNode> child, std::unique_ptr<PrimitiveShapeOp> shapeOp);
 
-    TensorView buildTensor() const;
+    TensorView buildTensorView() const;
 };
 
 } // namespace kas

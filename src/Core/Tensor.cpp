@@ -1,8 +1,9 @@
+#include <sstream>
+
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Vector.hpp"
-#include <sstream>
 
 
 namespace kas {
@@ -19,6 +20,23 @@ std::vector<std::shared_ptr<Iterator>> PureTensor::getInterface() {
         interface.push_back(std::make_shared<Iterator>(IteratorTransform { TensorStub { shared_from_this(), i } }));
     }
     return interface;
+}
+
+TensorView PureTensor::buildTensorView() {
+    return TensorView { shared_from_this() };
+}
+
+std::string PureTensor::accessToString() const {
+    std::stringstream ss;
+    ss << "[";
+    for (int i = 0; i < access.size(); i++) {
+        if (i != 0) {
+            ss << ",";
+        }
+        ss << access[i]->content;
+    }
+    ss << "]";
+    return ss.str();
 }
 
 TensorStub::TensorStub(std::shared_ptr<PureTensor> tensor, int index):
@@ -56,10 +74,9 @@ void TensorView::replaceInterface(
     interface.swap(replaced);
 }
 
-std::string TensorView::shapeToString(const BindingContext &ctx) const {
-    std::stringstream ss;
-    // TODO
-    return "TODO";
+std::vector<std::shared_ptr<Iterator>> TensorView::getAllIterators() const {
+    // We still need to add the reduced iterators. TODO
+    return interface;
 }
 
 } // namespace kas

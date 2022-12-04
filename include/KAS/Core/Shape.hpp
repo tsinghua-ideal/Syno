@@ -33,7 +33,7 @@ public:
 
 class BindingContext {
 public:
-    // Metadata includes aliases, whether preferred by specific ops (TODO), etc..
+    // Metadata includes aliases, whether preferred by specific ops (TODO), which context a variable is in (when there are multiple contexts, required by Blending) (TODO), etc...
     struct Metadata {
         std::string alias;
         Metadata() = default;

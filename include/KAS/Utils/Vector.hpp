@@ -7,12 +7,12 @@
 namespace kas {
 
 template<typename T>
-std::vector<std::shared_ptr<T>> ReplaceVector(
-    const std::vector<std::shared_ptr<T>>& vec, 
+std::vector<T> ReplaceVector(
+    const std::vector<T>& vec, 
     const std::vector<int>& drops,
-    const std::vector<std::pair<int, std::shared_ptr<T>>>& adds
+    const std::vector<std::pair<int, T>>& adds
 ) {
-    std::vector<std::shared_ptr<T>> newVec;
+    std::vector<T> newVec;
     newVec.reserve(vec.size() + adds.size() - drops.size());
 
     if (drops.size() > 0) {
