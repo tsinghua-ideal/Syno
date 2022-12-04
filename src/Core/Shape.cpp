@@ -2,6 +2,7 @@
 
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/Vector.hpp"
 
 
 namespace kas {
@@ -97,6 +98,29 @@ std::shared_ptr<Size> BindingContext::getSingleCoefficientVariableSize(int index
     std::vector<int> coefficient(coefficientMetadata.size(), 0);
     coefficient[index] = 1;
     return std::make_shared<Size>(std::vector<int>(primaryMetadata.size(), 0), std::move(coefficient));
+}
+
+Shape::Shape(const std::vector<std::shared_ptr<Size>>& sizes):
+    sizes(sizes)
+{}
+Shape::Shape(std::vector<std::shared_ptr<Size>>&& sizes):
+    sizes(std::move(sizes))
+{}
+
+size_t Shape::size() const {
+    return sizes.size();
+}
+
+const std::shared_ptr<Size>& Shape::operator[](size_t index) const {
+    KAS_ASSERT(index < sizes.size());
+    return sizes[index];
+}
+
+Shape Shape::replace(
+    const std::vector<int>& drops,
+    const std::vector<std::pair<int, std::shared_ptr<Size>>>& adds
+) const {
+    return Shape { std::move(ReplaceVector(sizes, drops, adds)) };
 }
 
 } // namespace kas

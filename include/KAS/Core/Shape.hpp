@@ -56,13 +56,22 @@ public:
 
 struct Shape {
 public:
-    std::vector<std::shared_ptr<Size>> sizes;
+    const std::vector<std::shared_ptr<Size>> sizes;
 
     Shape() = delete;
-    template<typename T>
-    Shape(T&& sizes):
-        sizes { std::forward<T>(sizes) }
-    {}
+    Shape(const Shape& shape) = default;
+    Shape(Shape&& shape) = default;
+    Shape(const std::vector<std::shared_ptr<Size>>& sizes);
+    Shape(std::vector<std::shared_ptr<Size>>&& sizes);
+
+    size_t size() const;
+    const std::shared_ptr<Size>& operator[](size_t index) const;
+
+    // drops and adds must be sorted by index
+    Shape replace(
+        const std::vector<int>& drops,
+        const std::vector<std::pair<int, std::shared_ptr<Size>>>& adds
+    ) const;
 };
 
 } // namespace kas
