@@ -26,12 +26,12 @@ Shape ShareShapeOp::transformShapeInverse(const Shape& outputShape) const {
 }
 
 void ShareShapeOp::transformTensor(TensorView &tensor) const {
-    KAS_ASSERT(tensor.interface.size() > output);
+    KAS_ASSERT(tensor.getInterfaceIterators().size() > output);
     KAS_ASSERT(inputLhs != inputRhs);
     auto lhs = tensor[inputLhs], rhs = tensor[inputRhs];
     std::unique_ptr<MergeLikePrimitiveOp> op { new ShareOp { lhs, rhs } };
-    KAS_ASSERT(lhs->size == rhs->size);
-    std::shared_ptr<Size> size = lhs->size;
+    KAS_ASSERT(lhs->getSize() == rhs->getSize());
+    std::shared_ptr<Size> size = lhs->getSize();
     auto it = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, std::move(size));
     tensor.replaceInterface({ inputLhs, inputRhs }, {
         std::make_pair(output, it)

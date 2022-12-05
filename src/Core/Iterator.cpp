@@ -75,6 +75,10 @@ namespace {
     };
 }
 
+std::shared_ptr<Size> Iterator::getSize() const {
+    return size;
+}
+
 bool Iterator::compute(IteratorEvaluator& iteratorEvaluator) {
     return std::visit(IteratorTransformVisitor { iteratorEvaluator, shared_from_this() }, parent);
 }

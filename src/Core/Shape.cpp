@@ -122,7 +122,7 @@ Shape Shape::replace(
     const std::vector<int>& drops,
     const std::vector<std::pair<int, std::shared_ptr<Size>>>& adds
 ) const {
-    return Shape { std::move(ReplaceVector(sizes, drops, adds)) };
+    return Shape { ReplaceVector(sizes, drops, adds) };
 }
 
 std::string Shape::toString(const BindingContext& ctx) const {

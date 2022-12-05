@@ -14,10 +14,10 @@ using IteratorValueMap = std::map<std::shared_ptr<Iterator>, std::shared_ptr<Ite
 
 class IteratorEvaluator {
 public:
-    BindingContext& bindingContext;
+    const BindingContext& bindingContext;
     IteratorValueMap valueMap;
     std::queue<std::shared_ptr<Iterator>> workingSet;
-    IteratorEvaluator(BindingContext& bindingContext);
+    IteratorEvaluator(const BindingContext& bindingContext);
 
     void evaluateTensorAccess(const TensorView& tensor);
 };

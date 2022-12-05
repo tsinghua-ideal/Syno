@@ -6,7 +6,7 @@
 
 namespace kas {
 
-IteratorEvaluator::IteratorEvaluator(BindingContext& bindingContext):
+IteratorEvaluator::IteratorEvaluator(const BindingContext& bindingContext):
     bindingContext { bindingContext }
 {}
 

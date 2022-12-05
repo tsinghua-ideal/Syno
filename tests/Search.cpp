@@ -7,7 +7,6 @@
 #include "KAS/Transforms/Share.hpp"
 #include "KAS/Transforms/Reduce.hpp"
 #include "KAS/Core/Tensor.hpp"
-#include "KAS/Core/IteratorEvaluator.hpp"
 
 
 using namespace kas;
@@ -21,10 +20,9 @@ TEST(search_tests, shape_node) {
     auto node1 = std::make_shared<ShapeNode>(root, std::move(std::make_unique<ShareShapeOp>(0, 1, 0)));
     auto node2 = std::make_shared<ShapeNode>(node1, std::move(std::make_unique<ReduceShapeOp>(0, *sizeH * *sizeW)));
     auto tensorView = node2->buildTensorView();
-    auto evaluator = IteratorEvaluator { ctx };
-    evaluator.evaluateTensorAccess(tensorView);
+    tensorView.evaluateTensorAccess(ctx);
     ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1] with reduced [i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1] with reduced [x_0x_1]");
-    ASSERT_EQ(tensorView.tensor->accessToString(), "[i_2,i_0,i_0,i_1]");
-    ASSERT_EQ(tensorView.tensor->shapeToString(ctx), "[x_0x_1,x_0,x_0,x_1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->accessToString(), "[i_2,i_0,i_0,i_1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[x_0x_1,x_0,x_0,x_1]");
 }

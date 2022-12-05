@@ -8,6 +8,7 @@
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Vector.hpp"
+#include "KAS/Core/IteratorEvaluator.hpp"
 
 
 namespace kas {
@@ -59,7 +60,7 @@ PureTensor::PureTensor(const Shape& shape):
 {}
 
 TensorView::TensorView(std::shared_ptr<PureTensor> tensor):
-    interface { std::move(tensor->getInterface()) },
+    interface { tensor->getInterface() },
     manipulations {},
     tensor { std::move(tensor) }
 {}
@@ -83,6 +84,14 @@ void TensorView::addManipulation(Manipulation manipulation) {
     manipulations.push_back(std::move(manipulation));
 }
 
+std::shared_ptr<PureTensor> TensorView::getUnderlyingTensor() const {
+    return tensor;
+}
+
+const std::vector<std::shared_ptr<Iterator>>& TensorView::getInterfaceIterators() const {
+    return interface;
+}
+
 std::vector<std::shared_ptr<Iterator>> TensorView::getReducedIterators() const {
     std::vector<std::shared_ptr<Iterator>> reducedIterators {};
     for (const auto& manipulation: manipulations) {
@@ -93,7 +102,7 @@ std::vector<std::shared_ptr<Iterator>> TensorView::getReducedIterators() const {
             }
         }, manipulation);
     }
-    return std::move(reducedIterators);
+    return reducedIterators;
 }
 
 std::vector<std::shared_ptr<Iterator>> TensorView::getAllIterators() const {
@@ -101,7 +110,12 @@ std::vector<std::shared_ptr<Iterator>> TensorView::getAllIterators() const {
     iterators.reserve(interface.size() + manipulations.size());
     auto reducedIterators = getReducedIterators();
     iterators.insert(iterators.end(), reducedIterators.begin(), reducedIterators.end());
-    return std::move(iterators);
+    return iterators;
+}
+
+void TensorView::evaluateTensorAccess(const BindingContext& ctx) const {
+    IteratorEvaluator evaluator { ctx };
+    evaluator.evaluateTensorAccess(*this);
 }
 
 std::string TensorView::accessToString() const {
@@ -131,7 +145,7 @@ std::string TensorView::accessToString() const {
 
 std::string TensorView::shapeToString(const BindingContext &ctx) const {
     auto mapper = std::function([&ctx](const std::shared_ptr<Iterator>& iterator) -> std::string {
-        return iterator->size->toString(ctx);
+        return iterator->getSize()->toString(ctx);
     });
     auto s1 = VectorToString(interface, mapper);
     auto reducedIterators = getReducedIterators();

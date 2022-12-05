@@ -5,7 +5,6 @@
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/Tensor.hpp"
-#include "KAS/Core/IteratorEvaluator.hpp"
 
 
 using namespace kas;
@@ -33,8 +32,7 @@ TEST(core_tests, tensor) {
     auto shape = Shape { std::vector<std::shared_ptr<Size>> { sizeH, sizeW, sizeC } };
     auto tensor = std::make_shared<PureTensor>(shape);
     auto tensorView = TensorView { tensor };
-    auto evaluator = IteratorEvaluator { ctx };
-    evaluator.evaluateTensorAccess(tensorView);
+    tensorView.evaluateTensorAccess(ctx);
     ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1,(c_0)1]");
     ASSERT_EQ(tensor->accessToString(), "[i_0,i_1,i_2]");

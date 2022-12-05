@@ -56,11 +56,12 @@ class MapManipulation {
 using Manipulation = std::variant<ReduceManipulation, MapManipulation>;
 
 class TensorView {
-public:
+protected:
     std::vector<std::shared_ptr<Iterator>> interface;
     std::vector<Manipulation> manipulations;
     const std::shared_ptr<PureTensor> tensor;
 
+public:
     TensorView(std::shared_ptr<PureTensor> tensor);
 
     size_t size() const;
@@ -72,13 +73,23 @@ public:
         const std::vector<std::pair<int, std::shared_ptr<Iterator>>>& adds
     );
 
+    // A manipulation is a transform of the data in a tensor, not just the way of accessing it. This includes Map and Reduce.
     void addManipulation(Manipulation manipulation);
+
+    // Returns the underlying tensor underneath the view.
+    std::shared_ptr<PureTensor> getUnderlyingTensor() const;
+
+    // Returns the interface of the view.
+    const std::vector<std::shared_ptr<Iterator>>& getInterfaceIterators() const;
 
     // Returns reduced iterators.
     std::vector<std::shared_ptr<Iterator>> getReducedIterators() const;
 
     // This returns all iterators, including interface and reduced iterators.
     std::vector<std::shared_ptr<Iterator>> getAllIterators() const;
+
+    // Evaluates all accesses to the underlying tensor.
+    void evaluateTensorAccess(const BindingContext& ctx) const;
 
     // Returns something like "[i_0,i_1] with reduced [i_2]". When Blending is implemented, an additional argument may be passed. TODO
     std::string accessToString() const;

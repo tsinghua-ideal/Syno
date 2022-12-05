@@ -21,10 +21,14 @@ using IteratorTransform = std::variant<
 class IteratorEvaluator;
 
 class Iterator: public std::enable_shared_from_this<Iterator> {
-public:
+protected:
     IteratorTransform parent;
     std::shared_ptr<Size> size;
+public:
     Iterator(IteratorTransform parent, std::shared_ptr<Size> size);
+
+    std::shared_ptr<Size> getSize() const;
+
     // Returns true on success
     bool compute(IteratorEvaluator& iteratorEvaluator);
 };
