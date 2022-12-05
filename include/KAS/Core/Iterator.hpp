@@ -23,7 +23,8 @@ class IteratorEvaluator;
 class Iterator: public std::enable_shared_from_this<Iterator> {
 public:
     IteratorTransform parent;
-    Iterator(IteratorTransform parent);
+    std::shared_ptr<Size> size;
+    Iterator(IteratorTransform parent, std::shared_ptr<Size> size);
     // Returns true on success
     bool compute(IteratorEvaluator& iteratorEvaluator);
 };

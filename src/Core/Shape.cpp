@@ -123,4 +123,17 @@ Shape Shape::replace(
     return Shape { std::move(ReplaceVector(sizes, drops, adds)) };
 }
 
+std::string Shape::toString(const BindingContext& ctx) const {
+    std::stringstream result;
+    result << "[";
+    for (int i = 0; i < sizes.size(); ++i) {
+        if (i != 0) {
+            result << ",";
+        }
+        result << sizes[i]->toString(ctx);
+    }
+    result << "]";
+    return result.str();
+}
+
 } // namespace kas

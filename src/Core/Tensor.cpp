@@ -1,4 +1,5 @@
 #include <sstream>
+#include <vector>
 
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Core/Iterator.hpp"
@@ -17,7 +18,7 @@ std::vector<std::shared_ptr<Iterator>> PureTensor::getInterface() {
     std::vector<std::shared_ptr<Iterator>> interface;
     interface.reserve(shape.size());
     for (int i = 0; i < shape.size(); i++) {
-        interface.push_back(std::make_shared<Iterator>(IteratorTransform { TensorStub { shared_from_this(), i } }));
+        interface.push_back(std::make_shared<Iterator>(IteratorTransform { TensorStub { shared_from_this(), i } }, shape[i]));
     }
     return interface;
 }
@@ -37,6 +38,10 @@ std::string PureTensor::accessToString() const {
     }
     ss << "]";
     return ss.str();
+}
+
+std::string PureTensor::shapeToString(const BindingContext& ctx) const {
+    return shape.toString(ctx);
 }
 
 TensorStub::TensorStub(std::shared_ptr<PureTensor> tensor, int index):
@@ -77,6 +82,20 @@ void TensorView::replaceInterface(
 std::vector<std::shared_ptr<Iterator>> TensorView::getAllIterators() const {
     // We still need to add the reduced iterators. TODO
     return interface;
+}
+
+std::string TensorView::shapeToString(const BindingContext &ctx) const {
+    std::stringstream ss;
+    auto iterators = getAllIterators();
+    ss << "[";
+    for (int i = 0; i < iterators.size(); i++) {
+        if (i != 0) {
+            ss << ",";
+        }
+        ss << iterators[i]->size->toString(ctx);
+    }
+    ss << "]";
+    return ss.str();
 }
 
 } // namespace kas

@@ -19,6 +19,7 @@ void IteratorEvaluator::evaluateTensorAccess(const TensorView& tensor) {
         valueMap.emplace(iterator, std::make_shared<IteratorValue>(ss.str()));
         workingSet.push(iterator);
     }
+    // This can be further optimized if we maintain an ``available'' variable for each node when we traverse the graph, so that there would be no failed ``compute()''. TODO
     while (!workingSet.empty()) {
         auto iterator = workingSet.front();
         workingSet.pop();

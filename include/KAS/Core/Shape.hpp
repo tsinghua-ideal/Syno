@@ -72,6 +72,8 @@ public:
         const std::vector<int>& drops,
         const std::vector<std::pair<int, std::shared_ptr<Size>>>& adds
     ) const;
+
+    std::string toString(const BindingContext& ctx) const;
 };
 
 } // namespace kas

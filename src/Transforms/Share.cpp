@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <memory>
 #include <utility>
 
 #include "KAS/Transforms/Share.hpp"
@@ -27,8 +28,11 @@ Shape ShareShapeOp::transformShapeInverse(const Shape& outputShape) const {
 void ShareShapeOp::transformTensor(TensorView &tensor) const {
     KAS_ASSERT(tensor.interface.size() > output);
     KAS_ASSERT(inputLhs != inputRhs);
-    std::unique_ptr<MergeLikePrimitiveOp> op { new ShareOp { tensor[inputLhs], tensor[inputRhs] } };
-    auto it = std::make_shared<Iterator>(IteratorTransform { std::move(op) });
+    auto lhs = tensor[inputLhs], rhs = tensor[inputRhs];
+    std::unique_ptr<MergeLikePrimitiveOp> op { new ShareOp { lhs, rhs } };
+    KAS_ASSERT(lhs->size == rhs->size);
+    std::shared_ptr<Size> size = lhs->size;
+    auto it = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, std::move(size));
     tensor.replaceInterface({ inputLhs, inputRhs }, {
         std::make_pair(output, it)
     });

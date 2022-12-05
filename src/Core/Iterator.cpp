@@ -6,8 +6,9 @@
 
 namespace kas {
 
-Iterator::Iterator(IteratorTransform parent):
-    parent { std::move(parent) }
+Iterator::Iterator(IteratorTransform parent, std::shared_ptr<Size> size):
+    parent { std::move(parent) },
+    size { std::move(size) }
 {}
 
 namespace {

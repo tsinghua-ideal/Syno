@@ -29,6 +29,8 @@ public:
     TensorView buildTensorView();
 
     std::string accessToString() const;
+
+    std::string shapeToString(const BindingContext& ctx) const;
 };
 
 class TensorStub {
@@ -64,6 +66,9 @@ public:
 
     // This returns all iterators, including interface and reduced iterators.
     std::vector<std::shared_ptr<Iterator>> getAllIterators() const;
+
+    // Returns the shapes of all iterators, including reduced iterators.
+    std::string shapeToString(const BindingContext &ctx) const;
 };
 
 } // namespace kas
