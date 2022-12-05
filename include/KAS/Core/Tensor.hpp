@@ -80,6 +80,9 @@ public:
     // This returns all iterators, including interface and reduced iterators.
     std::vector<std::shared_ptr<Iterator>> getAllIterators() const;
 
+    // Returns something like "[i_0,i_1] with reduced [i_2]". When Blending is implemented, an additional argument may be passed. TODO
+    std::string accessToString() const;
+
     // Returns the shapes of all iterators, including reduced iterators.
     std::string shapeToString(const BindingContext &ctx) const;
 };

@@ -1,3 +1,4 @@
+#include <functional>
 #include <memory>
 #include <sstream>
 
@@ -125,16 +126,9 @@ Shape Shape::replace(
 }
 
 std::string Shape::toString(const BindingContext& ctx) const {
-    std::stringstream result;
-    result << "[";
-    for (int i = 0; i < sizes.size(); ++i) {
-        if (i != 0) {
-            result << ",";
-        }
-        result << sizes[i]->toString(ctx);
-    }
-    result << "]";
-    return result.str();
+    return VectorToString(sizes, std::function([&ctx](const std::shared_ptr<Size>& size) -> std::string {
+        return size->toString(ctx);
+    }));
 }
 
 } // namespace kas

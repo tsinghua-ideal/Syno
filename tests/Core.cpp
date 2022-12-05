@@ -35,7 +35,8 @@ TEST(core_tests, tensor) {
     auto tensorView = TensorView { tensor };
     auto evaluator = IteratorEvaluator { ctx };
     evaluator.evaluateTensorAccess(tensorView);
+    ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1,(c_0)1]");
     ASSERT_EQ(tensor->accessToString(), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensor->shapeToString(ctx), "[x_0,x_1,(c_0)1]");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1,(c_0)1]");
 }

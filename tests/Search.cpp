@@ -23,7 +23,7 @@ TEST(search_tests, shape_node) {
     auto tensorView = node2->buildTensorView();
     auto evaluator = IteratorEvaluator { ctx };
     evaluator.evaluateTensorAccess(tensorView);
-    ASSERT_EQ(tensorView.getAllIterators().size(), 3); // [i_0,i_1,i_2]
+    ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1] with reduced [i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1] with reduced [x_0x_1]");
     ASSERT_EQ(tensorView.tensor->accessToString(), "[i_2,i_0,i_0,i_1]");
     ASSERT_EQ(tensorView.tensor->shapeToString(ctx), "[x_0x_1,x_0,x_0,x_1]");

@@ -1,3 +1,4 @@
+#include <functional>
 #include <memory>
 #include <sstream>
 #include <utility>
@@ -30,16 +31,9 @@ TensorView PureTensor::buildTensorView() {
 }
 
 std::string PureTensor::accessToString() const {
-    std::stringstream ss;
-    ss << "[";
-    for (int i = 0; i < access.size(); i++) {
-        if (i != 0) {
-            ss << ",";
-        }
-        ss << access[i]->content;
-    }
-    ss << "]";
-    return ss.str();
+    return VectorToString(access, std::function([](const std::shared_ptr<IteratorValue>& value) {
+        return value->content;
+    }));
 }
 
 std::string PureTensor::shapeToString(const BindingContext& ctx) const {
@@ -110,28 +104,42 @@ std::vector<std::shared_ptr<Iterator>> TensorView::getAllIterators() const {
     return std::move(iterators);
 }
 
-std::string TensorView::shapeToString(const BindingContext &ctx) const {
+std::string TensorView::accessToString() const {
     std::stringstream ss;
     ss << "[";
     for (int i = 0; i < interface.size(); i++) {
         if (i != 0) {
             ss << ",";
         }
-        ss << interface[i]->size->toString(ctx);
+        ss << "i_" << i;
     }
     ss << "]";
     auto reducedIterators = getReducedIterators();
-    if (!reducedIterators.empty()) {
-        ss << " with reduced [";
-        for (int i = 0; i < reducedIterators.size(); i++) {
-            if (i != 0) {
-                ss << ",";
-            }
-            ss << reducedIterators[i]->size->toString(ctx);
-        }
-        ss << "]";
+    if (reducedIterators.empty()) {
+        return ss.str();
     }
+    ss << " with reduced [";
+    for (int i = interface.size(); i < interface.size() + reducedIterators.size(); i++) {
+        if (i != interface.size()) {
+            ss << ",";
+        }
+        ss << "i_" << i;
+    }
+    ss << "]";
     return ss.str();
+}
+
+std::string TensorView::shapeToString(const BindingContext &ctx) const {
+    auto mapper = std::function([&ctx](const std::shared_ptr<Iterator>& iterator) -> std::string {
+        return iterator->size->toString(ctx);
+    });
+    auto s1 = VectorToString(interface, mapper);
+    auto reducedIterators = getReducedIterators();
+    if (!reducedIterators.empty()) {
+        auto s2 = VectorToString(reducedIterators, mapper);
+        return s1 + " with reduced " + s2;
+    }
+    return s1;
 }
 
 } // namespace kas
