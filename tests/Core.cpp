@@ -17,9 +17,9 @@ TEST(core_tests, size) {
     ASSERT_EQ(sizeH->toString(ctx), "H");
     auto sizeW = ctx.getSinglePrimaryVariableSize(1);
     ASSERT_EQ(sizeW->toString(ctx), "W");
-    auto sizeHW = Size { std::vector<int> { 1, 1 }, std::vector<int>() };
-    ASSERT_EQ(*sizeH * *sizeW, sizeHW);
-    ASSERT_EQ(sizeHW.toString(ctx), "HW");
+    auto sizeHW = std::make_shared<Size>(std::vector<int> { 1, 1 }, std::vector<int>());
+    ASSERT_EQ(*(*sizeH * *sizeW), *sizeHW);
+    ASSERT_EQ(sizeHW->toString(ctx), "HW");
 }
 
 TEST(core_tests, tensor) {

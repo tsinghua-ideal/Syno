@@ -1,4 +1,6 @@
+#include <memory>
 #include <sstream>
+#include <utility>
 #include <vector>
 
 #include "KAS/Core/Tensor.hpp"
@@ -53,6 +55,10 @@ void TensorStub::setAccess(std::shared_ptr<IteratorValue> value) const {
     tensor->setAccess(std::move(value), index);
 }
 
+ReduceManipulation::ReduceManipulation(std::shared_ptr<Iterator> iterator):
+    iterator { std::move(iterator) }
+{}
+
 PureTensor::PureTensor(const Shape& shape):
     access { std::vector<std::shared_ptr<IteratorValue>>(shape.size(), nullptr) },
     shape { shape }
@@ -79,22 +85,52 @@ void TensorView::replaceInterface(
     interface.swap(replaced);
 }
 
+void TensorView::addManipulation(Manipulation manipulation) {
+    manipulations.push_back(std::move(manipulation));
+}
+
+std::vector<std::shared_ptr<Iterator>> TensorView::getReducedIterators() const {
+    std::vector<std::shared_ptr<Iterator>> reducedIterators {};
+    for (const auto& manipulation: manipulations) {
+        std::visit([&](auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, ReduceManipulation>) {
+                reducedIterators.push_back(arg.iterator);
+            }
+        }, manipulation);
+    }
+    return std::move(reducedIterators);
+}
+
 std::vector<std::shared_ptr<Iterator>> TensorView::getAllIterators() const {
-    // We still need to add the reduced iterators. TODO
-    return interface;
+    std::vector<std::shared_ptr<Iterator>> iterators(interface);
+    iterators.reserve(interface.size() + manipulations.size());
+    auto reducedIterators = getReducedIterators();
+    iterators.insert(iterators.end(), reducedIterators.begin(), reducedIterators.end());
+    return std::move(iterators);
 }
 
 std::string TensorView::shapeToString(const BindingContext &ctx) const {
     std::stringstream ss;
-    auto iterators = getAllIterators();
     ss << "[";
-    for (int i = 0; i < iterators.size(); i++) {
+    for (int i = 0; i < interface.size(); i++) {
         if (i != 0) {
             ss << ",";
         }
-        ss << iterators[i]->size->toString(ctx);
+        ss << interface[i]->size->toString(ctx);
     }
     ss << "]";
+    auto reducedIterators = getReducedIterators();
+    if (!reducedIterators.empty()) {
+        ss << " with reduced [";
+        for (int i = 0; i < reducedIterators.size(); i++) {
+            if (i != 0) {
+                ss << ",";
+            }
+            ss << reducedIterators[i]->size->toString(ctx);
+        }
+        ss << "]";
+    }
     return ss.str();
 }
 

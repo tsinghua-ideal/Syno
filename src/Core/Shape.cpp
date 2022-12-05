@@ -1,3 +1,4 @@
+#include <memory>
 #include <sstream>
 
 #include "KAS/Core/Shape.hpp"
@@ -7,7 +8,7 @@
 
 namespace kas {
 
-Size Size::operator*(const Size& other) const {
+std::shared_ptr<Size> Size::operator*(const Size& other) const {
     KAS_ASSERT(primary.size() == other.primary.size() && coefficient.size() == other.coefficient.size());
     std::vector<int> newPrimary { primary };
     std::vector<int> newCoefficient { coefficient };
@@ -17,7 +18,7 @@ Size Size::operator*(const Size& other) const {
     for (int i = 0; i < coefficient.size(); ++i) {
         newCoefficient[i] += other.coefficient[i];
     }
-    return Size { std::move(newPrimary), std::move(newCoefficient) };
+    return std::make_shared<Size>(std::move(newPrimary), std::move(newCoefficient));
 }
 
 bool Size::operator==(const Size& other) const {

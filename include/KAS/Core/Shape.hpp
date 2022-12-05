@@ -24,7 +24,7 @@ public:
     {}
 
     // The product of two Size's
-    Size operator*(const Size& other) const;
+    std::shared_ptr<Size> operator*(const Size& other) const;
 
     bool operator==(const Size& other) const;
 
@@ -61,8 +61,8 @@ public:
     Shape() = delete;
     Shape(const Shape& shape) = default;
     Shape(Shape&& shape) = default;
-    Shape(const std::vector<std::shared_ptr<Size>>& sizes);
-    Shape(std::vector<std::shared_ptr<Size>>&& sizes);
+    explicit Shape(const std::vector<std::shared_ptr<Size>>& sizes);
+    explicit Shape(std::vector<std::shared_ptr<Size>>&& sizes);
 
     size_t size() const;
     const std::shared_ptr<Size>& operator[](size_t index) const;

@@ -1,1 +1,1 @@
-add_library(transforms-lib STATIC Share.cpp)
+add_library(transforms-lib STATIC Reduce.cpp Share.cpp)

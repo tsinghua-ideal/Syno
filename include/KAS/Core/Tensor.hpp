@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <variant>
 #include <vector>
 
 #include "KAS/Core/Shape.hpp"
@@ -42,10 +43,17 @@ public:
     void setAccess(std::shared_ptr<IteratorValue> value) const;
 };
 
-// Reduce, Map
-class Manipulation {
+class ReduceManipulation {
+public:
+    std::shared_ptr<Iterator> iterator;
+    ReduceManipulation(std::shared_ptr<Iterator> iterator);
+};
+
+class MapManipulation {
 
 };
+
+using Manipulation = std::variant<ReduceManipulation, MapManipulation>;
 
 class TensorView {
 public:
@@ -63,6 +71,11 @@ public:
         const std::vector<int>& drops,
         const std::vector<std::pair<int, std::shared_ptr<Iterator>>>& adds
     );
+
+    void addManipulation(Manipulation manipulation);
+
+    // Returns reduced iterators.
+    std::vector<std::shared_ptr<Iterator>> getReducedIterators() const;
 
     // This returns all iterators, including interface and reduced iterators.
     std::vector<std::shared_ptr<Iterator>> getAllIterators() const;
