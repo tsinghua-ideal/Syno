@@ -10,4 +10,5 @@ endfunction()
 # Tests
 add_kas_test(core-tests Core.cpp)
 add_kas_test(search-tests Search.cpp)
+add_kas_test(transforms-tests Transforms.cpp)
 add_kas_test(utils-tests Utils.cpp)

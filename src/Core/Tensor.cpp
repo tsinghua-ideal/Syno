@@ -50,10 +50,6 @@ void TensorStub::setAccess(std::shared_ptr<IteratorValue> value) const {
     tensor->setAccess(std::move(value), index);
 }
 
-ReduceManipulation::ReduceManipulation(std::shared_ptr<Iterator> iterator):
-    iterator { std::move(iterator) }
-{}
-
 PureTensor::PureTensor(const Shape& shape):
     access { std::vector<std::shared_ptr<IteratorValue>>(shape.size(), nullptr) },
     shape { shape }
@@ -63,6 +59,10 @@ TensorView::TensorView(std::shared_ptr<PureTensor> tensor):
     interface { tensor->getInterface() },
     manipulations {},
     tensor { std::move(tensor) }
+{}
+
+TensorView::TensorView(const Shape& shape):
+    TensorView { std::make_shared<PureTensor>(shape) }
 {}
 
 size_t TensorView::size() const {
@@ -105,6 +105,19 @@ std::vector<std::shared_ptr<Iterator>> TensorView::getReducedIterators() const {
     return reducedIterators;
 }
 
+std::vector<MapManipulation> TensorView::getMaps() const {
+    std::vector<MapManipulation> maps {};
+    for (const auto& manipulation: manipulations) {
+        std::visit([&](auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, MapManipulation>) {
+                maps.push_back(arg);
+            }
+        }, manipulation);
+    }
+    return maps;
+}
+
 std::vector<std::shared_ptr<Iterator>> TensorView::getAllIterators() const {
     std::vector<std::shared_ptr<Iterator>> iterators(interface);
     iterators.reserve(interface.size() + manipulations.size());
@@ -129,17 +142,23 @@ std::string TensorView::accessToString() const {
     }
     ss << "]";
     auto reducedIterators = getReducedIterators();
-    if (reducedIterators.empty()) {
-        return ss.str();
-    }
-    ss << " with reduced [";
-    for (int i = interface.size(); i < interface.size() + reducedIterators.size(); i++) {
-        if (i != interface.size()) {
-            ss << ",";
+    if (!reducedIterators.empty()) {
+        ss << " with reduced [";
+        for (int i = interface.size(); i < interface.size() + reducedIterators.size(); i++) {
+            if (i != interface.size()) {
+                ss << ",";
+            }
+            ss << "i_" << i;
         }
-        ss << "i_" << i;
+        ss << "]";
     }
-    ss << "]";
+    auto maps = getMaps();
+    if (!maps.empty()) {
+        ss << " with mapped ";
+        ss << VectorToString(maps, std::function([](const MapManipulation& map) {
+            return map.what();
+        }));
+    }
     return ss.str();
 }
 

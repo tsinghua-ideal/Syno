@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "KAS/Core/Manipulation.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
@@ -11,7 +12,8 @@ class ReduceShapeOp: public PrimitiveShapeOp {
 public:
     int input;
     std::shared_ptr<Size> size;
-    ReduceShapeOp(int input, std::shared_ptr<Size> size);
+    ReduceManipulation::Type type;
+    ReduceShapeOp(int input, std::shared_ptr<Size> size, ReduceManipulation::Type type);
     virtual Shape transformShapeInverse(const Shape& input) const override;
     virtual void transformTensor(TensorView& tensor) const override;
 };

@@ -18,7 +18,7 @@ TEST(search_tests, shape_node) {
     auto shape = Shape { std::vector<std::shared_ptr<Size>> { sizeH, sizeW } };
     std::shared_ptr<ShapeNode> root = std::make_shared<ShapeNode>(shape);
     auto node1 = std::make_shared<ShapeNode>(root, std::move(std::make_unique<ShareShapeOp>(0, 1, 0)));
-    auto node2 = std::make_shared<ShapeNode>(node1, std::move(std::make_unique<ReduceShapeOp>(0, *sizeH * *sizeW)));
+    auto node2 = std::make_shared<ShapeNode>(node1, std::move(std::make_unique<ReduceShapeOp>(0, *sizeH * *sizeW, ReduceManipulation::Type::Sum)));
     auto tensorView = node2->buildTensorView();
     tensorView.evaluateTensorAccess(ctx);
     ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1] with reduced [i_2]");

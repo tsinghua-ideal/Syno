@@ -9,9 +9,10 @@
 
 namespace kas {
 
-ReduceShapeOp::ReduceShapeOp(int input, std::shared_ptr<Size> size):
+ReduceShapeOp::ReduceShapeOp(int input, std::shared_ptr<Size> size, ReduceManipulation::Type type):
     input { input },
-    size { std::move(size) }
+    size { std::move(size) },
+    type { type }
 {}
 
 Shape ReduceShapeOp::transformShapeInverse(const Shape& output) const {
@@ -26,7 +27,7 @@ void ReduceShapeOp::transformTensor(TensorView &tensor) const {
     auto outputIt = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, size);
     tensor.replaceInterface({ input }, {});
     // This is special for Reduce: we need to add it to reducedIterators
-    tensor.addManipulation(Manipulation { ReduceManipulation { outputIt } });
+    tensor.addManipulation(Manipulation { ReduceManipulation { outputIt, type } });
 }
 
 ReduceOp::ReduceOp(std::shared_ptr<Iterator> parent):

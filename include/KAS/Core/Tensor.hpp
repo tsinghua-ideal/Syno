@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "KAS/Core/Shape.hpp"
+#include "KAS/Core/Manipulation.hpp"
 
 
 namespace kas {
@@ -43,18 +44,6 @@ public:
     void setAccess(std::shared_ptr<IteratorValue> value) const;
 };
 
-class ReduceManipulation {
-public:
-    std::shared_ptr<Iterator> iterator;
-    ReduceManipulation(std::shared_ptr<Iterator> iterator);
-};
-
-class MapManipulation {
-
-};
-
-using Manipulation = std::variant<ReduceManipulation, MapManipulation>;
-
 class TensorView {
 protected:
     std::vector<std::shared_ptr<Iterator>> interface;
@@ -63,6 +52,7 @@ protected:
 
 public:
     TensorView(std::shared_ptr<PureTensor> tensor);
+    TensorView(const Shape& shape);
 
     size_t size() const;
     const std::shared_ptr<Iterator>& operator[](int index) const;
@@ -84,6 +74,9 @@ public:
 
     // Returns reduced iterators.
     std::vector<std::shared_ptr<Iterator>> getReducedIterators() const;
+
+    // Returns maps.
+    std::vector<MapManipulation> getMaps() const;
 
     // This returns all iterators, including interface and reduced iterators.
     std::vector<std::shared_ptr<Iterator>> getAllIterators() const;
