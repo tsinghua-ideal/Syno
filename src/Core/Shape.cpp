@@ -9,6 +9,15 @@
 
 namespace kas {
 
+bool Size::isCoefficient() const {
+    for (int dim: primary) {
+        if (dim < 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 std::shared_ptr<Size> Size::operator*(const Size& other) const {
     KAS_ASSERT(primary.size() == other.primary.size() && coefficient.size() == other.coefficient.size());
     std::vector<int> newPrimary { primary };
@@ -22,6 +31,21 @@ std::shared_ptr<Size> Size::operator*(const Size& other) const {
     return std::make_shared<Size>(std::move(newPrimary), std::move(newCoefficient));
 }
 
+std::shared_ptr<Size> Size::operator/(const Size &other) const {
+    KAS_ASSERT(primary.size() == other.primary.size() && coefficient.size() == other.coefficient.size());
+    std::vector<int> newPrimary { primary };
+    std::vector<int> newCoefficient { coefficient };
+    for (int i = 0; i < primary.size(); ++i) {
+        newPrimary[i] -= other.primary[i];
+        // Ensure that no primary variable is in denominator
+        KAS_ASSERT(newPrimary[i] >= 0);
+    }
+    for (int i = 0; i < coefficient.size(); ++i) {
+        newCoefficient[i] -= other.coefficient[i];
+    }
+    return std::make_shared<Size>(std::move(newPrimary), std::move(newCoefficient));
+}
+
 bool Size::operator==(const Size& other) const {
     return primary == other.primary && coefficient == other.coefficient;
 }
@@ -31,6 +55,7 @@ std::string Size::toString(const BindingContext& ctx) const {
     std::stringstream result;
     bool hasCoefficient = false;
     result << "(";
+    bool hasNominator = false;
     bool hasDenominator = false;
     std::stringstream denominator;
     for (int i = 0; i < coefficient.size(); ++i) {
@@ -43,11 +68,15 @@ std::string Size::toString(const BindingContext& ctx) const {
             }
         } else if (coefficient[i] > 0) {
             hasCoefficient = true;
+            hasNominator = true;
             result << ctx.coefficientMetadata[i].alias;
             if (coefficient[i] != 1) {
                 result << "^" << coefficient[i];
             }
         }
+    }
+    if (!hasNominator) {
+        result << "1";
     }
     if (hasDenominator) {
         result << "/" << denominator.str() << ")";

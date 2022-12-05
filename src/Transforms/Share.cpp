@@ -34,7 +34,7 @@ void ShareShapeOp::transformTensor(TensorView &tensor) const {
     std::shared_ptr<Size> size = lhs->getSize();
     auto it = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, std::move(size));
     tensor.replaceInterface({ inputLhs, inputRhs }, {
-        std::make_pair(output, it)
+        std::make_pair(output, std::move(it))
     });
 }
 
@@ -42,7 +42,7 @@ ShareOp::ShareOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> 
     MergeLikePrimitiveOp { std::move(parentLhs), std::move(parentRhs) }
 {}
 
-DoubleIteratorValue ShareOp::value(SingleIteratorValue output) const {
+DoubleIteratorValue ShareOp::value(SingleIteratorValue output, const BindingContext& ctx) const {
     return { output, output };
 }
 

@@ -52,3 +52,37 @@ TEST_F(transforms_tests, map) {
     ASSERT_EQ(tensorView.getUnderlyingTensor()->accessToString(), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[H,W,(c)H]");
 }
+
+TEST_F(transforms_tests, shift) {
+    ShiftShapeOp shiftOp { 0, 0, 1 };
+    auto tensorView = TensorView { shiftOp.transformShapeInverse(shape) };
+    shiftOp.transformTensor(tensorView);
+    tensorView.evaluateTensorAccess(ctx);
+    ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->accessToString(), "[(i_0+1+H)%(H),i_1,i_2]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[H,W,(c)H]");
+}
+
+TEST_F(transforms_tests, stride) {
+    StrideShapeOp strideOp { 0, 0, sizeC };
+    auto tensorView = TensorView { strideOp.transformShapeInverse(shape) };
+    strideOp.transformTensor(tensorView);
+    tensorView.evaluateTensorAccess(ctx);
+    ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->accessToString(), "[(c)1*i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[(c)H,W,(c)H]");
+}
+
+TEST_F(transforms_tests, unfold) {
+    Shape shape { std::vector<std::shared_ptr<Size>> { sizeH, sizeW, sizeC } };
+    UnfoldShapeOp unfoldOp { 0, 0, 2 };
+    auto tensorView = TensorView { unfoldOp.transformShapeInverse(shape) };
+    unfoldOp.transformTensor(tensorView);
+    tensorView.evaluateTensorAccess(ctx);
+    ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->accessToString(), "[(i_0+i_2-(c)1/2),i_1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[H,W]");
+}

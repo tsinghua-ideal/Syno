@@ -8,8 +8,8 @@ MapShapeOp::MapShapeOp(MapManipulation::Type type):
     type { type }
 {}
 
-Shape MapShapeOp::transformShapeInverse(const Shape& input) const {
-    return input;
+Shape MapShapeOp::transformShapeInverse(const Shape& output) const {
+    return output;
 }
 
 void MapShapeOp::transformTensor(TensorView &tensor) const {

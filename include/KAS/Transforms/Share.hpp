@@ -19,7 +19,7 @@ public:
 class ShareOp: public MergeLikePrimitiveOp {
 public:
     ShareOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> parentRhs);
-    virtual DoubleIteratorValue value(SingleIteratorValue output) const override;
+    virtual DoubleIteratorValue value(SingleIteratorValue output, const BindingContext& ctx) const override;
 };
 
 } // namespace kas

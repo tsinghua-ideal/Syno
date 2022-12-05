@@ -1,4 +1,5 @@
 #include "KAS/Core/Iterator.hpp"
+#include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Core/IteratorEvaluator.hpp"
 #include <memory>
@@ -14,6 +15,7 @@ Iterator::Iterator(IteratorTransform parent, std::shared_ptr<Size> size):
 namespace {
     class IteratorTransformVisitor {
     public:
+        const BindingContext& ctx;
         std::queue<std::shared_ptr<Iterator>>& workingSet;
         IteratorValueMap& valueMap;
         const std::shared_ptr<Iterator>& thisIterator;
@@ -23,13 +25,13 @@ namespace {
                 return true;
             }
             auto input = repeatLikeOp->value(
-                valueMap.at(thisIterator)
+                valueMap.at(thisIterator), ctx
             );
             valueMap.emplace(repeatLikeOp->parent, input);
             workingSet.push(repeatLikeOp->parent);
             return true;
         }
-        bool operator()(std::unique_ptr<SplitLikePrimitiveOp>& splitLikeOp) {
+        bool operator()(std::shared_ptr<SplitLikePrimitiveOp>& splitLikeOp) {
             auto result = valueMap.find(splitLikeOp->parent);
             if (result != valueMap.end()) {
                 return true;
@@ -44,7 +46,7 @@ namespace {
             auto input = splitLikeOp->value({
                 outputLhs->second, 
                 outputRhs->second
-            });
+            }, ctx);
             valueMap.emplace(splitLikeOp->parent, input);
             workingSet.push(splitLikeOp->parent);
             return true;
@@ -55,7 +57,7 @@ namespace {
                 return true;
             }
             auto [inputLhs, inputRhs] = mergeLikeOp->value(
-                valueMap.at(thisIterator)
+                valueMap.at(thisIterator), ctx
             );
             valueMap.emplace(mergeLikeOp->parentLhs, inputLhs);
             workingSet.push(mergeLikeOp->parentLhs);
@@ -68,6 +70,7 @@ namespace {
             return true;
         }
         IteratorTransformVisitor(IteratorEvaluator& evaluator, const std::shared_ptr<Iterator>& thisIterator):
+            ctx { evaluator.bindingContext },
             workingSet { evaluator.workingSet },
             valueMap { evaluator.valueMap },
             thisIterator { thisIterator }

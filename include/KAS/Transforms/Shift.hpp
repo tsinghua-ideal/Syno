@@ -2,25 +2,26 @@
 
 #include <memory>
 
-#include "KAS/Core/Manipulation.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
 namespace kas {
 
-class ReduceShapeOp: public PrimitiveShapeOp {
+class ShiftShapeOp: public PrimitiveShapeOp {
 public:
     int input;
-    std::shared_ptr<Size> size;
-    ReduceManipulation::Type type;
-    ReduceShapeOp(int input, std::shared_ptr<Size> size, ReduceManipulation::Type type);
+    int output;
+    // Not very sure how to represent shift. TODO
+    int shift;
+    ShiftShapeOp(int input, int output, int shift);
     virtual Shape transformShapeInverse(const Shape& input) const override;
     virtual void transformTensor(TensorView& tensor) const override;
 };
 
-class ReduceOp: public RepeatLikePrimitiveOp {
+class ShiftOp: public RepeatLikePrimitiveOp {
 public:
-    ReduceOp(std::shared_ptr<Iterator> parent);
+    int shift;
+    ShiftOp(std::shared_ptr<Iterator> parent, int shift);
     virtual SingleIteratorValue value(SingleIteratorValue output, const BindingContext& ctx) const override;
 };
 

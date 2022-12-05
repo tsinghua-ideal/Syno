@@ -27,14 +27,14 @@ void ReduceShapeOp::transformTensor(TensorView &tensor) const {
     auto outputIt = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, size);
     tensor.replaceInterface({ input }, {});
     // This is special for Reduce: we need to add it to reducedIterators
-    tensor.addManipulation(Manipulation { ReduceManipulation { outputIt, type } });
+    tensor.addManipulation(Manipulation { ReduceManipulation { std::move(outputIt), type } });
 }
 
 ReduceOp::ReduceOp(std::shared_ptr<Iterator> parent):
     RepeatLikePrimitiveOp { std::move(parent) }
 {}
 
-SingleIteratorValue ReduceOp::value(SingleIteratorValue output) const {
+SingleIteratorValue ReduceOp::value(SingleIteratorValue output, const BindingContext& ctx) const {
     return output;
 }
 

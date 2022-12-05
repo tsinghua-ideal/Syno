@@ -1,3 +1,6 @@
 #include "KAS/Transforms/Map.hpp"
 #include "KAS/Transforms/Reduce.hpp"
 #include "KAS/Transforms/Share.hpp"
+#include "KAS/Transforms/Shift.hpp"
+#include "KAS/Transforms/Stride.hpp"
+#include "KAS/Transforms/Unfold.hpp"

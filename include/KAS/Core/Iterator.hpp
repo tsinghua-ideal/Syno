@@ -13,7 +13,7 @@ namespace kas {
 
 using IteratorTransform = std::variant<
     std::unique_ptr<RepeatLikePrimitiveOp>,
-    std::unique_ptr<SplitLikePrimitiveOp>,
+    std::shared_ptr<SplitLikePrimitiveOp>,
     std::unique_ptr<MergeLikePrimitiveOp>,
     TensorStub
 >;

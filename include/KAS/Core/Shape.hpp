@@ -23,8 +23,14 @@ public:
         coefficient { std::forward<Tc>(coefficient) }
     {}
 
+    // Returns whether there are no primary variables.
+    bool isCoefficient() const;
+
     // The product of two Size's
     std::shared_ptr<Size> operator*(const Size& other) const;
+
+    // The quotient of two Size's
+    std::shared_ptr<Size> operator/(const Size& other) const;
 
     bool operator==(const Size& other) const;
 
