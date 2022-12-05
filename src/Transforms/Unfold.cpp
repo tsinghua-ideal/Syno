@@ -26,7 +26,7 @@ Shape UnfoldShapeOp::transformShapeInverse(const Shape& outputShape) const {
 void UnfoldShapeOp::transformTensor(TensorView& tensor) const {
     KAS_ASSERT(windowSize); // transformShapeInverse() must be called before this!
     auto inputIt = tensor[input];
-    std::shared_ptr<UnfoldOp> op { new UnfoldOp { inputIt, std::weak_ptr<Iterator>(), std::weak_ptr<Iterator>(), windowSize } };
+    std::shared_ptr<SplitLikePrimitiveOp> op { new UnfoldOp { inputIt, std::weak_ptr<Iterator>(), std::weak_ptr<Iterator>() } };
     auto outputMajor = std::make_shared<Iterator>(IteratorTransform { op }, inputIt->getSize());
     auto outputMinor = std::make_shared<Iterator>(IteratorTransform { op }, windowSize);
     op->childLhs = outputMajor;
@@ -34,15 +34,14 @@ void UnfoldShapeOp::transformTensor(TensorView& tensor) const {
     tensor.replaceInterface({ input }, { std::make_pair(outputOriginal, std::move(outputMajor)), std::make_pair(outputWindow, std::move(outputMinor)) });
 }
 
-UnfoldOp::UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs, std::shared_ptr<Size> window):
-    SplitLikePrimitiveOp { parent, childLhs, childRhs },
-    window { window }
+UnfoldOp::UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs):
+    SplitLikePrimitiveOp { parent, childLhs, childRhs }
 {}
 
 SingleIteratorValue UnfoldOp::value(DoubleIteratorValue output, const BindingContext& ctx) const {
     auto [outputMajor, outputMinor] = std::move(output);
     std::stringstream ss;
-    ss << "(" << outputMajor->content << "+" << outputMinor->content << "-" << window->toString(ctx) << "/2)";
+    ss << "(" << outputMajor->content << "+" << outputMinor->content << "-" << childRhs.lock()->getSize()->toString(ctx) << "/2)";
     return std::make_shared<IteratorValue>(ss.str());
 }
 

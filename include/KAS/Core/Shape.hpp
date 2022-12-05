@@ -75,8 +75,8 @@ public:
 
     // drops and adds must be sorted by index
     Shape replace(
-        const std::vector<int>& drops,
-        const std::vector<std::pair<int, std::shared_ptr<Size>>>& adds
+        std::vector<int> drops,
+        std::vector<std::pair<int, std::shared_ptr<Size>>> adds
     ) const;
 
     std::string toString(const BindingContext& ctx) const;

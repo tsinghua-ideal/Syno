@@ -59,8 +59,8 @@ public:
 
     // drops and adds must be sorted by index
     void replaceInterface(
-        const std::vector<int>& drops,
-        const std::vector<std::pair<int, std::shared_ptr<Iterator>>>& adds
+        std::vector<int> drops,
+        std::vector<std::pair<int, std::shared_ptr<Iterator>>> adds
     );
 
     // A manipulation is a transform of the data in a tensor, not just the way of accessing it. This includes Map and Reduce.

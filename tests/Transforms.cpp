@@ -86,3 +86,25 @@ TEST_F(transforms_tests, unfold) {
     ASSERT_EQ(tensorView.getUnderlyingTensor()->accessToString(), "[(i_0+i_2-(c)1/2),i_1]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[H,W]");
 }
+
+TEST_F(transforms_tests, merge) {
+    MergeShapeOp mergeOp { 0, 1, 2, sizeH };
+    auto tensorView = TensorView { mergeOp.transformShapeInverse(shape) };
+    mergeOp.transformTensor(tensorView);
+    tensorView.evaluateTensorAccess(ctx);
+    ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->accessToString(), "[(i_2)/(H),(i_2)%(H),i_0,i_1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[(c)1,H,H,W]");
+}
+
+TEST_F(transforms_tests, split) {
+    SplitShapeOp splitOp { 0, 0, 1 };
+    auto tensorView = TensorView { splitOp.transformShapeInverse(shape) };
+    splitOp.transformTensor(tensorView);
+    tensorView.evaluateTensorAccess(ctx);
+    ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->accessToString(), "[(i_0)*(W)+(i_1),i_2]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[HW,(c)H]");
+}

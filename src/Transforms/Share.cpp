@@ -11,8 +11,8 @@
 namespace kas {
 
 ShareShapeOp::ShareShapeOp(int inputLhs, int inputRhs, int output):
-    inputLhs { std::min(inputLhs, inputRhs) },
-    inputRhs { std::max(inputLhs, inputRhs) },
+    inputLhs { inputLhs },
+    inputRhs { inputRhs },
     output { output }
 {}
 

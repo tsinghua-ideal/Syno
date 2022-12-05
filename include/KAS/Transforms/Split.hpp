@@ -1,28 +1,26 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
 namespace kas {
 
-class UnfoldShapeOp: public PrimitiveShapeOp {
+class SplitShapeOp: public PrimitiveShapeOp {
 public:
     int input;
-    int outputOriginal, outputWindow;
+    int outputMajor, outputMinor;
     // A bit ugly, but we have to maintain the size here.
-    mutable std::shared_ptr<Size> windowSize;
-    UnfoldShapeOp(int input, int outputOriginal, int outputWindow);
+    mutable std::shared_ptr<Size> block;
+    SplitShapeOp(int input, int outputMajor, int outputMinor);
     virtual Shape transformShapeInverse(const Shape& input) const override;
     virtual void transformTensor(TensorView& tensor) const override;
 };
 
-class UnfoldOp: public SplitLikePrimitiveOp {
+class SplitOp: public SplitLikePrimitiveOp {
 public:
-    std::shared_ptr<Size> window;
-    UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs);
+    SplitOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs);
     virtual SingleIteratorValue value(DoubleIteratorValue output, const BindingContext& ctx) const override;
 };
 

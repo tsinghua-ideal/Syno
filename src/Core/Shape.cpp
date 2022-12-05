@@ -148,8 +148,8 @@ const std::shared_ptr<Size>& Shape::operator[](size_t index) const {
 }
 
 Shape Shape::replace(
-    const std::vector<int>& drops,
-    const std::vector<std::pair<int, std::shared_ptr<Size>>>& adds
+    std::vector<int> drops,
+    std::vector<std::pair<int, std::shared_ptr<Size>>> adds
 ) const {
     return Shape { ReplaceVector(sizes, drops, adds) };
 }

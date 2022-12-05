@@ -11,9 +11,14 @@ namespace kas {
 template<typename T>
 std::vector<T> ReplaceVector(
     const std::vector<T>& vec, 
-    const std::vector<int>& drops,
-    const std::vector<std::pair<int, T>>& adds
+    std::vector<int>& drops,
+    std::vector<std::pair<int, T>>& adds
 ) {
+    std::sort(drops.begin(), drops.end());
+    std::sort(adds.begin(), adds.end(), std::function([](const std::pair<int, T>& a, const std::pair<int, T>& b) -> bool {
+        return a.first < b.first;
+    }));
+
     std::vector<T> newVec;
     newVec.reserve(vec.size() + adds.size() - drops.size());
 

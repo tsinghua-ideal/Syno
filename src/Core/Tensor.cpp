@@ -73,8 +73,8 @@ const std::shared_ptr<Iterator>& TensorView::operator[](int index) const {
 }
 
 void TensorView::replaceInterface(
-    const std::vector<int>& drops,
-    const std::vector<std::pair<int, std::shared_ptr<Iterator>>>& adds
+    std::vector<int> drops,
+    std::vector<std::pair<int, std::shared_ptr<Iterator>>> adds
 ) {
     auto replaced = ReplaceVector(interface, drops, adds);
     interface.swap(replaced);
