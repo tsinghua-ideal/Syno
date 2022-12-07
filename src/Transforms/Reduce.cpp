@@ -23,7 +23,7 @@ void ReduceShapeOp::transformTensor(TensorView &tensor) const {
     KAS_ASSERT(tensor.getInterfaceIterators().size() > input);
     auto inputIt = tensor[input];
     std::unique_ptr<RepeatLikePrimitiveOp> op { new ReduceOp { inputIt } };
-    KAS_ASSERT(size == inputIt->getSize());
+    KAS_ASSERT(*size == *inputIt->getSize());
     auto outputIt = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, size);
     tensor.replaceInterface({ input }, {});
     // This is special for Reduce: we need to add it to reducedIterators

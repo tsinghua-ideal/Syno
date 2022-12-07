@@ -30,7 +30,7 @@ void ShareShapeOp::transformTensor(TensorView &tensor) const {
     KAS_ASSERT(inputLhs != inputRhs);
     auto lhs = tensor[inputLhs], rhs = tensor[inputRhs];
     std::unique_ptr<MergeLikePrimitiveOp> op { new ShareOp { lhs, rhs } };
-    KAS_ASSERT(lhs->getSize() == rhs->getSize());
+    KAS_ASSERT(*lhs->getSize() == *rhs->getSize());
     std::shared_ptr<Size> size = lhs->getSize();
     auto it = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, std::move(size));
     tensor.replaceInterface({ inputLhs, inputRhs }, {

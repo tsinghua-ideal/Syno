@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <memory>
 #include <variant>
 #include <vector>
@@ -26,9 +27,8 @@ public:
 
     void setAccess(std::shared_ptr<IteratorValue> value, int index);
 
-    std::vector<std::shared_ptr<Iterator>> getInterface();
-
-    TensorView buildTensorView();
+    // proxy: index of iterator in interface -> index of dimension in tensor
+    std::vector<std::shared_ptr<Iterator>> getInterface(const std::optional<std::vector<int>>& proxy);
 
     std::string accessToString() const;
 
@@ -51,7 +51,8 @@ protected:
     const std::shared_ptr<PureTensor> tensor;
 
 public:
-    TensorView(std::shared_ptr<PureTensor> tensor);
+    // proxy: index of iterator in interface -> index of dimension in tensor
+    TensorView(std::shared_ptr<PureTensor> tensor, const std::optional<std::vector<int>>& proxy);
     TensorView(const Shape& shape);
 
     size_t size() const;

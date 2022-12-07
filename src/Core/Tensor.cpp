@@ -1,5 +1,6 @@
 #include <functional>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <utility>
 #include <vector>
@@ -18,17 +19,17 @@ void PureTensor::setAccess(std::shared_ptr<IteratorValue> value, int index) {
     access[index] = std::move(value);
 }
 
-std::vector<std::shared_ptr<Iterator>> PureTensor::getInterface() {
+std::vector<std::shared_ptr<Iterator>> PureTensor::getInterface(const std::optional<std::vector<int>>& proxy) {
     std::vector<std::shared_ptr<Iterator>> interface;
     interface.reserve(shape.size());
     for (int i = 0; i < shape.size(); i++) {
-        interface.push_back(std::make_shared<Iterator>(IteratorTransform { TensorStub { shared_from_this(), i } }, shape[i]));
+        int actual = i;
+        if (proxy) {
+            actual = proxy.value()[i];
+        }
+        interface.push_back(std::make_shared<Iterator>(IteratorTransform { TensorStub { shared_from_this(), actual } }, shape[actual]));
     }
     return interface;
-}
-
-TensorView PureTensor::buildTensorView() {
-    return TensorView { shared_from_this() };
 }
 
 std::string PureTensor::accessToString() const {
@@ -55,14 +56,14 @@ PureTensor::PureTensor(const Shape& shape):
     shape { shape }
 {}
 
-TensorView::TensorView(std::shared_ptr<PureTensor> tensor):
-    interface { tensor->getInterface() },
+TensorView::TensorView(std::shared_ptr<PureTensor> tensor, const std::optional<std::vector<int>>& proxy):
+    interface { tensor->getInterface(std::move(proxy)) },
     manipulations {},
     tensor { std::move(tensor) }
 {}
 
 TensorView::TensorView(const Shape& shape):
-    TensorView { std::make_shared<PureTensor>(shape) }
+    TensorView { std::make_shared<PureTensor>(shape), std::nullopt }
 {}
 
 size_t TensorView::size() const {

@@ -1,4 +1,5 @@
 #include <memory>
+#include <optional>
 #include <vector>
 #include <gtest/gtest.h>
 
@@ -33,10 +34,18 @@ TEST(core_tests, tensor) {
     ASSERT_EQ(sizeC->toString(ctx), "(c_0)1");
     auto shape = Shape { std::vector<std::shared_ptr<Size>> { sizeH, sizeW, sizeC } };
     auto tensor = std::make_shared<PureTensor>(shape);
-    auto tensorView = TensorView { tensor };
+    auto tensorView = TensorView { tensor, std::nullopt };
     tensorView.evaluateTensorAccess(ctx);
     ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1,(c_0)1]");
     ASSERT_EQ(tensor->accessToString(), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensor->shapeToString(ctx), "[x_0,x_1,(c_0)1]");
+}
+
+TEST(core_tests, parse_shape_names) {
+    auto parsedNames1 = Shape::parseNames("[N,C,H,W]");
+    auto parsedNames2 = Shape::parseNames(" [ N ,C,H,   W ]");
+    auto realNames = std::vector<std::string> { "N", "C", "H", "W" };
+    ASSERT_EQ(parsedNames1, realNames);
+    ASSERT_EQ(parsedNames2, realNames);
 }

@@ -14,13 +14,18 @@ class IteratorValue;
 
 class PrimitiveShapeOp {
 public:
+    // During the search, what we only care is the shape of the tensor. This function transforms the shape of the tensor in a bottom-up way, and ignores the actual semantics of a primitive.
     virtual Shape transformShapeInverse(const Shape& input) const = 0;
+    // After the search, when the resulting tensor has a shape that is verified to be eligible, we can build the TensorView, which is a series of transforms on a tensor. The semantics are implemented rather than by this class, by the PrimitiveOp's defined below. They are inserted by this function to the TensorView.
     virtual void transformTensor(TensorView& tensor) const = 0;
 };
+
+// There are 3 kinds of PrimitiveOp's, listed below. Those classes can transform the Iterator, from those that index the output tensor, to forms that index the original tensors. So this is also kind of bottom-up.
 
 using SingleIteratorValue = std::shared_ptr<IteratorValue>;
 using DoubleIteratorValue = std::pair<SingleIteratorValue, SingleIteratorValue>;
 
+// By repeat-like, we refer to the primitives that have one input iterator and one output iterator.
 class RepeatLikePrimitiveOp {
 public:
     std::shared_ptr<Iterator> parent;
@@ -30,6 +35,7 @@ public:
     virtual SingleIteratorValue value(SingleIteratorValue output, const BindingContext& ctx) const = 0;
 };
 
+// By split-like, we refer to the primitives that have one input iterator and two output iterators.
 class SplitLikePrimitiveOp {
 public:
     std::shared_ptr<Iterator> parent;
@@ -40,6 +46,7 @@ public:
     virtual SingleIteratorValue value(DoubleIteratorValue output, const BindingContext& ctx) const = 0;
 };
 
+// By merge-like, we refer to the primitives that have two input iterators and one output iterator.
 class MergeLikePrimitiveOp {
 public:
     std::shared_ptr<Iterator> parentLhs, parentRhs;

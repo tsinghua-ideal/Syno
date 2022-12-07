@@ -3,11 +3,13 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <optional>
 
 
 namespace kas {
 
 class BindingContext;
+class Shape;
 
 struct Size {
 public:
@@ -25,6 +27,11 @@ public:
 
     // Returns whether there are no primary variables.
     bool isCoefficient() const;
+    // Returns whether the powers of all primary variables are greater than equal to that of the input.
+    bool isMultipleOf(const Size& factor) const;
+
+    std::vector<std::shared_ptr<Size>> sampleFactors() const;
+    
 
     // The product of two Size's
     std::shared_ptr<Size> operator*(const Size& other) const;
@@ -45,6 +52,7 @@ public:
         Metadata() = default;
         Metadata(const std::string& alias);
     };
+    int namedPrimaryCount;
     // The varaibles are the indices. Metadata can be accessed by index.
     std::vector<Metadata> primaryMetadata;
     std::vector<Metadata> coefficientMetadata;
@@ -54,19 +62,27 @@ public:
     BindingContext(Tp&& primaryMetadata, Tc&& coefficientMetadata):
         primaryMetadata { std::forward<Tp>(primaryMetadata) },
         coefficientMetadata { std::forward<Tc>(coefficientMetadata) }
-    {}
+    {
+        namedPrimaryCount = primaryMetadata.size();
+    }
 
     std::shared_ptr<Size> getSinglePrimaryVariableSize(int index) const;
     std::shared_ptr<Size> getSingleCoefficientVariableSize(int index) const;
+
+    std::vector<std::shared_ptr<Size>> getPositiveCoefficients() const;
+
+    Shape getShapeFromNames(const std::vector<std::string>& names);
 };
 
 struct Shape {
 public:
-    const std::vector<std::shared_ptr<Size>> sizes;
+    std::vector<std::shared_ptr<Size>> sizes;
 
-    Shape() = delete;
+    Shape() = default;
     Shape(const Shape& shape) = default;
     Shape(Shape&& shape) = default;
+    Shape& operator=(const Shape& shape) = default;
+    Shape& operator=(Shape&& shape) = default;
     explicit Shape(const std::vector<std::shared_ptr<Size>>& sizes);
     explicit Shape(std::vector<std::shared_ptr<Size>>&& sizes);
 
@@ -79,7 +95,13 @@ public:
         std::vector<std::pair<int, std::shared_ptr<Size>>> adds
     ) const;
 
+    std::vector<int> findSize(const Size& size) const;
+    // Find the indices of sizes that are divisible by given factor.
+    std::vector<int> findMultipleOfSize(const Size& factor) const;
+
     std::string toString(const BindingContext& ctx) const;
+
+    static std::vector<std::string> parseNames(std::string_view shape);
 };
 
 } // namespace kas
