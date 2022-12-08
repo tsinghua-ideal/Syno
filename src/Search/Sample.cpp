@@ -78,7 +78,7 @@ void Sampler::finalize(std::shared_ptr<ShapeNode> node, const SampleCallback& ca
             used.insert(candidate);
             remap[i] = candidate;
         } else {
-            auto coarseMultipleSizes = node->shape.findMultipleOfSize(*inputShape[i]);
+            auto coarseMultipleSizes = node->shape.findMultipleOfSize(*inputShape[i], ctx);
             std::vector<int> multipleSizes;
             std::copy_if(coarseMultipleSizes.begin(), coarseMultipleSizes.end(), std::back_inserter(multipleSizes), [&](int i) { return !used.contains(i); });
             if (!multipleSizes.empty()) {

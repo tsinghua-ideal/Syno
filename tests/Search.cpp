@@ -5,8 +5,7 @@
 
 #include "KAS/Search/ShapeNode.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Transforms/Share.hpp"
-#include "KAS/Transforms/Reduce.hpp"
+#include "KAS/Transforms.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Sample.hpp"
 
@@ -31,7 +30,7 @@ TEST(search_tests, shape_node) {
 }
 
 TEST(search_tests, sample) {
-    SampleOptions options(4, 5, 3, 4, 8);
+    SampleOptions options(4, 5, 4, 4, 8);
     Sampler sampler("[H,W]", "[N,C,H,W]", options);
     auto ctx = sampler.getBindingContext();
     auto callback = [&](TensorView tensorView) {

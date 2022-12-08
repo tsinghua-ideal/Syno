@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <functional>
 #include <map>
 #include <memory>
@@ -12,6 +13,16 @@
 
 namespace kas {
 
+bool Size::isCoefficientRealizable(const std::vector<int>& toBeRealized, const BindingContext& ctx) {
+    bool allZero = true;
+    bool somePositive = false;
+    for (int power: toBeRealized) {
+        if (power != 0) allZero = false;
+        if (power > 0) somePositive = true;
+    }
+    return somePositive || allZero;
+}
+
 bool Size::isCoefficient() const {
     for (int dim: primary) {
         if (dim < 0) {
@@ -21,16 +32,21 @@ bool Size::isCoefficient() const {
     return true;
 }
 
-bool Size::isMultipleOf(const Size& factor) const {
+bool Size::isMultipleOf(const Size& factor, const BindingContext& ctx) const {
     for (int i = 0; i < primary.size(); ++i) {
         if (primary[i] < factor.primary[i]) {
             return false;
         }
     }
-    return true;
+    std::vector<int> newCoefficient;
+    newCoefficient.reserve(coefficient.size());
+    for (int i = 0; i < coefficient.size(); ++i) {
+        newCoefficient.push_back(coefficient[i] - factor.coefficient[i]);
+    }
+    return isCoefficientRealizable(newCoefficient, ctx);
 }
 
-std::vector<std::shared_ptr<Size>> Size::sampleFactors() const {
+std::vector<std::shared_ptr<Size>> Size::sampleFactors(const BindingContext& ctx) const {
     std::vector<std::shared_ptr<Size>> factors;
     for (int primaryIndex = 0; primaryIndex < primary.size(); ++primaryIndex) {
         int primaryDim = primary[primaryIndex];
@@ -84,7 +100,7 @@ bool Size::operator==(const Size& other) const {
 }
 
 std::string Size::toString(const BindingContext& ctx) const {
-    KAS_ASSERT(primary.size() == ctx.primaryMetadata.size() && coefficient.size() == ctx.coefficientMetadata.size());
+    KAS_ASSERT(primary.size() == ctx.getPrimaryCount() && coefficient.size() == ctx.getCoefficientCount());
     std::stringstream result;
     bool hasCoefficient = false;
     result << "(";
@@ -95,14 +111,14 @@ std::string Size::toString(const BindingContext& ctx) const {
         if (coefficient[i] < 0) {
             hasCoefficient = true;
             hasDenominator = true;
-            denominator << ctx.coefficientMetadata[i].alias;
+            denominator << ctx.getCoefficientAlias(i);
             if (coefficient[i] != -1) {
                 denominator << "^" << -coefficient[i];
             }
         } else if (coefficient[i] > 0) {
             hasCoefficient = true;
             hasNominator = true;
-            result << ctx.coefficientMetadata[i].alias;
+            result << ctx.getCoefficientAlias(i);
             if (coefficient[i] != 1) {
                 result << "^" << coefficient[i];
             }
@@ -123,7 +139,7 @@ std::string Size::toString(const BindingContext& ctx) const {
     for (int i = 0; i < primary.size(); ++i) {
         if (primary[i] > 0) {
             hasPrimary = true;
-            result << ctx.primaryMetadata[i].alias;
+            result << ctx.getPrimaryAlias(i);
             if (primary[i] != 1) {
                 result << "^" << primary[i];
             }
@@ -149,6 +165,19 @@ BindingContext::BindingContext(int countPrimary, int countCoefficient):
     for (int i = 0; i < countCoefficient; ++i) {
         coefficientMetadata[i] = Metadata { "c_" + std::to_string(i) };
     }
+}
+
+size_t BindingContext::getPrimaryCount() const {
+    return primaryMetadata.size();
+}
+size_t BindingContext::getCoefficientCount() const {
+    return coefficientMetadata.size();
+}
+std::string_view BindingContext::getPrimaryAlias(size_t index) const {
+    return primaryMetadata.at(index).alias;
+}
+std::string_view BindingContext::getCoefficientAlias(size_t index) const {
+    return coefficientMetadata.at(index).alias;
 }
 
 std::shared_ptr<Size> BindingContext::getSinglePrimaryVariableSize(int index) const {
@@ -232,10 +261,10 @@ std::vector<int> Shape::findSize(const Size& size) const {
     return result;
 }
 
-std::vector<int> Shape::findMultipleOfSize(const Size& factor) const {
+std::vector<int> Shape::findMultipleOfSize(const Size& factor, const BindingContext& ctx) const {
     std::vector<int> result;
     for (int i = 0; i < sizes.size(); ++i) {
-        if (sizes[i]->isMultipleOf(factor)) {
+        if (sizes[i]->isMultipleOf(factor, ctx)) {
             result.push_back(i);
         }
     }
