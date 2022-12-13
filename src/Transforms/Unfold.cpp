@@ -40,9 +40,9 @@ UnfoldOp::UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> chi
 
 SingleIteratorValue UnfoldOp::value(DoubleIteratorValue output, const BindingContext& ctx) const {
     auto [outputMajor, outputMinor] = std::move(output);
-    std::stringstream ss;
-    ss << "(" << outputMajor->content << "+" << outputMinor->content << "-" << childRhs.lock()->getSize()->toString(ctx) << "/2)";
-    return std::make_shared<IteratorValue>(ss.str());
+    auto kernel = std::make_shared<ConstValueNode>(childRhs.lock()->getSize());
+    auto two = std::make_shared<ImmediateValueNode>(2);
+    return *(*outputMajor + *outputMinor) - *(*kernel / *two);
 }
 
 } // namespace kas

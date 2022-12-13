@@ -34,14 +34,8 @@ MergeOp::MergeOp(std::shared_ptr<Iterator> parentMajor, std::shared_ptr<Iterator
 {}
 
 DoubleIteratorValue MergeOp::value(SingleIteratorValue output, const BindingContext& ctx) const {
-    auto block = parentRhs->getSize()->toString(ctx);
-    std::stringstream ss;
-    ss << "(" << output->content << ")/(" << block << ")";
-    auto major = std::make_shared<IteratorValue>(ss.str());
-    ss.str("");
-    ss << "(" << output->content << ")%(" << block << ")";
-    auto minor = std::make_shared<IteratorValue>(ss.str());
-    return std::make_pair(std::move(major), std::move(minor));
+    auto block = std::make_shared<ConstValueNode>(parentRhs->getSize());
+    return std::make_pair(*output / *block, *output % *block);
 }
 
 } // namespace kas

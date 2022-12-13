@@ -19,7 +19,7 @@ TEST(core_tests, size) {
     auto sizeW = ctx.getSinglePrimaryVariableSize(1);
     ASSERT_EQ(sizeW->toString(ctx), "W");
     auto sizeC = ctx.getSingleCoefficientVariableSize(0);
-    auto sizeHWc = std::make_shared<Size>(std::vector<int> { 1, 1 }, std::vector<int> { -1 });
+    auto sizeHWc = std::make_shared<Size>(Size::ExprType { 1, 1 }, Size::ExprType { -1 });
     ASSERT_EQ(*(*(*sizeH * *sizeW) / *sizeC), *sizeHWc);
     ASSERT_EQ(sizeHWc->toString(ctx), "(1/c)HW");
 }
@@ -33,12 +33,14 @@ TEST(core_tests, tensor) {
     auto sizeC = ctx.getSingleCoefficientVariableSize(0);
     ASSERT_EQ(sizeC->toString(ctx), "(c_0)1");
     auto shape = Shape { std::vector<std::shared_ptr<Size>> { sizeH, sizeW, sizeC } };
-    auto tensor = std::make_shared<PureTensor>(shape);
-    auto tensorView = TensorView { tensor, std::nullopt };
+    auto tensor = std::make_shared<PureTensor>(ctx.addTensor("t"), shape);
+    auto tensorView = TensorView { tensor };
+    tensorView.finishConstruction();
+    tensorView.setDefaultAccesses(ctx);
     tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.accessToString(), "[i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.interfaceAccessToString(ctx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1,(c_0)1]");
-    ASSERT_EQ(tensor->accessToString(), "[i_0,i_1,i_2]");
+    ASSERT_EQ(tensor->interfaceAccessToString(ctx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensor->shapeToString(ctx), "[x_0,x_1,(c_0)1]");
 }
 

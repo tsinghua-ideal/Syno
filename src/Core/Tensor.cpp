@@ -1,10 +1,13 @@
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Utils/Common.hpp"
@@ -14,35 +17,34 @@
 
 namespace kas {
 
-void PureTensor::setAccess(std::shared_ptr<IteratorValue> value, int index) {
+void Tensor::setAccess(std::shared_ptr<IteratorValue> value, std::size_t index) {
     KAS_ASSERT(index < access.size());
     access[index] = std::move(value);
 }
 
-std::vector<std::shared_ptr<Iterator>> PureTensor::getInterface(const std::optional<std::vector<int>>& proxy) {
+std::shared_ptr<IteratorValue> Tensor::getAccess(std::size_t index) const {
+    KAS_ASSERT(index < access.size());
+    return access[index];
+}
+
+std::vector<std::shared_ptr<Iterator>> Tensor::getInterfaceStubs() {
     std::vector<std::shared_ptr<Iterator>> interface;
+    const auto shape = getShape();
     interface.reserve(shape.size());
     for (int i = 0; i < shape.size(); i++) {
-        int actual = i;
-        if (proxy) {
-            actual = proxy.value()[i];
-        }
-        interface.push_back(std::make_shared<Iterator>(IteratorTransform { TensorStub { shared_from_this(), actual } }, shape[actual]));
+        interface.push_back(std::make_shared<Iterator>(IteratorTransform { TensorStub { shared_from_this(), i } }, shape[i]));
     }
     return interface;
 }
 
-std::string PureTensor::accessToString() const {
-    return VectorToString(access, std::function([](const std::shared_ptr<IteratorValue>& value) {
-        return value->content;
+std::string Tensor::interfaceAccessToString(const BindingContext& ctx) const {
+    IteratorValuePrinter printer(ctx);
+    return VectorToString(access, std::function([&](const std::shared_ptr<IteratorValue>& value) {
+        return printer.toString(*value);
     }));
 }
 
-std::string PureTensor::shapeToString(const BindingContext& ctx) const {
-    return shape.toString(ctx);
-}
-
-TensorStub::TensorStub(std::shared_ptr<PureTensor> tensor, int index):
+TensorStub::TensorStub(std::shared_ptr<Tensor> tensor, int index):
     tensor { std::move(tensor) },
     index { index }
 {}
@@ -51,26 +53,57 @@ void TensorStub::setAccess(std::shared_ptr<IteratorValue> value) const {
     tensor->setAccess(std::move(value), index);
 }
 
-PureTensor::PureTensor(const Shape& shape):
-    access { std::vector<std::shared_ptr<IteratorValue>>(shape.size(), nullptr) },
-    shape { shape }
-{}
+void PureTensor::evaluateTensorAccess(BindingContext& ctx) {
+    // no need to evaluate
+}
 
-TensorView::TensorView(std::shared_ptr<PureTensor> tensor, const std::optional<std::vector<int>>& proxy):
-    interface { tensor->getInterface(std::move(proxy)) },
+std::string PureTensor::actualAccessToString(const BindingContext& ctx) const {
+    // They are actually the same.
+    return std::string(ctx.getTensorName(tensorId)) + interfaceAccessToString(ctx);
+}
+
+Shape PureTensor::getShape() const {
+    return shape;
+}
+
+std::string PureTensor::shapeToString(const BindingContext& ctx) const {
+    return shape.toString(ctx);
+}
+
+TensorView::TensorView(std::shared_ptr<Tensor> tensor):
+    interface { tensor->getInterfaceStubs() },
     manipulations {},
-    tensor { std::move(tensor) }
+    tensor { std::move(tensor) },
+    Tensor { std::vector<std::shared_ptr<IteratorValue>> {} }
 {}
 
-TensorView::TensorView(const Shape& shape):
-    TensorView { std::make_shared<PureTensor>(shape), std::nullopt }
+TensorView::TensorView(const Shape& shape, BindingContext& ctx):
+    TensorView { std::make_shared<PureTensor>(ctx.addTensor("t"), shape) }
 {}
 
-size_t TensorView::size() const {
+void TensorView::finishConstruction() {
+    access.resize(interface.size());
+    reducedAccess.resize(getReducedIterators().size());
+}
+
+void TensorView::setAccesses(std::vector<std::shared_ptr<IteratorValue>> accesses) {
+    KAS_ASSERT(accesses.size() == interface.size());
+    access = std::move(accesses);
+}
+
+void TensorView::setDefaultAccesses(BindingContext& ctx) {
+    setAccesses(IteratorValue::DefaultAccessForShape(getShape(), ctx));
+}
+
+void TensorView::setReducedAccess(std::shared_ptr<IteratorValue> value, std::size_t index) {
+    reducedAccess[index] = std::move(value);
+}
+
+std::size_t TensorView::size() const {
     return interface.size();
 }
-const std::shared_ptr<Iterator>& TensorView::operator[](int index) const {
-    return interface[index];
+const std::shared_ptr<Iterator>& TensorView::operator[](std::size_t index) const {
+    return interface.at(index);
 }
 
 void TensorView::replaceInterface(
@@ -85,7 +118,7 @@ void TensorView::addManipulation(Manipulation manipulation) {
     manipulations.push_back(std::move(manipulation));
 }
 
-std::shared_ptr<PureTensor> TensorView::getUnderlyingTensor() const {
+std::shared_ptr<Tensor> TensorView::getUnderlyingTensor() const {
     return tensor;
 }
 
@@ -127,12 +160,13 @@ std::vector<std::shared_ptr<Iterator>> TensorView::getAllIterators() const {
     return iterators;
 }
 
-void TensorView::evaluateTensorAccess(const BindingContext& ctx) const {
+void TensorView::evaluateTensorAccess(BindingContext& ctx) {
     IteratorEvaluator evaluator { ctx };
     evaluator.evaluateTensorAccess(*this);
+    tensor->evaluateTensorAccess(ctx);
 }
 
-std::string TensorView::accessToString() const {
+std::string TensorView::actualAccessToString(const BindingContext& ctx) const {
     std::stringstream ss;
     ss << "[";
     for (int i = 0; i < interface.size(); i++) {
@@ -145,11 +179,11 @@ std::string TensorView::accessToString() const {
     auto reducedIterators = getReducedIterators();
     if (!reducedIterators.empty()) {
         ss << " with reduced [";
-        for (int i = interface.size(); i < interface.size() + reducedIterators.size(); i++) {
-            if (i != interface.size()) {
+        for (int i = 0; i < reducedIterators.size(); i++) {
+            if (i != 0) {
                 ss << ",";
             }
-            ss << "i_" << i;
+            ss << "ri_" << i;
         }
         ss << "]";
     }
@@ -161,6 +195,14 @@ std::string TensorView::accessToString() const {
         }));
     }
     return ss.str();
+}
+
+Shape TensorView::getShape() const {
+    std::vector<std::shared_ptr<Size>> sizes;
+    for (const auto& iterator: interface) {
+        sizes.push_back(iterator->getSize());
+    }
+    return Shape { sizes };
 }
 
 std::string TensorView::shapeToString(const BindingContext &ctx) const {

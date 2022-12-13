@@ -16,7 +16,7 @@ class PrimitiveShapeOp {
 public:
     // During the search, what we only care is the shape of the tensor. This function transforms the shape of the tensor in a bottom-up way, and ignores the actual semantics of a primitive.
     virtual Shape transformShapeInverse(const Shape& input) const = 0;
-    // After the search, when the resulting tensor has a shape that is verified to be eligible, we can build the TensorView, which is a series of transforms on a tensor. The semantics are implemented rather than by this class, by the PrimitiveOp's defined below. They are inserted by this function to the TensorView.
+    // After the search, when the resulting tensor has a shape that is verified to be eligible, we can build the TensorView, which is a series of transforms on a tensor. The semantics, rather than by this class, are implemented by the PrimitiveOp's defined below. They are inserted by this function to the TensorView.
     virtual void transformTensor(TensorView& tensor) const = 0;
 };
 

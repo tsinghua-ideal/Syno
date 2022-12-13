@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 
@@ -22,7 +23,7 @@ public:
     ShapeNode(std::shared_ptr<ShapeNode> child, std::unique_ptr<PrimitiveShapeOp> shapeOp);
 
     // Create a TensorView, using the current ShapeNode as the input tensor, the bottom-most shape as the output tensor.
-    TensorView buildTensorView(const std::vector<int>& remap) const;
+    TensorView buildTensorView(std::size_t tensorId) const;
 };
 
 } // namespace kas

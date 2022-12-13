@@ -42,9 +42,8 @@ SplitOp::SplitOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> child
 
 SingleIteratorValue SplitOp::value(DoubleIteratorValue output, const BindingContext& ctx) const {
     auto [outputMajor, outputMinor] = std::move(output);
-    std::stringstream ss;
-    ss << "(" << outputMajor->content << ")*(" << childRhs.lock()->getSize()->toString(ctx) << ")+(" << outputMinor->content << ")";
-    return std::make_shared<IteratorValue>(ss.str());
+    auto block = std::make_shared<ConstValueNode>(childRhs.lock()->getSize());
+    return *(*outputMajor * *block) + *outputMinor;
 }
 
 } // namespace kas

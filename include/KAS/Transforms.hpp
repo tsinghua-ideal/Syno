@@ -1,3 +1,4 @@
+#include "KAS/Transforms/Finalize.hpp"
 #include "KAS/Transforms/Map.hpp"
 #include "KAS/Transforms/Merge.hpp"
 #include "KAS/Transforms/Reduce.hpp"

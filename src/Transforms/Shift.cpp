@@ -32,10 +32,9 @@ ShiftOp::ShiftOp(std::shared_ptr<Iterator> parent, int shift):
 {}
 
 SingleIteratorValue ShiftOp::value(SingleIteratorValue output, const BindingContext& ctx) const {
-    auto size = parent->getSize()->toString(ctx);
-    std::stringstream ss;
-    ss << "(" << output->content << "+" << shift << "+" << size << ")%(" << size << ")";
-    return std::make_shared<IteratorValue>(ss.str());
+    auto imm = std::make_shared<ImmediateValueNode>(shift);
+    auto size = std::make_shared<ConstValueNode>(parent->getSize());
+    return *(*(*output + *imm) + *size) % *size;
 }
 
 } // namespace kas

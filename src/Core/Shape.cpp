@@ -4,6 +4,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "KAS/Core/Shape.hpp"
@@ -13,7 +14,7 @@
 
 namespace kas {
 
-bool Size::isCoefficientRealizable(const std::vector<int>& toBeRealized, const BindingContext& ctx) {
+bool Size::isCoefficientRealizable(const ExprType& toBeRealized, const BindingContext& ctx) {
     bool allZero = true;
     bool somePositive = false;
     for (int power: toBeRealized) {
@@ -21,6 +22,21 @@ bool Size::isCoefficientRealizable(const std::vector<int>& toBeRealized, const B
         if (power > 0) somePositive = true;
     }
     return somePositive || allZero;
+}
+
+Size::Size():
+    primary {},
+    coefficient {}
+{}
+
+bool Size::is1() const {
+    for (int dim: primary) {
+        if (dim != 0) return false;
+    }
+    for (int dim: coefficient) {
+        if (dim != 0) return false;
+    }
+    return true;
 }
 
 bool Size::isCoefficient() const {
@@ -38,10 +54,9 @@ bool Size::isMultipleOf(const Size& factor, const BindingContext& ctx) const {
             return false;
         }
     }
-    std::vector<int> newCoefficient;
-    newCoefficient.reserve(coefficient.size());
+    ExprType newCoefficient;
     for (int i = 0; i < coefficient.size(); ++i) {
-        newCoefficient.push_back(coefficient[i] - factor.coefficient[i]);
+        newCoefficient[i] = coefficient[i] - factor.coefficient[i];
     }
     return isCoefficientRealizable(newCoefficient, ctx);
 }
@@ -51,15 +66,15 @@ std::vector<std::shared_ptr<Size>> Size::sampleFactors(const BindingContext& ctx
     for (int primaryIndex = 0; primaryIndex < primary.size(); ++primaryIndex) {
         int primaryDim = primary[primaryIndex];
         if (primaryDim >= 1) {
-            std::vector<int> newPrimary(primary.size(), 0);
-            newPrimary[primaryIndex] = 1;
-            factors.push_back(std::make_shared<Size>(newPrimary, std::vector<int>(coefficient.size(), 0)));
+            auto primaryRes = std::make_shared<Size>();
+            primaryRes->primary[primaryIndex] = 1;
+            factors.push_back(primaryRes);
             for (int coefficientIndex = 0; coefficientIndex < coefficient.size(); ++coefficientIndex) {
                 int coefficientDim = coefficient[coefficientIndex];
                 if (coefficientDim >= 1) {
-                    std::vector<int> newCoefficient(coefficient.size(), 0);
-                    newCoefficient[coefficientIndex] = 1;
-                    factors.push_back(std::make_shared<Size>(newPrimary, newCoefficient));
+                    auto res = std::make_shared<Size>(*primaryRes);
+                    res->coefficient[coefficientIndex] = 1;
+                    factors.push_back(res);
                 }
             }
         }
@@ -69,21 +84,44 @@ std::vector<std::shared_ptr<Size>> Size::sampleFactors(const BindingContext& ctx
 
 std::shared_ptr<Size> Size::operator*(const Size& other) const {
     KAS_ASSERT(primary.size() == other.primary.size() && coefficient.size() == other.coefficient.size());
-    std::vector<int> newPrimary { primary };
-    std::vector<int> newCoefficient { coefficient };
+    auto newSize = std::make_shared<Size>(*this);
+    auto& newPrimary = newSize->primary;
+    auto& newCoefficient = newSize->coefficient;
     for (int i = 0; i < primary.size(); ++i) {
         newPrimary[i] += other.primary[i];
     }
     for (int i = 0; i < coefficient.size(); ++i) {
         newCoefficient[i] += other.coefficient[i];
     }
-    return std::make_shared<Size>(std::move(newPrimary), std::move(newCoefficient));
+    return newSize;
+}
+
+std::shared_ptr<Size> Size::Product(const std::vector<std::shared_ptr<Size>>& operands) {
+    auto newSize = std::make_shared<Size>();
+    auto& newPrimary = newSize->primary;
+    auto& newCoefficient = newSize->coefficient;
+    for (const auto& operand: operands) {
+        if (newPrimary.empty()) {
+            newPrimary = operand->primary;
+            newCoefficient = operand->coefficient;
+        } else {
+            KAS_ASSERT(newPrimary.size() == operand->primary.size() && newCoefficient.size() == operand->coefficient.size());
+            for (int i = 0; i < newPrimary.size(); ++i) {
+                newPrimary[i] += operand->primary[i];
+            }
+            for (int i = 0; i < newCoefficient.size(); ++i) {
+                newCoefficient[i] += operand->coefficient[i];
+            }
+        }
+    }
+    return newSize;
 }
 
 std::shared_ptr<Size> Size::operator/(const Size &other) const {
     KAS_ASSERT(primary.size() == other.primary.size() && coefficient.size() == other.coefficient.size());
-    std::vector<int> newPrimary { primary };
-    std::vector<int> newCoefficient { coefficient };
+    auto newSize = std::make_shared<Size>(*this);
+    auto& newPrimary = newSize->primary;
+    auto& newCoefficient = newSize->coefficient;
     for (int i = 0; i < primary.size(); ++i) {
         newPrimary[i] -= other.primary[i];
         // Ensure that no primary variable is in denominator
@@ -92,7 +130,7 @@ std::shared_ptr<Size> Size::operator/(const Size &other) const {
     for (int i = 0; i < coefficient.size(); ++i) {
         newCoefficient[i] -= other.coefficient[i];
     }
-    return std::make_shared<Size>(std::move(newPrimary), std::move(newCoefficient));
+    return newSize;
 }
 
 bool Size::operator==(const Size& other) const {
@@ -100,7 +138,7 @@ bool Size::operator==(const Size& other) const {
 }
 
 std::string Size::toString(const BindingContext& ctx) const {
-    KAS_ASSERT(primary.size() == ctx.getPrimaryCount() && coefficient.size() == ctx.getCoefficientCount());
+    // KAS_ASSERT(primary.size() == ctx.getPrimaryCount() && coefficient.size() == ctx.getCoefficientCount());
     std::stringstream result;
     bool hasCoefficient = false;
     result << "(";
@@ -151,83 +189,6 @@ std::string Size::toString(const BindingContext& ctx) const {
     return result.str();
 }
 
-BindingContext::Metadata::Metadata(const std::string& alias):
-    alias { alias }
-{}
-
-BindingContext::BindingContext(int countPrimary, int countCoefficient):
-    namedPrimaryCount { 0 },
-    primaryMetadata(countPrimary),
-    coefficientMetadata(countCoefficient) {
-    for (int i = 0; i < countPrimary; ++i) {
-        primaryMetadata[i] = Metadata { "x_" + std::to_string(i) };
-    }
-    for (int i = 0; i < countCoefficient; ++i) {
-        coefficientMetadata[i] = Metadata { "c_" + std::to_string(i) };
-    }
-}
-
-size_t BindingContext::getPrimaryCount() const {
-    return primaryMetadata.size();
-}
-size_t BindingContext::getCoefficientCount() const {
-    return coefficientMetadata.size();
-}
-std::string_view BindingContext::getPrimaryAlias(size_t index) const {
-    return primaryMetadata.at(index).alias;
-}
-std::string_view BindingContext::getCoefficientAlias(size_t index) const {
-    return coefficientMetadata.at(index).alias;
-}
-
-std::shared_ptr<Size> BindingContext::getSinglePrimaryVariableSize(int index) const {
-    KAS_ASSERT(index >= 0 && index < primaryMetadata.size());
-    std::vector<int> primary(primaryMetadata.size(), 0);
-    primary[index] = 1;
-    return std::make_shared<Size>(std::move(primary), std::vector<int>(coefficientMetadata.size(), 0));
-}
-
-std::shared_ptr<Size> BindingContext::getSingleCoefficientVariableSize(int index) const {
-    KAS_ASSERT(index >= 0 && index < coefficientMetadata.size());
-    std::vector<int> coefficient(coefficientMetadata.size(), 0);
-    coefficient[index] = 1;
-    return std::make_shared<Size>(std::vector<int>(primaryMetadata.size(), 0), std::move(coefficient));
-}
-
-std::vector<std::shared_ptr<Size>> BindingContext::getPositiveCoefficients() const {
-    const int count = coefficientMetadata.size();
-    std::vector<std::shared_ptr<Size>> result;
-    result.reserve(count);
-    for (int i = 0; i < count; ++i) {
-        result.push_back(getSingleCoefficientVariableSize(i));
-    }
-    return result;
-}
-
-Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
-    using Metadata = BindingContext::Metadata;
-    std::map<std::string, int> nameToIndex;
-    for (int i = 0; i < namedPrimaryCount; ++i) {
-        const auto& alias = primaryMetadata[i].alias;
-        nameToIndex[alias] = i;
-    }
-    std::vector<std::shared_ptr<Size>> result;
-    for (int i = 0; i < names.size(); ++i) {
-        const auto& name = names[i];
-        auto it = nameToIndex.find(name);
-        if (it == nameToIndex.end()) {
-            KAS_ASSERT(namedPrimaryCount < primaryMetadata.size());
-            nameToIndex[name] = namedPrimaryCount;
-            primaryMetadata[namedPrimaryCount] = Metadata { name };
-            result.push_back(getSinglePrimaryVariableSize(namedPrimaryCount));
-            ++namedPrimaryCount;
-        } else {
-            result.push_back(getSinglePrimaryVariableSize(it->second));
-        }
-    }
-    return Shape { std::move(result) };
-}
-
 Shape::Shape(const std::vector<std::shared_ptr<Size>>& sizes):
     sizes(sizes)
 {}
@@ -235,11 +196,15 @@ Shape::Shape(std::vector<std::shared_ptr<Size>>&& sizes):
     sizes(std::move(sizes))
 {}
 
-size_t Shape::size() const {
+const std::vector<std::shared_ptr<Size>>& Shape::getSizes() const {
+    return sizes;
+}
+
+std::size_t Shape::size() const {
     return sizes.size();
 }
 
-const std::shared_ptr<Size>& Shape::operator[](size_t index) const {
+const std::shared_ptr<Size>& Shape::operator[](std::size_t index) const {
     KAS_ASSERT(index < sizes.size());
     return sizes[index];
 }

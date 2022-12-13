@@ -1,33 +1,41 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <memory>
 #include <optional>
 
+#include "KAS/Core/BindingContext.hpp"
+#include "KAS/Utils/Common.hpp"
+
 
 namespace kas {
 
-class BindingContext;
-class Shape;
-
-class Size final {
+struct Size final {
+public:
+    constexpr static std::size_t MAX_VARIABLES = 16;
+    using ExprType = std::array<std::int8_t, MAX_VARIABLES>;
 protected:
     // Powers of large variables. Must be non-negative.
-    const std::vector<int> primary;
+    ExprType primary;
     // Powers of small variables. Can be negative (when in denominator).
-    const std::vector<int> coefficient;
+    ExprType coefficient;
     // Returns whether the coefficients cannot be possibly realized. This excludes some sizes in forms like 1/K.
-    static bool isCoefficientRealizable(const std::vector<int>& toBeRealized, const BindingContext& ctx);
+    static bool isCoefficientRealizable(const ExprType& toBeRealized, const BindingContext& ctx);
+    friend class BindingContext;
 
 public:
-    Size() = delete;
+    Size();
     template<typename Tp, typename Tc>
     Size(Tp&& primary, Tc&& coefficient):
         primary { std::forward<Tp>(primary) },
         coefficient { std::forward<Tc>(coefficient) }
     {}
 
+    bool is1() const;
     // Returns whether there are no primary variables.
     bool isCoefficient() const;
     // Returns whether the powers of all primary variables are greater than equal to that of the input.
@@ -37,6 +45,8 @@ public:
 
     // The product of two Size's
     std::shared_ptr<Size> operator*(const Size& other) const;
+    // The product of multiple Size's
+    std::shared_ptr<Size> static Product(const std::vector<std::shared_ptr<Size>>& operands);
 
     // The quotient of two Size's
     std::shared_ptr<Size> operator/(const Size& other) const;
@@ -44,44 +54,6 @@ public:
     bool operator==(const Size& other) const;
 
     std::string toString(const BindingContext& ctx) const;
-};
-
-class BindingContext final {
-public:
-    // Metadata includes aliases, whether preferred by specific ops (TODO), which context a variable is in (when there are multiple contexts, required by Blending) (TODO), etc...
-    struct Metadata {
-        std::string alias;
-        Metadata() = default;
-        Metadata(const std::string& alias);
-    };
-
-protected:
-    int namedPrimaryCount;
-    // The varaibles are the indices. Metadata can be accessed by index.
-    std::vector<Metadata> primaryMetadata;
-    std::vector<Metadata> coefficientMetadata;
-
-public:
-    BindingContext(int countPrimary, int countCoefficient);
-    template<typename Tp, typename Tc>
-    BindingContext(Tp&& primaryMetadata, Tc&& coefficientMetadata):
-        primaryMetadata { std::forward<Tp>(primaryMetadata) },
-        coefficientMetadata { std::forward<Tc>(coefficientMetadata) }
-    {
-        namedPrimaryCount = primaryMetadata.size();
-    }
-
-    size_t getPrimaryCount() const;
-    size_t getCoefficientCount() const;
-    std::string_view getPrimaryAlias(size_t index) const;
-    std::string_view getCoefficientAlias(size_t index) const;
-
-    std::shared_ptr<Size> getSinglePrimaryVariableSize(int index) const;
-    std::shared_ptr<Size> getSingleCoefficientVariableSize(int index) const;
-
-    std::vector<std::shared_ptr<Size>> getPositiveCoefficients() const;
-
-    Shape getShapeFromNames(const std::vector<std::string>& names);
 };
 
 struct Shape final {
@@ -97,8 +69,9 @@ public:
     explicit Shape(const std::vector<std::shared_ptr<Size>>& sizes);
     explicit Shape(std::vector<std::shared_ptr<Size>>&& sizes);
 
-    size_t size() const;
-    const std::shared_ptr<Size>& operator[](size_t index) const;
+    const std::vector<std::shared_ptr<Size>>& getSizes() const;
+    std::size_t size() const;
+    const std::shared_ptr<Size>& operator[](std::size_t index) const;
 
     // drops and adds must be sorted by index
     Shape replace(

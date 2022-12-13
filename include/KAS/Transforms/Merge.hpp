@@ -7,20 +7,22 @@
 
 namespace kas {
 
-class MergeShapeOp: public PrimitiveShapeOp {
+class MergeShapeOp final: public PrimitiveShapeOp {
 public:
     int inputMajor, inputMinor;
     int output;
     std::shared_ptr<Size> block;
     MergeShapeOp(int inputMajor, int inputMinor, int output, std::shared_ptr<Size> block);
-    virtual Shape transformShapeInverse(const Shape& input) const override;
-    virtual void transformTensor(TensorView& tensor) const override;
+    Shape transformShapeInverse(const Shape& outputShape) const override;
+    void transformTensor(TensorView& tensor) const override;
+
+    static std::vector<std::unique_ptr<MergeShapeOp>> generate(const Shape& outputShape);
 };
 
 class MergeOp: public MergeLikePrimitiveOp {
 public:
     MergeOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> parentRhs);
-    virtual DoubleIteratorValue value(SingleIteratorValue output, const BindingContext& ctx) const override;
+    DoubleIteratorValue value(SingleIteratorValue output, const BindingContext& ctx) const override;
 };
 
 } // namespace kas

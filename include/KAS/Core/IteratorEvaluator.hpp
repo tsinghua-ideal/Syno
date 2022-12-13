@@ -3,6 +3,7 @@
 #include <map>
 #include <memory>
 #include <queue>
+#include <vector>
 
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/Shape.hpp"
@@ -14,12 +15,12 @@ using IteratorValueMap = std::map<std::shared_ptr<Iterator>, std::shared_ptr<Ite
 
 class IteratorEvaluator {
 public:
-    const BindingContext& bindingContext;
+    BindingContext& bindingContext;
     IteratorValueMap valueMap;
     std::queue<std::shared_ptr<Iterator>> workingSet;
-    IteratorEvaluator(const BindingContext& bindingContext);
+    IteratorEvaluator(BindingContext& bindingContext);
 
-    void evaluateTensorAccess(const TensorView& tensor);
+    void evaluateTensorAccess(TensorView& tensor);
 };
 
 } // namespace kas

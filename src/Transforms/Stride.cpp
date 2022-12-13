@@ -34,9 +34,8 @@ StrideOp::StrideOp(std::shared_ptr<Iterator> parent, std::shared_ptr<Size> strid
 {}
 
 SingleIteratorValue StrideOp::value(SingleIteratorValue output, const BindingContext& ctx) const {
-    std::stringstream ss;
-    ss << stride->toString(ctx) << "*" << output->content;
-    return std::make_shared<IteratorValue>(ss.str());
+    auto stride = std::make_shared<ConstValueNode>(this->stride);
+    return *stride * *output;
 }
 
 } // namespace kas

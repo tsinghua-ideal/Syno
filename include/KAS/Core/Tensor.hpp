@@ -1,7 +1,10 @@
 #pragma once
 
+#include <cstddef>
 #include <map>
 #include <memory>
+#include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -14,49 +17,83 @@ namespace kas {
 class Iterator;
 class IteratorValue;
 
-class TensorView;
-
-// Only handles a single tensor. Multiple tensors (including TensorView's) can be blended into a single tensor. TODO
-// PureTensor must be created with std::make_shared()!
-class PureTensor: public std::enable_shared_from_this<PureTensor> {
-public:
+class Tensor: public std::enable_shared_from_this<Tensor> {
+protected:
     std::vector<std::shared_ptr<IteratorValue>> access;
-    Shape shape;
-    // Initialize access as nullptr
-    PureTensor(const Shape& shape);
 
-    void setAccess(std::shared_ptr<IteratorValue> value, int index);
-
-    // proxy: index of iterator in interface -> index of dimension in tensor
-    std::vector<std::shared_ptr<Iterator>> getInterface(const std::optional<std::vector<int>>& proxy);
-
-    std::string accessToString() const;
-
-    std::string shapeToString(const BindingContext& ctx) const;
+public:
+    template<typename T>
+    Tensor(T&& access):
+        access(std::forward<T>(access))
+    {}
+    void setAccess(std::shared_ptr<IteratorValue> value, std::size_t index);
+    std::shared_ptr<IteratorValue> getAccess(std::size_t index) const;
+    virtual void evaluateTensorAccess(BindingContext& ctx) = 0;
+    std::vector<std::shared_ptr<Iterator>> getInterfaceStubs();
+    std::string interfaceAccessToString(const BindingContext& ctx) const;
+    // Requires evaluateTensorAccess to be called first
+    virtual std::string actualAccessToString(const BindingContext& ctx) const = 0;
+    virtual Shape getShape() const = 0;
+    virtual std::string shapeToString(const BindingContext& ctx) const = 0;
+    template<typename Derived>
+    std::shared_ptr<Derived> shared_from_base() {
+        return std::dynamic_pointer_cast<Derived>(shared_from_this());
+    }
 };
 
 class TensorStub {
 public:
-    const std::shared_ptr<PureTensor> tensor;
+    const std::shared_ptr<Tensor> tensor;
     const int index;
-    TensorStub(std::shared_ptr<PureTensor> tensor, int index);
+    TensorStub(std::shared_ptr<Tensor> tensor, int index);
 
     void setAccess(std::shared_ptr<IteratorValue> value) const;
 };
 
-class TensorView {
+// PureTensor must be created with std::make_shared()!
+class PureTensor: public Tensor {
+protected:
+    std::size_t tensorId;
+    Shape shape;
+
+public:
+    // Initialize access as nullptr
+    template<typename T>
+    PureTensor(std::size_t tensorId, T&& shape):
+        Tensor { std::vector<std::shared_ptr<IteratorValue>>(shape.size(), nullptr) },
+        tensorId { tensorId },
+        shape { std::forward<T>(shape) }
+    {}
+    void evaluateTensorAccess(BindingContext& ctx) override;
+    std::string actualAccessToString(const BindingContext& ctx) const override;
+    Shape getShape() const override;
+    std::string shapeToString(const BindingContext& ctx) const override;
+};
+
+class TensorView: public Tensor {
 protected:
     std::vector<std::shared_ptr<Iterator>> interface;
     std::vector<Manipulation> manipulations;
-    const std::shared_ptr<PureTensor> tensor;
+    std::shared_ptr<Tensor> tensor;
+
+    std::vector<std::shared_ptr<IteratorValue>> reducedAccess;
+
+    friend class FinalizeShapeOp;
 
 public:
-    // proxy: index of iterator in interface -> index of dimension in tensor
-    TensorView(std::shared_ptr<PureTensor> tensor, const std::optional<std::vector<int>>& proxy);
-    TensorView(const Shape& shape);
+    TensorView(std::shared_ptr<Tensor> tensor);
+    TensorView(const Shape& shape, BindingContext& ctx);
+    // This sets the size of access
+    void finishConstruction();
+    // Set accesses once and for all
+    void setAccesses(std::vector<std::shared_ptr<IteratorValue>> accesses);
+    // Use BindingContext to generate accesses "i_0, i_1, ..."
+    void setDefaultAccesses(BindingContext& ctx);
+    // Set access for reduced iterators
+    void setReducedAccess(std::shared_ptr<IteratorValue> value, std::size_t index);
 
-    size_t size() const;
-    const std::shared_ptr<Iterator>& operator[](int index) const;
+    std::size_t size() const;
+    const std::shared_ptr<Iterator>& operator[](std::size_t index) const;
 
     // drops and adds must be sorted by index
     void replaceInterface(
@@ -68,7 +105,7 @@ public:
     void addManipulation(Manipulation manipulation);
 
     // Returns the underlying tensor underneath the view.
-    std::shared_ptr<PureTensor> getUnderlyingTensor() const;
+    std::shared_ptr<Tensor> getUnderlyingTensor() const;
 
     // Returns the interface of the view.
     const std::vector<std::shared_ptr<Iterator>>& getInterfaceIterators() const;
@@ -83,13 +120,15 @@ public:
     std::vector<std::shared_ptr<Iterator>> getAllIterators() const;
 
     // Evaluates all accesses to the underlying tensor.
-    void evaluateTensorAccess(const BindingContext& ctx) const;
+    void evaluateTensorAccess(BindingContext& ctx) override;
 
     // Returns something like "[i_0,i_1] with reduced [i_2]". When Blending is implemented, an additional argument may be passed. TODO
-    std::string accessToString() const;
+    std::string actualAccessToString(const BindingContext &ctx) const override;
+
+    Shape getShape() const override;
 
     // Returns the shapes of all iterators, including reduced iterators.
-    std::string shapeToString(const BindingContext &ctx) const;
+    std::string shapeToString(const BindingContext &ctx) const override;
 };
 
 } // namespace kas
