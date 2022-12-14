@@ -15,7 +15,7 @@ IteratorEvaluator::IteratorEvaluator(BindingContext& bindingContext):
 {}
 
 void IteratorEvaluator::evaluateTensorAccess(TensorView& tensor) {
-    auto interfaceIterators = tensor.getInterfaceIterators();
+    const auto& interfaceIterators = tensor.getInterfaceIterators();
     for (std::size_t i = 0; i < interfaceIterators.size(); ++i) {
         auto ii = interfaceIterators[i];
         // Use original access

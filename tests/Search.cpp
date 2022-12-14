@@ -32,7 +32,7 @@ TEST(search_tests, shape_node) {
 TEST(search_tests, sample) {
     SampleOptions options(4, 5, 2, 4, 8);
     Sampler sampler("[H,W]", "[N,C,H,W]", options);
-    auto ctx = sampler.getBindingContext();
+    auto& ctx = sampler.getBindingContext();
     auto callback = [&](TensorView tensorView) {
         std::cout << "Input Shape: " << tensorView.getUnderlyingTensor()->shapeToString(ctx) << std::endl;
         std::cout << "for (int i_0 = 0; i_0 < N; ++i_0)\n  for (int i_1 = 0; i_1 < C; ++i_1)\n    for (int i_2 = 0; i_2 < H; ++i_2)\n      for (int i_3 = 0; i_3 < W; ++i_3)\n        out[i_0,i_1,i_2,i_3]=t" << tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx) << std::endl;

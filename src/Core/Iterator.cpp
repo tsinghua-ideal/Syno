@@ -106,7 +106,7 @@ std::shared_ptr<BinaryOpValueNode> IteratorValue::operator/(IteratorValue& other
 }
 std::vector<std::shared_ptr<IteratorValue>> IteratorValue::DefaultAccessForShape(const Shape& shape, BindingContext& ctx) {
     std::vector<std::shared_ptr<IteratorValue>> result;
-    auto base = std::string("i_");
+    std::string base("i_");
     for (std::size_t i = 0; i < shape.size(); ++i) {
         auto id = ctx.addIteratorVariable(base + std::to_string(i));
         result.push_back(std::make_shared<VariableValueNode>(id));

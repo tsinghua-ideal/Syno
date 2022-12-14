@@ -86,15 +86,17 @@ void FinalizeShapeOp::transformTensor(TensorView& tensor) const {
     for (std::size_t gid = 0; gid < outputGroups.size(); ++gid) {
         const auto& groupOutputs = outputGroups[gid];
         auto current = groups[gid];
-        for (std::size_t i = 0; i < groupOutputs.size() - 1; ++i) {
+        for (std::size_t i = groupOutputs.size() - 1; i > 0 ; --i) {
             auto outputIndex= groupOutputs[i];
             auto block = outputShape[outputIndex];
             auto op = std::make_shared<SplitOp>(current, std::weak_ptr<Iterator>(), std::weak_ptr<Iterator>());
             current = std::make_shared<Iterator>(IteratorTransform { op }, *current->getSize() / *block);
             auto extracted = std::make_shared<Iterator>(IteratorTransform { op }, block);
+            op->childLhs = current;
+            op->childRhs = extracted;
             newInterface[outputIndex] = extracted;
         }
-        newInterface[groupOutputs.back()] = current;
+        newInterface[0] = current;
         outputCounter += groupOutputs.size();
     }
     KAS_ASSERT(outputCounter == outputShape.size());

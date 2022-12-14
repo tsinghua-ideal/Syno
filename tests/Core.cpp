@@ -22,6 +22,7 @@ TEST(core_tests, size) {
     auto sizeHWc = std::make_shared<Size>(Size::ExprType { 1, 1 }, Size::ExprType { -1 });
     ASSERT_EQ(*(*(*sizeH * *sizeW) / *sizeC), *sizeHWc);
     ASSERT_EQ(sizeHWc->toString(ctx), "(1/c)HW");
+    ASSERT_EQ((*sizeH * *sizeH)->toString(ctx), "H^2");
 }
 
 TEST(core_tests, tensor) {

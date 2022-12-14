@@ -151,14 +151,14 @@ std::string Size::toString(const BindingContext& ctx) const {
             hasDenominator = true;
             denominator << ctx.getCoefficientAlias(i);
             if (coefficient[i] != -1) {
-                denominator << "^" << -coefficient[i];
+                denominator << "^" << static_cast<int>(-coefficient[i]);
             }
         } else if (coefficient[i] > 0) {
             hasCoefficient = true;
             hasNominator = true;
             result << ctx.getCoefficientAlias(i);
             if (coefficient[i] != 1) {
-                result << "^" << coefficient[i];
+                result << "^" << static_cast<int>(coefficient[i]);
             }
         }
     }
@@ -179,7 +179,7 @@ std::string Size::toString(const BindingContext& ctx) const {
             hasPrimary = true;
             result << ctx.getPrimaryAlias(i);
             if (primary[i] != 1) {
-                result << "^" << primary[i];
+                result << "^" << static_cast<int>(primary[i]);
             }
         }
     }

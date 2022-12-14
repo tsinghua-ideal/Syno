@@ -4,7 +4,9 @@
 
 #include "KAS/Core/Manipulation.hpp"
 #include "KAS/Core/Shape.hpp"
+#include "KAS/Core/Tensor.hpp"
 #include "KAS/Transforms.hpp"
+#include "KAS/Transforms/Finalize.hpp"
 #include "KAS/Transforms/Share.hpp"
 
 
@@ -123,4 +125,30 @@ TEST_F(transforms_tests, split) {
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx), "[((i_0)*(W))+(i_1),i_2]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[HW,(c)H]");
+}
+
+TEST_F(transforms_tests, finalize) {
+    Shape outputShape { std::vector<std::shared_ptr<Size>> { *(*sizeH * *sizeW) / *sizeC, *sizeC * *sizeW } };
+    Shape desired { std::vector<std::shared_ptr<Size>> { sizeH, sizeW } };
+    FinalizeShapeOp finalizeOp(desired, { 0, 0 }, { }, { { 0, 1 } });
+    auto tensorView = TensorView { finalizeOp.transformShapeInverse(outputShape), ctx };
+    finalizeOp.transformTensor(tensorView);
+    tensorView.finishConstruction();
+    tensorView.setDefaultAccesses(ctx);
+    tensorView.evaluateTensorAccess(ctx);
+    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[(1/c)HW,(c)W]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[H,W,W]");
+    // Note that the remainder of a size is placed frontmost. So when merging we are actually doing [W,H,W], where the last dimension, which is the remainder, is promoted to the first of the group.
+    // First a split is evaluated, [((i_0)*((c)W))+(i_1)]
+    // Then a merge ((the fusion of remainder W and input H) and input W),
+    // [(((i_0)*((c)W))+(i_1))/(W),(((i_0)*((c)W))+(i_1))%(W)]
+    // Then yet another merge (remainder W and input H),
+    // [((((i_0)*((c)W))+(i_1))/(W))/(H),((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W)]
+    // In the original order in the input tensor,
+    // [((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W),((((i_0)*((c)W))+(i_1))/(W))/(H)]
+    ASSERT_EQ(
+        tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx),
+        "[((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W),((((i_0)*((c)W))+(i_1))/(W))/(H)]"
+    );
 }

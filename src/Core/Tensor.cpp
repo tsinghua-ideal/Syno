@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -161,6 +162,10 @@ std::vector<std::shared_ptr<Iterator>> TensorView::getAllIterators() const {
 }
 
 void TensorView::evaluateTensorAccess(BindingContext& ctx) {
+    KAS_ASSERT(access.size() == interface.size());
+    KAS_ASSERT(std::all_of(access.begin(), access.end(), [](const auto& value) {
+        return value != nullptr;
+    }));
     IteratorEvaluator evaluator { ctx };
     evaluator.evaluateTensorAccess(*this);
     tensor->evaluateTensorAccess(ctx);
