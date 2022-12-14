@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstddef>
 #include <functional>
 #include <map>
 #include <memory>
@@ -24,7 +25,9 @@ bool Size::isCoefficientRealizable(const ExprType& toBeRealized, const BindingCo
     return somePositive || allZero;
 }
 
-Size::Size():
+Size::Size(std::size_t primaryCount, std::size_t coefficientCount):
+    primaryCount { primaryCount },
+    coefficientCount { coefficientCount },
     primary {},
     coefficient {}
 {}
@@ -49,13 +52,13 @@ bool Size::isCoefficient() const {
 }
 
 bool Size::isMultipleOf(const Size& factor, const BindingContext& ctx) const {
-    for (int i = 0; i < primary.size(); ++i) {
+    for (int i = 0; i < primaryCount; ++i) {
         if (primary[i] < factor.primary[i]) {
             return false;
         }
     }
-    ExprType newCoefficient;
-    for (int i = 0; i < coefficient.size(); ++i) {
+    ExprType newCoefficient { };
+    for (int i = 0; i < coefficientCount; ++i) {
         newCoefficient[i] = coefficient[i] - factor.coefficient[i];
     }
     return isCoefficientRealizable(newCoefficient, ctx);
@@ -63,13 +66,13 @@ bool Size::isMultipleOf(const Size& factor, const BindingContext& ctx) const {
 
 std::vector<std::shared_ptr<Size>> Size::sampleFactors(const BindingContext& ctx) const {
     std::vector<std::shared_ptr<Size>> factors;
-    for (int primaryIndex = 0; primaryIndex < primary.size(); ++primaryIndex) {
+    for (int primaryIndex = 0; primaryIndex < primaryCount; ++primaryIndex) {
         int primaryDim = primary[primaryIndex];
         if (primaryDim >= 1) {
-            auto primaryRes = std::make_shared<Size>();
+            auto primaryRes = std::make_shared<Size>(primaryCount, coefficientCount);
             primaryRes->primary[primaryIndex] = 1;
             factors.push_back(primaryRes);
-            for (int coefficientIndex = 0; coefficientIndex < coefficient.size(); ++coefficientIndex) {
+            for (int coefficientIndex = 0; coefficientIndex < coefficientCount; ++coefficientIndex) {
                 int coefficientDim = coefficient[coefficientIndex];
                 if (coefficientDim >= 1) {
                     auto res = std::make_shared<Size>(*primaryRes);
@@ -83,51 +86,49 @@ std::vector<std::shared_ptr<Size>> Size::sampleFactors(const BindingContext& ctx
 }
 
 std::shared_ptr<Size> Size::operator*(const Size& other) const {
-    KAS_ASSERT(primary.size() == other.primary.size() && coefficient.size() == other.coefficient.size());
+    KAS_ASSERT(primaryCount == other.primaryCount && coefficientCount == other.coefficientCount);
     auto newSize = std::make_shared<Size>(*this);
     auto& newPrimary = newSize->primary;
     auto& newCoefficient = newSize->coefficient;
-    for (int i = 0; i < primary.size(); ++i) {
+    for (int i = 0; i < primaryCount; ++i) {
         newPrimary[i] += other.primary[i];
     }
-    for (int i = 0; i < coefficient.size(); ++i) {
+    for (int i = 0; i < coefficientCount; ++i) {
         newCoefficient[i] += other.coefficient[i];
     }
     return newSize;
 }
 
 std::shared_ptr<Size> Size::Product(const std::vector<std::shared_ptr<Size>>& operands) {
-    auto newSize = std::make_shared<Size>();
+    auto newSize = std::make_shared<Size>(*operands.at(0));
     auto& newPrimary = newSize->primary;
     auto& newCoefficient = newSize->coefficient;
-    for (const auto& operand: operands) {
-        if (newPrimary.empty()) {
-            newPrimary = operand->primary;
-            newCoefficient = operand->coefficient;
-        } else {
-            KAS_ASSERT(newPrimary.size() == operand->primary.size() && newCoefficient.size() == operand->coefficient.size());
-            for (int i = 0; i < newPrimary.size(); ++i) {
-                newPrimary[i] += operand->primary[i];
-            }
-            for (int i = 0; i < newCoefficient.size(); ++i) {
-                newCoefficient[i] += operand->coefficient[i];
-            }
+    const auto primaryCount = newSize->primaryCount;
+    const auto coefficientCount = newSize->coefficientCount;
+    for (std::size_t index = 1; index < operands.size(); ++index) {
+        const auto& operand = *operands[index];
+        KAS_ASSERT(primaryCount == operand.primaryCount && coefficientCount == operand.coefficientCount);
+        for (int i = 0; i < primaryCount; ++i) {
+            newPrimary[i] += operand.primary[i];
+        }
+        for (int i = 0; i < coefficientCount; ++i) {
+            newCoefficient[i] += operand.coefficient[i];
         }
     }
     return newSize;
 }
 
 std::shared_ptr<Size> Size::operator/(const Size &other) const {
-    KAS_ASSERT(primary.size() == other.primary.size() && coefficient.size() == other.coefficient.size());
+    KAS_ASSERT(primaryCount == other.primaryCount && coefficientCount == other.coefficientCount);
     auto newSize = std::make_shared<Size>(*this);
     auto& newPrimary = newSize->primary;
     auto& newCoefficient = newSize->coefficient;
-    for (int i = 0; i < primary.size(); ++i) {
+    for (int i = 0; i < primaryCount; ++i) {
         newPrimary[i] -= other.primary[i];
         // Ensure that no primary variable is in denominator
         KAS_ASSERT(newPrimary[i] >= 0);
     }
-    for (int i = 0; i < coefficient.size(); ++i) {
+    for (int i = 0; i < coefficientCount; ++i) {
         newCoefficient[i] -= other.coefficient[i];
     }
     return newSize;
@@ -138,14 +139,14 @@ bool Size::operator==(const Size& other) const {
 }
 
 std::string Size::toString(const BindingContext& ctx) const {
-    // KAS_ASSERT(primary.size() == ctx.getPrimaryCount() && coefficient.size() == ctx.getCoefficientCount());
+    KAS_ASSERT(primaryCount == ctx.getPrimaryCount() && coefficientCount == ctx.getCoefficientCount());
     std::stringstream result;
     bool hasCoefficient = false;
     result << "(";
     bool hasNominator = false;
     bool hasDenominator = false;
     std::stringstream denominator;
-    for (int i = 0; i < coefficient.size(); ++i) {
+    for (int i = 0; i < coefficientCount; ++i) {
         if (coefficient[i] < 0) {
             hasCoefficient = true;
             hasDenominator = true;
@@ -174,7 +175,7 @@ std::string Size::toString(const BindingContext& ctx) const {
         result.str("");
     }
     bool hasPrimary = false;
-    for (int i = 0; i < primary.size(); ++i) {
+    for (int i = 0; i < primaryCount; ++i) {
         if (primary[i] > 0) {
             hasPrimary = true;
             result << ctx.getPrimaryAlias(i);
@@ -205,8 +206,7 @@ std::size_t Shape::size() const {
 }
 
 const std::shared_ptr<Size>& Shape::operator[](std::size_t index) const {
-    KAS_ASSERT(index < sizes.size());
-    return sizes[index];
+    return sizes.at(index);
 }
 
 Shape Shape::replace(

@@ -19,7 +19,7 @@ TEST(core_tests, size) {
     auto sizeW = ctx.getSinglePrimaryVariableSize(1);
     ASSERT_EQ(sizeW->toString(ctx), "W");
     auto sizeC = ctx.getSingleCoefficientVariableSize(0);
-    auto sizeHWc = std::make_shared<Size>(Size::ExprType { 1, 1 }, Size::ExprType { -1 });
+    auto sizeHWc = std::make_shared<Size>(2, 1, Size::ExprType { 1, 1 }, Size::ExprType { -1 });
     ASSERT_EQ(*(*(*sizeH * *sizeW) / *sizeC), *sizeHWc);
     ASSERT_EQ(sizeHWc->toString(ctx), "(1/c)HW");
     ASSERT_EQ((*sizeH * *sizeH)->toString(ctx), "H^2");

@@ -30,8 +30,9 @@ public:
     std::shared_ptr<IteratorValue> getAccess(std::size_t index) const;
     virtual void evaluateTensorAccess(BindingContext& ctx) = 0;
     std::vector<std::shared_ptr<Iterator>> getInterfaceStubs();
+    // The standard interface.
     std::string interfaceAccessToString(const BindingContext& ctx) const;
-    // Requires evaluateTensorAccess to be called first
+    // This is just some arbitrary description. Requires evaluateTensorAccess to be called first.
     virtual std::string actualAccessToString(const BindingContext& ctx) const = 0;
     virtual Shape getShape() const = 0;
     virtual std::string shapeToString(const BindingContext& ctx) const = 0;
@@ -122,7 +123,7 @@ public:
     // Evaluates all accesses to the underlying tensor.
     void evaluateTensorAccess(BindingContext& ctx) override;
 
-    // Returns something like "[i_0,i_1] with reduced [i_2]". When Blending is implemented, an additional argument may be passed. TODO
+    // Returns something like "[i_0,i_1] with reduced [i_2]".
     std::string actualAccessToString(const BindingContext &ctx) const override;
 
     Shape getShape() const override;

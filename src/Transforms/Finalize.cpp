@@ -12,30 +12,19 @@
 
 namespace kas {
 
-FinalizeShapeOp::FinalizeShapeOp(
-    const Shape& desired,
-    std::vector<std::size_t> desiredInputToGroupId,
-    std::vector<std::size_t> weightDirectInputToOutput,
-    std::vector<std::vector<std::size_t>> outputGroups):
-    desired { desired },
-    desiredInputToGroupId { std::move(desiredInputToGroupId) },
-    weightDirectInputToOutput { std::move(weightDirectInputToOutput) },
-    outputGroups { std::move(outputGroups) }
-{}
-
 Shape FinalizeShapeOp::transformShapeInverse(const Shape& incomingOutputShape) const {
-    KAS_ASSERT(desired.size() == desiredInputToGroupId.size());
+    KAS_ASSERT(desired.size() == epilogue.desiredInputToGroupId.size());
     outputShape = incomingOutputShape;
     // First, the desired input constitute the frontmost dimensions.
     std::vector<std::shared_ptr<Size>> inputShape(desired.getSizes());
     // Then, directly mapped weight dimensions.
-    for (std::size_t i = 0; i < weightDirectInputToOutput.size(); ++i) {
-        inputShape.push_back(outputShape[weightDirectInputToOutput[i]]);
+    for (std::size_t i = 0; i < epilogue.weightDirectInputToOutput.size(); ++i) {
+        inputShape.push_back(outputShape[epilogue.weightDirectInputToOutput[i]]);
     }
     // Next, we would like to compute if the groups has excessive size.
     std::vector<std::shared_ptr<Size>> remainders;
     // Compute the size of the whole group.
-    for (const auto& group: outputGroups) {
+    for (const auto& group: epilogue.outputGroups) {
         std::vector<std::shared_ptr<Size>> groupSizes;
         for (std::size_t i: group) {
             groupSizes.push_back(outputShape[i]);
@@ -43,8 +32,8 @@ Shape FinalizeShapeOp::transformShapeInverse(const Shape& incomingOutputShape) c
         remainders.push_back(Size::Product(groupSizes));
     }
     // Remove the size of the desired input.
-    for (std::size_t i = 0; i < desiredInputToGroupId.size(); ++i) {
-        remainders[desiredInputToGroupId[i]] = *remainders[desiredInputToGroupId[i]] / *desired[i];
+    for (std::size_t i = 0; i < epilogue.desiredInputToGroupId.size(); ++i) {
+        remainders[epilogue.desiredInputToGroupId[i]] = *remainders[epilogue.desiredInputToGroupId[i]] / *desired[i];
     }
     // Check if there is remainder
     for (std::size_t i = 0; i < remainders.size(); ++i) {
@@ -60,19 +49,19 @@ void FinalizeShapeOp::transformTensor(TensorView& tensor) const {
     std::vector<std::shared_ptr<Iterator>> newInterface(outputShape.size(), nullptr);
     int outputCounter = 0;
     // First handle the directly mapped iterators.
-    for (std::size_t i = 0; i < weightDirectInputToOutput.size(); ++i) {
-        newInterface[weightDirectInputToOutput[i]] = tensor.interface.at(desired.size() + i);
+    for (std::size_t i = 0; i < epilogue.weightDirectInputToOutput.size(); ++i) {
+        newInterface[epilogue.weightDirectInputToOutput[i]] = tensor.interface.at(desired.size() + i);
         ++outputCounter;
     }
-    std::vector<std::shared_ptr<Iterator>> groups(outputGroups.size(), nullptr);
+    std::vector<std::shared_ptr<Iterator>> groups(epilogue.outputGroups.size(), nullptr);
     // Add the remainder iterators.
     for (std::size_t i = 0; i < weightRemainderInputToGroupId.size(); ++i) {
-        auto offset = desired.size() + weightDirectInputToOutput.size() + i;
+        auto offset = desired.size() + epilogue.weightDirectInputToOutput.size() + i;
         groups[weightRemainderInputToGroupId[i]] = tensor.interface.at(offset);
     }
     // Merge the iterators into groups.
     for (std::size_t i = 0; i < desired.size(); ++i) {
-        auto gid = desiredInputToGroupId[i];
+        auto gid = epilogue.desiredInputToGroupId[i];
         if (groups[gid] == nullptr) {
             groups[gid] = tensor.interface.at(i);
         } else {
@@ -83,8 +72,8 @@ void FinalizeShapeOp::transformTensor(TensorView& tensor) const {
         }
     }
     // Split the iterators into output.
-    for (std::size_t gid = 0; gid < outputGroups.size(); ++gid) {
-        const auto& groupOutputs = outputGroups[gid];
+    for (std::size_t gid = 0; gid < epilogue.outputGroups.size(); ++gid) {
+        const auto& groupOutputs = epilogue.outputGroups[gid];
         auto current = groups[gid];
         for (std::size_t i = groupOutputs.size() - 1; i > 0 ; --i) {
             auto outputIndex= groupOutputs[i];
@@ -111,9 +100,11 @@ std::vector<std::unique_ptr<FinalizeShapeOp>> FinalizeShapeOp::generate(const Sh
     }
     std::unique_ptr<FinalizeShapeOp> op { new FinalizeShapeOp {
         options.desired,
-        std::vector<std::size_t>(options.desired.size(), 0),
-        {},
-        { indices }
+        Epilogue {
+            std::vector<std::size_t>(options.desired.size(), 0),
+            {},
+            { indices }
+        }
     }};
     std::vector<std::unique_ptr<FinalizeShapeOp>> res;
     res.push_back(std::move(op));

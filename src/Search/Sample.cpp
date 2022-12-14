@@ -19,13 +19,7 @@
 
 namespace kas {
 
-SampleOptions::SampleOptions(int countPrimaryVariables, int countCoefficientVariables, int depth, int dimLowerBound, int dimUpperBound):
-    countPrimaryVariables { countPrimaryVariables },
-    countCoefficientVariables { countCoefficientVariables },
-    depth { depth },
-    dimLowerBound { dimLowerBound },
-    dimUpperBound { dimUpperBound }
-{
+void SampleOptions::check() const {
     KAS_ASSERT(countPrimaryVariables > 0);
     KAS_ASSERT(countCoefficientVariables >= 0);
     KAS_ASSERT(depth >= 0);
@@ -109,6 +103,7 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     options { options },
     ctx { options.countPrimaryVariables, options.countCoefficientVariables }
 {
+    this->options.check();
     this->outputShape = ctx.getShapeFromNames(Shape::parseNames(outputShape));
     this->inputShape = ctx.getShapeFromNames(Shape::parseNames(inputShape));
 }

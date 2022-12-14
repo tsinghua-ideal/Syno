@@ -19,6 +19,8 @@ public:
     constexpr static std::size_t MAX_VARIABLES = 16;
     using ExprType = std::array<std::int8_t, MAX_VARIABLES>;
 protected:
+    const std::size_t primaryCount;
+    const std::size_t coefficientCount;
     // Powers of large variables. Must be non-negative.
     ExprType primary;
     // Powers of small variables. Can be negative (when in denominator).
@@ -28,9 +30,11 @@ protected:
     friend class BindingContext;
 
 public:
-    Size();
+    Size(std::size_t primaryCount, std::size_t coefficientCount);
     template<typename Tp, typename Tc>
-    Size(Tp&& primary, Tc&& coefficient):
+    Size(std::size_t primaryCount, std::size_t coefficientCount, Tp&& primary, Tc&& coefficient):
+        primaryCount { primaryCount },
+        coefficientCount { coefficientCount },
         primary { std::forward<Tp>(primary) },
         coefficient { std::forward<Tc>(coefficient) }
     {}

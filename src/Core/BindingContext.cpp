@@ -45,24 +45,23 @@ std::string_view BindingContext::getCoefficientAlias(std::size_t index) const {
 }
 
 std::shared_ptr<Size> BindingContext::getSinglePrimaryVariableSize(int index) const {
-    KAS_ASSERT(index >= 0 && index < primaryMetadata.size());
-    auto res = std::make_shared<Size>();
+    KAS_ASSERT(index >= 0 && index < getPrimaryCount());
+    auto res = std::make_shared<Size>(getPrimaryCount(), getCoefficientCount());
     res->primary[index] = 1;
     return res;
 }
 
 std::shared_ptr<Size> BindingContext::getSingleCoefficientVariableSize(int index) const {
-    KAS_ASSERT(index >= 0 && index < coefficientMetadata.size());
-    auto res = std::make_shared<Size>();
+    KAS_ASSERT(index >= 0 && index < getCoefficientCount());
+    auto res = std::make_shared<Size>(getPrimaryCount(), getCoefficientCount());
     res->coefficient[index] = 1;
     return res;
 }
 
 std::vector<std::shared_ptr<Size>> BindingContext::getPositiveCoefficients() const {
-    const int count = coefficientMetadata.size();
     std::vector<std::shared_ptr<Size>> result;
-    result.reserve(count);
-    for (int i = 0; i < count; ++i) {
+    result.reserve(getCoefficientCount());
+    for (int i = 0; i < getCoefficientCount(); ++i) {
         result.push_back(getSingleCoefficientVariableSize(i));
     }
     return result;
@@ -80,7 +79,7 @@ Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
         const auto& name = names[i];
         auto it = nameToIndex.find(name);
         if (it == nameToIndex.end()) {
-            KAS_ASSERT(namedPrimaryCount < primaryMetadata.size());
+            KAS_ASSERT(namedPrimaryCount < getPrimaryCount());
             nameToIndex[name] = namedPrimaryCount;
             primaryMetadata[namedPrimaryCount] = Metadata { name };
             result.push_back(getSinglePrimaryVariableSize(namedPrimaryCount));

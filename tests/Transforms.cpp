@@ -130,7 +130,7 @@ TEST_F(transforms_tests, split) {
 TEST_F(transforms_tests, finalize) {
     Shape outputShape { std::vector<std::shared_ptr<Size>> { *(*sizeH * *sizeW) / *sizeC, *sizeC * *sizeW } };
     Shape desired { std::vector<std::shared_ptr<Size>> { sizeH, sizeW } };
-    FinalizeShapeOp finalizeOp(desired, { 0, 0 }, { }, { { 0, 1 } });
+    FinalizeShapeOp finalizeOp(desired, FinalizeShapeOp::Epilogue { { 0, 0 }, { }, { { 0, 1 } } });
     auto tensorView = TensorView { finalizeOp.transformShapeInverse(outputShape), ctx };
     finalizeOp.transformTensor(tensorView);
     tensorView.finishConstruction();

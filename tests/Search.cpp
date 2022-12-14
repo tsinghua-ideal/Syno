@@ -30,7 +30,12 @@ TEST(search_tests, shape_node) {
 }
 
 TEST(search_tests, sample) {
-    SampleOptions options(4, 5, 2, 4, 8);
+    SampleOptions options;
+    options.countPrimaryVariables = 4;
+    options.countCoefficientVariables = 5;
+    options.depth = 2;
+    options.dimLowerBound = 4;
+    options.dimUpperBound = 8;
     Sampler sampler("[H,W]", "[N,C,H,W]", options);
     auto& ctx = sampler.getBindingContext();
     auto callback = [&](TensorView tensorView) {

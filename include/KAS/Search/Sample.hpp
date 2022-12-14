@@ -13,12 +13,13 @@ namespace kas {
 
 struct SampleOptions {
 public:
-    int countPrimaryVariables;
-    int countCoefficientVariables;
-    int depth;
-    int dimLowerBound;
-    int dimUpperBound;
-    SampleOptions(int countPrimaryVariables, int countCoefficientVariables, int depth, int dimLowerBound, int dimUpperBound);
+    int countPrimaryVariables = 5;
+    int countCoefficientVariables = 5;
+    int depth = 4;
+    int dimLowerBound = 8;
+    int dimUpperBound = 1;
+    SampleOptions() = default;
+    void check() const;
 };
 
 using SampleCallback = std::function<void(TensorView)>;
