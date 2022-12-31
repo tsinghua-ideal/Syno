@@ -10,7 +10,7 @@
 
 namespace kas {
 
-UnfoldShapeOp::UnfoldShapeOp(int input, int outputOriginal, int outputWindow):
+UnfoldShapeOp::UnfoldShapeOp(std::size_t input, std::size_t outputOriginal, std::size_t outputWindow):
     input { input },
     outputOriginal { outputOriginal },
     outputWindow { outputWindow }
@@ -18,7 +18,7 @@ UnfoldShapeOp::UnfoldShapeOp(int input, int outputOriginal, int outputWindow):
 
 Shape UnfoldShapeOp::transformShapeInverse(const Shape& outputShape) const {
     auto windowSize = outputShape[outputWindow];
-    KAS_ASSERT(windowSize->isCoefficient());
+    KAS_ASSERT(windowSize->isLegalCoefficient());
     this->windowSize = windowSize;
     return outputShape.replace({ outputOriginal, outputWindow }, { std::make_pair(input, outputShape[outputOriginal]) });
 }

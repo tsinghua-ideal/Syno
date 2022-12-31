@@ -39,7 +39,7 @@ void Sampler::dfsSample(std::shared_ptr<ShapeNode> node, int depth, const Sample
     if (shape.size() < options.dimUpperBound) {
         // Try increasing dimension, by performing
         // Share^{-1}
-        for (int i = 0; i < shape.size(); ++i) {
+        for (std::size_t i = 0; i < shape.size(); ++i) {
             recursion(std::make_unique<ShareShapeOp>(0, i + 1, i));
         }
         // Reduce^{-1}, TODO
@@ -48,8 +48,8 @@ void Sampler::dfsSample(std::shared_ptr<ShapeNode> node, int depth, const Sample
     if (shape.size() > options.dimLowerBound) {
         // Try decreasing dimension, by performing
         // Split^{-1}
-        for (int i = 0; i < shape.size(); ++i) {
-            for (int j = i + 1; j < shape.size(); ++j) {
+        for (std::size_t i = 0; i < shape.size(); ++i) {
+            for (std::size_t j = i + 1; j < shape.size(); ++j) {
                 recursion(std::make_unique<SplitShapeOp>(i, i, j));
             }
         }
@@ -60,38 +60,15 @@ void Sampler::dfsSample(std::shared_ptr<ShapeNode> node, int depth, const Sample
 }
 
 void Sampler::finalize(std::shared_ptr<ShapeNode> node, const SampleCallback& callback) {
-    // Here we need to match the shape.
-    // std::vector<int> remap(inputShape.size(), -1);
-    // std::set<int> used;
-    // for (int i = 0; i < inputShape.size(); ++i) {
-    //     auto coarseMatchingSizes = node->shape.findSize(*inputShape[i]);
-    //     std::vector<int> matchingSizes;
-    //     std::copy_if(coarseMatchingSizes.begin(), coarseMatchingSizes.end(), std::back_inserter(matchingSizes), [&](int i) { return !used.contains(i); });
-    //     if (!matchingSizes.empty()) {
-    //         auto candidate = matchingSizes[0]; // Just add some randomness. TODO
-    //         used.insert(candidate);
-    //         remap[i] = candidate;
-    //     } else {
-    //         auto coarseMultipleSizes = node->shape.findMultipleOfSize(*inputShape[i], ctx);
-    //         std::vector<int> multipleSizes;
-    //         std::copy_if(coarseMultipleSizes.begin(), coarseMultipleSizes.end(), std::back_inserter(multipleSizes), [&](int i) { return !used.contains(i); });
-    //         if (!multipleSizes.empty()) {
-    //             auto candidate = multipleSizes[0];
-    //             used.insert(candidate);
-    //             remap[i] = candidate;
-    //             node = std::make_shared<ShapeNode>(node, std::make_unique<MergeShapeOp>(node->shape.size(), candidate, candidate, inputShape[i]));
-    //         } else {
-    //             return;
-    //         }
-    //     }
-    // }
-    // KAS_ASSERT(std::all_of(remap.begin(), remap.end(), [](int i) { return i != -1; }));
-    auto f = std::move(FinalizeShapeOp::generate(node->shape, { .desired = inputShape })[0]);
-    node = std::make_shared<ShapeNode>(node, std::move(f));
-    auto tensorView = node->buildTensorView(ctx.addTensor("t"));
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    callback(tensorView);
+    auto finalizations = FinalizeShapeOp::generate(node->shape, { .desired = inputShape });
+    for (auto& f: finalizations) {
+        node = std::make_shared<ShapeNode>(node, std::move(f));
+        // TODO: get rid of this "t".
+        auto tensorView = node->buildTensorView(ctx.addTensor("t"));
+        tensorView.setDefaultAccesses(ctx);
+        tensorView.evaluateTensorAccess(ctx);
+        callback(tensorView);
+    }
     return;
 }
 

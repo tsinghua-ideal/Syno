@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -13,8 +14,8 @@ namespace kas {
 
 struct SampleOptions {
 public:
-    int countPrimaryVariables = 5;
-    int countCoefficientVariables = 5;
+    std::size_t countPrimaryVariables = 5;
+    std::size_t countCoefficientVariables = 5;
     int depth = 4;
     int dimLowerBound = 8;
     int dimUpperBound = 1;

@@ -10,7 +10,7 @@
 
 namespace kas {
 
-ShareShapeOp::ShareShapeOp(int inputLhs, int inputRhs, int output):
+ShareShapeOp::ShareShapeOp(std::size_t inputLhs, std::size_t inputRhs, std::size_t output):
     inputLhs { inputLhs },
     inputRhs { inputRhs },
     output { output }

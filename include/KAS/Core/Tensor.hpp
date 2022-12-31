@@ -45,8 +45,8 @@ public:
 class TensorStub {
 public:
     const std::shared_ptr<Tensor> tensor;
-    const int index;
-    TensorStub(std::shared_ptr<Tensor> tensor, int index);
+    const std::size_t index;
+    TensorStub(std::shared_ptr<Tensor> tensor, std::size_t index);
 
     void setAccess(std::shared_ptr<IteratorValue> value) const;
 };
@@ -98,8 +98,8 @@ public:
 
     // drops and adds must be sorted by index
     void replaceInterface(
-        std::vector<int> drops,
-        std::vector<std::pair<int, std::shared_ptr<Iterator>>> adds
+        std::vector<std::size_t> drops,
+        std::vector<std::pair<std::size_t, std::shared_ptr<Iterator>>> adds
     );
 
     // A manipulation is a transform of the data in a tensor, not just the way of accessing it. This includes Map and Reduce.

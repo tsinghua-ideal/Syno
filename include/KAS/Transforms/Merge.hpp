@@ -9,10 +9,10 @@ namespace kas {
 
 class MergeShapeOp final: public PrimitiveShapeOp {
 public:
-    int inputMajor, inputMinor;
-    int output;
+    std::size_t inputMajor, inputMinor;
+    std::size_t output;
     std::shared_ptr<Size> block;
-    MergeShapeOp(int inputMajor, int inputMinor, int output, std::shared_ptr<Size> block);
+    MergeShapeOp(std::size_t inputMajor, std::size_t inputMinor, std::size_t output, std::shared_ptr<Size> block);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
 

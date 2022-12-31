@@ -9,7 +9,7 @@
 
 namespace kas {
 
-ReduceShapeOp::ReduceShapeOp(int input, std::shared_ptr<Size> size, ReduceManipulation::Type type):
+ReduceShapeOp::ReduceShapeOp(std::size_t input, std::shared_ptr<Size> size, ReduceManipulation::Type type):
     input { input },
     size { std::move(size) },
     type { type }

@@ -18,6 +18,7 @@ public:
     virtual Shape transformShapeInverse(const Shape& input) const = 0;
     // After the search, when the resulting tensor has a shape that is verified to be eligible, we can build the TensorView, which is a series of transforms on a tensor. The semantics, rather than by this class, are implemented by the PrimitiveOp's defined below. They are inserted by this function to the TensorView.
     virtual void transformTensor(TensorView& tensor) const = 0;
+    virtual ~PrimitiveShapeOp() = default;
 };
 
 // There are 3 kinds of PrimitiveOp's, listed below. Those classes can transform the Iterator, from those that index the output tensor, to forms that index the original tensors. So this is also kind of bottom-up.
@@ -33,6 +34,7 @@ public:
     RepeatLikePrimitiveOp(std::shared_ptr<Iterator> parent);
     // Compute input iterator from output iterator
     virtual SingleIteratorValue value(SingleIteratorValue output, const BindingContext& ctx) const = 0;
+    virtual ~RepeatLikePrimitiveOp() = default;
 };
 
 // By split-like, we refer to the primitives that have one input iterator and two output iterators.
@@ -44,6 +46,7 @@ public:
     SplitLikePrimitiveOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs);
     // Compute input iterator from output iterators
     virtual SingleIteratorValue value(DoubleIteratorValue output, const BindingContext& ctx) const = 0;
+    virtual ~SplitLikePrimitiveOp() = default;
 };
 
 // By merge-like, we refer to the primitives that have two input iterators and one output iterator.
@@ -54,6 +57,7 @@ public:
     MergeLikePrimitiveOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> parentRhs);
     // Compute output iterators from input iterator
     virtual DoubleIteratorValue value(SingleIteratorValue output, const BindingContext& ctx) const = 0;
+    virtual ~MergeLikePrimitiveOp() = default;
 };
 
 } // namespace kas

@@ -8,7 +8,7 @@
 
 namespace kas {
 
-SplitShapeOp::SplitShapeOp(int input, int outputMajor, int outputMinor):
+SplitShapeOp::SplitShapeOp(std::size_t input, std::size_t outputMajor, std::size_t outputMinor):
     input { input },
     outputMajor { outputMajor },
     outputMinor { outputMinor }

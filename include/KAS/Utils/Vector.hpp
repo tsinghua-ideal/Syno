@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <memory>
+#include <ranges>
 #include <vector>
 #include <sstream>
 
@@ -11,11 +12,11 @@ namespace kas {
 template<typename T>
 std::vector<T> ReplaceVector(
     const std::vector<T>& vec, 
-    std::vector<int>& drops,
-    std::vector<std::pair<int, T>>& adds
+    std::vector<std::size_t>& drops,
+    std::vector<std::pair<std::size_t, T>>& adds
 ) {
     std::sort(drops.begin(), drops.end());
-    std::sort(adds.begin(), adds.end(), std::function([](const std::pair<int, T>& a, const std::pair<int, T>& b) -> bool {
+    std::sort(adds.begin(), adds.end(), std::function([](const std::pair<std::size_t, T>& a, const std::pair<std::size_t, T>& b) -> bool {
         return a.first < b.first;
     }));
 
@@ -23,9 +24,9 @@ std::vector<T> ReplaceVector(
     newVec.reserve(vec.size() + adds.size() - drops.size());
 
     if (drops.size() > 0) {
-        int dropIndex = 0;
+        std::size_t dropIndex = 0;
         int nextDrop = drops[dropIndex];
-        for (int i = 0; i < vec.size(); ++i) {
+        for (std::size_t i = 0; i < vec.size(); ++i) {
             if (nextDrop == i) {
                 ++dropIndex;
                 if (dropIndex < drops.size()) {
@@ -52,7 +53,7 @@ template<typename T>
 std::string VectorToString(const std::vector<T>& vec, std::function<std::string(const T&)> mapper) {
     std::stringstream ss;
     ss << "[";
-    for (int i = 0; i < vec.size(); i++) {
+    for (std::size_t i = 0; i < vec.size(); i++) {
         if (i != 0) {
             ss << ",";
         }

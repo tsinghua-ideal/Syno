@@ -1,5 +1,9 @@
+#include <cstddef>
 #include <gtest/gtest.h>
+#include <iostream>
+#include <map>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "KAS/Core/Manipulation.hpp"
@@ -130,7 +134,7 @@ TEST_F(transforms_tests, split) {
 TEST_F(transforms_tests, finalize) {
     Shape outputShape { std::vector<std::shared_ptr<Size>> { *(*sizeH * *sizeW) / *sizeC, *sizeC * *sizeW } };
     Shape desired { std::vector<std::shared_ptr<Size>> { sizeH, sizeW } };
-    FinalizeShapeOp finalizeOp(desired, FinalizeShapeOp::Epilogue { { 0, 0 }, { }, { { 0, 1 } } });
+    FinalizeShapeOp finalizeOp(desired, FinalizeShapeOp::Epilogue { { 0, 0 }, { { 0, 1 } } });
     auto tensorView = TensorView { finalizeOp.transformShapeInverse(outputShape), ctx };
     finalizeOp.transformTensor(tensorView);
     tensorView.finishConstruction();
@@ -151,4 +155,29 @@ TEST_F(transforms_tests, finalize) {
         tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx),
         "[((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W),((((i_0)*((c)W))+(i_1))/(W))/(H)]"
     );
+}
+
+TEST_F(transforms_tests, finalize_gen) {
+    BindingContext ctx { std::vector<SizeName>{ SizeName("N"), SizeName("C"), SizeName("H"), SizeName("W") }, std::vector<SizeName>{ SizeName("k"), SizeName("s") } };
+    std::shared_ptr<Size> primaryN = ctx.getSinglePrimaryVariableSize(0);
+    std::shared_ptr<Size> primaryC = ctx.getSinglePrimaryVariableSize(1);
+    std::shared_ptr<Size> primaryH = ctx.getSinglePrimaryVariableSize(2);
+    std::shared_ptr<Size> primaryW = ctx.getSinglePrimaryVariableSize(3);
+    std::shared_ptr<Size> coeffK = ctx.getSingleCoefficientVariableSize(0);
+    std::shared_ptr<Size> coeffS = ctx.getSingleCoefficientVariableSize(1);
+    Shape outputShape { std::vector<std::shared_ptr<Size>> {
+        primaryN, *primaryW / *coeffK, primaryH, *primaryC / *coeffK, primaryW, coeffK, coeffS
+    }};
+    Shape desiredShape { std::vector<std::shared_ptr<Size>> {
+        primaryW, coeffS, *primaryW * *coeffK
+    }};
+    std::vector<std::size_t> mappings {
+        1, 3, 4
+    };
+    auto epilogue = FinalizeShapeOp::solveWithMappings(outputShape, desiredShape, mappings).value();
+    std::cout << epilogue.toDebugString(ctx, outputShape, desiredShape);
+    std::cout << "\nNow automatically generate epilogue:\n" << std::endl;
+    for (auto&& e: FinalizeShapeOp::generate(outputShape, { .desired = desiredShape })) {
+        std::cout << e->getEpilogue().toDebugString(ctx, outputShape, desiredShape);
+    }
 }

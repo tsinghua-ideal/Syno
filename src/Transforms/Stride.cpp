@@ -9,14 +9,14 @@
 
 namespace kas {
 
-StrideShapeOp::StrideShapeOp(int input, int output, std::shared_ptr<Size> stride):
+StrideShapeOp::StrideShapeOp(std::size_t input, std::size_t output, std::shared_ptr<Size> stride):
     input { input },
     output { output },
     stride { std::move(stride) }
 {}
 
 Shape StrideShapeOp::transformShapeInverse(const Shape& outputShape) const {
-    KAS_ASSERT(stride->isCoefficient());
+    KAS_ASSERT(stride->isLegalCoefficient());
     auto out = outputShape[output];
     return outputShape.replace({ output }, { std::make_pair(input, *out * *stride)});
 }

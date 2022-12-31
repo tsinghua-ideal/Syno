@@ -14,10 +14,20 @@
 
 namespace kas {
 
-struct Size final {
+struct Size {
+    friend class BindingContext;
+    friend class LabeledSize;
+
 public:
     constexpr static std::size_t MAX_VARIABLES = 16;
     using ExprType = std::array<std::int8_t, MAX_VARIABLES>;
+    enum class Trait {
+        One, // powers of primary == 0, powers of coefficient == 0.
+        Coefficient, // powers of primary == 0, powers of coefficient >= 0 but not all 0.
+        IllegalCoefficient, // powers of primary == 0, powers of coefficient < 0.
+        General, // powers of primary >= 0 but not all 0.
+    };
+
 protected:
     const std::size_t primaryCount;
     const std::size_t coefficientCount;
@@ -25,9 +35,6 @@ protected:
     ExprType primary;
     // Powers of small variables. Can be negative (when in denominator).
     ExprType coefficient;
-    // Returns whether the coefficients cannot be possibly realized. This excludes some sizes in forms like 1/K.
-    static bool isCoefficientRealizable(const ExprType& toBeRealized, const BindingContext& ctx);
-    friend class BindingContext;
 
 public:
     Size(std::size_t primaryCount, std::size_t coefficientCount);
@@ -38,12 +45,14 @@ public:
         primary { std::forward<Tp>(primary) },
         coefficient { std::forward<Tc>(coefficient) }
     {}
+    Size& operator=(const Size& other);
 
+    Size identity() const;
+
+    Trait getTrait() const;
     bool is1() const;
     // Returns whether there are no primary variables.
-    bool isCoefficient() const;
-    // Returns whether the powers of all primary variables are greater than equal to that of the input.
-    bool isMultipleOf(const Size& factor, const BindingContext& ctx) const;
+    bool isLegalCoefficient() const;
 
     std::vector<std::shared_ptr<Size>> sampleFactors(const BindingContext& ctx) const;
 
@@ -54,10 +63,40 @@ public:
 
     // The quotient of two Size's
     std::shared_ptr<Size> operator/(const Size& other) const;
+    std::optional<Trait> testDividedBy(const Size& other);
 
     bool operator==(const Size& other) const;
 
     std::string toString(const BindingContext& ctx) const;
+};
+
+struct LabeledSize: public Size {
+    friend class FinalizeShapeOp;
+
+protected:
+    Trait trait;
+
+public:
+    LabeledSize(std::size_t primaryCount, std::size_t coefficientCount);
+    LabeledSize(const Size& size);
+
+    LabeledSize identity() const;
+
+    bool is1() const;
+    bool isLegalCoefficient() const;
+    bool isIllegalCoefficient() const;
+    bool isIndeterminedCoefficient() const;
+    bool isGeneral() const;
+
+    bool testDividedBy(const Size& other);
+    LabeledSize& operator*=(const LabeledSize& other);
+    LabeledSize operator*(const LabeledSize& other) const;
+
+    // Assumes that both are coefficients. In effect performs multiplication, and checks if the power of any variable in the denominator decreases. If so, returns the result, otherwise returns nullopt.
+    std::optional<LabeledSize> absorbCoefficientNumeratorToDenominator(const LabeledSize& other) const;
+
+    // Assumes this is IllegalCoefficient and other is General. Computes how much the variables can counteract.
+    int scoreOfGeneralDimension(const LabeledSize& other) const;
 };
 
 struct Shape final {
@@ -79,13 +118,9 @@ public:
 
     // drops and adds must be sorted by index
     Shape replace(
-        std::vector<int> drops,
-        std::vector<std::pair<int, std::shared_ptr<Size>>> adds
+        std::vector<std::size_t> drops,
+        std::vector<std::pair<std::size_t, std::shared_ptr<Size>>> adds
     ) const;
-
-    std::vector<int> findSize(const Size& size) const;
-    // Find the indices of sizes that are divisible by given factor.
-    std::vector<int> findMultipleOfSize(const Size& factor, const BindingContext& ctx) const;
 
     std::string toString(const BindingContext& ctx) const;
 

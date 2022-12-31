@@ -9,9 +9,9 @@ namespace kas {
 
 class ShareShapeOp final: public PrimitiveShapeOp {
 public:
-    int inputLhs, inputRhs;
-    int output;
-    ShareShapeOp(int inputLhs, int inputRhs, int output);
+    std::size_t inputLhs, inputRhs;
+    std::size_t output;
+    ShareShapeOp(std::size_t inputLhs, std::size_t inputRhs, std::size_t output);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
 

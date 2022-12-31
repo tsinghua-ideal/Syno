@@ -19,14 +19,14 @@ BindingContext::IteratorVariableMetadata::IteratorVariableMetadata(std::string_v
     name { name }
 {}
 
-BindingContext::BindingContext(int countPrimary, int countCoefficient):
+BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoefficient):
     namedPrimaryCount { 0 },
     primaryMetadata(countPrimary),
     coefficientMetadata(countCoefficient) {
-    for (int i = 0; i < countPrimary; ++i) {
+    for (std::size_t i = 0; i < countPrimary; ++i) {
         primaryMetadata[i] = Metadata { "x_" + std::to_string(i) };
     }
-    for (int i = 0; i < countCoefficient; ++i) {
+    for (std::size_t i = 0; i < countCoefficient; ++i) {
         coefficientMetadata[i] = Metadata { "c_" + std::to_string(i) };
     }
 }
@@ -44,14 +44,14 @@ std::string_view BindingContext::getCoefficientAlias(std::size_t index) const {
     return coefficientMetadata.at(index).alias;
 }
 
-std::shared_ptr<Size> BindingContext::getSinglePrimaryVariableSize(int index) const {
+std::shared_ptr<Size> BindingContext::getSinglePrimaryVariableSize(std::size_t index) const {
     KAS_ASSERT(index >= 0 && index < getPrimaryCount());
     auto res = std::make_shared<Size>(getPrimaryCount(), getCoefficientCount());
     res->primary[index] = 1;
     return res;
 }
 
-std::shared_ptr<Size> BindingContext::getSingleCoefficientVariableSize(int index) const {
+std::shared_ptr<Size> BindingContext::getSingleCoefficientVariableSize(std::size_t index) const {
     KAS_ASSERT(index >= 0 && index < getCoefficientCount());
     auto res = std::make_shared<Size>(getPrimaryCount(), getCoefficientCount());
     res->coefficient[index] = 1;
@@ -61,7 +61,7 @@ std::shared_ptr<Size> BindingContext::getSingleCoefficientVariableSize(int index
 std::vector<std::shared_ptr<Size>> BindingContext::getPositiveCoefficients() const {
     std::vector<std::shared_ptr<Size>> result;
     result.reserve(getCoefficientCount());
-    for (int i = 0; i < getCoefficientCount(); ++i) {
+    for (std::size_t i = 0; i < getCoefficientCount(); ++i) {
         result.push_back(getSingleCoefficientVariableSize(i));
     }
     return result;
@@ -69,13 +69,13 @@ std::vector<std::shared_ptr<Size>> BindingContext::getPositiveCoefficients() con
 
 Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
     using Metadata = BindingContext::Metadata;
-    std::map<std::string, int> nameToIndex;
-    for (int i = 0; i < namedPrimaryCount; ++i) {
+    std::map<std::string, std::size_t> nameToIndex;
+    for (std::size_t i = 0; i < namedPrimaryCount; ++i) {
         const auto& alias = primaryMetadata[i].alias;
         nameToIndex[alias] = i;
     }
     std::vector<std::shared_ptr<Size>> result;
-    for (int i = 0; i < names.size(); ++i) {
+    for (std::size_t i = 0; i < names.size(); ++i) {
         const auto& name = names[i];
         auto it = nameToIndex.find(name);
         if (it == nameToIndex.end()) {

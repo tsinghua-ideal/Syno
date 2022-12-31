@@ -9,7 +9,7 @@
 
 namespace kas {
 
-ShiftShapeOp::ShiftShapeOp(int input, int output, int shift):
+ShiftShapeOp::ShiftShapeOp(std::size_t input, std::size_t output, int shift):
     input { input },
     output { output },
     shift { shift }

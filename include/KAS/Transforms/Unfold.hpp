@@ -10,11 +10,11 @@ namespace kas {
 
 class UnfoldShapeOp final: public PrimitiveShapeOp {
 public:
-    int input;
-    int outputOriginal, outputWindow;
+    std::size_t input;
+    std::size_t outputOriginal, outputWindow;
     // A bit ugly, but we have to maintain the size here.
     mutable std::shared_ptr<Size> windowSize;
-    UnfoldShapeOp(int input, int outputOriginal, int outputWindow);
+    UnfoldShapeOp(std::size_t input, std::size_t outputOriginal, std::size_t outputWindow);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
 

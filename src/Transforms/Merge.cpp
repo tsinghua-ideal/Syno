@@ -7,7 +7,7 @@
 
 namespace kas {
 
-MergeShapeOp::MergeShapeOp(int inputMajor, int inputMinor, int output, std::shared_ptr<Size> block):
+MergeShapeOp::MergeShapeOp(std::size_t inputMajor, std::size_t inputMinor, std::size_t output, std::shared_ptr<Size> block):
     inputMajor { inputMajor },
     inputMinor { inputMinor },
     output { output },

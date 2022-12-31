@@ -9,10 +9,10 @@ namespace kas {
 
 class StrideShapeOp final: public PrimitiveShapeOp {
 public:
-    int input;
-    int output;
+    std::size_t input;
+    std::size_t output;
     std::shared_ptr<Size> stride;
-    StrideShapeOp(int input, int output, std::shared_ptr<Size> stride);
+    StrideShapeOp(std::size_t input, std::size_t output, std::shared_ptr<Size> stride);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
 

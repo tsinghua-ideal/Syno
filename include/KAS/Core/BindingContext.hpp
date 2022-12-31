@@ -33,7 +33,7 @@ public:
     };
 
 protected:
-    int namedPrimaryCount;
+    std::size_t namedPrimaryCount;
     // The varaibles are the indices. Metadata can be accessed by index.
     std::vector<Metadata> primaryMetadata;
     std::vector<Metadata> coefficientMetadata;
@@ -42,7 +42,7 @@ protected:
     std::vector<IteratorVariableMetadata> iteratorVariableMetadata;
 
 public:
-    BindingContext(int countPrimary, int countCoefficient);
+    BindingContext(std::size_t countPrimary, std::size_t countCoefficient);
     template<typename Tp, typename Tc>
     BindingContext(Tp&& primaryMetadata, Tc&& coefficientMetadata):
         primaryMetadata { std::forward<Tp>(primaryMetadata) },
@@ -56,8 +56,8 @@ public:
     std::string_view getPrimaryAlias(std::size_t index) const;
     std::string_view getCoefficientAlias(std::size_t index) const;
 
-    std::shared_ptr<Size> getSinglePrimaryVariableSize(int index) const;
-    std::shared_ptr<Size> getSingleCoefficientVariableSize(int index) const;
+    std::shared_ptr<Size> getSinglePrimaryVariableSize(std::size_t index) const;
+    std::shared_ptr<Size> getSingleCoefficientVariableSize(std::size_t index) const;
 
     std::vector<std::shared_ptr<Size>> getPositiveCoefficients() const;
 

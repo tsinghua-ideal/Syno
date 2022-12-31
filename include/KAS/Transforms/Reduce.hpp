@@ -10,10 +10,10 @@ namespace kas {
 
 class ReduceShapeOp final: public PrimitiveShapeOp {
 public:
-    int input;
+    std::size_t input;
     std::shared_ptr<Size> size;
     ReduceManipulation::Type type;
-    ReduceShapeOp(int input, std::shared_ptr<Size> size, ReduceManipulation::Type type);
+    ReduceShapeOp(std::size_t input, std::shared_ptr<Size> size, ReduceManipulation::Type type);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
 

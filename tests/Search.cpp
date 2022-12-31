@@ -13,7 +13,7 @@
 using namespace kas;
 
 TEST(search_tests, shape_node) {
-    auto ctx = BindingContext { 2, 0 };
+    auto ctx = BindingContext { static_cast<std::size_t>(2), static_cast<std::size_t>(0) };
     auto sizeH = ctx.getSinglePrimaryVariableSize(0);
     auto sizeW = ctx.getSinglePrimaryVariableSize(1);
     auto shape = Shape { std::vector<std::shared_ptr<Size>> { sizeH, sizeW } };

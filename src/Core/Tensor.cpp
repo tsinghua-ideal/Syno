@@ -32,7 +32,7 @@ std::vector<std::shared_ptr<Iterator>> Tensor::getInterfaceStubs() {
     std::vector<std::shared_ptr<Iterator>> interface;
     const auto shape = getShape();
     interface.reserve(shape.size());
-    for (int i = 0; i < shape.size(); i++) {
+    for (std::size_t i = 0; i < shape.size(); i++) {
         interface.push_back(std::make_shared<Iterator>(IteratorTransform { TensorStub { shared_from_this(), i } }, shape[i]));
     }
     return interface;
@@ -45,7 +45,7 @@ std::string Tensor::interfaceAccessToString(const BindingContext& ctx) const {
     }));
 }
 
-TensorStub::TensorStub(std::shared_ptr<Tensor> tensor, int index):
+TensorStub::TensorStub(std::shared_ptr<Tensor> tensor, std::size_t index):
     tensor { std::move(tensor) },
     index { index }
 {}
@@ -108,8 +108,8 @@ const std::shared_ptr<Iterator>& TensorView::operator[](std::size_t index) const
 }
 
 void TensorView::replaceInterface(
-    std::vector<int> drops,
-    std::vector<std::pair<int, std::shared_ptr<Iterator>>> adds
+    std::vector<std::size_t> drops,
+    std::vector<std::pair<std::size_t, std::shared_ptr<Iterator>>> adds
 ) {
     auto replaced = ReplaceVector(interface, drops, adds);
     interface.swap(replaced);
@@ -174,7 +174,7 @@ void TensorView::evaluateTensorAccess(BindingContext& ctx) {
 std::string TensorView::actualAccessToString(const BindingContext& ctx) const {
     std::stringstream ss;
     ss << "[";
-    for (int i = 0; i < interface.size(); i++) {
+    for (std::size_t i = 0; i < interface.size(); i++) {
         if (i != 0) {
             ss << ",";
         }
@@ -184,7 +184,7 @@ std::string TensorView::actualAccessToString(const BindingContext& ctx) const {
     auto reducedIterators = getReducedIterators();
     if (!reducedIterators.empty()) {
         ss << " with reduced [";
-        for (int i = 0; i < reducedIterators.size(); i++) {
+        for (std::size_t i = 0; i < reducedIterators.size(); i++) {
             if (i != 0) {
                 ss << ",";
             }

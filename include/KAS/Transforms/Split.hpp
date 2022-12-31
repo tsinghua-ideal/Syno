@@ -9,11 +9,11 @@ namespace kas {
 
 class SplitShapeOp final: public PrimitiveShapeOp {
 public:
-    int input;
-    int outputMajor, outputMinor;
+    std::size_t input;
+    std::size_t outputMajor, outputMinor;
     // A bit ugly, but we have to maintain the size here.
     mutable std::shared_ptr<Size> block;
-    SplitShapeOp(int input, int outputMajor, int outputMinor);
+    SplitShapeOp(std::size_t input, std::size_t outputMajor, std::size_t outputMinor);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
 

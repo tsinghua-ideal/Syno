@@ -9,11 +9,11 @@ namespace kas {
 
 class ShiftShapeOp final: public PrimitiveShapeOp {
 public:
-    int input;
-    int output;
+    std::size_t input;
+    std::size_t output;
     // Not very sure how to represent shift. TODO
     int shift;
-    ShiftShapeOp(int input, int output, int shift);
+    ShiftShapeOp(std::size_t input, std::size_t output, int shift);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
 

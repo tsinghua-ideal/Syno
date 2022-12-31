@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -26,7 +27,7 @@ TEST(core_tests, size) {
 }
 
 TEST(core_tests, tensor) {
-    auto ctx = BindingContext { 3, 2 };
+    auto ctx = BindingContext { static_cast<std::size_t>(3), static_cast<std::size_t>(2) };
     auto sizeH = ctx.getSinglePrimaryVariableSize(0);
     ASSERT_EQ(sizeH->toString(ctx), "x_0");
     auto sizeW = ctx.getSinglePrimaryVariableSize(1);

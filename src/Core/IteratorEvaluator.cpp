@@ -24,7 +24,7 @@ void IteratorEvaluator::evaluateTensorAccess(TensorView& tensor) {
     }
     auto reducedIterators = tensor.getReducedIterators();
     std::string base = "ri_";
-    for (int i = 0; i < reducedIterators.size(); i++) {
+    for (std::size_t i = 0; i < reducedIterators.size(); i++) {
         auto ri = reducedIterators[i];
         // Create new access
         auto ra = std::make_shared<VariableValueNode>(bindingContext.addIteratorVariable(base + std::to_string(i)));
