@@ -27,6 +27,7 @@ void SampleOptions::check() const {
     KAS_ASSERT(dimUpperBound >= dimLowerBound);
 }
 
+// TODO: do not DFS. Use MCTS.
 void Sampler::dfsSample(std::shared_ptr<ShapeNode> node, int depth, const SampleCallback& callback) {
     if (depth >= options.depth) {
         finalize(node, callback);
@@ -62,9 +63,9 @@ void Sampler::dfsSample(std::shared_ptr<ShapeNode> node, int depth, const Sample
 void Sampler::finalize(std::shared_ptr<ShapeNode> node, const SampleCallback& callback) {
     auto finalizations = FinalizeShapeOp::generate(node->shape, { .desired = inputShape });
     for (auto& f: finalizations) {
-        node = std::make_shared<ShapeNode>(node, std::move(f));
+        auto finalNode = ShapeNode { node, std::move(f) };
         // TODO: get rid of this "t".
-        auto tensorView = node->buildTensorView(ctx.addTensor("t"));
+        auto tensorView = finalNode.buildTensorView(ctx.addTensor("t"));
         tensorView.setDefaultAccesses(ctx);
         tensorView.evaluateTensorAccess(ctx);
         callback(tensorView);

@@ -179,5 +179,10 @@ TEST_F(transforms_tests, finalize_gen) {
     std::cout << "\nNow automatically generate epilogue:\n" << std::endl;
     for (auto&& e: FinalizeShapeOp::generate(outputShape, { .desired = desiredShape })) {
         std::cout << e->getEpilogue().toDebugString(ctx, outputShape, desiredShape);
+        auto tensorView = TensorView { e->transformShapeInverse(outputShape), ctx };
+        e->transformTensor(tensorView);
+        tensorView.finishConstruction();
+        tensorView.setDefaultAccesses(ctx);
+        tensorView.evaluateTensorAccess(ctx);
     }
 }
