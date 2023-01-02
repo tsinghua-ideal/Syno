@@ -65,7 +65,7 @@ public:
     std::shared_ptr<Size> operator/(const Size& other) const;
     std::optional<Trait> testDividedBy(const Size& other);
 
-    bool operator==(const Size& other) const;
+    bool operator==(const Size& other) const = default;
 
     std::string toString(const BindingContext& ctx) const;
 };
@@ -113,6 +113,7 @@ public:
     explicit Shape(std::vector<std::shared_ptr<Size>>&& sizes);
 
     const std::vector<std::shared_ptr<Size>>& getSizes() const;
+    bool operator==(const Shape& other) const = default;
     std::size_t size() const;
     const std::shared_ptr<Size>& operator[](std::size_t index) const;
 

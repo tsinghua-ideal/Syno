@@ -9,22 +9,13 @@
 
 namespace kas {
 
-ShapeNode::ShapeNode(std::shared_ptr<ShapeNode> child, std::unique_ptr<PrimitiveShapeOp> shapeOp):
-    shape { shapeOp->transformShapeInverse(child->shape) },
-    child { std::move(child) },
-    shapeOp { std::move(shapeOp) }
+ShapeNode::ShapeNode(Shape&& shape, bool isFinal):
+    shape { std::move(shape) },
+    isFinal { isFinal }
 {}
 
-TensorView ShapeNode::buildTensorView(std::size_t tensorId) const {
-    auto tensor = std::make_shared<PureTensor>(tensorId, shape);
-    TensorView tensorView { tensor->shared_from_this() };
-    auto curr = this;
-    while (curr && curr->child) {
-        curr->shapeOp->transformTensor(tensorView);
-        curr = curr->child.get();
-    }
-    tensorView.finishConstruction();
-    return tensorView;
-}
+ShapeNode::Next::Next(std::unique_ptr<PrimitiveShapeOp> shapeOp):
+    shapeOp { std::move(shapeOp) }
+{}
 
 } // namespace kas

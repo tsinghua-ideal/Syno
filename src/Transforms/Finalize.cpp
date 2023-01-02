@@ -44,7 +44,7 @@ std::string FinalizeShapeOp::Epilogue::toDebugString(const BindingContext& ctx, 
 
 Shape FinalizeShapeOp::transformShapeInverse(const Shape& incomingOutputShape) const {
     KAS_ASSERT(desired.size() == epilogue.desiredInputToGroupId.size());
-    outputShape = incomingOutputShape;
+    KAS_ASSERT(outputShape == incomingOutputShape);
     // First, the desired input constitute the frontmost dimensions.
     std::vector<std::shared_ptr<Size>> inputShape(desired.getSizes());
     // Next, we would like to compute if the groups has excessive size.
@@ -112,6 +112,10 @@ void FinalizeShapeOp::transformTensor(TensorView& tensor) const {
     }
     KAS_ASSERT(sanityCounter.size() == outputShape.size());
     tensor.interface = std::move(newInterface);
+}
+
+bool FinalizeShapeOp::isFinalizeOp() const {
+    return true;
 }
 
 const FinalizeShapeOp::Epilogue& FinalizeShapeOp::getEpilogue() const {
@@ -362,6 +366,7 @@ std::vector<std::unique_ptr<FinalizeShapeOp>> FinalizeShapeOp::generate(const Sh
             auto epilogue = solveWithMappings(outputShape, desired, mappings);
             if (epilogue.has_value()) {
                 result.push_back(std::make_unique<FinalizeShapeOp>(
+                    outputShape,
                     desired,
                     std::move(epilogue.value())
                 ));

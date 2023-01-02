@@ -1,7 +1,11 @@
 #include <algorithm>
+#include <cstddef>
 #include <iterator>
 #include <map>
 #include <memory>
+#include <numeric>
+#include <optional>
+#include <random>
 #include <set>
 #include <sstream>
 #include <string>
@@ -10,10 +14,14 @@
 #include <vector>
 
 #include "KAS/Core/Iterator.hpp"
+#include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Sample.hpp"
+#include "KAS/Search/ShapeNode.hpp"
 #include "KAS/Transforms.hpp"
+#include "KAS/Transforms/Finalize.hpp"
+#include "KAS/Transforms/Share.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
@@ -27,50 +35,40 @@ void SampleOptions::check() const {
     KAS_ASSERT(dimUpperBound >= dimLowerBound);
 }
 
-// TODO: do not DFS. Use MCTS.
-void Sampler::dfsSample(std::shared_ptr<ShapeNode> node, int depth, const SampleCallback& callback) {
-    if (depth >= options.depth) {
-        finalize(node, callback);
+// Here, the depth means the depth of base shape.
+void Sampler::addNode(const Shape& base, std::size_t depth, ShapeNode::Next& pointer) const {
+    bool isFinal = pointer.shapeOp->isFinalizeOp();
+    pointer.node.reset(new ShapeNode { pointer.shapeOp->transformShapeInverse(base), isFinal });
+    if (isFinal) {
         return;
     }
-    auto recursion = [&](std::unique_ptr<PrimitiveShapeOp> newOp) {
-        dfsSample(std::make_shared<ShapeNode>(node, std::move(newOp)), depth + 1, callback);
-    };
-    const auto& shape = node->shape;
-    if (shape.size() < options.dimUpperBound) {
+    const Shape& shape = pointer.node->shape;
+    std::vector<ShapeNode::Next> result;
+    for (auto& f:
+        FinalizeShapeOp::generate(shape, { .desired = inputShape })
+    ) result.emplace_back(std::move(f));
+    if (depth < options.depth) {
         // Try increasing dimension, by performing
         // Share^{-1}
-        for (std::size_t i = 0; i < shape.size(); ++i) {
-            recursion(std::make_unique<ShareShapeOp>(0, i + 1, i));
-        }
+        for (auto& s:
+            ShareShapeOp::generate(shape, { .dimUpperBound = options.dimUpperBound })
+        ) result.emplace_back(std::move(s));
         // Reduce^{-1}, TODO
         // Merge^{-1}, TODO
-    }
-    if (shape.size() > options.dimLowerBound) {
         // Try decreasing dimension, by performing
         // Split^{-1}
-        for (std::size_t i = 0; i < shape.size(); ++i) {
-            for (std::size_t j = i + 1; j < shape.size(); ++j) {
-                recursion(std::make_unique<SplitShapeOp>(i, i, j));
-            }
-        }
+        for (auto& s:
+            SplitShapeOp::generate(shape, { .dimLowerBound = options.dimLowerBound })
+        ) result.emplace_back(std::move(s));
         // Unfold^{-1}, TODO
+        // Try changing dimension size, by performing
+        // Stride^{-1}, TODO
+        // Or do not change the shape at all, by performing
+        // Map^{-1}, TODO
+        // Shift^{-1}, TODO
     }
-    // Try changing dimension size, by performing
-    // Stride^{-1}, TODO
-}
-
-void Sampler::finalize(std::shared_ptr<ShapeNode> node, const SampleCallback& callback) {
-    auto finalizations = FinalizeShapeOp::generate(node->shape, { .desired = inputShape });
-    for (auto& f: finalizations) {
-        auto finalNode = ShapeNode { node, std::move(f) };
-        // TODO: get rid of this "t".
-        auto tensorView = finalNode.buildTensorView(ctx.addTensor("t"));
-        tensorView.setDefaultAccesses(ctx);
-        tensorView.evaluateTensorAccess(ctx);
-        callback(tensorView);
-    }
-    return;
+    pointer.node->countUnvisited = result.size();
+    pointer.node->children = std::move(result);
 }
 
 BindingContext& Sampler::getBindingContext() {
@@ -79,16 +77,58 @@ BindingContext& Sampler::getBindingContext() {
 
 Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const SampleOptions& options):
     options { options },
-    ctx { options.countPrimaryVariables, options.countCoefficientVariables }
+    ctx { options.countPrimaryVariables, options.countCoefficientVariables },
+    root { std::make_unique<IdentityShapeOp>() }
 {
     this->options.check();
+    path.reserve(options.depth + 1); // An addition layer for FinalizeShapeOp.
     this->outputShape = ctx.getShapeFromNames(Shape::parseNames(outputShape));
     this->inputShape = ctx.getShapeFromNames(Shape::parseNames(inputShape));
 }
 
-void Sampler::sample(const SampleCallback& callback) {
-    auto root = std::make_shared<ShapeNode>(outputShape);
-    dfsSample(root, 0, callback);
+TensorView Sampler::sample() {
+    path.clear();
+    std::random_device rd;
+    std::mt19937 rng { rd() };
+    if (root.node == nullptr) {
+        addNode(outputShape, 0, root);
+    }
+    const auto recursion = [this, &rng](const auto& self, ShapeNode& current, int depth) -> std::optional<TensorView> {
+        if (current.isFinal) {
+            // TODO: get rid of this "t".
+            auto tensorId = ctx.addTensor("t");
+            // First build a pure tensor of input shape.
+            auto tensor = std::make_shared<PureTensor>(tensorId, current.shape);
+            // Then start to build a view of this tensor.
+            return { TensorView { tensor } };
+        } else {
+            // Here we just randomly iterate. In MCTS, use UCB. TODO
+            std::vector<std::size_t> childrenIds(current.children.size(), 0);
+            std::iota(childrenIds.begin(), childrenIds.end(), 0);
+            std::shuffle(childrenIds.begin(), childrenIds.end(), rng);
+            for (std::size_t i: childrenIds) {
+                auto& child = current.children[i];
+                if (child.node == nullptr) {
+                    addNode(current.shape, depth, child);
+                }
+                if (auto result = self(self, *child.node, depth + 1)) {
+                    path.emplace_back(&current, &child);
+                    child.shapeOp->transformTensor(result.value());
+                    return std::move(result);
+                }
+            }
+        }
+        return std::nullopt;
+    };
+    if (auto result = recursion(recursion, *root.node, 0)) {
+        auto& tensorView = result.value();
+        tensorView.finishConstruction();
+        tensorView.setDefaultAccesses(ctx);
+        tensorView.evaluateTensorAccess(ctx);
+        return std::move(tensorView);
+    } else {
+        KAS_CRITICAL("Cannot sample a tensor.");
+    }
 }
 
 } // namespace kas

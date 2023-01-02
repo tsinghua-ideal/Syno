@@ -15,7 +15,11 @@ public:
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
 
-    static std::vector<std::unique_ptr<ShareShapeOp>> generate(const Shape& outputShape);
+    struct GenerateOptions {
+        int dimUpperBound;
+        // Restrictions on number of primary variable, e.t.c.. TODO
+    };
+    static std::vector<std::unique_ptr<ShareShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
 };
 
 class ShareOp: public MergeLikePrimitiveOp {

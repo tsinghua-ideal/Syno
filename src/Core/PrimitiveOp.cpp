@@ -1,9 +1,22 @@
 #include <memory>
 
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
+
+bool PrimitiveShapeOp::isFinalizeOp() const {
+    return false;
+}
+
+Shape IdentityShapeOp::transformShapeInverse(const Shape &outputShape) const {
+    return outputShape; 
+}
+
+void IdentityShapeOp::transformTensor(TensorView& tensor) const {
+    KAS_CRITICAL("The root node should not call this function.");
+}
 
 RepeatLikePrimitiveOp::RepeatLikePrimitiveOp(std::shared_ptr<Iterator> parent):
     parent { std::move(parent) }

@@ -38,6 +38,17 @@ void ShareShapeOp::transformTensor(TensorView &tensor) const {
     });
 }
 
+std::vector<std::unique_ptr<ShareShapeOp>> ShareShapeOp::generate(const Shape& outputShape, GenerateOptions options) {
+    std::vector<std::unique_ptr<ShareShapeOp>> result;
+    if (outputShape.size() < options.dimUpperBound) {
+        for (std::size_t i = 0; i < outputShape.size(); ++i) {
+            // New dimension is put at 0, as the outer loop.
+            result.push_back(std::make_unique<ShareShapeOp>(0, i + 1, i));
+        }
+    }
+    return result;
+}
+
 ShareOp::ShareOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> parentRhs):
     MergeLikePrimitiveOp { std::move(parentLhs), std::move(parentRhs) }
 {}

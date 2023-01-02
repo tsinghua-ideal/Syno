@@ -183,10 +183,6 @@ std::optional<Size::Trait> Size::testDividedBy(const Size& other) {
     }
 }
 
-bool Size::operator==(const Size& other) const {
-    return primary == other.primary && coefficient == other.coefficient;
-}
-
 std::string Size::toString(const BindingContext& ctx) const {
     KAS_ASSERT(primaryCount == ctx.getPrimaryCount() && coefficientCount == ctx.getCoefficientCount());
     std::stringstream result;

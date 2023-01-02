@@ -72,14 +72,14 @@ public:
 };
 
 class TensorView: public Tensor {
+    friend class FinalizeShapeOp;
+
 protected:
     std::vector<std::shared_ptr<Iterator>> interface;
     std::vector<Manipulation> manipulations;
     std::shared_ptr<Tensor> tensor;
 
     std::vector<std::shared_ptr<IteratorValue>> reducedAccess;
-
-    friend class FinalizeShapeOp;
 
 public:
     TensorView(std::shared_ptr<Tensor> tensor);

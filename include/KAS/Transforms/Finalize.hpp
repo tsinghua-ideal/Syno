@@ -42,20 +42,22 @@ protected:
         }
     };
 
+    const Shape& outputShape;
     const Shape& desired;
     Epilogue epilogue;
     // If the size of an outputGroup is excessive, it is automatically turned into weight dimension.
     mutable std::vector<std::size_t> weightRemainderInputToGroupId;
-    mutable Shape outputShape;
 public:
     template<typename T>
-    FinalizeShapeOp(const Shape& desired, T&& epilogue):
+    FinalizeShapeOp(const Shape& outputShape, const Shape& desired, T&& epilogue):
+        outputShape { outputShape },
         desired { desired },
         epilogue { std::forward<T>(epilogue) }
     {}
     Shape transformShapeInverse(const Shape& outputShape) const override;
     // Here, we can assert that the interface are all TensorStub.
     void transformTensor(TensorView& tensor) const override;
+    bool isFinalizeOp() const override;
 
     const Epilogue& getEpilogue() const;
 

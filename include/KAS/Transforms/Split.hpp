@@ -17,7 +17,10 @@ public:
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
 
-    static std::vector<std::unique_ptr<SplitShapeOp>> generate(const Shape& outputShape);
+    struct GenerateOptions {
+        int dimLowerBound;
+    };
+    static std::vector<std::unique_ptr<SplitShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
 };
 
 class SplitOp: public SplitLikePrimitiveOp {

@@ -36,6 +36,19 @@ void SplitShapeOp::transformTensor(TensorView& tensor) const {
     });
 }
 
+std::vector<std::unique_ptr<SplitShapeOp>> SplitShapeOp::generate(const Shape& outputShape, GenerateOptions options) {
+    std::vector<std::unique_ptr<SplitShapeOp>> result;
+    if (outputShape.size() > options.dimLowerBound) {
+        for (std::size_t i = 0; i < outputShape.size(); ++i) {
+            for (std::size_t j = i + 1; j < outputShape.size(); ++j) {
+                // Merged to the dimension at front.
+                result.push_back(std::make_unique<SplitShapeOp>(i, i, j));
+            }
+        }
+    }
+    return result;
+}
+
 SplitOp::SplitOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs):
     SplitLikePrimitiveOp { parent, childLhs, childRhs }
 {}

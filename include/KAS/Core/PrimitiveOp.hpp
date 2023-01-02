@@ -18,7 +18,14 @@ public:
     virtual Shape transformShapeInverse(const Shape& input) const = 0;
     // After the search, when the resulting tensor has a shape that is verified to be eligible, we can build the TensorView, which is a series of transforms on a tensor. The semantics, rather than by this class, are implemented by the PrimitiveOp's defined below. They are inserted by this function to the TensorView.
     virtual void transformTensor(TensorView& tensor) const = 0;
+    virtual bool isFinalizeOp() const;
     virtual ~PrimitiveShapeOp() = default;
+};
+
+class IdentityShapeOp final: public PrimitiveShapeOp {
+public:
+    Shape transformShapeInverse(const Shape& outputShape) const override;
+    void transformTensor(TensorView& tensor) const override;
 };
 
 // There are 3 kinds of PrimitiveOp's, listed below. Those classes can transform the Iterator, from those that index the output tensor, to forms that index the original tensors. So this is also kind of bottom-up.

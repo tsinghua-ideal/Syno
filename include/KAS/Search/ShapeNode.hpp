@@ -3,6 +3,10 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <utility>
+#include <vector>
+
+#include <gtest/gtest_prod.h>
 
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Tensor.hpp"
@@ -10,20 +14,29 @@
 
 namespace kas {
 
-class ShapeNode {
+class ShapeNode final {
+    friend class Sampler;
+    FRIEND_TEST(search_tests, shape_node);
+
+protected:
+    // This is not complete, and Sampler needs to fill the children and unvisited count.
+    ShapeNode(Shape&& shape, bool isFinal);
+
 public:
+    struct Next {
+        std::unique_ptr<PrimitiveShapeOp> shapeOp;
+        std::unique_ptr<ShapeNode> node = nullptr;
+        Next(std::unique_ptr<PrimitiveShapeOp> shapeOp);
+    };
+
     const Shape shape;
-    // We are searching bottom-up, so the previous node is actually the child.
-    std::shared_ptr<ShapeNode> child;
-    // Ops like Shift, Map do not change shapes, so when searching they can be ignored first to match shape, and later inserted in-between.
-    std::unique_ptr<PrimitiveShapeOp> shapeOp;
+    // We are searching bottom-up, so the children are actually closer to the input.
+    std::vector<Next> children;
 
-    template<typename T>
-    ShapeNode(T&& shape): shape { std::forward<T>(shape) }, child { nullptr }, shapeOp { nullptr } {}
-    ShapeNode(std::shared_ptr<ShapeNode> child, std::unique_ptr<PrimitiveShapeOp> shapeOp);
-
-    // Create a TensorView, using the current ShapeNode as the input tensor, the bottom-most shape as the output tensor.
-    TensorView buildTensorView(std::size_t tensorId) const;
+    bool isFinal;
+    std::size_t countUnvisited = 0;
+    // For MCTS. TODO
+    // std::size_t score;
 };
 
 } // namespace kas
