@@ -53,9 +53,9 @@ Shape FinalizeShapeOp::transformShapeInverse(const Shape& incomingOutputShape) c
     for (const auto& group: epilogue.outputGroups) {
         std::vector<std::shared_ptr<Size>> groupSizes;
         for (std::size_t i: group) {
-            groupSizes.push_back(outputShape[i]);
+            groupSizes.emplace_back(outputShape[i]);
         }
-        remainders.push_back(Size::Product(groupSizes));
+        remainders.emplace_back(Size::Product(groupSizes));
     }
     // Remove the size of the desired input.
     for (std::size_t i = 0; i < epilogue.desiredInputToGroupId.size(); ++i) {
@@ -64,8 +64,8 @@ Shape FinalizeShapeOp::transformShapeInverse(const Shape& incomingOutputShape) c
     // Check if there is remainder
     for (std::size_t i = 0; i < remainders.size(); ++i) {
         if (!remainders[i]->is1()) {
-            inputShape.push_back(remainders[i]);
-            weightRemainderInputToGroupId.push_back(i);
+            inputShape.emplace_back(remainders[i]);
+            weightRemainderInputToGroupId.emplace_back(i);
         }
     }
     return Shape { inputShape };
@@ -142,7 +142,7 @@ std::optional<FinalizeShapeOp::Epilogue> FinalizeShapeOp::solveWithMappings(cons
             for (auto j: it->second) {
                 g.dividedBy(*desiredShape[j]);
             }
-            desiredGroups.push_back(std::move(g));
+            desiredGroups.emplace_back(std::move(g));
         } else {
             switch (dim.trait) {
             case Size::Trait::One:
@@ -150,10 +150,10 @@ std::optional<FinalizeShapeOp::Epilogue> FinalizeShapeOp::solveWithMappings(cons
                 KAS_CRITICAL("Unexpected dimension size: one or illegal coefficient.");
                 break;
             case Size::Trait::Coefficient:
-                coefficientDimsGroups.push_back({ std::move(dim), { i } });
+                coefficientDimsGroups.emplace_back(std::move(dim), std::set<std::size_t> { i });
                 break;
             case Size::Trait::General:
-                generalDimsGroups.push_back({ std::move(dim), { i } });
+                generalDimsGroups.emplace_back(std::move(dim), std::set<std::size_t> { i });
                 break;
             }
         }
@@ -252,7 +252,7 @@ std::optional<FinalizeShapeOp::Epilogue> FinalizeShapeOp::solveWithMappings(cons
             std::size_t sanityCounter = 0;
             for (std::size_t i = 0; i < desiredGroups.size(); ++i) {
                 if (i == mergedTo) {
-                    newDesiredGroups.push_back(std::move(realMerged));
+                    newDesiredGroups.emplace_back(std::move(realMerged));
                     ++sanityCounter;
                 } else if (itD != mergesDesired.end() && i == *itD) {
                     if (*itD <= current) {
@@ -260,7 +260,7 @@ std::optional<FinalizeShapeOp::Epilogue> FinalizeShapeOp::solveWithMappings(cons
                     }
                     ++itD;
                 } else {
-                    newDesiredGroups.push_back(std::move(desiredGroups[i]));
+                    newDesiredGroups.emplace_back(std::move(desiredGroups[i]));
                     ++sanityCounter;
                 }
             }
@@ -276,7 +276,7 @@ std::optional<FinalizeShapeOp::Epilogue> FinalizeShapeOp::solveWithMappings(cons
                 if (itC != mergesCoefficient.end() && i == *itC) {
                     ++itC;
                 } else {
-                    newCoefficientDimsGroups.push_back(std::move(coefficientDimsGroups[i]));
+                    newCoefficientDimsGroups.emplace_back(std::move(coefficientDimsGroups[i]));
                     ++sanityCounter;
                 }
             }
@@ -332,7 +332,7 @@ std::optional<FinalizeShapeOp::Epilogue> FinalizeShapeOp::solveWithMappings(cons
     // Convert the results to Epilogue.
     std::vector<std::vector<std::size_t>> groups;
     auto put = [&groups](const std::set<std::size_t>& g) {
-        groups.push_back(std::vector<std::size_t>(g.begin(), g.end()));
+        groups.emplace_back(std::vector<std::size_t>(g.begin(), g.end()));
     };
     for (auto& g: desiredGroups) put(g.indices);
     for (auto& g: coefficientDimsGroups) put(g.indices);
@@ -346,7 +346,7 @@ std::optional<FinalizeShapeOp::Epilogue> FinalizeShapeOp::solveWithMappings(cons
         std::size_t target = mappings[i];
         for (std::size_t j = 0; j < groups.size(); ++j) {
             if (std::binary_search(groups[j].begin(), groups[j].end(), target)) {
-                desiredDimToGroupId.push_back(j);
+                desiredDimToGroupId.emplace_back(j);
                 break;
             }
         }
@@ -365,7 +365,7 @@ std::vector<std::unique_ptr<FinalizeShapeOp>> FinalizeShapeOp::generate(const Sh
         if (mappings.size() == desired.size()) {
             auto epilogue = solveWithMappings(outputShape, desired, mappings);
             if (epilogue.has_value()) {
-                result.push_back(std::make_unique<FinalizeShapeOp>(
+                result.emplace_back(std::make_unique<FinalizeShapeOp>(
                     outputShape,
                     desired,
                     std::move(epilogue.value())
@@ -379,7 +379,7 @@ std::vector<std::unique_ptr<FinalizeShapeOp>> FinalizeShapeOp::generate(const Sh
                     std::vector<Size> newSizes(sizes);
                     newSizes[i] = newSize;
                     std::vector<std::size_t> newMappings(mappings);
-                    newMappings.push_back(i);
+                    newMappings.emplace_back(i);
                     self(self, newSizes, newMappings);
                 }
             }
@@ -387,7 +387,7 @@ std::vector<std::unique_ptr<FinalizeShapeOp>> FinalizeShapeOp::generate(const Sh
     };
     std::vector<Size> outputSizes;
     for (const auto& s: outputShape.getSizes()) {
-        outputSizes.push_back(*s);
+        outputSizes.emplace_back(*s);
     }
     determine(determine, outputSizes, {});
     return result;

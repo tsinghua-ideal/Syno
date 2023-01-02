@@ -33,7 +33,7 @@ std::vector<std::shared_ptr<Iterator>> Tensor::getInterfaceStubs() {
     const auto shape = getShape();
     interface.reserve(shape.size());
     for (std::size_t i = 0; i < shape.size(); i++) {
-        interface.push_back(std::make_shared<Iterator>(IteratorTransform { TensorStub { shared_from_this(), i } }, shape[i]));
+        interface.emplace_back(std::make_shared<Iterator>(IteratorTransform { TensorStub { shared_from_this(), i } }, shape[i]));
     }
     return interface;
 }
@@ -116,7 +116,7 @@ void TensorView::replaceInterface(
 }
 
 void TensorView::addManipulation(Manipulation manipulation) {
-    manipulations.push_back(std::move(manipulation));
+    manipulations.emplace_back(std::move(manipulation));
 }
 
 std::shared_ptr<Tensor> TensorView::getUnderlyingTensor() const {
@@ -133,7 +133,7 @@ std::vector<std::shared_ptr<Iterator>> TensorView::getReducedIterators() const {
         std::visit([&](auto&& arg) {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, ReduceManipulation>) {
-                reducedIterators.push_back(arg.iterator);
+                reducedIterators.emplace_back(arg.iterator);
             }
         }, manipulation);
     }
@@ -146,7 +146,7 @@ std::vector<MapManipulation> TensorView::getMaps() const {
         std::visit([&](auto&& arg) {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, MapManipulation>) {
-                maps.push_back(arg);
+                maps.emplace_back(arg);
             }
         }, manipulation);
     }
@@ -205,7 +205,7 @@ std::string TensorView::actualAccessToString(const BindingContext& ctx) const {
 Shape TensorView::getShape() const {
     std::vector<std::shared_ptr<Size>> sizes;
     for (const auto& iterator: interface) {
-        sizes.push_back(iterator->getSize());
+        sizes.emplace_back(iterator->getSize());
     }
     return Shape { sizes };
 }

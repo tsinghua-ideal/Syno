@@ -62,7 +62,7 @@ std::vector<std::shared_ptr<Size>> BindingContext::getPositiveCoefficients() con
     std::vector<std::shared_ptr<Size>> result;
     result.reserve(getCoefficientCount());
     for (std::size_t i = 0; i < getCoefficientCount(); ++i) {
-        result.push_back(getSingleCoefficientVariableSize(i));
+        result.emplace_back(getSingleCoefficientVariableSize(i));
     }
     return result;
 }
@@ -82,10 +82,10 @@ Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
             KAS_ASSERT(namedPrimaryCount < getPrimaryCount());
             nameToIndex[name] = namedPrimaryCount;
             primaryMetadata[namedPrimaryCount] = Metadata { name };
-            result.push_back(getSinglePrimaryVariableSize(namedPrimaryCount));
+            result.emplace_back(getSinglePrimaryVariableSize(namedPrimaryCount));
             ++namedPrimaryCount;
         } else {
-            result.push_back(getSinglePrimaryVariableSize(it->second));
+            result.emplace_back(getSinglePrimaryVariableSize(it->second));
         }
     }
     return Shape { std::move(result) };
@@ -96,7 +96,7 @@ std::string_view BindingContext::getTensorName(std::size_t index) const {
 }
 
 std::size_t BindingContext::addTensor(std::string_view name) {
-    tensorMetadata.push_back(TensorMetadata { name });
+    tensorMetadata.emplace_back(name);
     return tensorMetadata.size() - 1;
 }
 
@@ -105,7 +105,7 @@ std::string_view BindingContext::getIteratorVariableName(std::size_t index) cons
 }
 
 std::size_t BindingContext::addIteratorVariable(std::string_view name) {
-    iteratorVariableMetadata.push_back(IteratorVariableMetadata { name });
+    iteratorVariableMetadata.emplace_back(name);
     return iteratorVariableMetadata.size() - 1;
 }
 

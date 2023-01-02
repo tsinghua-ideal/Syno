@@ -109,7 +109,7 @@ std::vector<std::shared_ptr<IteratorValue>> IteratorValue::DefaultAccessForShape
     std::string base("i_");
     for (std::size_t i = 0; i < shape.size(); ++i) {
         auto id = ctx.addIteratorVariable(base + std::to_string(i));
-        result.push_back(std::make_shared<VariableValueNode>(id));
+        result.emplace_back(std::make_shared<VariableValueNode>(id));
     }
     return result;
 }

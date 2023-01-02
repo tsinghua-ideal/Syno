@@ -35,7 +35,7 @@ std::vector<T> ReplaceVector(
                     nextDrop = -1;
                 }
             } else {
-                newVec.push_back(vec[i]);
+                newVec.emplace_back(vec[i]);
             }
         }
     } else {

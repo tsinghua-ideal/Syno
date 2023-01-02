@@ -43,7 +43,7 @@ std::vector<std::unique_ptr<ShareShapeOp>> ShareShapeOp::generate(const Shape& o
     if (outputShape.size() < options.dimUpperBound) {
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
             // New dimension is put at 0, as the outer loop.
-            result.push_back(std::make_unique<ShareShapeOp>(0, i + 1, i));
+            result.emplace_back(std::make_unique<ShareShapeOp>(0, i + 1, i));
         }
     }
     return result;

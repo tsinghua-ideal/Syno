@@ -87,13 +87,13 @@ std::vector<std::shared_ptr<Size>> Size::sampleFactors(const BindingContext& ctx
         if (primaryDim >= 1) {
             auto primaryRes = std::make_shared<Size>(primaryCount, coefficientCount);
             primaryRes->primary[primaryIndex] = 1;
-            factors.push_back(primaryRes);
+            factors.emplace_back(primaryRes);
             for (int coefficientIndex = 0; coefficientIndex < coefficientCount; ++coefficientIndex) {
                 std::size_t coefficientDim = coefficient[coefficientIndex];
                 if (coefficientDim >= 1) {
                     auto res = std::make_shared<Size>(*primaryRes);
                     res->coefficient[coefficientIndex] = 1;
-                    factors.push_back(res);
+                    factors.emplace_back(res);
                 }
             }
         }
@@ -446,13 +446,13 @@ namespace {
                     expect = Expect::End;
                 } else {
                     KAS_ASSERT(token == Token::Identifier);
-                    result.push_back(std::move(value));
+                    result.emplace_back(std::move(value));
                     expect = Expect::ListEnd;
                 }
                 break;
             case Expect::Identifier:
                 KAS_ASSERT(token == Token::Identifier);
-                result.push_back(std::move(value));
+                result.emplace_back(std::move(value));
                 expect = Expect::ListEnd;
                 break;
             case Expect::ListEnd:

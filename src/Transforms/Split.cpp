@@ -42,7 +42,7 @@ std::vector<std::unique_ptr<SplitShapeOp>> SplitShapeOp::generate(const Shape& o
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
             for (std::size_t j = i + 1; j < outputShape.size(); ++j) {
                 // Merged to the dimension at front.
-                result.push_back(std::make_unique<SplitShapeOp>(i, i, j));
+                result.emplace_back(std::make_unique<SplitShapeOp>(i, i, j));
             }
         }
     }
