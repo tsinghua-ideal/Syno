@@ -10,6 +10,9 @@ set(CMAKE_CXX_EXTENSIONS NO)
 # Includes and libraries
 include_directories(include)
 
+# Halide
+find_package(Halide REQUIRED)
+
 # Boost
 find_package(Boost REQUIRED COMPONENTS filesystem program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})

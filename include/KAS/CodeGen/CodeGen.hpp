@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Halide.h"
+
 
 namespace kas {
 
