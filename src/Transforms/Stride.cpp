@@ -33,7 +33,7 @@ StrideOp::StrideOp(std::shared_ptr<Iterator> parent, std::shared_ptr<Size> strid
     stride { std::move(stride) }
 {}
 
-SingleIteratorValue StrideOp::value(SingleIteratorValue output, const BindingContext& ctx) const {
+SingleIteratorValue StrideOp::value(SingleIteratorValue output) const {
     auto stride = std::make_shared<ConstValueNode>(this->stride);
     return *stride * *output;
 }

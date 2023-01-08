@@ -8,6 +8,7 @@
 #include <variant>
 #include <vector>
 
+#include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Manipulation.hpp"
 
@@ -16,13 +17,14 @@ namespace kas {
 
 class Iterator;
 class IteratorValue;
-
 class Tensor: public std::enable_shared_from_this<Tensor> {
+    friend class TensorView;
+
 protected:
     std::vector<std::shared_ptr<IteratorValue>> access;
 
     static std::string GetIndentSpaces(std::size_t indent);
-    virtual std::string printNestedLoops(const BindingContext& ctx, std::size_t indent) const = 0;
+    virtual std::string printInnerLoops(const BindingContext& ctx, const CodeGenContext& cgCtx, std::size_t indent) const = 0;
 
 public:
     template<typename T>
@@ -31,15 +33,15 @@ public:
     {}
     void setAccess(std::shared_ptr<IteratorValue> value, std::size_t index);
     std::shared_ptr<IteratorValue> getAccess(std::size_t index) const;
-    virtual void evaluateTensorAccess(BindingContext& ctx) = 0;
+    virtual void evaluateTensorAccess() = 0;
     std::vector<std::shared_ptr<Iterator>> getInterfaceStubs();
     // The standard interface.
-    std::string interfaceAccessToString(const BindingContext& ctx) const;
+    std::string interfaceAccessToString(const BindingContext& ctx, const CodeGenContext& cgCtx) const;
     // This is just some arbitrary description. Requires evaluateTensorAccess to be called first.
-    virtual std::string actualAccessToString(const BindingContext& ctx) const = 0;
+    virtual std::string actualAccessToString(const BindingContext& ctx, const CodeGenContext& cgCtx) const = 0;
     virtual Shape getShape() const = 0;
     virtual std::string shapeToString(const BindingContext& ctx) const = 0;
-    std::string printNestedLoops(const BindingContext& ctx) const;
+    std::string printNestedLoops(const BindingContext& ctx, const CodeGenContext& cgCtx) const;
     template<typename Derived>
     std::shared_ptr<Derived> shared_from_base() {
         return std::dynamic_pointer_cast<Derived>(shared_from_this());
@@ -61,7 +63,7 @@ protected:
     std::size_t tensorId;
     Shape shape;
 
-    std::string printNestedLoops(const BindingContext& ctx, std::size_t indent) const override;
+    std::string printInnerLoops(const BindingContext& ctx, const CodeGenContext& cgCtx, std::size_t indent) const override;
 
 public:
     // Initialize access as nullptr
@@ -71,8 +73,8 @@ public:
         tensorId { tensorId },
         shape { std::forward<T>(shape) }
     {}
-    void evaluateTensorAccess(BindingContext& ctx) override;
-    std::string actualAccessToString(const BindingContext& ctx) const override;
+    void evaluateTensorAccess() override;
+    std::string actualAccessToString(const BindingContext& ctx, const CodeGenContext& cgCtx) const override;
     Shape getShape() const override;
     std::string shapeToString(const BindingContext& ctx) const override;
 };
@@ -85,21 +87,19 @@ protected:
     std::vector<Manipulation> manipulations;
     std::shared_ptr<Tensor> tensor;
 
-    std::vector<std::shared_ptr<IteratorValue>> reducedAccess;
+    std::shared_ptr<CodeGenContext> cgCtx;
 
-    std::string printNestedLoops(const BindingContext& ctx, std::size_t indent) const override;
+    std::string printInnerLoops(const BindingContext& ctx, const CodeGenContext& cgCtx, std::size_t indent) const override;
 
 public:
-    TensorView(std::shared_ptr<Tensor> tensor);
-    TensorView(const Shape& shape, BindingContext& ctx);
-    // This sets the size of access
+    // Explicitly control the underlying tensor,
+    TensorView(std::shared_ptr<Tensor> tensor, std::shared_ptr<CodeGenContext> cgCtx);
+    // Or for convenience just create a new tensor all by default.
+    TensorView(const Shape& shape, std::shared_ptr<CodeGenContext> cgCtx);
+    // This sets the size of interface access for filling, and assigns iterator variables to reduced dimensions.
     void finishConstruction();
-    // Set accesses once and for all
-    void setAccesses(std::vector<std::shared_ptr<IteratorValue>> accesses);
-    // Use BindingContext to generate accesses "i_0, i_1, ..."
-    void setDefaultAccesses(BindingContext& ctx);
-    // Set access for reduced iterators
-    void setReducedAccess(std::shared_ptr<IteratorValue> value, std::size_t index);
+    // Use CodeGenContext to generate access "i_0, i_1, ...".
+    void setDefaultInterfaceAccess();
 
     std::size_t size() const;
     const std::shared_ptr<Iterator>& operator[](std::size_t index) const;
@@ -110,7 +110,7 @@ public:
         std::vector<std::pair<std::size_t, std::shared_ptr<Iterator>>> adds
     );
 
-    // A manipulation is a transform of the data in a tensor, not just the way of accessing it. This includes Map and Reduce.
+    // A manipulation is a transform of the data in a tensor, not just the way of accessing it. This is just a Map bundled with a Reduce.
     void addManipulation(Manipulation manipulation);
 
     // Returns the underlying tensor underneath the view.
@@ -119,22 +119,18 @@ public:
     // Returns the interface of the view.
     const std::vector<std::shared_ptr<Iterator>>& getInterfaceIterators() const;
 
-    // Returns reduced iterators.
-    std::vector<std::shared_ptr<Iterator>> getReducedIterators() const;
-
-    // Returns maps.
-    std::vector<MapManipulation> getMaps() const;
-
-    // This returns all iterators, including interface and reduced iterators.
-    std::vector<std::shared_ptr<Iterator>> getAllIterators() const;
+    // Returns the map-reduce manipulations.
+    const std::vector<Manipulation>& getManipulations() const;
 
     // Evaluates all accesses to the underlying tensor.
-    void evaluateTensorAccess(BindingContext& ctx) override;
+    void evaluateTensorAccess() override;
 
     // Returns something like "[i_0,i_1] with reduced [i_2]".
-    std::string actualAccessToString(const BindingContext &ctx) const override;
+    std::string actualAccessToString(const BindingContext &ctx, const CodeGenContext& cgCtx) const override;
 
     Shape getShape() const override;
+
+    std::string printNestedLoops(const BindingContext& ctx) const;
 
     // Returns the shapes of all iterators, including reduced iterators.
     std::string shapeToString(const BindingContext &ctx) const override;

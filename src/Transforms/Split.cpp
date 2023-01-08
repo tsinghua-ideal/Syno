@@ -53,7 +53,7 @@ SplitOp::SplitOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> child
     SplitLikePrimitiveOp { parent, childLhs, childRhs }
 {}
 
-SingleIteratorValue SplitOp::value(DoubleIteratorValue output, const BindingContext& ctx) const {
+SingleIteratorValue SplitOp::value(DoubleIteratorValue output) const {
     auto [outputMajor, outputMinor] = std::move(output);
     auto block = std::make_shared<ConstValueNode>(childRhs.lock()->getSize());
     return *(*outputMajor * *block) + *outputMinor;

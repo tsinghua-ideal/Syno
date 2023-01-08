@@ -40,7 +40,7 @@ public:
     // std::weak_ptr<Iterator> child; // Actually not needed
     RepeatLikePrimitiveOp(std::shared_ptr<Iterator> parent);
     // Compute input iterator from output iterator
-    virtual SingleIteratorValue value(SingleIteratorValue output, const BindingContext& ctx) const = 0;
+    virtual SingleIteratorValue value(SingleIteratorValue output) const = 0;
     virtual ~RepeatLikePrimitiveOp() = default;
 };
 
@@ -52,7 +52,7 @@ public:
     // The std::weak_ptr<Iterator> is impossible to be given during construction. You can just give a default constructed pointer, for example, std::weak_ptr<Iterator>(). The parameters are just a reminder: do not forget to set them after Iterator is constructed.
     SplitLikePrimitiveOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs);
     // Compute input iterator from output iterators
-    virtual SingleIteratorValue value(DoubleIteratorValue output, const BindingContext& ctx) const = 0;
+    virtual SingleIteratorValue value(DoubleIteratorValue output) const = 0;
     virtual ~SplitLikePrimitiveOp() = default;
 };
 
@@ -63,7 +63,7 @@ public:
     // std::weak_ptr<Iterator> child; // Actually not needed
     MergeLikePrimitiveOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> parentRhs);
     // Compute output iterators from input iterator
-    virtual DoubleIteratorValue value(SingleIteratorValue output, const BindingContext& ctx) const = 0;
+    virtual DoubleIteratorValue value(SingleIteratorValue output) const = 0;
     virtual ~MergeLikePrimitiveOp() = default;
 };
 

@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <memory>
 #include <sstream>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "KAS/Core/BindingContext.hpp"
@@ -11,8 +13,39 @@
 
 namespace kas {
 
-class CodeGenContext {
+class Iterator;
 
+class CodeGenContext {
+public:
+    struct TensorMetadata {
+        std::string name;
+        TensorMetadata() = default;
+        TensorMetadata(std::string_view name);
+    };
+
+    struct IteratorVariableMetadata {
+        std::string name;
+        IteratorVariableMetadata() = default;
+        IteratorVariableMetadata(std::string_view name);
+    };
+
+protected:
+    std::vector<TensorMetadata> tensorMetadata;
+    std::vector<std::pair<std::shared_ptr<Iterator>, IteratorVariableMetadata>> iteratorVariableMetadata;
+
+    std::vector<std::size_t> outerLoopIterators;
+
+public:
+    std::string_view getTensorName(std::size_t index) const;
+    std::size_t addTensor(std::string_view name);
+
+    std::string_view getIteratorVariableName(std::size_t index) const;
+    std::size_t addIteratorVariable(std::shared_ptr<Iterator> iterator, bool isOuterLoopIterator);
+
+    // Returns the outer loop initializers and depth of the loops.
+    std::pair<std::string, std::size_t> printOuterLoopsHeader(const BindingContext& ctx) const;
+    std::string printOuterLoopsTail() const;
+    std::string outerLoopIteratorsToString() const;
 };
 
 class IteratorValueVisitor;
@@ -25,7 +58,7 @@ struct IteratorValue: public std::enable_shared_from_this<IteratorValue> {
     std::shared_ptr<BinaryOpValueNode> operator*(IteratorValue& other);
     std::shared_ptr<BinaryOpValueNode> operator%(IteratorValue& other);
     std::shared_ptr<BinaryOpValueNode> operator/(IteratorValue& other);
-    static std::vector<std::shared_ptr<IteratorValue>> DefaultAccessForShape(const Shape& shape, BindingContext& ctx);
+    static std::vector<std::shared_ptr<IteratorValue>> DefaultAccessForShape(const std::vector<std::shared_ptr<Iterator>>& interface, CodeGenContext& ctx);
     template<typename Derived>
     std::shared_ptr<Derived> shared_from_base() {
         return std::dynamic_pointer_cast<Derived>(shared_from_this());
@@ -70,9 +103,10 @@ public:
 
 class IteratorValuePrinter: public IteratorValueVisitor {
     const BindingContext& ctx;
+    const CodeGenContext& cgCtx;
     std::stringstream ss;
 public:
-    IteratorValuePrinter(const BindingContext& ctx);
+    IteratorValuePrinter(const BindingContext& ctx, const CodeGenContext& cgCtx);
     void visit(VariableValueNode& value) override;
     void visit(ConstValueNode& value) override;
     void visit(ImmediateValueNode& value) override;

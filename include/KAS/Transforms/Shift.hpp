@@ -24,7 +24,7 @@ class ShiftOp: public RepeatLikePrimitiveOp {
 public:
     int shift;
     ShiftOp(std::shared_ptr<Iterator> parent, int shift);
-    SingleIteratorValue value(SingleIteratorValue output, const BindingContext& ctx) const override;
+    SingleIteratorValue value(SingleIteratorValue output) const override;
 };
 
 } // namespace kas

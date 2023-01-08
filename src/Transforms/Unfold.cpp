@@ -38,7 +38,7 @@ UnfoldOp::UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> chi
     SplitLikePrimitiveOp { parent, childLhs, childRhs }
 {}
 
-SingleIteratorValue UnfoldOp::value(DoubleIteratorValue output, const BindingContext& ctx) const {
+SingleIteratorValue UnfoldOp::value(DoubleIteratorValue output) const {
     auto [outputMajor, outputMinor] = std::move(output);
     auto kernel = std::make_shared<ConstValueNode>(childRhs.lock()->getSize());
     auto two = std::make_shared<ImmediateValueNode>(2);

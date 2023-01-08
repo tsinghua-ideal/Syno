@@ -11,14 +11,6 @@ BindingContext::Metadata::Metadata(std::string_view alias):
     alias { alias }
 {}
 
-BindingContext::TensorMetadata::TensorMetadata(std::string_view name):
-    name { name }
-{}
-
-BindingContext::IteratorVariableMetadata::IteratorVariableMetadata(std::string_view name):
-    name { name }
-{}
-
 BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoefficient):
     namedPrimaryCount { 0 },
     primaryMetadata(countPrimary),
@@ -89,24 +81,6 @@ Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
         }
     }
     return Shape { std::move(result) };
-}
-
-std::string_view BindingContext::getTensorName(std::size_t index) const {
-    return tensorMetadata.at(index).name;
-}
-
-std::size_t BindingContext::addTensor(std::string_view name) {
-    tensorMetadata.emplace_back(name);
-    return tensorMetadata.size() - 1;
-}
-
-std::string_view BindingContext::getIteratorVariableName(std::size_t index) const {
-    return iteratorVariableMetadata.at(index).name;
-}
-
-std::size_t BindingContext::addIteratorVariable(std::string_view name) {
-    iteratorVariableMetadata.emplace_back(name);
-    return iteratorVariableMetadata.size() - 1;
 }
 
 } // namespace kas

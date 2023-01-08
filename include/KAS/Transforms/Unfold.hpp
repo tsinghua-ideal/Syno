@@ -25,7 +25,7 @@ class UnfoldOp: public SplitLikePrimitiveOp {
 public:
     std::shared_ptr<Size> window;
     UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs);
-    SingleIteratorValue value(DoubleIteratorValue output, const BindingContext& ctx) const override;
+    SingleIteratorValue value(DoubleIteratorValue output) const override;
 };
 
 } // namespace kas

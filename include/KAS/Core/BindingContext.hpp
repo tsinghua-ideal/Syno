@@ -20,26 +20,11 @@ public:
         Metadata(std::string_view alias);
     };
 
-    struct TensorMetadata {
-        std::string name;
-        TensorMetadata() = default;
-        TensorMetadata(std::string_view name);
-    };
-
-    struct IteratorVariableMetadata {
-        std::string name;
-        IteratorVariableMetadata() = default;
-        IteratorVariableMetadata(std::string_view name);
-    };
-
 protected:
     std::size_t namedPrimaryCount;
     // The varaibles are the indices. Metadata can be accessed by index.
     std::vector<Metadata> primaryMetadata;
     std::vector<Metadata> coefficientMetadata;
-
-    std::vector<TensorMetadata> tensorMetadata;
-    std::vector<IteratorVariableMetadata> iteratorVariableMetadata;
 
 public:
     BindingContext(std::size_t countPrimary, std::size_t countCoefficient);
@@ -62,12 +47,6 @@ public:
     std::vector<std::shared_ptr<Size>> getPositiveCoefficients() const;
 
     Shape getShapeFromNames(const std::vector<std::string>& names);
-
-    std::string_view getTensorName(std::size_t index) const;
-    std::size_t addTensor(std::string_view name);
-
-    std::string_view getIteratorVariableName(std::size_t index) const;
-    std::size_t addIteratorVariable(std::string_view name);
 };
 
 } // namespace kas

@@ -21,19 +21,19 @@ TEST(search_tests, shape_node) {
     ShapeNode::Next p1 { std::make_unique<ShareShapeOp>(0, 1, 0) };
     p1.node.reset(new ShapeNode { p1.shapeOp->transformShapeInverse(n1.shape), false });
     ShapeNode& n2 = *p1.node;
-    ShapeNode::Next p2 { std::make_unique<ReduceShapeOp>(0, *sizeH * *sizeW, ReduceManipulation::Type::Sum) };
+    ShapeNode::Next p2 { std::make_unique<MapReduceShapeOp>(0, *sizeH * *sizeW, Manipulation::MapType::Identity, Manipulation::ReduceType::Sum) };
     p2.node.reset(new ShapeNode { p2.shapeOp->transformShapeInverse(n2.shape), true });
     ShapeNode& n3 = *p2.node;
-    auto tensor = std::make_shared<PureTensor>(ctx.addTensor("t"), n3.shape);
-    auto tensorView = TensorView { tensor };
+    auto cgCtx = std::make_shared<CodeGenContext>();
+    auto tensorView = TensorView { n3.shape, cgCtx };
     p2.shapeOp->transformTensor(tensorView);
     p1.shapeOp->transformTensor(tensorView);
     tensorView.finishConstruction();
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1] with reduced [ri_0]");
+    tensorView.setDefaultInterfaceAccess();
+    tensorView.evaluateTensorAccess();
+    ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_1,i_2] with Identity mapped with i_0 Sum reduced");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1] with reduced [x_0x_1]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx), "[ri_0,i_0,i_0,i_1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_1,i_2]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[x_0x_1,x_0,x_0,x_1]");
 }
 
@@ -48,7 +48,7 @@ TEST(search_tests, sample) {
     auto& ctx = sampler.getBindingContext();
     auto callback = [&](TensorView tensorView) {
         std::cout << "Input Shape: " << tensorView.getUnderlyingTensor()->shapeToString(ctx) << std::endl;
-        std::cout << "for (int i_0 = 0; i_0 < N; ++i_0)\n  for (int i_1 = 0; i_1 < C; ++i_1)\n    for (int i_2 = 0; i_2 < H; ++i_2)\n      for (int i_3 = 0; i_3 < W; ++i_3)\n        out[i_0,i_1,i_2,i_3]=t" << tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx) << std::endl;
+        std::cout << tensorView.printNestedLoops(ctx);
     };
     for (int i = 0; i < 10; ++i) {
         callback(sampler.sample());

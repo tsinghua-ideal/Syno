@@ -53,7 +53,7 @@ void Sampler::addNode(const Shape& base, std::size_t depth, ShapeNode::Next& poi
         for (auto& s:
             ShareShapeOp::generate(shape, { .dimUpperBound = options.dimUpperBound })
         ) result.emplace_back(std::move(s));
-        // Reduce^{-1}, TODO
+        // MapReduce^{-1}, TODO
         // Merge^{-1}, TODO
         // Try decreasing dimension, by performing
         // Split^{-1}
@@ -64,7 +64,6 @@ void Sampler::addNode(const Shape& base, std::size_t depth, ShapeNode::Next& poi
         // Try changing dimension size, by performing
         // Stride^{-1}, TODO
         // Or do not change the shape at all, by performing
-        // Map^{-1}, TODO
         // Shift^{-1}, TODO
     }
     pointer.node->countUnvisited = result.size();
@@ -95,12 +94,8 @@ TensorView Sampler::sample() {
     }
     const auto recursion = [this, &rng](const auto& self, ShapeNode& current, int depth) -> std::optional<TensorView> {
         if (current.isFinal) {
-            // TODO: get rid of this "t".
-            auto tensorId = ctx.addTensor("t");
-            // First build a pure tensor of input shape.
-            auto tensor = std::make_shared<PureTensor>(tensorId, current.shape);
-            // Then start to build a view of this tensor.
-            return { TensorView { tensor } };
+            // Start to build a view of this tensor.
+            return { TensorView { current.shape, std::make_shared<CodeGenContext>() } };
         } else {
             // Here we just randomly iterate. In MCTS, use UCB. TODO
             std::vector<std::size_t> childrenIds(current.children.size(), 0);
@@ -123,8 +118,8 @@ TensorView Sampler::sample() {
     if (auto result = recursion(recursion, *root.node, 0)) {
         auto& tensorView = result.value();
         tensorView.finishConstruction();
-        tensorView.setDefaultAccesses(ctx);
-        tensorView.evaluateTensorAccess(ctx);
+        tensorView.setDefaultInterfaceAccess();
+        tensorView.evaluateTensorAccess();
         return std::move(tensorView);
     } else {
         KAS_CRITICAL("Cannot sample a tensor.");

@@ -22,7 +22,7 @@ public:
 class MergeOp: public MergeLikePrimitiveOp {
 public:
     MergeOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> parentRhs);
-    DoubleIteratorValue value(SingleIteratorValue output, const BindingContext& ctx) const override;
+    DoubleIteratorValue value(SingleIteratorValue output) const override;
 };
 
 } // namespace kas

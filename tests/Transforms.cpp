@@ -20,6 +20,7 @@ class transforms_tests: public ::testing::Test {
 protected:
     using SizeName = BindingContext::Metadata;
     BindingContext ctx { std::vector<SizeName>{ SizeName("H"), SizeName("W") }, std::vector<SizeName>{ SizeName("c") } };
+    std::shared_ptr<CodeGenContext> cgCtx = std::make_shared<CodeGenContext>();
     std::shared_ptr<Size> sizeH = ctx.getSinglePrimaryVariableSize(0);
     std::shared_ptr<Size> sizeW = ctx.getSinglePrimaryVariableSize(1);
     std::shared_ptr<Size> sizeC = ctx.getSingleCoefficientVariableSize(0);
@@ -28,106 +29,93 @@ protected:
 
 TEST_F(transforms_tests, share) {
     ShareShapeOp shareOp { 0, 1, 0 };
-    auto tensorView = TensorView { shareOp.transformShapeInverse(shape), ctx };
+    auto tensorView = TensorView { shareOp.transformShapeInverse(shape), cgCtx };
     shareOp.transformTensor(tensorView);
     tensorView.finishConstruction();
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
+    tensorView.setDefaultInterfaceAccess();
+    tensorView.evaluateTensorAccess();
+    ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx), "[i_0,i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[H,H,W,(c)H]");
 }
 
-TEST_F(transforms_tests, reduce) {
-    ReduceShapeOp reduceOp { 0, *sizeH * *sizeW, ReduceManipulation::Type::Sum };
-    auto tensorView = TensorView { reduceOp.transformShapeInverse(shape), ctx };
-    reduceOp.transformTensor(tensorView);
+TEST_F(transforms_tests, map_reduce) {
+    MapReduceShapeOp mapReduceOp { 0, *sizeH * *sizeW, Manipulation::MapType::ReLU, Manipulation::ReduceType::Sum };
+    auto tensorView = TensorView { mapReduceOp.transformShapeInverse(shape), cgCtx };
+    mapReduceOp.transformTensor(tensorView);
     tensorView.finishConstruction();
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2] with reduced [ri_0]");
+    tensorView.setDefaultInterfaceAccess();
+    tensorView.evaluateTensorAccess();
+    ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_1,i_2,i_3] with ReLU mapped with i_0 Sum reduced");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H] with reduced [HW]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx), "[ri_0,i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2,i_3]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[HW,H,W,(c)H]");
-}
-
-TEST_F(transforms_tests, map) {
-    MapShapeOp mapOp { MapManipulation::Type::ReLU };
-    auto tensorView = TensorView { mapOp.transformShapeInverse(shape), ctx };
-    mapOp.transformTensor(tensorView);
-    tensorView.finishConstruction();
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2] with mapped [ReLU]");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[H,W,(c)H]");
 }
 
 TEST_F(transforms_tests, shift) {
     ShiftShapeOp shiftOp { 0, 0, 1 };
-    auto tensorView = TensorView { shiftOp.transformShapeInverse(shape), ctx };
+    auto tensorView = TensorView { shiftOp.transformShapeInverse(shape), cgCtx };
     shiftOp.transformTensor(tensorView);
     tensorView.finishConstruction();
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
+    tensorView.setDefaultInterfaceAccess();
+    tensorView.evaluateTensorAccess();
+    ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx), "[(((i_0)+(1))+(H))%(H),i_1,i_2]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx, *cgCtx), "[(((i_0)+(1))+(H))%(H),i_1,i_2]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[H,W,(c)H]");
 }
 
 TEST_F(transforms_tests, stride) {
     StrideShapeOp strideOp { 0, 0, sizeC };
-    auto tensorView = TensorView { strideOp.transformShapeInverse(shape), ctx };
+    auto tensorView = TensorView { strideOp.transformShapeInverse(shape), cgCtx };
     strideOp.transformTensor(tensorView);
     tensorView.finishConstruction();
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
+    tensorView.setDefaultInterfaceAccess();
+    tensorView.evaluateTensorAccess();
+    ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx), "[((c)1)*(i_0),i_1,i_2]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx, *cgCtx), "[((c)1)*(i_0),i_1,i_2]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[(c)H,W,(c)H]");
 }
 
 TEST_F(transforms_tests, unfold) {
     Shape shape { std::vector<std::shared_ptr<Size>> { sizeH, sizeW, sizeC } };
     UnfoldShapeOp unfoldOp { 0, 0, 2 };
-    auto tensorView = TensorView { unfoldOp.transformShapeInverse(shape), ctx };
+    auto tensorView = TensorView { unfoldOp.transformShapeInverse(shape), cgCtx };
     unfoldOp.transformTensor(tensorView);
     tensorView.finishConstruction();
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
+    tensorView.setDefaultInterfaceAccess();
+    tensorView.evaluateTensorAccess();
+    ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)1]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx), "[((i_0)+(i_2))-(((c)1)/(2)),i_1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx, *cgCtx), "[((i_0)+(i_2))-(((c)1)/(2)),i_1]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[H,W]");
 }
 
 TEST_F(transforms_tests, merge) {
     MergeShapeOp mergeOp { 0, 1, 2, sizeH };
-    auto tensorView = TensorView { mergeOp.transformShapeInverse(shape), ctx };
+    auto tensorView = TensorView { mergeOp.transformShapeInverse(shape), cgCtx };
     mergeOp.transformTensor(tensorView);
     tensorView.finishConstruction();
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
+    tensorView.setDefaultInterfaceAccess();
+    tensorView.evaluateTensorAccess();
+    ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx), "[(i_2)/(H),(i_2)%(H),i_0,i_1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx, *cgCtx), "[(i_2)/(H),(i_2)%(H),i_0,i_1]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[(c)1,H,H,W]");
 }
 
 TEST_F(transforms_tests, split) {
     SplitShapeOp splitOp { 0, 0, 1 };
-    auto tensorView = TensorView { splitOp.transformShapeInverse(shape), ctx };
+    auto tensorView = TensorView { splitOp.transformShapeInverse(shape), cgCtx };
     splitOp.transformTensor(tensorView);
     tensorView.finishConstruction();
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
+    tensorView.setDefaultInterfaceAccess();
+    tensorView.evaluateTensorAccess();
+    ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx), "[((i_0)*(W))+(i_1),i_2]");
+    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx, *cgCtx), "[((i_0)*(W))+(i_1),i_2]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[HW,(c)H]");
 }
 
@@ -135,12 +123,12 @@ TEST_F(transforms_tests, finalize) {
     Shape outputShape { std::vector<std::shared_ptr<Size>> { *(*sizeH * *sizeW) / *sizeC, *sizeC * *sizeW } };
     Shape desired { std::vector<std::shared_ptr<Size>> { sizeH, sizeW } };
     FinalizeShapeOp finalizeOp(outputShape, desired, FinalizeShapeOp::Epilogue { { 0, 0 }, { { 0, 1 } } });
-    auto tensorView = TensorView { finalizeOp.transformShapeInverse(outputShape), ctx };
+    auto tensorView = TensorView { finalizeOp.transformShapeInverse(outputShape), cgCtx };
     finalizeOp.transformTensor(tensorView);
     tensorView.finishConstruction();
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1]");
+    tensorView.setDefaultInterfaceAccess();
+    tensorView.evaluateTensorAccess();
+    ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[(1/c)HW,(c)W]");
     ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[H,W,W]");
     // Note that the remainder of a size is placed frontmost. So when merging we are actually doing [W,H,W], where the last dimension, which is the remainder, is promoted to the first of the group.
@@ -152,7 +140,7 @@ TEST_F(transforms_tests, finalize) {
     // In the original order in the input tensor,
     // [((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W),((((i_0)*((c)W))+(i_1))/(W))/(H)]
     ASSERT_EQ(
-        tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx),
+        tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx, *cgCtx),
         "[((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W),((((i_0)*((c)W))+(i_1))/(W))/(H)]"
     );
 }
@@ -179,10 +167,10 @@ TEST_F(transforms_tests, finalize_gen) {
     std::cout << "\nNow automatically generate epilogue:\n" << std::endl;
     for (auto&& e: FinalizeShapeOp::generate(outputShape, { .desired = desiredShape })) {
         std::cout << e->getEpilogue().toDebugString(ctx, outputShape, desiredShape);
-        auto tensorView = TensorView { e->transformShapeInverse(outputShape), ctx };
+        auto tensorView = TensorView { e->transformShapeInverse(outputShape), cgCtx };
         e->transformTensor(tensorView);
         tensorView.finishConstruction();
-        tensorView.setDefaultAccesses(ctx);
-        tensorView.evaluateTensorAccess(ctx);
+        tensorView.setDefaultInterfaceAccess();
+        tensorView.evaluateTensorAccess();
     }
 }

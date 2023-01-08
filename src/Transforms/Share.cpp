@@ -53,7 +53,7 @@ ShareOp::ShareOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> 
     MergeLikePrimitiveOp { std::move(parentLhs), std::move(parentRhs) }
 {}
 
-DoubleIteratorValue ShareOp::value(SingleIteratorValue output, const BindingContext& ctx) const {
+DoubleIteratorValue ShareOp::value(SingleIteratorValue output) const {
     return { output, output };
 }
 

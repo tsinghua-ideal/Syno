@@ -18,7 +18,6 @@ Iterator::Iterator(IteratorTransform parent, std::shared_ptr<Size> size):
 namespace {
     class IteratorTransformVisitor {
     public:
-        const BindingContext& ctx;
         std::queue<std::shared_ptr<Iterator>>& workingSet;
         IteratorValueMap& valueMap;
         const std::shared_ptr<Iterator>& thisIterator;
@@ -28,7 +27,7 @@ namespace {
                 return true;
             }
             auto input = repeatLikeOp->value(
-                valueMap.at(thisIterator), ctx
+                valueMap.at(thisIterator)
             );
             valueMap.emplace(repeatLikeOp->parent, input);
             workingSet.push(repeatLikeOp->parent);
@@ -49,7 +48,7 @@ namespace {
             auto input = splitLikeOp->value({
                 outputLhs->second, 
                 outputRhs->second
-            }, ctx);
+            });
             valueMap.emplace(splitLikeOp->parent, input);
             workingSet.push(splitLikeOp->parent);
             return true;
@@ -60,7 +59,7 @@ namespace {
                 return true;
             }
             auto [inputLhs, inputRhs] = mergeLikeOp->value(
-                valueMap.at(thisIterator), ctx
+                valueMap.at(thisIterator)
             );
             valueMap.emplace(mergeLikeOp->parentLhs, inputLhs);
             workingSet.push(mergeLikeOp->parentLhs);
@@ -73,7 +72,6 @@ namespace {
             return true;
         }
         IteratorTransformVisitor(IteratorEvaluator& evaluator, const std::shared_ptr<Iterator>& thisIterator):
-            ctx { evaluator.bindingContext },
             workingSet { evaluator.workingSet },
             valueMap { evaluator.valueMap },
             thisIterator { thisIterator }

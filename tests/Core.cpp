@@ -4,6 +4,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 
+#include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/Tensor.hpp"
@@ -44,14 +45,15 @@ TEST(core_tests, tensor) {
     auto sizeC = ctx.getSingleCoefficientVariableSize(0);
     ASSERT_EQ(sizeC->toString(ctx), "(c_0)1");
     auto shape = Shape { std::vector<std::shared_ptr<Size>> { sizeH, sizeW, sizeC } };
-    auto tensor = std::make_shared<PureTensor>(ctx.addTensor("t"), shape);
-    auto tensorView = TensorView { tensor };
+    auto cgCtx = std::make_shared<CodeGenContext>();
+    auto tensor = std::make_shared<PureTensor>(cgCtx->addTensor("t"), shape);
+    auto tensorView = TensorView { tensor, cgCtx };
     tensorView.finishConstruction();
-    tensorView.setDefaultAccesses(ctx);
-    tensorView.evaluateTensorAccess(ctx);
-    ASSERT_EQ(tensorView.interfaceAccessToString(ctx), "[i_0,i_1,i_2]");
+    tensorView.setDefaultInterfaceAccess();
+    tensorView.evaluateTensorAccess();
+    ASSERT_EQ(tensorView.interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1,(c_0)1]");
-    ASSERT_EQ(tensor->interfaceAccessToString(ctx), "[i_0,i_1,i_2]");
+    ASSERT_EQ(tensor->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensor->shapeToString(ctx), "[x_0,x_1,(c_0)1]");
 }
 

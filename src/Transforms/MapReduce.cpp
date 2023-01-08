@@ -1,7 +1,8 @@
 #include <memory>
+#include <utility>
 
 #include "KAS/Core/Tensor.hpp"
-#include "KAS/Transforms/Reduce.hpp"
+#include "KAS/Transforms/MapReduce.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Core/Iterator.hpp"
@@ -9,32 +10,33 @@
 
 namespace kas {
 
-ReduceShapeOp::ReduceShapeOp(std::size_t input, std::shared_ptr<Size> size, ReduceManipulation::Type type):
+MapReduceShapeOp::MapReduceShapeOp(std::size_t input, std::shared_ptr<Size> size, Manipulation::MapType mapType, Manipulation::ReduceType reduceType):
     input { input },
     size { std::move(size) },
-    type { type }
+    mapType { mapType },
+    reduceType { reduceType }
 {}
 
-Shape ReduceShapeOp::transformShapeInverse(const Shape& output) const {
+Shape MapReduceShapeOp::transformShapeInverse(const Shape& output) const {
     return output.replace({}, { std::make_pair(input, size) });
 }
 
-void ReduceShapeOp::transformTensor(TensorView &tensor) const {
+void MapReduceShapeOp::transformTensor(TensorView &tensor) const {
     KAS_ASSERT(tensor.getInterfaceIterators().size() > input);
     auto inputIt = tensor[input];
-    std::unique_ptr<RepeatLikePrimitiveOp> op { new ReduceOp { inputIt } };
+    std::unique_ptr<RepeatLikePrimitiveOp> op { new MapReduceOp { inputIt } };
     KAS_ASSERT(*size == *inputIt->getSize());
     auto outputIt = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, size);
     tensor.replaceInterface({ input }, {});
     // This is special for Reduce: we need to add it to reducedIterators
-    tensor.addManipulation(Manipulation { ReduceManipulation { std::move(outputIt), type } });
+    tensor.addManipulation(Manipulation { std::move(outputIt), mapType, reduceType });
 }
 
-ReduceOp::ReduceOp(std::shared_ptr<Iterator> parent):
+MapReduceOp::MapReduceOp(std::shared_ptr<Iterator> parent):
     RepeatLikePrimitiveOp { std::move(parent) }
 {}
 
-SingleIteratorValue ReduceOp::value(SingleIteratorValue output, const BindingContext& ctx) const {
+SingleIteratorValue MapReduceOp::value(SingleIteratorValue output) const {
     return output;
 }
 
