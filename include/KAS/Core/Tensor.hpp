@@ -21,6 +21,9 @@ class Tensor: public std::enable_shared_from_this<Tensor> {
 protected:
     std::vector<std::shared_ptr<IteratorValue>> access;
 
+    static std::string GetIndentSpaces(std::size_t indent);
+    virtual std::string printNestedLoops(const BindingContext& ctx, std::size_t indent) const = 0;
+
 public:
     template<typename T>
     Tensor(T&& access):
@@ -36,6 +39,7 @@ public:
     virtual std::string actualAccessToString(const BindingContext& ctx) const = 0;
     virtual Shape getShape() const = 0;
     virtual std::string shapeToString(const BindingContext& ctx) const = 0;
+    std::string printNestedLoops(const BindingContext& ctx) const;
     template<typename Derived>
     std::shared_ptr<Derived> shared_from_base() {
         return std::dynamic_pointer_cast<Derived>(shared_from_this());
@@ -56,6 +60,8 @@ class PureTensor: public Tensor {
 protected:
     std::size_t tensorId;
     Shape shape;
+
+    std::string printNestedLoops(const BindingContext& ctx, std::size_t indent) const override;
 
 public:
     // Initialize access as nullptr
@@ -80,6 +86,8 @@ protected:
     std::shared_ptr<Tensor> tensor;
 
     std::vector<std::shared_ptr<IteratorValue>> reducedAccess;
+
+    std::string printNestedLoops(const BindingContext& ctx, std::size_t indent) const override;
 
 public:
     TensorView(std::shared_ptr<Tensor> tensor);

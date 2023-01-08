@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "KAS/Core/BindingContext.hpp"
+#include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Utils/Common.hpp"
@@ -17,6 +18,10 @@
 
 
 namespace kas {
+
+std::string Tensor::GetIndentSpaces(std::size_t indent) {
+    return std::string(4 * indent, ' ');
+}
 
 void Tensor::setAccess(std::shared_ptr<IteratorValue> value, std::size_t index) {
     KAS_ASSERT(index < access.size());
@@ -45,6 +50,10 @@ std::string Tensor::interfaceAccessToString(const BindingContext& ctx) const {
     }));
 }
 
+std::string Tensor::printNestedLoops(const BindingContext& ctx) const {
+    return printNestedLoops(ctx, 0);
+}
+
 TensorStub::TensorStub(std::shared_ptr<Tensor> tensor, std::size_t index):
     tensor { std::move(tensor) },
     index { index }
@@ -52,6 +61,11 @@ TensorStub::TensorStub(std::shared_ptr<Tensor> tensor, std::size_t index):
 
 void TensorStub::setAccess(std::shared_ptr<IteratorValue> value) const {
     tensor->setAccess(std::move(value), index);
+}
+
+std::string PureTensor::printNestedLoops(const BindingContext& ctx, std::size_t indent) const {
+    // PureTensor does not need any loop.
+    return GetIndentSpaces(indent) + actualAccessToString(ctx);
 }
 
 void PureTensor::evaluateTensorAccess(BindingContext& ctx) {
@@ -69,6 +83,10 @@ Shape PureTensor::getShape() const {
 
 std::string PureTensor::shapeToString(const BindingContext& ctx) const {
     return shape.toString(ctx);
+}
+
+std::string TensorView::printNestedLoops(const BindingContext& ctx, std::size_t indent) const {
+
 }
 
 TensorView::TensorView(std::shared_ptr<Tensor> tensor):

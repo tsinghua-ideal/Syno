@@ -45,7 +45,7 @@ public:
         primary { std::forward<Tp>(primary) },
         coefficient { std::forward<Tc>(coefficient) }
     {}
-    Size& operator=(const Size& other);
+    Size& operator=(const Size& other) &;
 
     Size identity() const;
 
@@ -107,8 +107,8 @@ public:
     Shape() = default;
     Shape(const Shape& shape) = default;
     Shape(Shape&& shape) = default;
-    Shape& operator=(const Shape& shape) = default;
-    Shape& operator=(Shape&& shape) = default;
+    Shape& operator=(const Shape& shape) & = default;
+    Shape& operator=(Shape&& shape) & = default;
     explicit Shape(const std::vector<std::shared_ptr<Size>>& sizes);
     explicit Shape(std::vector<std::shared_ptr<Size>>&& sizes);
 

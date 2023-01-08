@@ -5,7 +5,7 @@
 
 namespace kas {
 
-class CodeGen {
+class HalideGen {
 
 };
 

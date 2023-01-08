@@ -23,7 +23,7 @@ Size::Size(std::size_t primaryCount, std::size_t coefficientCount):
     coefficient {}
 {}
 
-Size& Size::operator=(const Size& other) {
+Size& Size::operator=(const Size& other) & {
     KAS_ASSERT(primaryCount == other.primaryCount && coefficientCount == other.coefficientCount);
     primary = other.primary;
     coefficient = other.coefficient;
