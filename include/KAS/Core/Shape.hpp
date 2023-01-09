@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 #include <memory>
 #include <optional>
@@ -48,6 +49,31 @@ public:
         coefficient { std::forward<Tc>(coefficient) }
     {}
     Size& operator=(const Size& other) &;
+
+    template<typename ValueType, typename Tp, typename Tc>
+    ValueType eval(Tp&& p, Tc&& c) const {
+        auto factor = [](std::size_t cnt, auto&& f, const Size::ExprType& powers) -> std::pair<ValueType, ValueType> {
+            ValueType nominator = 1;
+            ValueType denominator = 1;
+            for (std::size_t i = 0; i < cnt; ++i) {
+                if (powers[i] > 0) {
+                    const ValueType v = f(i);
+                    for (std::size_t j = 0; j < powers[i]; ++j) {
+                        nominator *= v;
+                    }
+                } else if (powers[i] < 0) {
+                    const ValueType v = f(i);
+                    for (std::size_t j = 0; j < -powers[i]; ++j) {
+                        denominator *= v;
+                    }
+                }
+            }
+            return { nominator, denominator };
+        };
+        auto [nP, dP] = factor(primaryCount, std::forward<Tp>(p), primary);
+        auto [nC, dC] = factor(coefficientCount, std::forward<Tc>(c), coefficient);
+        return nP * nC / dP / dC;
+    };
 
     Size identity() const;
 

@@ -184,27 +184,10 @@ std::optional<Size::Trait> Size::testDividedBy(const Size& other) {
 }
 
 std::size_t Size::estimate(const BindingContext& ctx) const {
-    auto factor = [](std::size_t cnt, auto f, const Size::ExprType& powers) -> std::pair<std::size_t, std::size_t> {
-        std::size_t nominator = 1;
-        std::size_t denominator = 1;
-        for (std::size_t i = 0; i < cnt; ++i) {
-            if (powers[i] > 0) {
-                const std::size_t est = f(i);
-                for (std::size_t j = 0; j < powers[i]; ++j) {
-                    nominator *= est;
-                }
-            } else if (powers[i] < 0) {
-                const std::size_t est = f(i);
-                for (std::size_t j = 0; j < -powers[i]; ++j) {
-                    denominator *= est;
-                }
-            }
-        }
-        return { nominator, denominator };
-    };
-    auto [nP, dP] = factor(primaryCount, [&ctx](std::size_t i) { return ctx.getPrimaryEstimate(i); }, primary);
-    auto [nC, dC] = factor(coefficientCount, [&ctx](std::size_t i) { return ctx.getCoefficientEstimate(i); }, coefficient);
-    return nP * nC / dP / dC;
+    return eval<std::size_t>(
+        [&ctx](std::size_t i) { return ctx.getPrimaryEstimate(i); },
+        [&ctx](std::size_t i) { return ctx.getCoefficientEstimate(i); }
+    );
 }
 
 std::string Size::toString(const BindingContext& ctx) const {

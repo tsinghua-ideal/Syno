@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <iostream>
 
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/Core/BindingContext.hpp"
@@ -9,7 +10,7 @@ namespace kas {
 
 class codegen_tests: public ::testing::Test {
 protected:
-    Sampler sampler = { "[H,W]", "[N,C,H,W]", {} };
+    Sampler sampler = { "[H,W]", "[N,C,H,W]", SampleOptions() };
     BindingContext& ctx = sampler.getBindingContext();
 };
 
@@ -22,6 +23,7 @@ TEST_F(codegen_tests, func) {
 
 TEST_F(codegen_tests, generate) {
     auto sample = sampler.sample();
+    std::cout << sample.printNestedLoops(ctx) << std::endl;
     HalideGen gen { ctx, sample };
     gen.generate(".", "kernel_1");
 }

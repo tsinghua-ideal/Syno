@@ -38,6 +38,7 @@ protected:
     void visit(BinaryOpValueNode& value) override;
     Halide::Expr evaluate(IteratorValue& value);
     Halide::Expr evaluate(std::shared_ptr<Size> value);
+    Halide::Region evaluate(const Shape& shape);
 
     bool accessEvaluated = false;
     std::vector<Halide::Var> outerLoops;
@@ -47,6 +48,8 @@ protected:
 
     // Returns the (input, func) pair.
     std::pair<std::vector<Halide::ImageParam>, Halide::Func> createFunc(std::string_view funcName);
+    // Returns the (input (including the gradient of output), gradient funcs) pair.
+    std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> createFuncGrad(std::string_view funcName);
 
     static Halide::Region ShapeEstimateToRegion(const std::vector<std::size_t>& estimate);
 

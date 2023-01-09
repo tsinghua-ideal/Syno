@@ -31,25 +31,7 @@ void HalideGen::visit(VariableValueNode& value) {
     stack.emplace(vars[value.variableId]);
 }
 void HalideGen::visit(ConstValueNode& value) {
-    auto factor = [](std::size_t cnt, const std::vector<Halide::Param<int>>& bases, const Size::ExprType& powers) -> std::pair<Halide::Expr, Halide::Expr> {
-        Halide::Expr nominator = 1;
-        Halide::Expr denominator = 1;
-        for (std::size_t i = 0; i < cnt; ++i) {
-            if (powers[i] > 0) {
-                for (std::size_t j = 0; j < powers[i]; ++j) {
-                    nominator *= bases[i];
-                }
-            } else if (powers[i] < 0) {
-                for (std::size_t j = 0; j < -powers[i]; ++j) {
-                    denominator *= bases[i];
-                }
-            }
-        }
-        return { nominator,  denominator};
-    };
-    auto [nP, dP] = factor(ctx.getPrimaryCount(), primaryConsts, value.value->primary);
-    auto [nC, dC] = factor(ctx.getCoefficientCount(), coefficientConsts, value.value->coefficient);
-    stack.emplace(nP * nC / dP / dC);
+    stack.emplace(evaluate(value.value));
 }
 void HalideGen::visit(ImmediateValueNode& value) {
     stack.emplace(value.value);
@@ -80,8 +62,18 @@ Halide::Expr HalideGen::evaluate(IteratorValue& value) {
 }
 
 Halide::Expr HalideGen::evaluate(std::shared_ptr<Size> value) {
-    ConstValueNode node(std::move(value));
-    return evaluate(node);
+    return value->eval<Halide::Expr>(
+        [this](std::size_t i) { return primaryConsts[i]; },
+        [this](std::size_t i) { return coefficientConsts[i]; }
+    );
+}
+
+Halide::Region HalideGen::evaluate(const Shape& shape) {
+    Halide::Region region;
+    for (const auto& s: shape.getSizes()) {
+        region.emplace_back(0, evaluate(s));
+    }
+    return region;
 }
 
 void HalideGen::evaluateAccess() {
@@ -152,7 +144,7 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
         switch (m.reduceType) {
         case Manipulation::ReduceType::Sum:     newTemp(tempAccess) = Halide::sum(tempValue); break;
         case Manipulation::ReduceType::Max:     newTemp(tempAccess) = Halide::maximum(tempValue); break;
-        case Manipulation::ReduceType::Mean:    newTemp(tempAccess) = Halide::sum(tempValue) / evaluate(m.getIterator()->getSize()); break;
+        case Manipulation::ReduceType::Mean:    newTemp(tempAccess) = Halide::sum(tempValue) / Halide::cast<float>(evaluate(m.getIterator()->getSize())); break;
         case Manipulation::ReduceType::Min:     newTemp(tempAccess) = Halide::minimum(tempValue); break;
         case Manipulation::ReduceType::Product: newTemp(tempAccess) = Halide::product(tempValue); break;
         }
@@ -162,6 +154,22 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
     func(outerLoops) = temp(outerLoops);
 
     return { std::move(inputs), std::move(func) };
+}
+
+std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> HalideGen::createFuncGrad(std::string_view funcName) {
+    auto [input, func] = createFunc(funcName);
+    Shape outputShape = tensorView.getShape();
+    Halide::Region outputRegion = evaluate(outputShape);
+    Halide::ImageParam outputGrad(Halide::type_of<float>(), outputShape.size(), "output_grad");
+    Halide::Derivative d = Halide::propagate_adjoints(func, outputGrad, outputRegion);
+    std::vector<Halide::Func> gradFuncs;
+    for (std::size_t i = 0; i < input.size(); ++i) {
+        Halide::Func dInput(input[i].name() + "_grad");
+        dInput(Halide::_) = d(input[i])(Halide::_);
+        gradFuncs.emplace_back(std::move(dInput));
+    }
+    input.emplace_back(std::move(outputGrad));
+    return { std::move(input), std::move(gradFuncs) };
 }
 
 Halide::Region HalideGen::ShapeEstimateToRegion(const std::vector<std::size_t>& estimate) {
@@ -192,49 +200,64 @@ HalideGen::HalideGen(const BindingContext& ctx, const TensorView& tensorView):
 }
 
 void HalideGen::generate(std::filesystem::path outputPath, std::string_view funcName) {
-    auto [inputs, func] = createFunc(funcName);
     for (std::size_t i = 0; i < primaryConsts.size(); ++i) {
-        primaryConsts[i].set_estimate(ctx.getPrimaryEstimate(i));
+        primaryConsts[i].set_estimate(static_cast<int>(ctx.getPrimaryEstimate(i)));
     }
     for (std::size_t i = 0; i < coefficientConsts.size(); ++i) {
-        coefficientConsts[i].set_estimate(ctx.getCoefficientEstimate(i));
+        coefficientConsts[i].set_estimate(static_cast<int>(ctx.getCoefficientEstimate(i)));
     }
     const auto& tensors = tensorView.getUnderlyingTensors();
-    KAS_ASSERT(inputs.size() == tensors.size());
-    for (std::size_t i = 0; i < tensors.size(); ++i) {
-        const auto& tensor = tensors[i];
-        inputs[i].set_estimates(ShapeEstimateToRegion(tensor->shape.estimate(ctx)));
-    }
-    func.set_estimates(ShapeEstimateToRegion(tensorView.getShape().estimate(ctx)));
-
-    std::vector<Halide::Argument> args;
-    std::copy(primaryConsts.begin(), primaryConsts.end(), std::back_inserter(args));
-    std::copy(coefficientConsts.begin(), coefficientConsts.end(), std::back_inserter(args));
-    std::copy(inputs.begin(), inputs.end(), std::back_inserter(args));
-
-    if (!AutoSchedulerLoaded) {
-        Halide::load_plugin("autoschedule_li2018");
-        AutoSchedulerLoaded = true;
-    }
 
     auto target = GetGPUTarget();
     auto ext = Halide::Internal::get_output_info(target);
-    Halide::Pipeline pipeline(func);
-    pipeline.auto_schedule("Li2018", target);
-
     const auto flagsForModule = [&ext](std::filesystem::path filename) -> std::map<Halide::OutputFileType, std::string> { 
         using FileType = Halide::OutputFileType;
         return {
             {FileType::stmt, filename.replace_extension(ext.at(FileType::stmt).extension)},
+            {FileType::static_library, filename.replace_extension(ext.at(FileType::static_library).extension)},
             {FileType::pytorch_wrapper, filename.replace_extension(ext.at(FileType::pytorch_wrapper).extension)},
-            {FileType::static_library, filename.replace_extension(ext.at(FileType::static_library).extension)}
         };
     };
-
+    if (!AutoSchedulerLoaded) {
+        Halide::load_plugin("autoschedule_li2018");
+        Halide::load_plugin("autoschedule_adams2019");
+        AutoSchedulerLoaded = true;
+    }
     std::filesystem::create_directories(outputPath);
-    auto filename = outputPath / funcName;
 
-    pipeline.compile_to(flagsForModule(filename), args, std::string(funcName), target);
+    auto [forwardInputs, forwardFunc] = createFunc(funcName);
+    auto [backwardInputs, backwardFuncs] = createFuncGrad(funcName);
+    KAS_ASSERT(forwardInputs.size() == tensors.size());
+    KAS_ASSERT(backwardInputs.size() == tensors.size() + 1);
+    KAS_ASSERT(backwardFuncs.size() == tensors.size());
+    for (std::size_t i = 0; i < tensors.size(); ++i) {
+        const auto& tensor = tensors[i];
+        auto est = ShapeEstimateToRegion(tensor->shape.estimate(ctx));
+        forwardInputs[i].set_estimates(est);
+        backwardInputs[i].set_estimates(est);
+        backwardFuncs[i].set_estimates(est);
+    }
+    auto outputShapeEst = ShapeEstimateToRegion(tensorView.getShape().estimate(ctx));
+    forwardFunc.set_estimates(outputShapeEst);
+    backwardInputs.back().set_estimates(outputShapeEst);
+
+    std::vector<Halide::Argument> forwardArgs;
+    std::vector<Halide::Argument> backwardArgs;
+    std::copy(primaryConsts.begin(), primaryConsts.end(), std::back_inserter(forwardArgs));
+    std::copy(primaryConsts.begin(), primaryConsts.end(), std::back_inserter(backwardArgs));
+    std::copy(coefficientConsts.begin(), coefficientConsts.end(), std::back_inserter(forwardArgs));
+    std::copy(coefficientConsts.begin(), coefficientConsts.end(), std::back_inserter(backwardArgs));
+    std::copy(forwardInputs.begin(), forwardInputs.end(), std::back_inserter(forwardArgs));
+    std::copy(backwardInputs.begin(), backwardInputs.end(), std::back_inserter(backwardArgs));
+
+    Halide::Pipeline forwardPipeline(forwardFunc);
+    forwardPipeline.auto_schedule("Li2018", target);
+    forwardPipeline.compile_to(flagsForModule(outputPath / funcName), forwardArgs, std::string(funcName), target);
+
+    Halide::Pipeline backwardPipeline(backwardFuncs);
+    backwardPipeline.auto_schedule("Li2018", target);
+    std::string backwardName = std::string(funcName) + "_grad";
+    backwardPipeline.compile_to(flagsForModule(outputPath / backwardName), backwardArgs, backwardName, target);
 }
 
 } // namespace kas
