@@ -12,6 +12,8 @@ class Iterator;
 
 // Represents a map-reduce op.
 class Manipulation {
+    friend class HalideGen;
+
 public:
     enum class MapType {
         Absolute,
@@ -20,7 +22,6 @@ public:
         Log,
         Identity,
         Inverse,
-        Mask,
         Negative,
         ReLU,
         Sigmoid,

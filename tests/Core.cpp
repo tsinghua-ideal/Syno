@@ -13,8 +13,8 @@
 using namespace kas;
 
 TEST(core_tests, size) {
-    std::vector<BindingContext::Metadata> metaPrimary { BindingContext::Metadata("H"), BindingContext::Metadata("W") };
-    std::vector<BindingContext::Metadata> metaCoefficient { BindingContext::Metadata("c") };
+    std::vector<BindingContext::Metadata> metaPrimary { BindingContext::Metadata("H", 128), BindingContext::Metadata("W", 128) };
+    std::vector<BindingContext::Metadata> metaCoefficient { BindingContext::Metadata("c", 5) };
     auto ctx = BindingContext { std::move(metaPrimary), std::move(metaCoefficient) };
     auto sizeH = ctx.getSinglePrimaryVariableSize(0);
     ASSERT_EQ(sizeH->toString(ctx), "H");

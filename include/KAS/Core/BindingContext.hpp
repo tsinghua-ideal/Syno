@@ -18,8 +18,9 @@ public:
     // Metadata includes aliases, whether preferred by specific ops (TODO), which context a variable is in (when there are multiple contexts, required by Blending) (TODO), etc...
     struct Metadata {
         std::string alias;
+        std::size_t estimate = 128;
         Metadata() = default;
-        Metadata(std::string_view alias);
+        Metadata(std::string_view alias, std::size_t estimate);
     };
 
 protected:
@@ -42,6 +43,8 @@ public:
     std::size_t getCoefficientCount() const;
     std::string_view getPrimaryAlias(std::size_t index) const;
     std::string_view getCoefficientAlias(std::size_t index) const;
+    std::size_t getPrimaryEstimate(std::size_t index) const;
+    std::size_t getCoefficientEstimate(std::size_t index) const;
 
     std::shared_ptr<Size> getSinglePrimaryVariableSize(std::size_t index) const;
     std::shared_ptr<Size> getSingleCoefficientVariableSize(std::size_t index) const;

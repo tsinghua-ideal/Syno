@@ -7,8 +7,9 @@
 
 namespace kas {
 
-BindingContext::Metadata::Metadata(std::string_view alias):
-    alias { alias }
+BindingContext::Metadata::Metadata(std::string_view alias, std::size_t estimate):
+    alias { alias },
+    estimate { estimate }
 {}
 
 BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoefficient):
@@ -16,10 +17,10 @@ BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoeffi
     primaryMetadata(countPrimary),
     coefficientMetadata(countCoefficient) {
     for (std::size_t i = 0; i < countPrimary; ++i) {
-        primaryMetadata[i] = Metadata { "x_" + std::to_string(i) };
+        primaryMetadata[i] = Metadata { "x_" + std::to_string(i), 128 };
     }
     for (std::size_t i = 0; i < countCoefficient; ++i) {
-        coefficientMetadata[i] = Metadata { "c_" + std::to_string(i) };
+        coefficientMetadata[i] = Metadata { "c_" + std::to_string(i), 5 };
     }
 }
 
@@ -34,6 +35,12 @@ std::string_view BindingContext::getPrimaryAlias(std::size_t index) const {
 }
 std::string_view BindingContext::getCoefficientAlias(std::size_t index) const {
     return coefficientMetadata.at(index).alias;
+}
+std::size_t BindingContext::getPrimaryEstimate(std::size_t index) const {
+    return primaryMetadata.at(index).estimate;
+}
+std::size_t BindingContext::getCoefficientEstimate(std::size_t index) const {
+    return coefficientMetadata.at(index).estimate;
 }
 
 std::shared_ptr<Size> BindingContext::getSinglePrimaryVariableSize(std::size_t index) const {
@@ -73,7 +80,7 @@ Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
         if (it == nameToIndex.end()) {
             KAS_ASSERT(namedPrimaryCount < getPrimaryCount());
             nameToIndex[name] = namedPrimaryCount;
-            primaryMetadata[namedPrimaryCount] = Metadata { name };
+            primaryMetadata[namedPrimaryCount] = Metadata { name, 128 };
             result.emplace_back(getSinglePrimaryVariableSize(namedPrimaryCount));
             ++namedPrimaryCount;
         } else {

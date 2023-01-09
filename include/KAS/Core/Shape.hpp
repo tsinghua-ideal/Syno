@@ -69,6 +69,8 @@ public:
 
     bool operator==(const Size& other) const = default;
 
+    std::size_t estimate(const BindingContext& ctx) const;
+
     std::string toString(const BindingContext& ctx) const;
 };
 
@@ -140,6 +142,8 @@ public:
         std::vector<std::size_t> drops,
         std::vector<std::pair<std::size_t, std::shared_ptr<Size>>> adds
     ) const;
+
+    std::vector<std::size_t> estimate(const BindingContext& ctx) const;
 
     std::string toString(const BindingContext& ctx) const;
 

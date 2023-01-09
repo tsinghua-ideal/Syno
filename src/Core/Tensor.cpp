@@ -92,7 +92,6 @@ std::string PureTensor::shapeToString(const BindingContext& ctx) const {
 }
 
 std::string TensorView::printInnerLoops(const BindingContext& ctx, const CodeGenContext& cgCtx, std::size_t indent) const {
-    // Here we first assume that the underlying tensor is a PureTensor. In case of multiple possibly-TensorView underlying tensors, we should serialize the evaluations. TODO
     std::stringstream ss;
     const auto recursion = [this, &ctx, &cgCtx, &ss](const auto& self, std::size_t manipId, std::size_t depth) -> std::string {
         if (manipId-- == 0) {
@@ -102,7 +101,7 @@ std::string TensorView::printInnerLoops(const BindingContext& ctx, const CodeGen
                 if (first) {
                     first = false;
                 } else {
-                    innerSs << "*";
+                    innerSs << "*"; // TODO: other blending schemes other than multiplication
                 }
                 innerSs << tensor->actualAccessToString(ctx, cgCtx);
             }

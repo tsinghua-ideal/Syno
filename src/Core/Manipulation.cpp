@@ -15,7 +15,6 @@ std::string_view Manipulation::what(MapType type) {
         case MapType::Log:      return "Log";
         case MapType::Identity: return "Identity";
         case MapType::Inverse:  return "Inverse";
-        case MapType::Mask:     return "Mask";
         case MapType::Negative: return "Negative";
         case MapType::ReLU:     return "ReLU";
         case MapType::Sigmoid:  return "Sigmoid";

@@ -14,7 +14,7 @@ include_directories(include)
 find_package(Halide REQUIRED)
 
 # Boost
-find_package(Boost REQUIRED COMPONENTS filesystem program_options REQUIRED)
+find_package(Boost REQUIRED COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
 

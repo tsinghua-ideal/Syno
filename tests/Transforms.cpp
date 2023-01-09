@@ -19,7 +19,7 @@ using namespace kas;
 class transforms_tests: public ::testing::Test {
 protected:
     using SizeName = BindingContext::Metadata;
-    BindingContext ctx { std::vector<SizeName>{ SizeName("H"), SizeName("W") }, std::vector<SizeName>{ SizeName("c") } };
+    BindingContext ctx { std::vector<SizeName>{ SizeName("H", 128), SizeName("W", 128) }, std::vector<SizeName>{ SizeName("c", 5) } };
     std::shared_ptr<CodeGenContext> cgCtx = std::make_shared<CodeGenContext>();
     std::shared_ptr<Size> sizeH = ctx.getSinglePrimaryVariableSize(0);
     std::shared_ptr<Size> sizeW = ctx.getSinglePrimaryVariableSize(1);
@@ -60,6 +60,19 @@ TEST_F(transforms_tests, map_reduce) {
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H] with reduced [HW]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2,i_3]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[HW,H,W,(c)H]");
+    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+R"(for (int i_1 = 0; i_1 < H; i_1++) {
+    for (int i_2 = 0; i_2 < W; i_2++) {
+        for (int i_3 = 0; i_3 < (c)H; i_3++) {
+            float temp_i_0 = 0;
+            for (int i_0 = 0; i_0 < HW; i_0++) {
+                temp_i_0 += ReLU(t[i_0,i_1,i_2,i_3]);
+            }
+            out[i_1,i_2,i_3] = temp_i_0;
+        }
+    }
+}
+)");
 }
 
 TEST_F(transforms_tests, shift) {
@@ -73,6 +86,15 @@ TEST_F(transforms_tests, shift) {
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[(((i_0)+(1))+(H))%(H),i_1,i_2]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H,W,(c)H]");
+    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+R"(for (int i_0 = 0; i_0 < H; i_0++) {
+    for (int i_1 = 0; i_1 < W; i_1++) {
+        for (int i_2 = 0; i_2 < (c)H; i_2++) {
+            out[i_0,i_1,i_2] = t[(((i_0)+(1))+(H))%(H),i_1,i_2];
+        }
+    }
+}
+)");
 }
 
 TEST_F(transforms_tests, stride) {
@@ -86,6 +108,15 @@ TEST_F(transforms_tests, stride) {
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[((c)1)*(i_0),i_1,i_2]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[(c)H,W,(c)H]");
+    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+R"(for (int i_0 = 0; i_0 < H; i_0++) {
+    for (int i_1 = 0; i_1 < W; i_1++) {
+        for (int i_2 = 0; i_2 < (c)H; i_2++) {
+            out[i_0,i_1,i_2] = t[((c)1)*(i_0),i_1,i_2];
+        }
+    }
+}
+)");
 }
 
 TEST_F(transforms_tests, unfold) {
@@ -100,6 +131,15 @@ TEST_F(transforms_tests, unfold) {
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)1]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[((i_0)+(i_2))-(((c)1)/(2)),i_1]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H,W]");
+    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+R"(for (int i_0 = 0; i_0 < H; i_0++) {
+    for (int i_1 = 0; i_1 < W; i_1++) {
+        for (int i_2 = 0; i_2 < (c)1; i_2++) {
+            out[i_0,i_1,i_2] = t[((i_0)+(i_2))-(((c)1)/(2)),i_1];
+        }
+    }
+}
+)");
 }
 
 TEST_F(transforms_tests, merge) {
@@ -113,6 +153,15 @@ TEST_F(transforms_tests, merge) {
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[(i_2)/(H),(i_2)%(H),i_0,i_1]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[(c)1,H,H,W]");
+    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+R"(for (int i_0 = 0; i_0 < H; i_0++) {
+    for (int i_1 = 0; i_1 < W; i_1++) {
+        for (int i_2 = 0; i_2 < (c)H; i_2++) {
+            out[i_0,i_1,i_2] = t[(i_2)/(H),(i_2)%(H),i_0,i_1];
+        }
+    }
+}
+)");
 }
 
 TEST_F(transforms_tests, split) {
@@ -126,6 +175,15 @@ TEST_F(transforms_tests, split) {
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[((i_0)*(W))+(i_1),i_2]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[HW,(c)H]");
+    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+R"(for (int i_0 = 0; i_0 < H; i_0++) {
+    for (int i_1 = 0; i_1 < W; i_1++) {
+        for (int i_2 = 0; i_2 < (c)H; i_2++) {
+            out[i_0,i_1,i_2] = t[((i_0)*(W))+(i_1),i_2];
+        }
+    }
+}
+)");
 }
 
 TEST_F(transforms_tests, finalize) {
@@ -152,10 +210,17 @@ TEST_F(transforms_tests, finalize) {
         tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx),
         "[((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W),((((i_0)*((c)W))+(i_1))/(W))/(H)]"
     );
+    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+R"(for (int i_0 = 0; i_0 < (1/c)HW; i_0++) {
+    for (int i_1 = 0; i_1 < (c)W; i_1++) {
+        out[i_0,i_1] = t[((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W),((((i_0)*((c)W))+(i_1))/(W))/(H)];
+    }
+}
+)");
 }
 
 TEST_F(transforms_tests, finalize_gen) {
-    BindingContext ctx { std::vector<SizeName>{ SizeName("N"), SizeName("C"), SizeName("H"), SizeName("W") }, std::vector<SizeName>{ SizeName("k"), SizeName("s") } };
+    BindingContext ctx { std::vector<SizeName>{ SizeName("N", 128), SizeName("C", 3), SizeName("H", 128), SizeName("W", 128) }, std::vector<SizeName>{ SizeName("k", 5), SizeName("s", 2) } };
     std::shared_ptr<Size> primaryN = ctx.getSinglePrimaryVariableSize(0);
     std::shared_ptr<Size> primaryC = ctx.getSinglePrimaryVariableSize(1);
     std::shared_ptr<Size> primaryH = ctx.getSinglePrimaryVariableSize(2);
