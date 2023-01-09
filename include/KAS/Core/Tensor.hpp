@@ -18,6 +18,7 @@ namespace kas {
 class Iterator;
 class IteratorValue;
 class Tensor: public std::enable_shared_from_this<Tensor> {
+    friend class HalideGen;
     friend class TensorView;
 
 protected:
@@ -59,6 +60,8 @@ public:
 
 // PureTensor must be created with std::make_shared()!
 class PureTensor: public Tensor {
+    friend class HalideGen;
+
 protected:
     std::size_t tensorId;
     Shape shape;
@@ -81,19 +84,21 @@ public:
 
 class TensorView: public Tensor {
     friend class FinalizeShapeOp;
+    friend class HalideGen;
 
 protected:
     std::vector<std::shared_ptr<Iterator>> interface;
     std::vector<Manipulation> manipulations;
-    std::shared_ptr<Tensor> tensor;
+    // How to blend the tensors? TODO
+    std::vector<std::shared_ptr<PureTensor>> tensors;
 
     std::shared_ptr<CodeGenContext> cgCtx;
 
     std::string printInnerLoops(const BindingContext& ctx, const CodeGenContext& cgCtx, std::size_t indent) const override;
 
 public:
-    // Explicitly control the underlying tensor,
-    TensorView(std::shared_ptr<Tensor> tensor, std::shared_ptr<CodeGenContext> cgCtx);
+    // Explicitly control the underlying tensors,
+    TensorView(std::vector<std::shared_ptr<PureTensor>> tensors, std::shared_ptr<CodeGenContext> cgCtx);
     // Or for convenience just create a new tensor all by default.
     TensorView(const Shape& shape, std::shared_ptr<CodeGenContext> cgCtx);
     // This sets the size of interface access for filling, and assigns iterator variables to reduced dimensions.
@@ -114,7 +119,7 @@ public:
     void addManipulation(Manipulation manipulation);
 
     // Returns the underlying tensor underneath the view.
-    std::shared_ptr<Tensor> getUnderlyingTensor() const;
+    const std::vector<std::shared_ptr<PureTensor>>& getUnderlyingTensors() const;
 
     // Returns the interface of the view.
     const std::vector<std::shared_ptr<Iterator>>& getInterfaceIterators() const;

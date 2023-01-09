@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <tuple>
 #include <vector>
 #include <memory>
 #include <optional>
@@ -17,6 +18,7 @@ namespace kas {
 struct Size {
     friend class BindingContext;
     friend class LabeledSize;
+    friend class HalideGen;
 
 public:
     constexpr static std::size_t MAX_VARIABLES = 16;
@@ -116,6 +118,22 @@ public:
     bool operator==(const Shape& other) const = default;
     std::size_t size() const;
     const std::shared_ptr<Size>& operator[](std::size_t index) const;
+
+    template<std::size_t N>
+    std::array<Shape, N> cut(std::array<std::size_t, N> dimensions) const {
+        std::array<Shape, N> res;
+        std::size_t begin = 0;
+        for (std::size_t i = 0; i < dimensions.size(); ++i) {
+            std::size_t dim = dimensions[i];
+            const std::size_t end = begin + dim;
+            std::vector<std::shared_ptr<Size>> newSizes;
+            std::copy(sizes.begin() + begin, sizes.begin() + end, std::back_inserter(newSizes));
+            res[i] = Shape(std::move(newSizes));
+            begin = end;
+        }
+        KAS_ASSERT(begin == size());
+        return res;
+    }
 
     // drops and adds must be sorted by index
     Shape replace(

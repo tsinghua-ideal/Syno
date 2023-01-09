@@ -17,8 +17,8 @@ public:
     std::size_t countPrimaryVariables = 5;
     std::size_t countCoefficientVariables = 5;
     int depth = 4;
-    int dimLowerBound = 8;
-    int dimUpperBound = 1;
+    int dimLowerBound = 1;
+    int dimUpperBound = 8;
     SampleOptions() = default;
     void check() const;
 };

@@ -94,8 +94,13 @@ TensorView Sampler::sample() {
     }
     const auto recursion = [this, &rng](const auto& self, ShapeNode& current, int depth) -> std::optional<TensorView> {
         if (current.isFinal) {
+            // First divide the shape into input tensor and weight tensor.
+            auto cgCtx = std::make_shared<CodeGenContext>();
+            auto [inputS, weightS] = current.shape.cut<2>({ inputShape.size(), current.shape.size() - inputShape.size() });
+            auto input = std::make_shared<PureTensor>(cgCtx->addTensor("input"), inputS);
+            auto weight = std::make_shared<PureTensor>(cgCtx->addTensor("weight"), weightS);
             // Start to build a view of this tensor.
-            return { TensorView { current.shape, std::make_shared<CodeGenContext>() } };
+            return { TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) } };
         } else {
             // Here we just randomly iterate. In MCTS, use UCB. TODO
             std::vector<std::size_t> childrenIds(current.children.size(), 0);

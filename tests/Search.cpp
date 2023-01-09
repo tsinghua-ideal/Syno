@@ -33,8 +33,8 @@ TEST(search_tests, shape_node) {
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_1,i_2] with Identity mapped with i_0 Sum reduced");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1] with reduced [x_0x_1]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_1,i_2]");
-    ASSERT_EQ(tensorView.getUnderlyingTensor()->shapeToString(ctx), "[x_0x_1,x_0,x_0,x_1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_1,i_2]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[x_0x_1,x_0,x_0,x_1]");
 }
 
 TEST(search_tests, sample) {
@@ -47,7 +47,16 @@ TEST(search_tests, sample) {
     Sampler sampler("[H,W]", "[N,C,H,W]", options);
     auto& ctx = sampler.getBindingContext();
     auto callback = [&](TensorView tensorView) {
-        std::cout << "Input Shape: " << tensorView.getUnderlyingTensor()->shapeToString(ctx) << std::endl;
+        std::cout << "Input Shape: ";
+        bool first = true;
+        for (const auto& tensor: tensorView.getUnderlyingTensors()) {
+            if (first) {
+                first = false;
+            } else {
+                std::cout << ", ";
+            }
+            std::cout << tensor->shapeToString(ctx);
+        }
         std::cout << tensorView.printNestedLoops(ctx);
     };
     for (int i = 0; i < 10; ++i) {

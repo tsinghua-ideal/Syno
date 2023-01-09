@@ -16,6 +16,8 @@ namespace kas {
 class Iterator;
 
 class CodeGenContext {
+    friend class HalideGen;
+
 public:
     struct TensorMetadata {
         std::string name;

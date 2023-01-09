@@ -96,7 +96,17 @@ std::string TensorView::printInnerLoops(const BindingContext& ctx, const CodeGen
     std::stringstream ss;
     const auto recursion = [this, &ctx, &cgCtx, &ss](const auto& self, std::size_t manipId, std::size_t depth) -> std::string {
         if (manipId-- == 0) {
-            return std::dynamic_pointer_cast<PureTensor>(tensor)->actualAccessToString(ctx, cgCtx);
+            std::stringstream innerSs;
+            bool first = true;
+            for (const auto& tensor: tensors) {
+                if (first) {
+                    first = false;
+                } else {
+                    innerSs << "*";
+                }
+                innerSs << tensor->actualAccessToString(ctx, cgCtx);
+            }
+            return innerSs.str();
         }
 
         auto& m = manipulations[manipId];
@@ -129,16 +139,23 @@ std::string TensorView::printInnerLoops(const BindingContext& ctx, const CodeGen
     return ss.str();
 }
 
-TensorView::TensorView(std::shared_ptr<Tensor> tensor, std::shared_ptr<CodeGenContext> cgCtx):
-    interface { tensor->getInterfaceStubs() },
+TensorView::TensorView(std::vector<std::shared_ptr<PureTensor>> tensors, std::shared_ptr<CodeGenContext> cgCtx):
+    interface { [&tensors]() -> std::vector<std::shared_ptr<Iterator>> {
+        std::vector<std::shared_ptr<Iterator>> res;
+        for (const auto& tensor : tensors) {
+            auto tensorInterface = tensor->getInterfaceStubs();
+            res.insert(res.end(), tensorInterface.begin(), tensorInterface.end());
+        }
+        return res;
+    }() },
     manipulations {},
     cgCtx { std::move(cgCtx) },
-    tensor { std::move(tensor) },
+    tensors { std::move(tensors) },
     Tensor { std::vector<std::shared_ptr<IteratorValue>> {} }
 {}
 
 TensorView::TensorView(const Shape& shape, std::shared_ptr<CodeGenContext> cgCtx):
-    TensorView { std::make_shared<PureTensor>(cgCtx->addTensor("t"), shape), std::move(cgCtx) }
+    TensorView { { std::make_shared<PureTensor>(cgCtx->addTensor("t"), shape) }, std::move(cgCtx) }
 {}
 
 void TensorView::finishConstruction() {
@@ -173,8 +190,8 @@ void TensorView::addManipulation(Manipulation manipulation) {
     manipulations.emplace_back(std::move(manipulation));
 }
 
-std::shared_ptr<Tensor> TensorView::getUnderlyingTensor() const {
-    return tensor;
+const std::vector<std::shared_ptr<PureTensor>>& TensorView::getUnderlyingTensors() const {
+    return tensors;
 }
 
 const std::vector<std::shared_ptr<Iterator>>& TensorView::getInterfaceIterators() const {
@@ -192,7 +209,9 @@ void TensorView::evaluateTensorAccess() {
     }));
     IteratorEvaluator evaluator;
     evaluator.evaluateTensorAccess(*this);
-    tensor->evaluateTensorAccess();
+    for (const auto& tensor: tensors) {
+        tensor->evaluateTensorAccess();
+    }
 }
 
 std::string TensorView::actualAccessToString(const BindingContext& ctx, const CodeGenContext& cgCtx) const {

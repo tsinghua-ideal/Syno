@@ -47,7 +47,7 @@ TEST(core_tests, tensor) {
     auto shape = Shape { std::vector<std::shared_ptr<Size>> { sizeH, sizeW, sizeC } };
     auto cgCtx = std::make_shared<CodeGenContext>();
     auto tensor = std::make_shared<PureTensor>(cgCtx->addTensor("t"), shape);
-    auto tensorView = TensorView { tensor, cgCtx };
+    auto tensorView = TensorView { { tensor }, cgCtx };
     tensorView.finishConstruction();
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
