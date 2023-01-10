@@ -7,6 +7,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_CXX_EXTENSIONS NO)
 
+# Compiler flags.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 # Includes and libraries
 include_directories(include)
 
@@ -15,11 +20,6 @@ find_package(Halide REQUIRED)
 
 # pybind11
 find_package(pybind11 CONFIG REQUIRED)
-
-# Boost
-find_package(Boost REQUIRED COMPONENTS program_options REQUIRED)
-include_directories(${Boost_INCLUDE_DIRS})
-link_directories(${Boost_LIBRARY_DIRS})
 
 # GTest
 enable_testing()

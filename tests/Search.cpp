@@ -60,7 +60,9 @@ TEST(search_tests, sample) {
         std::cout << tensorView.printNestedLoops(ctx);
     };
     for (int i = 0; i < 10; ++i) {
-        callback(sampler.sample());
+        auto [sample, path] = sampler.randomSample();
+        ASSERT_EQ(Shape::concat(sample.getInputShapes()).toString(ctx), sampler.visit(path).shape.toString(ctx));
+        callback(sample);
     }
 }
 

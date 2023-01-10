@@ -224,6 +224,14 @@ std::string TensorView::actualAccessToString(const BindingContext& ctx, const Co
     return ss.str();
 }
 
+std::vector<Shape> TensorView::getInputShapes() const {
+    std::vector<Shape> res;
+    for (const auto& tensor: tensors) {
+        res.emplace_back(tensor->getShape());
+    }
+    return res;
+}
+
 Shape TensorView::getShape() const {
     std::vector<std::shared_ptr<Size>> sizes;
     for (const auto& iterator: interface) {

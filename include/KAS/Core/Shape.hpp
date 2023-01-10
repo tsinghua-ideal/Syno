@@ -163,6 +163,8 @@ public:
         return res;
     }
 
+    static Shape concat(const std::vector<Shape>& shapes);
+
     Shape replace(
         std::vector<std::size_t> drops,
         std::vector<std::pair<std::size_t, std::shared_ptr<Size>>> adds

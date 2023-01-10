@@ -132,6 +132,8 @@ public:
     // Returns something like "[i_0,i_1] with reduced [i_2]".
     std::string actualAccessToString(const BindingContext &ctx, const CodeGenContext& cgCtx) const override;
 
+    std::vector<Shape> getInputShapes() const;
+
     Shape getShape() const override;
 
     std::string printNestedLoops(const BindingContext& ctx) const;

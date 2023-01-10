@@ -60,7 +60,7 @@ public:
 
     struct Options {
         enum class AutoScheduler {
-            Li2018, Adams2019
+            Mullapudi2016, Li2018, Adams2019
         };
         bool useGPU = true;
         AutoScheduler scheduler = AutoScheduler::Li2018;

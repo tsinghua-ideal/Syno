@@ -84,17 +84,17 @@ void HalideGen::evaluateAccess() {
         return;
     }
     for (std::size_t i: cgCtx.outerLoopIterators) {
-        outerLoops.emplace_back(vars[i]);
+        outerLoops.emplace_back(vars.at(i));
     }
     for (const auto& m: tensorView.manipulations) {
-        reduceLoops.emplace_back(vars[m.iteratorVariableId]);
+        reduceLoops.emplace_back(vars.at(m.iteratorVariableId));
     }
     const auto& tensors = tensorView.getUnderlyingTensors();
     for (std::size_t inputId = 0; inputId < tensors.size(); ++inputId) {
         const auto& tensor = tensors[inputId];
         std::vector<Halide::Expr> indices;
         for (std::size_t i = 0; i < tensor->shape.size(); ++i) {
-            indices.emplace_back(evaluate(*tensor->access[i]));
+            indices.emplace_back(evaluate(*tensor->access.at(i)));
         }
         tensorIndices.emplace_back(std::move(indices));
     }
@@ -222,14 +222,16 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
         };
     };
     if (!AutoSchedulerLoaded) {
+        Halide::load_plugin("autoschedule_mullapudi2016");
         Halide::load_plugin("autoschedule_li2018");
         Halide::load_plugin("autoschedule_adams2019");
         AutoSchedulerLoaded = true;
     }
     std::string scheduler;
     switch (options.scheduler) {
-    case Options::AutoScheduler::Li2018:    scheduler = "Li2018"; break;
-    case Options::AutoScheduler::Adams2019: scheduler = "Adams2019"; break;
+    case Options::AutoScheduler::Mullapudi2016: scheduler = "mullapudi2016";    break;
+    case Options::AutoScheduler::Li2018:        scheduler = "Li2018";           break;
+    case Options::AutoScheduler::Adams2019:     scheduler = "Adams2019";        break;
     }
     std::filesystem::create_directories(outputPath);
 

@@ -7,4 +7,4 @@ build-backend = "scikit_build_core.setuptools.build_meta"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-testpaths = ["pytests"]
+testpaths = ["tests"]

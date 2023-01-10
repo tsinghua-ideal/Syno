@@ -34,9 +34,6 @@ public:
     std::vector<Next> children;
 
     bool isFinal;
-    std::size_t countUnvisited = 0;
-    // For MCTS. TODO
-    // std::size_t score;
 };
 
 } // namespace kas

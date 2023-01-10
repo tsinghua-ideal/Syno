@@ -15,17 +15,27 @@ protected:
 };
 
 TEST_F(codegen_tests, func) {
-    auto sample = sampler.sample();
+    auto sample = sampler.randomSample().first;
     HalideGen gen { ctx, sample };
     auto [params, func] = gen.createFunc("kernel_0");
     func.print_loop_nest();
 }
 
 TEST_F(codegen_tests, generate) {
-    auto sample = sampler.sample();
+    auto sample = sampler.randomSample().first;
     std::cout << sample.printNestedLoops(ctx) << std::endl;
     HalideGen gen { ctx, sample };
     gen.generate("./kernel_1", "kernel_1", {
+        .useGPU = false,
+        .scheduler = HalideGen::Options::AutoScheduler::Li2018
+    });
+}
+
+TEST_F(codegen_tests, path) {
+    ASSERT_EQ(sampler.isFinal({ 0 }), true);
+    auto [tensorView, cgCtx] = sampler.realize({ 0 });
+    HalideGen gen { ctx, tensorView };
+    gen.generate("./kernel_2", "kernel_2", {
         .useGPU = false,
         .scheduler = HalideGen::Options::AutoScheduler::Li2018
     });
