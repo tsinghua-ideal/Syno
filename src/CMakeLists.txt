@@ -4,6 +4,8 @@ add_subdirectory(Core)
 add_subdirectory(Search)
 add_subdirectory(Transforms)
 
+add_subdirectory(Python)
+
 # Library property
 set_property(GLOBAL PROPERTY KAS_ALL_LIBS_PROPERTY
         codegen-lib search-lib transforms-lib core-lib

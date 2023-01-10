@@ -1,6 +1,6 @@
 # Project settings
-cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
-project(KAS)
+cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
+project(KAS LANGUAGES C CXX)
 
 # C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -12,6 +12,9 @@ include_directories(include)
 
 # Halide
 find_package(Halide REQUIRED)
+
+# pybind11
+find_package(pybind11 CONFIG REQUIRED)
 
 # Boost
 find_package(Boost REQUIRED COMPONENTS program_options REQUIRED)
