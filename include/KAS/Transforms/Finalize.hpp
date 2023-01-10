@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <memory>
+#include <numeric>
 #include <set>
 #include <utility>
 #include <vector>
@@ -69,3 +71,27 @@ public:
 };
 
 } // namespace kas
+
+template<typename T>
+inline std::size_t hash_combine(std::size_t seed, const T& v) {
+    std::hash<T> hasher;
+    return seed ^ (hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+}
+
+template<typename T>
+struct std::hash<std::vector<T>> {
+    std::size_t operator()(const std::vector<T>& vec) const {
+        return std::accumulate(vec.begin(), vec.end(), vec.size(), hash_combine<T>);
+    }
+};
+
+template<>
+struct std::hash<kas::FinalizeShapeOp::Epilogue> {
+    using Epilogue = kas::FinalizeShapeOp::Epilogue;
+    std::size_t operator()(const Epilogue& e) const noexcept
+    {
+        std::size_t h1 = std::hash<std::vector<std::size_t>>()(e.desiredInputToGroupId);
+        std::size_t h2 = hash_combine(h1, e.outputGroups);
+        return h2;
+    }
+};

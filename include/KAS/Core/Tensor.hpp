@@ -109,7 +109,6 @@ public:
     std::size_t size() const;
     const std::shared_ptr<Iterator>& operator[](std::size_t index) const;
 
-    // drops and adds must be sorted by index
     void replaceInterface(
         std::vector<std::size_t> drops,
         std::vector<std::pair<std::size_t, std::shared_ptr<Iterator>>> adds

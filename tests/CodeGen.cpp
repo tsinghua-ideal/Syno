@@ -25,7 +25,10 @@ TEST_F(codegen_tests, generate) {
     auto sample = sampler.sample();
     std::cout << sample.printNestedLoops(ctx) << std::endl;
     HalideGen gen { ctx, sample };
-    gen.generate(".", "kernel_1");
+    gen.generate("./kernel_1", "kernel_1", {
+        .useGPU = false,
+        .scheduler = HalideGen::Options::AutoScheduler::Li2018
+    });
 }
 
 } // namespace kas

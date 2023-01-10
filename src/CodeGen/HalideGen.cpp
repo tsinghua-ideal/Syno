@@ -19,10 +19,13 @@ namespace kas {
 
 bool HalideGen::AutoSchedulerLoaded = false;
 
-Halide::Target HalideGen::GetGPUTarget() {
-    auto t = Halide::get_host_target()
-        .with_feature(Halide::Target::CUDA)
-        .with_feature(Halide::Target::UserContext);
+Halide::Target HalideGen::GetTarget(bool useGPU) {
+    auto t = Halide::get_host_target();
+    if (useGPU) {
+        t = t
+            .with_feature(Halide::Target::CUDA)
+            .with_feature(Halide::Target::UserContext);
+    }
     KAS_ASSERT(Halide::host_supports_target_device(t));
     return t;
 }
@@ -199,7 +202,7 @@ HalideGen::HalideGen(const BindingContext& ctx, const TensorView& tensorView):
     }
 }
 
-void HalideGen::generate(std::filesystem::path outputPath, std::string_view funcName) {
+void HalideGen::generate(std::filesystem::path outputPath, std::string_view funcName, Options options) {
     for (std::size_t i = 0; i < primaryConsts.size(); ++i) {
         primaryConsts[i].set_estimate(static_cast<int>(ctx.getPrimaryEstimate(i)));
     }
@@ -208,7 +211,7 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
     }
     const auto& tensors = tensorView.getUnderlyingTensors();
 
-    auto target = GetGPUTarget();
+    auto target = GetTarget(options.useGPU);
     auto ext = Halide::Internal::get_output_info(target);
     const auto flagsForModule = [&ext](std::filesystem::path filename) -> std::map<Halide::OutputFileType, std::string> { 
         using FileType = Halide::OutputFileType;
@@ -222,6 +225,11 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
         Halide::load_plugin("autoschedule_li2018");
         Halide::load_plugin("autoschedule_adams2019");
         AutoSchedulerLoaded = true;
+    }
+    std::string scheduler;
+    switch (options.scheduler) {
+    case Options::AutoScheduler::Li2018:    scheduler = "Li2018"; break;
+    case Options::AutoScheduler::Adams2019: scheduler = "Adams2019"; break;
     }
     std::filesystem::create_directories(outputPath);
 
@@ -251,11 +259,11 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
     std::copy(backwardInputs.begin(), backwardInputs.end(), std::back_inserter(backwardArgs));
 
     Halide::Pipeline forwardPipeline(forwardFunc);
-    forwardPipeline.auto_schedule("Li2018", target);
+    forwardPipeline.auto_schedule(scheduler, target);
     forwardPipeline.compile_to(flagsForModule(outputPath / funcName), forwardArgs, std::string(funcName), target);
 
     Halide::Pipeline backwardPipeline(backwardFuncs);
-    backwardPipeline.auto_schedule("Li2018", target);
+    backwardPipeline.auto_schedule(scheduler, target);
     std::string backwardName = std::string(funcName) + "_grad";
     backwardPipeline.compile_to(flagsForModule(outputPath / backwardName), backwardArgs, backwardName, target);
 }

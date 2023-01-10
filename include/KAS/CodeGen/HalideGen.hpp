@@ -53,12 +53,20 @@ protected:
 
     static Halide::Region ShapeEstimateToRegion(const std::vector<std::size_t>& estimate);
 
-    static Halide::Target GetGPUTarget();
+    static Halide::Target GetTarget(bool useGPU);
 
 public:
     HalideGen(const BindingContext& ctx, const TensorView& tensorView);
 
-    void generate(std::filesystem::path outputPath, std::string_view funcName);
+    struct Options {
+        enum class AutoScheduler {
+            Li2018, Adams2019
+        };
+        bool useGPU = true;
+        AutoScheduler scheduler = AutoScheduler::Li2018;
+    };
+
+    void generate(std::filesystem::path outputPath, std::string_view funcName, Options options);
 };
 
 } // namespace kas

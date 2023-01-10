@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <memory>
 #include <numeric>
@@ -360,16 +361,21 @@ std::optional<FinalizeShapeOp::Epilogue> FinalizeShapeOp::solveWithMappings(cons
 
 std::vector<std::unique_ptr<FinalizeShapeOp>> FinalizeShapeOp::generate(const Shape& outputShape, GenerateOptions options) {
     const auto& desired = options.desired;
+    std::set<std::size_t> hashes;
     std::vector<std::unique_ptr<FinalizeShapeOp>> result;
     const auto determine = [&](const auto& self, const std::vector<Size>& sizes, const std::vector<std::size_t>& mappings) -> void {
         if (mappings.size() == desired.size()) {
             auto epilogue = solveWithMappings(outputShape, desired, mappings);
             if (epilogue.has_value()) {
-                result.emplace_back(std::make_unique<FinalizeShapeOp>(
-                    outputShape,
-                    desired,
-                    std::move(epilogue.value())
-                ));
+                std::size_t hash = std::hash<Epilogue>()(epilogue.value());
+                if (hashes.find(hash) == hashes.end()) {
+                    hashes.emplace(hash);
+                    result.emplace_back(std::make_unique<FinalizeShapeOp>(
+                        outputShape,
+                        desired,
+                        std::move(epilogue.value())
+                    ));
+                }
             }
         } else {
             std::size_t next = mappings.size();
