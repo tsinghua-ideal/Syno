@@ -22,11 +22,18 @@ Shape MergeShapeOp::transformShapeInverse(const Shape& outputShape) const {
 }
 
 void MergeShapeOp::transformTensor(TensorView& tensor) const {
+    PrimitiveShapeOp::transformTensor(tensor);
     auto inputMajorIt = tensor[inputMajor];
     auto inputMinorIt = tensor[inputMinor];
     std::unique_ptr<MergeLikePrimitiveOp> op { new MergeOp { inputMajorIt, inputMinorIt } };
     auto outputIt = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, *inputMajorIt->getSize() * *inputMinorIt->getSize());
     tensor.replaceInterface({ inputMajor, inputMinor }, { std::make_pair(output, std::move(outputIt)) });
+}
+
+std::string MergeShapeOp::description() const {
+    std::stringstream ss;
+    ss << "Merge " << inputMajor << ", " << inputMinor << " -> " << output;
+    return ss.str();
 }
 
 MergeOp::MergeOp(std::shared_ptr<Iterator> parentMajor, std::shared_ptr<Iterator> parentMinor):

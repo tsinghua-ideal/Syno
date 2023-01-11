@@ -17,6 +17,7 @@ public:
     UnfoldShapeOp(std::size_t input, std::size_t outputOriginal, std::size_t outputWindow);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
+    std::string description() const override;
 
     static std::vector<std::unique_ptr<UnfoldShapeOp>> generate(const Shape& outputShape);
 };

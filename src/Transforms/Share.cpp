@@ -26,6 +26,7 @@ Shape ShareShapeOp::transformShapeInverse(const Shape& outputShape) const {
 }
 
 void ShareShapeOp::transformTensor(TensorView &tensor) const {
+    PrimitiveShapeOp::transformTensor(tensor);
     KAS_ASSERT(tensor.getInterfaceIterators().size() > output);
     KAS_ASSERT(inputLhs != inputRhs);
     auto lhs = tensor[inputLhs], rhs = tensor[inputRhs];
@@ -36,6 +37,12 @@ void ShareShapeOp::transformTensor(TensorView &tensor) const {
     tensor.replaceInterface({ inputLhs, inputRhs }, {
         std::make_pair(output, std::move(it))
     });
+}
+
+std::string ShareShapeOp::description() const {
+    std::stringstream ss;
+    ss << "Share " << inputLhs << ", " << inputRhs << " -> " << output;
+    return ss.str();
 }
 
 std::vector<std::unique_ptr<ShareShapeOp>> ShareShapeOp::generate(const Shape& outputShape, GenerateOptions options) {

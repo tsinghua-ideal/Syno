@@ -120,7 +120,9 @@ std::pair<TensorView, std::vector<std::size_t>> Sampler::randomSample() {
             auto input = std::make_shared<PureTensor>(cgCtx->addTensor("input"), inputS);
             auto weight = std::make_shared<PureTensor>(cgCtx->addTensor("weight"), weightS);
             // Start to build a view of this tensor.
-            return { TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) } };
+            auto view = TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) };
+            view.addIntermediateShape(current.shape.toString(ctx));
+            return std::move(view);
         } else {
             // Here we just randomly iterate. In MCTS, use UCB. TODO
             std::vector<std::size_t> childrenIds(current.children.size(), 0);
@@ -134,6 +136,7 @@ std::pair<TensorView, std::vector<std::size_t>> Sampler::randomSample() {
                 if (auto result = self(self, *child.node, depth + 1)) {
                     path.emplace_back(i);
                     child.shapeOp->transformTensor(result.value());
+                    result.value().addIntermediateShape(current.shape.toString(ctx));
                     return std::move(result);
                 }
             }
@@ -180,7 +183,9 @@ std::pair<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(std::vec
             auto input = std::make_shared<PureTensor>(cgCtx->addTensor("input"), inputS);
             auto weight = std::make_shared<PureTensor>(cgCtx->addTensor("weight"), weightS);
             // Start to build a view of this tensor.
-            return TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) };
+            auto view = TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) };
+            view.addIntermediateShape(current.shape.toString(ctx));
+            return std::move(view);
         }
         // Follow the path.
         auto& child = current.children.at(path[depth]);
@@ -189,6 +194,7 @@ std::pair<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(std::vec
         }
         TensorView result = self(self, *child.node, depth + 1);
         child.shapeOp->transformTensor(result);
+        result.addIntermediateShape(current.shape.toString(ctx));
         return std::move(result);
     };
     TensorView result = recursion(recursion, *root.node, 0);

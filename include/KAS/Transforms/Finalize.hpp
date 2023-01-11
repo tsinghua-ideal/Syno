@@ -59,6 +59,7 @@ public:
     Shape transformShapeInverse(const Shape& outputShape) const override;
     // Here, we can assert that the interface are all TensorStub.
     void transformTensor(TensorView& tensor) const override;
+    std::string description() const override;
     bool isFinalizeOp() const override;
 
     const Epilogue& getEpilogue() const;

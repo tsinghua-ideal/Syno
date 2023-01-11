@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "KAS/Core/Iterator.hpp"
+#include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Transforms/Finalize.hpp"
 #include "KAS/Transforms/Merge.hpp"
@@ -73,6 +74,7 @@ Shape FinalizeShapeOp::transformShapeInverse(const Shape& incomingOutputShape) c
 }
 
 void FinalizeShapeOp::transformTensor(TensorView& tensor) const {
+    PrimitiveShapeOp::transformTensor(tensor);
     std::vector<std::shared_ptr<Iterator>> newInterface(outputShape.size(), nullptr);
     std::vector<std::shared_ptr<Iterator>> groups(epilogue.outputGroups.size(), nullptr);
     // Add the remainder iterators.
@@ -113,6 +115,57 @@ void FinalizeShapeOp::transformTensor(TensorView& tensor) const {
     }
     KAS_ASSERT(sanityCounter.size() == outputShape.size());
     tensor.interface = std::move(newInterface);
+}
+
+std::string FinalizeShapeOp::description() const {
+    std::vector<std::vector<std::size_t>> inputsOfGroups(epilogue.outputGroups.size());
+    {
+        std::size_t inputId = 0;
+        while (inputId < desired.size()) {
+            inputsOfGroups[epilogue.desiredInputToGroupId[inputId]].emplace_back(inputId);
+            ++inputId;
+        }
+        std::size_t inputShapeSize = desired.size() + weightRemainderInputToGroupId.size();
+        while (inputId < inputShapeSize) {
+            inputsOfGroups[weightRemainderInputToGroupId[inputId - desired.size()]].emplace_back(inputId);
+            ++inputId;
+        }
+    }
+
+    std::stringstream ss;
+    ss << "Finalize ";
+    bool firstGroup = true;
+    for (std::size_t gid = 0; gid < epilogue.outputGroups.size(); ++gid) {
+        const auto& inputGroup = inputsOfGroups[gid];
+        const auto& outputGroup = epilogue.outputGroups[gid];
+        if (firstGroup) {
+            firstGroup = false;
+        } else {
+            ss << ", ";
+        }
+        ss << "{ ";
+        bool first = true;
+        for (std::size_t i: inputGroup) {
+            if (first) {
+                first = false;
+            } else {
+                ss << ", ";
+            }
+            ss << static_cast<int>(i);
+        }
+        ss << " -> ";
+        first = true;
+        for (std::size_t i: outputGroup) {
+            if (first) {
+                first = false;
+            } else {
+                ss << ", ";
+            }
+            ss << static_cast<int>(i);
+        }
+        ss << " }";
+    }
+    return ss.str();
 }
 
 bool FinalizeShapeOp::isFinalizeOp() const {

@@ -26,8 +26,11 @@ TEST(search_tests, shape_node) {
     ShapeNode& n3 = *p2.node;
     auto cgCtx = std::make_shared<CodeGenContext>();
     auto tensorView = TensorView { n3.shape, cgCtx };
+    tensorView.addIntermediateShape(n3.shape.toString(ctx));
     p2.shapeOp->transformTensor(tensorView);
+    tensorView.addIntermediateShape(n2.shape.toString(ctx));
     p1.shapeOp->transformTensor(tensorView);
+    tensorView.addIntermediateShape(n1.shape.toString(ctx));
     tensorView.finishConstruction();
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
@@ -35,6 +38,18 @@ TEST(search_tests, shape_node) {
     ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1] with reduced [x_0*x_1]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_1,i_2]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[x_0*x_1,x_0,x_0,x_1]");
+    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+R"(for (int i_1 = 0; i_1 < x_0; i_1++) {
+    for (int i_2 = 0; i_2 < x_1; i_2++) {
+        float temp_i_0 = 0;
+        for (int i_0 = 0; i_0 < x_0*x_1; i_0++) {
+            temp_i_0 += Identity(t[i_0,i_1,i_1,i_2]);
+        }
+        out[i_1,i_2] = temp_i_0;
+    }
+}
+)");
+    ASSERT_EQ(tensorView.description(ctx), "[x_0*x_1,x_0,x_0,x_1]\nMapReduce Identity Sum 0\n[x_0,x_0,x_1]\nShare 0, 1 -> 0\n[x_0,x_1]\n");
 }
 
 TEST(search_tests, sample) {
@@ -57,7 +72,9 @@ TEST(search_tests, sample) {
             }
             std::cout << tensor->shapeToString(ctx);
         }
+        std::cout << std::endl;
         std::cout << tensorView.printNestedLoops(ctx);
+        std::cout << tensorView.description(ctx);
     };
     for (int i = 0; i < 10; ++i) {
         auto [sample, path] = sampler.randomSample();

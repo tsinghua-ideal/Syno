@@ -257,4 +257,23 @@ std::string TensorView::shapeToString(const BindingContext &ctx) const {
     return s1;
 }
 
+void TensorView::addTransformDescription(std::string&& description) {
+    transformDescriptions.emplace_back(std::move(description));
+}
+
+void TensorView::addIntermediateShape(std::string&& description) {
+    intermediateShapes.emplace_back(std::move(description));
+}
+
+std::string TensorView::description(const BindingContext& ctx) const {
+    KAS_ASSERT(transformDescriptions.size() + 1 == intermediateShapes.size());
+    std::stringstream ss;
+    for (std::size_t i = 0; i < transformDescriptions.size(); ++i) {
+        ss << intermediateShapes[i] << '\n';
+        ss << transformDescriptions[i] << '\n';
+    }
+    ss << intermediateShapes.back() << '\n';
+    return ss.str();
+}
+
 } // namespace kas

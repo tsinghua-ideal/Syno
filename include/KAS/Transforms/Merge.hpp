@@ -15,6 +15,7 @@ public:
     MergeShapeOp(std::size_t inputMajor, std::size_t inputMinor, std::size_t output, std::shared_ptr<Size> block);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
+    std::string description() const override;
 
     static std::vector<std::unique_ptr<MergeShapeOp>> generate(const Shape& outputShape);
 };

@@ -14,6 +14,7 @@ public:
     ShareShapeOp(std::size_t inputLhs, std::size_t inputRhs, std::size_t output);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
+    std::string description() const override;
 
     struct GenerateOptions {
         int dimUpperBound;

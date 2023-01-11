@@ -1,6 +1,8 @@
 #include <memory>
+#include <sstream>
 #include <utility>
 
+#include "KAS/Core/Manipulation.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Transforms/MapReduce.hpp"
 #include "KAS/Core/Shape.hpp"
@@ -22,6 +24,7 @@ Shape MapReduceShapeOp::transformShapeInverse(const Shape& output) const {
 }
 
 void MapReduceShapeOp::transformTensor(TensorView &tensor) const {
+    PrimitiveShapeOp::transformTensor(tensor);
     KAS_ASSERT(tensor.getInterfaceIterators().size() > input);
     auto inputIt = tensor[input];
     std::unique_ptr<RepeatLikePrimitiveOp> op { new MapReduceOp { inputIt } };
@@ -30,6 +33,12 @@ void MapReduceShapeOp::transformTensor(TensorView &tensor) const {
     tensor.replaceInterface({ input }, {});
     // This is special for Reduce: we need to add it to reducedIterators
     tensor.addManipulation(Manipulation { std::move(outputIt), mapType, reduceType });
+}
+
+std::string MapReduceShapeOp::description() const {
+    std::stringstream ss;
+    ss << "MapReduce " << Manipulation::what(mapType) << " " << Manipulation::what(reduceType) << " " << input;
+    return ss.str();
 }
 
 MapReduceOp::MapReduceOp(std::shared_ptr<Iterator> parent):

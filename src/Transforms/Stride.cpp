@@ -22,10 +22,17 @@ Shape StrideShapeOp::transformShapeInverse(const Shape& outputShape) const {
 }
 
 void StrideShapeOp::transformTensor(TensorView& tensor) const {
+    PrimitiveShapeOp::transformTensor(tensor);
     auto inputIt = tensor[input];
     std::unique_ptr<RepeatLikePrimitiveOp> op { new StrideOp { inputIt, stride } };
     auto outputIt = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, *inputIt->getSize() / *stride);
     tensor.replaceInterface({ input }, { std::make_pair(output, std::move(outputIt)) });
+}
+
+std::string StrideShapeOp::description() const {
+    std::stringstream ss;
+    ss << "Stride " << input << " -> " << output;
+    return ss.str();
 }
 
 StrideOp::StrideOp(std::shared_ptr<Iterator> parent, std::shared_ptr<Size> stride):
