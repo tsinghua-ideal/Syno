@@ -23,7 +23,7 @@ TEST(core_tests, size) {
     auto sizeC = ctx.getSingleCoefficientVariableSize(0);
     auto sizeHWc = std::make_shared<Size>(2, 1, Size::ExprType { 1, 1 }, Size::ExprType { -1 });
     ASSERT_EQ(*(*(*sizeH * *sizeW) / *sizeC), *sizeHWc);
-    ASSERT_EQ(sizeHWc->toString(ctx), "(1/c)HW");
+    ASSERT_EQ(sizeHWc->toString(ctx), "c^-1*H*W");
     ASSERT_EQ((*sizeH * *sizeH)->toString(ctx), "H^2");
 
     auto sizeOneOverC = sizeC->identity();
@@ -43,7 +43,7 @@ TEST(core_tests, tensor) {
     auto sizeW = ctx.getSinglePrimaryVariableSize(1);
     ASSERT_EQ(sizeW->toString(ctx), "x_1");
     auto sizeC = ctx.getSingleCoefficientVariableSize(0);
-    ASSERT_EQ(sizeC->toString(ctx), "(c_0)1");
+    ASSERT_EQ(sizeC->toString(ctx), "c_0");
     auto shape = Shape { std::vector<std::shared_ptr<Size>> { sizeH, sizeW, sizeC } };
     auto cgCtx = std::make_shared<CodeGenContext>();
     auto tensor = std::make_shared<PureTensor>(cgCtx->addTensor("t"), shape);
@@ -52,9 +52,9 @@ TEST(core_tests, tensor) {
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1,(c_0)1]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1,c_0]");
     ASSERT_EQ(tensor->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensor->shapeToString(ctx), "[x_0,x_1,(c_0)1]");
+    ASSERT_EQ(tensor->shapeToString(ctx), "[x_0,x_1,c_0]");
 }
 
 TEST(core_tests, parse_shape_names) {

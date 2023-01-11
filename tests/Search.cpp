@@ -32,9 +32,9 @@ TEST(search_tests, shape_node) {
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_1,i_2] with Identity mapped with i_0 Sum reduced");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1] with reduced [x_0x_1]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1] with reduced [x_0*x_1]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_1,i_2]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[x_0x_1,x_0,x_0,x_1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[x_0*x_1,x_0,x_0,x_1]");
 }
 
 TEST(search_tests, sample) {

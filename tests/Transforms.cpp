@@ -35,13 +35,13 @@ TEST_F(transforms_tests, share) {
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H,H,W,(c)H]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H,H,W,c*H]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
-        for (int i_2 = 0; i_2 < (c)H; i_2++) {
+        for (int i_2 = 0; i_2 < c*H; i_2++) {
             out[i_0,i_1,i_2] = t[i_0,i_0,i_1,i_2];
         }
     }
@@ -57,15 +57,15 @@ TEST_F(transforms_tests, map_reduce) {
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_1,i_2,i_3] with ReLU mapped with i_0 Sum reduced");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H] with reduced [HW]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,c*H] with reduced [H*W]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2,i_3]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[HW,H,W,(c)H]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H*W,H,W,c*H]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx),
 R"(for (int i_1 = 0; i_1 < H; i_1++) {
     for (int i_2 = 0; i_2 < W; i_2++) {
-        for (int i_3 = 0; i_3 < (c)H; i_3++) {
+        for (int i_3 = 0; i_3 < c*H; i_3++) {
             float temp_i_0 = 0;
-            for (int i_0 = 0; i_0 < HW; i_0++) {
+            for (int i_0 = 0; i_0 < H*W; i_0++) {
                 temp_i_0 += ReLU(t[i_0,i_1,i_2,i_3]);
             }
             out[i_1,i_2,i_3] = temp_i_0;
@@ -83,13 +83,13 @@ TEST_F(transforms_tests, shift) {
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[(((i_0)+(1))+(H))%(H),i_1,i_2]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H,W,(c)H]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
-        for (int i_2 = 0; i_2 < (c)H; i_2++) {
+        for (int i_2 = 0; i_2 < c*H; i_2++) {
             out[i_0,i_1,i_2] = t[(((i_0)+(1))+(H))%(H),i_1,i_2];
         }
     }
@@ -105,14 +105,14 @@ TEST_F(transforms_tests, stride) {
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[((c)1)*(i_0),i_1,i_2]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[(c)H,W,(c)H]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,c*H]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[(c)*(i_0),i_1,i_2]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[c*H,W,c*H]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
-        for (int i_2 = 0; i_2 < (c)H; i_2++) {
-            out[i_0,i_1,i_2] = t[((c)1)*(i_0),i_1,i_2];
+        for (int i_2 = 0; i_2 < c*H; i_2++) {
+            out[i_0,i_1,i_2] = t[(c)*(i_0),i_1,i_2];
         }
     }
 }
@@ -128,14 +128,14 @@ TEST_F(transforms_tests, unfold) {
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)1]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[((i_0)+(i_2))-(((c)1)/(2)),i_1]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,c]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[((i_0)+(i_2))-((c)/(2)),i_1]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H,W]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
-        for (int i_2 = 0; i_2 < (c)1; i_2++) {
-            out[i_0,i_1,i_2] = t[((i_0)+(i_2))-(((c)1)/(2)),i_1];
+        for (int i_2 = 0; i_2 < c; i_2++) {
+            out[i_0,i_1,i_2] = t[((i_0)+(i_2))-((c)/(2)),i_1];
         }
     }
 }
@@ -150,13 +150,13 @@ TEST_F(transforms_tests, merge) {
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[(i_2)/(H),(i_2)%(H),i_0,i_1]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[(c)1,H,H,W]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[c,H,H,W]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
-        for (int i_2 = 0; i_2 < (c)H; i_2++) {
+        for (int i_2 = 0; i_2 < c*H; i_2++) {
             out[i_0,i_1,i_2] = t[(i_2)/(H),(i_2)%(H),i_0,i_1];
         }
     }
@@ -172,13 +172,13 @@ TEST_F(transforms_tests, split) {
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,(c)H]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[((i_0)*(W))+(i_1),i_2]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[HW,(c)H]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H*W,c*H]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
-        for (int i_2 = 0; i_2 < (c)H; i_2++) {
+        for (int i_2 = 0; i_2 < c*H; i_2++) {
             out[i_0,i_1,i_2] = t[((i_0)*(W))+(i_1),i_2];
         }
     }
@@ -196,24 +196,24 @@ TEST_F(transforms_tests, finalize) {
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1]");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[(1/c)HW,(c)W]");
+    ASSERT_EQ(tensorView.shapeToString(ctx), "[c^-1*H*W,c*W]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H,W,W]");
     // Note that the remainder of a size is placed frontmost. So when merging we are actually doing [W,H,W], where the last dimension, which is the remainder, is promoted to the first of the group.
-    // First a split is evaluated, [((i_0)*((c)W))+(i_1)]
+    // First a split is evaluated, [((i_0)*(c*W))+(i_1)]
     // Then a merge ((the fusion of remainder W and input H) and input W),
-    // [(((i_0)*((c)W))+(i_1))/(W),(((i_0)*((c)W))+(i_1))%(W)]
+    // [(((i_0)*(c*W))+(i_1))/(W),(((i_0)*(c*W))+(i_1))%(W)]
     // Then yet another merge (remainder W and input H),
-    // [((((i_0)*((c)W))+(i_1))/(W))/(H),((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W)]
+    // [((((i_0)*(c*W))+(i_1))/(W))/(H),((((i_0)*(c*W))+(i_1))/(W))%(H),(((i_0)*(c*W))+(i_1))%(W)]
     // In the original order in the input tensor,
-    // [((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W),((((i_0)*((c)W))+(i_1))/(W))/(H)]
+    // [((((i_0)*(c*W))+(i_1))/(W))%(H),(((i_0)*(c*W))+(i_1))%(W),((((i_0)*(c*W))+(i_1))/(W))/(H)]
     ASSERT_EQ(
         tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx),
-        "[((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W),((((i_0)*((c)W))+(i_1))/(W))/(H)]"
+        "[((((i_0)*(c*W))+(i_1))/(W))%(H),(((i_0)*(c*W))+(i_1))%(W),((((i_0)*(c*W))+(i_1))/(W))/(H)]"
     );
     ASSERT_EQ(tensorView.printNestedLoops(ctx),
-R"(for (int i_0 = 0; i_0 < (1/c)HW; i_0++) {
-    for (int i_1 = 0; i_1 < (c)W; i_1++) {
-        out[i_0,i_1] = t[((((i_0)*((c)W))+(i_1))/(W))%(H),(((i_0)*((c)W))+(i_1))%(W),((((i_0)*((c)W))+(i_1))/(W))/(H)];
+R"(for (int i_0 = 0; i_0 < c^-1*H*W; i_0++) {
+    for (int i_1 = 0; i_1 < c*W; i_1++) {
+        out[i_0,i_1] = t[((((i_0)*(c*W))+(i_1))/(W))%(H),(((i_0)*(c*W))+(i_1))%(W),((((i_0)*(c*W))+(i_1))/(W))/(H)];
     }
 }
 )");

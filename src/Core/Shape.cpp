@@ -9,6 +9,7 @@
 #include <string_view>
 #include <vector>
 
+#include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Vector.hpp"
@@ -193,50 +194,24 @@ std::size_t Size::estimate(const BindingContext& ctx) const {
 std::string Size::toString(const BindingContext& ctx) const {
     KAS_ASSERT(primaryCount == ctx.getPrimaryCount() && coefficientCount == ctx.getCoefficientCount());
     std::stringstream result;
-    bool hasCoefficient = false;
-    result << "(";
-    bool hasNominator = false;
-    bool hasDenominator = false;
-    std::stringstream denominator;
-    for (std::size_t i = 0; i < coefficientCount; ++i) {
-        if (coefficient[i] < 0) {
-            hasCoefficient = true;
-            hasDenominator = true;
-            denominator << ctx.getCoefficientAlias(i);
-            if (coefficient[i] != -1) {
-                denominator << "^" << static_cast<int>(-coefficient[i]);
-            }
-        } else if (coefficient[i] > 0) {
-            hasCoefficient = true;
-            hasNominator = true;
-            result << ctx.getCoefficientAlias(i);
-            if (coefficient[i] != 1) {
-                result << "^" << static_cast<int>(coefficient[i]);
+    bool hasAnything = false;
+    auto print = [&result, &hasAnything](std::size_t count, auto&& f, const ExprType& powers) {
+        for (std::size_t i = 0; i < count; ++i) {
+            if (powers[i] != 0) {
+                if (hasAnything) {
+                    result << "*";
+                }
+                result << f(i);
+                if (powers[i] != 1) {
+                    result << "^" << static_cast<int>(powers[i]);
+                }
+                hasAnything = true;
             }
         }
-    }
-    if (!hasNominator) {
-        result << "1";
-    }
-    if (hasDenominator) {
-        result << "/" << denominator.str() << ")";
-    } else {
-        result << ")";
-    }
-    if (!hasCoefficient) {
-        result.str("");
-    }
-    bool hasPrimary = false;
-    for (std::size_t i = 0; i < primaryCount; ++i) {
-        if (primary[i] > 0) {
-            hasPrimary = true;
-            result << ctx.getPrimaryAlias(i);
-            if (primary[i] != 1) {
-                result << "^" << static_cast<int>(primary[i]);
-            }
-        }
-    }
-    if (!hasPrimary) {
+    };
+    print(coefficientCount, [&ctx](std::size_t i) { return ctx.getCoefficientAlias(i); }, coefficient);
+    print(primaryCount, [&ctx](std::size_t i) { return ctx.getPrimaryAlias(i); }, primary);
+    if (!hasAnything) {
         result << "1";
     }
     return result.str();
@@ -397,108 +372,14 @@ std::string Shape::toString(const BindingContext& ctx) const {
     }));
 }
 
-namespace {
-    enum class Token {
-        OpenBracket, CloseBracket, Identifier, Comma, End
-    };
-    enum class Expect {
-        OpenBracket, ListHead, Identifier, ListEnd, End
-    };
-    std::vector<std::string> parseShape(std::string_view shape) {
-        std::vector<std::string> result;
-        std::size_t pointer = 0;
-        auto scan = [&]() -> std::pair<Token, std::string> {
-            if (pointer >= shape.size()) {
-                return { Token::End, "" };
-            }
-            std::stringstream token;
-            bool inIdentifier = false;
-            do {
-                char curr = shape[pointer];
-                switch (curr) {
-                case ' ':
-                case '\t':
-                case '\r':
-                case '\n':
-                    if (inIdentifier) {
-                        ++pointer;
-                        return { Token::Identifier, token.str() };
-                    }
-                    break;
-                case '[':
-                    if (inIdentifier) {
-                        return { Token::Identifier, token.str() };
-                    }
-                    ++pointer;
-                    token << curr;
-                    return { Token::OpenBracket, token.str() };
-                case ']':
-                    if (inIdentifier) {
-                        return { Token::Identifier, token.str() };
-                    }
-                    ++pointer;
-                    token << curr;
-                    return { Token::CloseBracket, token.str() };
-                case ',':
-                    if (inIdentifier) {
-                        return { Token::Identifier, token.str() };
-                    }
-                    ++pointer;
-                    token << curr;
-                    return { Token::Comma, token.str() };
-                default:
-                    inIdentifier = true;
-                    token << curr;
-                    break;
-                }
-                ++pointer;
-            } while (pointer < shape.size());
-            auto finalToken = token.str();
-            if (!finalToken.empty())
-                return { Token::Identifier, finalToken };
-            return { Token::End, "" };
-        };
-        Expect expect = Expect::OpenBracket;
-        while (true) {
-            auto [token, value] = scan();
-            switch (expect) {
-            case Expect::OpenBracket:
-                KAS_ASSERT(token == Token::OpenBracket);
-                expect = Expect::ListHead;
-                break;
-            case Expect::ListHead:
-                if (token == Token::CloseBracket) {
-                    expect = Expect::End;
-                } else {
-                    KAS_ASSERT(token == Token::Identifier);
-                    result.emplace_back(std::move(value));
-                    expect = Expect::ListEnd;
-                }
-                break;
-            case Expect::Identifier:
-                KAS_ASSERT(token == Token::Identifier);
-                result.emplace_back(std::move(value));
-                expect = Expect::ListEnd;
-                break;
-            case Expect::ListEnd:
-                if (token == Token::Comma) {
-                    expect = Expect::Identifier;
-                } else {
-                    KAS_ASSERT(token == Token::CloseBracket);
-                    expect = Expect::End;
-                }
-                break;
-            case Expect::End:
-                KAS_ASSERT(token == Token::End);
-                return result;
-            }
-        }
-        KAS_UNREACHABLE();
-    }
-}
-
 std::vector<std::string> Shape::parseNames(std::string_view shape) {
-    return parseShape(shape);
+    auto parsedShape = Parser(shape).parseShape();
+    std::vector<std::string> result;
+    for (auto& size: parsedShape) {
+        KAS_ASSERT(size.size() == 1 && size[0].second == 1);
+        result.emplace_back(std::move(size[0].first));
+    }
+    return result;
 }
 
 } // namespace kas
