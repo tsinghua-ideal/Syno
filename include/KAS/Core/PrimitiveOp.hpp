@@ -3,6 +3,7 @@
 #include <utility>
 #include <memory>
 
+#include "KAS/Core/Representation.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 
@@ -17,7 +18,7 @@ public:
     // During the search, what we only care is the shape of the tensor. This function transforms the shape of the tensor in a bottom-up way, and ignores the actual semantics of a primitive.
     virtual Shape transformShapeInverse(const Shape& input) const = 0;
     // After the search, when the resulting tensor has a shape that is verified to be eligible, we can build the TensorView, which is a series of transforms on a tensor. The semantics, rather than by this class, are implemented by the PrimitiveOp's defined below. They are inserted by this function to the TensorView.
-    virtual void transformTensor(TensorView& tensor) const;
+    virtual Representation::Transform transformTensor(TensorView& tensor) const;
     virtual std::string description() const = 0;
     virtual bool isFinalizeOp() const;
     virtual ~PrimitiveShapeOp() = default;
@@ -26,7 +27,7 @@ public:
 class IdentityShapeOp final: public PrimitiveShapeOp {
 public:
     Shape transformShapeInverse(const Shape& outputShape) const override;
-    void transformTensor(TensorView& tensor) const override;
+    Representation::Transform transformTensor(TensorView& tensor) const override;
     std::string description() const override;
 };
 

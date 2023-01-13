@@ -16,7 +16,7 @@ public:
     Manipulation::ReduceType reduceType;
     MapReduceShapeOp(std::size_t input, std::shared_ptr<Size> size, Manipulation::MapType mapType, Manipulation::ReduceType reduceType);
     Shape transformShapeInverse(const Shape& outputShape) const override;
-    void transformTensor(TensorView& tensor) const override;
+    Representation::Transform transformTensor(TensorView& tensor) const override;
     std::string description() const override;
 
     static std::vector<std::unique_ptr<MapReduceShapeOp>> generate(const Shape& outputShape);

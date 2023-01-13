@@ -140,13 +140,6 @@ public:
 
     // Returns the shapes of all iterators, including reduced iterators.
     std::string shapeToString(const BindingContext &ctx) const override;
-
-    // The following are just for showing how the tensor is constructed.
-    std::vector<std::string> transformDescriptions;
-    void addTransformDescription(std::string&& description);
-    std::vector<std::string> intermediateShapes;
-    void addIntermediateShape(std::string&& description);
-    std::string description(const BindingContext& ctx) const;
 };
 
 } // namespace kas

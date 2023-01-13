@@ -4,36 +4,9 @@
 #include <pybind11/stl.h>
 
 #include "KAS/CodeGen/HalideGen.hpp"
-#include "KAS/Core/BindingContext.hpp"
-#include "KAS/Core/CodeGen.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/Search/Sample.hpp"
 
-
-namespace kas {
-    // This is for convenience. As a python interface, we need easy access to related methods of TensorView.
-    class Kernel {
-    protected:
-        TensorView tensorView;
-        BindingContext& ctx;
-        std::shared_ptr<CodeGenContext> cgCtx;
-        HalideGen gen;
-    public:
-        template<typename T>
-        Kernel(T&& tensorView, BindingContext& ctx, std::shared_ptr<CodeGenContext> cgCtx):
-            tensorView { std::forward<T>(tensorView) },
-            ctx { ctx },
-            cgCtx { std::move(cgCtx) },
-            gen { ctx, this->tensorView }
-        {}
-        std::string toNestedLoops() const {
-            return tensorView.printNestedLoops(ctx);
-        }
-        void generate(const std::string& path, const std::string& name, HalideGen::Options options) {
-            gen.generate(path, name, options);
-        }
-    };
-} // namespace kas
 
 PYBIND11_MODULE(kas_cpp_bindings, m) {
     m.doc() = "Python/C++ API bindings for KAS.";
@@ -41,7 +14,23 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
     using namespace kas;
 
     pybind11::class_<SampleOptions>(m, "SampleOptions")
-        .def(pybind11::init<>())
+        .def(pybind11::init([](SampleOptions::Seed seed, std::size_t countPrimaryVariables, std::size_t countCoefficientVariables, int depth, int dimLowerBound, int dimUpperBound) {
+            return SampleOptions {
+                .seed = seed,
+                .countPrimaryVariables = countPrimaryVariables,
+                .countCoefficientVariables = countCoefficientVariables,
+                .depth = depth,
+                .dimLowerBound = dimLowerBound,
+                .dimUpperBound = dimUpperBound
+            };
+        }),
+        pybind11::arg("seed") = 42,
+        pybind11::arg("countPrimaryVariables") = 5,
+        pybind11::arg("countCoefficientVariables") = 5,
+        pybind11::arg("depth") = 4,
+        pybind11::arg("dimLowerBound") = 1,
+        pybind11::arg("dimUpperBound") = 8)
+        .def_readwrite("seed", &SampleOptions::seed)
         .def_readwrite("countPrimaryVariables", &SampleOptions::countPrimaryVariables)
         .def_readwrite("countCoefficientVariables", &SampleOptions::countCoefficientVariables)
         .def_readwrite("depth", &SampleOptions::depth)
@@ -57,6 +46,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<Kernel>(m, "Kernel")
         .def("__repr__", &Kernel::toNestedLoops)
+        .def("description", &Kernel::description)
         .def("generate", &Kernel::generate);
 
     pybind11::class_<Sampler>(m, "Sampler")
@@ -64,8 +54,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("isFinal", &Sampler::isFinal)
         .def("countChildren", &Sampler::countChildren)
         .def("realize", [](Sampler& self, std::vector<std::size_t> path) -> std::unique_ptr<Kernel> {
-            auto [tensorView, cgCtx] = self.realize(path);
-            return std::make_unique<Kernel>(std::move(tensorView), self.getBindingContext(), std::move(cgCtx));
+            auto [tensorView, cgCtx, repr] = self.realize(path);
+            return std::make_unique<Kernel>(std::move(tensorView), self.getBindingContext(), std::move(cgCtx), std::move(repr));
         });
 
 #ifdef VERSION_INFO

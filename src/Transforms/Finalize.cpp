@@ -73,8 +73,7 @@ Shape FinalizeShapeOp::transformShapeInverse(const Shape& incomingOutputShape) c
     return Shape { inputShape };
 }
 
-void FinalizeShapeOp::transformTensor(TensorView& tensor) const {
-    PrimitiveShapeOp::transformTensor(tensor);
+Representation::Transform FinalizeShapeOp::transformTensor(TensorView& tensor) const {
     std::vector<std::shared_ptr<Iterator>> newInterface(outputShape.size(), nullptr);
     std::vector<std::shared_ptr<Iterator>> groups(epilogue.outputGroups.size(), nullptr);
     // Add the remainder iterators.
@@ -115,6 +114,7 @@ void FinalizeShapeOp::transformTensor(TensorView& tensor) const {
     }
     KAS_ASSERT(sanityCounter.size() == outputShape.size());
     tensor.interface = std::move(newInterface);
+    return PrimitiveShapeOp::transformTensor(tensor);
 }
 
 std::string FinalizeShapeOp::description() const {
@@ -204,10 +204,11 @@ std::optional<FinalizeShapeOp::Epilogue> FinalizeShapeOp::solveWithMappings(cons
                 KAS_CRITICAL("Unexpected dimension size: one or illegal coefficient.");
                 break;
             case Size::Trait::Coefficient:
-                coefficientDimsGroups.emplace_back(std::move(dim), std::set<std::size_t> { i });
+                // In C++20, parenthesis initialization for aggregate constructor is allowed, fixing the emplace_back, so we could have written `emplace_back(std::move(dim), std::set<std::size_t> { i })`. Clang 16 implements this but we do not have it, so for brevity we write this in expense of another move construction.
+                coefficientDimsGroups.emplace_back(GroupedDim { std::move(dim), std::set<std::size_t> { i } });
                 break;
             case Size::Trait::General:
-                generalDimsGroups.emplace_back(std::move(dim), std::set<std::size_t> { i });
+                generalDimsGroups.emplace_back(GroupedDim { std::move(dim), std::set<std::size_t> { i } });
                 break;
             }
         }

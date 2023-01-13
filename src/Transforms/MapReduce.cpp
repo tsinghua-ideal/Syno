@@ -23,8 +23,7 @@ Shape MapReduceShapeOp::transformShapeInverse(const Shape& output) const {
     return output.replace({}, { std::make_pair(input, size) });
 }
 
-void MapReduceShapeOp::transformTensor(TensorView &tensor) const {
-    PrimitiveShapeOp::transformTensor(tensor);
+Representation::Transform MapReduceShapeOp::transformTensor(TensorView &tensor) const {
     KAS_ASSERT(tensor.getInterfaceIterators().size() > input);
     auto inputIt = tensor[input];
     std::unique_ptr<RepeatLikePrimitiveOp> op { new MapReduceOp { inputIt } };
@@ -33,6 +32,7 @@ void MapReduceShapeOp::transformTensor(TensorView &tensor) const {
     tensor.replaceInterface({ input }, {});
     // This is special for Reduce: we need to add it to reducedIterators
     tensor.addManipulation(Manipulation { std::move(outputIt), mapType, reduceType });
+    return PrimitiveShapeOp::transformTensor(tensor);
 }
 
 std::string MapReduceShapeOp::description() const {

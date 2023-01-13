@@ -14,7 +14,7 @@ public:
     std::shared_ptr<Size> stride;
     StrideShapeOp(std::size_t input, std::size_t output, std::shared_ptr<Size> stride);
     Shape transformShapeInverse(const Shape& outputShape) const override;
-    void transformTensor(TensorView& tensor) const override;
+    Representation::Transform transformTensor(TensorView& tensor) const override;
     std::string description() const override;
 
     static std::vector<std::unique_ptr<StrideShapeOp>> generate(const Shape& outputShape);

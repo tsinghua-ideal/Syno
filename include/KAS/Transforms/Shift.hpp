@@ -15,7 +15,7 @@ public:
     int shift;
     ShiftShapeOp(std::size_t input, std::size_t output, int shift);
     Shape transformShapeInverse(const Shape& outputShape) const override;
-    void transformTensor(TensorView& tensor) const override;
+    Representation::Transform transformTensor(TensorView& tensor) const override;
     std::string description() const override;
 
     static std::vector<std::unique_ptr<ShiftShapeOp>> generate(const Shape& outputShape);

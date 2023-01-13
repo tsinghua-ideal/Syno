@@ -96,6 +96,7 @@ BindingContext& Sampler::getBindingContext() {
 }
 
 Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const SampleOptions& options):
+    rng { options.seed },
     options { options },
     ctx { options.countPrimaryVariables, options.countCoefficientVariables },
     root { std::make_unique<IdentityShapeOp>() }
@@ -105,26 +106,14 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     this->inputShape = ctx.getShapeFromNames(Shape::parseNames(inputShape));
 }
 
-std::pair<TensorView, std::vector<std::size_t>> Sampler::randomSample() {
+std::vector<std::size_t> Sampler::randomSubPathFromNode(ShapeNode& node, std::size_t depth) {
     std::vector<std::size_t> path;
-    std::random_device rd;
-    std::mt19937 rng { rd() };
-    if (root.node == nullptr) {
-        addNode(outputShape, 0, root);
-    }
-    const auto recursion = [this, &rng, &path](const auto& self, ShapeNode& current, int depth) -> std::optional<TensorView> {
+    // Returns true on success.
+    const auto recursion = [this, &path](const auto& self, ShapeNode& current, std::size_t depth) -> bool {
         if (current.isFinal) {
-            // First divide the shape into input tensor and weight tensor.
-            auto cgCtx = std::make_shared<CodeGenContext>();
-            auto [inputS, weightS] = current.shape.cut<2>({ inputShape.size(), current.shape.size() - inputShape.size() });
-            auto input = std::make_shared<PureTensor>(cgCtx->addTensor("input"), inputS);
-            auto weight = std::make_shared<PureTensor>(cgCtx->addTensor("weight"), weightS);
-            // Start to build a view of this tensor.
-            auto view = TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) };
-            view.addIntermediateShape(current.shape.toString(ctx));
-            return std::move(view);
+            return true;
         } else {
-            // Here we just randomly iterate. In MCTS, use UCB. TODO
+            // Randomly iterate.
             std::vector<std::size_t> childrenIds(current.children.size(), 0);
             std::iota(childrenIds.begin(), childrenIds.end(), 0);
             std::shuffle(childrenIds.begin(), childrenIds.end(), rng);
@@ -133,26 +122,27 @@ std::pair<TensorView, std::vector<std::size_t>> Sampler::randomSample() {
                 if (child.node == nullptr) {
                     addNode(current.shape, depth + 1, child);
                 }
-                if (auto result = self(self, *child.node, depth + 1)) {
+                if (self(self, *child.node, depth + 1)) {
                     path.emplace_back(i);
-                    child.shapeOp->transformTensor(result.value());
-                    result.value().addIntermediateShape(current.shape.toString(ctx));
-                    return std::move(result);
+                    return true;
                 }
             }
         }
-        return std::nullopt;
+        return false;
     };
-    if (auto result = recursion(recursion, *root.node, 0)) {
-        auto& tensorView = result.value();
-        tensorView.finishConstruction();
-        tensorView.setDefaultInterfaceAccess();
-        tensorView.evaluateTensorAccess();
+    if (recursion(recursion, node, depth)) {
         std::reverse(path.begin(), path.end());
-        return std::make_pair(std::move(tensorView), std::move(path));
     } else {
-        KAS_CRITICAL("Cannot sample a tensor.");
+        throw std::runtime_error("Cannot find a path from the current node.");
     }
+    return path;
+}
+
+std::vector<std::size_t> Sampler::randomPathWithPrefix(std::vector<std::size_t> prefix) {
+    auto& node = visit(prefix);
+    auto suffix = randomSubPathFromNode(node, prefix.size());
+    prefix.insert(prefix.end(), suffix.begin(), suffix.end());
+    return prefix;
 }
 
 bool Sampler::isFinal(std::vector<std::size_t> path) {
@@ -167,12 +157,13 @@ std::size_t Sampler::countChildren(std::vector<std::size_t> path) {
     return node.children.size();
 }
 
-std::pair<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(std::vector<std::size_t> path) {
+std::tuple<TensorView, std::shared_ptr<CodeGenContext>, Representation> Sampler::realize(std::vector<std::size_t> path) {
     if (root.node == nullptr) {
         addNode(outputShape, 0, root);
     }
     std::shared_ptr<CodeGenContext> cgCtx;
-    const auto recursion = [this, &path, &cgCtx](const auto& self, ShapeNode& current, std::size_t depth) -> TensorView {
+    Representation repr { ctx };
+    const auto recursion = [this, &path, &cgCtx, &repr](const auto& self, ShapeNode& current, std::size_t depth) -> TensorView {
         if (depth >= path.size()) {
             if (!current.isFinal) {
                 throw std::runtime_error("When realizing a tensor, the path is not ending at a final node.");
@@ -184,7 +175,7 @@ std::pair<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(std::vec
             auto weight = std::make_shared<PureTensor>(cgCtx->addTensor("weight"), weightS);
             // Start to build a view of this tensor.
             auto view = TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) };
-            view.addIntermediateShape(current.shape.toString(ctx));
+            repr.addShape(current.shape);
             return std::move(view);
         }
         // Follow the path.
@@ -193,15 +184,19 @@ std::pair<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(std::vec
             addNode(current.shape, depth + 1, child);
         }
         TensorView result = self(self, *child.node, depth + 1);
-        child.shapeOp->transformTensor(result);
-        result.addIntermediateShape(current.shape.toString(ctx));
+        repr.addTransform(child.shapeOp->transformTensor(result));
+        repr.addShape(current.shape);
         return std::move(result);
     };
     TensorView result = recursion(recursion, *root.node, 0);
     result.finishConstruction();
     result.setDefaultInterfaceAccess();
     result.evaluateTensorAccess();
-    return std::make_pair(std::move(result), std::move(cgCtx));
+    return std::make_tuple(std::move(result), std::move(cgCtx), std::move(repr));
+}
+
+std::tuple<TensorView, std::shared_ptr<CodeGenContext>, Representation> Sampler::randomSample() {
+    return realize(randomPathWithPrefix({}));
 }
 
 } // namespace kas

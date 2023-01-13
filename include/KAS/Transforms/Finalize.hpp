@@ -10,6 +10,7 @@
 
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Core/Representation.hpp"
 
 
 namespace kas {
@@ -58,7 +59,7 @@ public:
     {}
     Shape transformShapeInverse(const Shape& outputShape) const override;
     // Here, we can assert that the interface are all TensorStub.
-    void transformTensor(TensorView& tensor) const override;
+    Representation::Transform transformTensor(TensorView& tensor) const override;
     std::string description() const override;
     bool isFinalizeOp() const override;
 

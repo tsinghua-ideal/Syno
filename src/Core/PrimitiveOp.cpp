@@ -6,8 +6,8 @@
 
 namespace kas {
 
-void PrimitiveShapeOp::transformTensor(TensorView& tensor) const {
-    tensor.addTransformDescription(description());
+Representation::Transform PrimitiveShapeOp::transformTensor(TensorView& tensor) const {
+    return description();
 }
 
 bool PrimitiveShapeOp::isFinalizeOp() const {
@@ -18,12 +18,12 @@ Shape IdentityShapeOp::transformShapeInverse(const Shape &outputShape) const {
     return outputShape; 
 }
 
-void IdentityShapeOp::transformTensor(TensorView& tensor) const {
+Representation::Transform IdentityShapeOp::transformTensor(TensorView& tensor) const {
     KAS_CRITICAL("The root node should not call this function.");
 }
 
 std::string IdentityShapeOp::description() const {
-    return "Identity";
+    KAS_CRITICAL("The root node should not call this function.");
 }
 
 RepeatLikePrimitiveOp::RepeatLikePrimitiveOp(std::shared_ptr<Iterator> parent):
