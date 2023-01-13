@@ -51,6 +51,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<Sampler>(m, "Sampler")
         .def(pybind11::init<std::string, std::string, SampleOptions>())
+        .def("randomPathWithPrefix", &Sampler::randomPathWithPrefix)
         .def("isFinal", &Sampler::isFinal)
         .def("countChildren", &Sampler::countChildren)
         .def("realize", [](Sampler& self, std::vector<std::size_t> path) -> std::unique_ptr<Kernel> {

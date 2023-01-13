@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Manipulation.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 
@@ -18,8 +19,10 @@ public:
     Shape transformShapeInverse(const Shape& outputShape) const override;
     Representation::Transform transformTensor(TensorView& tensor) const override;
     std::string description() const override;
-
-    static std::vector<std::unique_ptr<MapReduceShapeOp>> generate(const Shape& outputShape);
+    struct GenerateOptions {
+        const BindingContext& ctx;
+    };
+    static std::vector<std::unique_ptr<MapReduceShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
 };
 
 class MapReduceOp: public RepeatLikePrimitiveOp {

@@ -26,6 +26,7 @@ public:
         ReLU,
         Sigmoid,
         Sign,
+        MapTypeCount,
     };
     static std::string_view what(MapType);
     enum class ReduceType {
@@ -34,6 +35,7 @@ public:
         Mean,
         Min,
         Product,
+        ReduceTypeCount
     };
     static std::string_view what(ReduceType);
 

@@ -4,6 +4,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -22,7 +23,9 @@ Size::Size(std::size_t primaryCount, std::size_t coefficientCount):
     coefficientCount { coefficientCount },
     primary {},
     coefficient {}
-{}
+{
+    KAS_ASSERT(primaryCount <= MAX_VARIABLES && coefficientCount <= MAX_VARIABLES);
+}
 
 Size& Size::operator=(const Size& other) & {
     KAS_ASSERT(primaryCount == other.primaryCount && coefficientCount == other.coefficientCount);
@@ -31,20 +34,33 @@ Size& Size::operator=(const Size& other) & {
     return *this;
 }
 
+std::span<Size::PowerType> Size::getPrimary() {
+    return { primary.data(), primaryCount };
+}
+std::span<const Size::PowerType> Size::getPrimary() const {
+    return { primary.data(), primaryCount };
+}
+std::span<Size::PowerType> Size::getCoefficient() {
+    return { coefficient.data(), coefficientCount };
+}
+std::span<const Size::PowerType> Size::getCoefficient() const {
+    return { coefficient.data(), coefficientCount };
+}
+
 Size Size::identity() const {
     return { primaryCount, coefficientCount };
 }
 
 Size::Trait Size::getTrait() const {
     bool hasPrimary = false;
-    for (std::size_t i = 0; i < primaryCount; ++i) {
-        hasPrimary |= primary[i] > 0;
+    for (auto p: getPrimary()) {
+        hasPrimary |= p > 0;
     }
     bool hasCoefficient = false;
     bool hasNegativeCoefficient = false;
-    for (std::size_t i = 0; i < coefficientCount; ++i) {
-        hasCoefficient |= coefficient[i] != 0;
-        hasNegativeCoefficient |= coefficient[i] < 0;
+    for (auto c: getCoefficient()) {
+        hasCoefficient |= c != 0;
+        hasNegativeCoefficient |= c < 0;
     }
     if (hasPrimary) {
         return Trait::General;
@@ -62,21 +78,21 @@ Size::Trait Size::getTrait() const {
 }
 
 bool Size::is1() const {
-    for (std::size_t i = 0; i < primaryCount; ++i) {
-        if (primary[i] != 0) return false;
+    for (auto p: getPrimary()) {
+        if (p != 0) return false;
     }
-    for (std::size_t i = 0; i < coefficientCount; ++i) {
-        if (coefficient[i] != 0) return false;
+    for (auto c: getCoefficient()) {
+        if (c != 0) return false;
     }
     return true;
 }
 
 bool Size::isLegalCoefficient() const {
-    for (std::size_t i = 0; i < primaryCount; ++i) {
-        if (primary[i] != 0) return false;
+    for (auto p: getPrimary()) {
+        if (p != 0) return false;
     }
-    for (std::size_t i = 0; i < coefficientCount; ++i) {
-        if (coefficient[i] < 0) return false;
+    for (auto c: getCoefficient()) {
+        if (c < 0) return false;
     }
     return true;
 }
@@ -339,6 +355,10 @@ std::size_t Shape::size() const {
 
 const std::shared_ptr<Size>& Shape::operator[](std::size_t index) const {
     return sizes.at(index);
+}
+
+Size Shape::totalSize() const {
+    return std::move(*Size::Product(sizes));
 }
 
 Shape Shape::concat(const std::vector<Shape>& shapes) {

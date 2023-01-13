@@ -19,6 +19,7 @@ std::string_view Manipulation::what(MapType type) {
         case MapType::ReLU:     return "ReLU";
         case MapType::Sigmoid:  return "Sigmoid";
         case MapType::Sign:     return "Sign";
+        case MapType::MapTypeCount: break;
     }
     KAS_UNREACHABLE();
 }
@@ -30,6 +31,7 @@ std::string_view Manipulation::what(ReduceType type) {
         case ReduceType::Mean:    return "Mean";
         case ReduceType::Min:     return "Min";
         case ReduceType::Product: return "Product";
+        case ReduceType::ReduceTypeCount: break;
     }
     KAS_UNREACHABLE();
 }

@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -23,7 +24,8 @@ struct Size {
 
 public:
     constexpr static std::size_t MAX_VARIABLES = 16;
-    using ExprType = std::array<std::int8_t, MAX_VARIABLES>;
+    using PowerType = std::int8_t;
+    using ExprType = std::array<PowerType, MAX_VARIABLES>;
     enum class Trait {
         One, // powers of primary == 0, powers of coefficient == 0.
         Coefficient, // powers of primary == 0, powers of coefficient >= 0 but not all 0.
@@ -47,8 +49,14 @@ public:
         coefficientCount { coefficientCount },
         primary { std::forward<Tp>(primary) },
         coefficient { std::forward<Tc>(coefficient) }
-    {}
+    {
+        KAS_ASSERT(primaryCount <= MAX_VARIABLES && coefficientCount <= MAX_VARIABLES);
+    }
     Size& operator=(const Size& other) &;
+    std::span<PowerType> getPrimary();
+    std::span<const PowerType> getPrimary() const;
+    std::span<PowerType> getCoefficient();
+    std::span<const PowerType> getCoefficient() const;
 
     template<typename ValueType, typename Tp, typename Tc>
     ValueType eval(Tp&& p, Tc&& c) const {
@@ -146,6 +154,7 @@ public:
     bool operator==(const Shape& other) const = default;
     std::size_t size() const;
     const std::shared_ptr<Size>& operator[](std::size_t index) const;
+    Size totalSize() const;
 
     template<std::size_t N>
     std::array<Shape, N> cut(std::array<std::size_t, N> dimensions) const {

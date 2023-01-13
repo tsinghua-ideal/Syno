@@ -7,20 +7,19 @@
 
 namespace kas {
 
-BindingContext::Metadata::Metadata(std::string_view alias, std::size_t estimate):
-    alias { alias },
-    estimate { estimate }
-{}
-
 BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoefficient):
     namedPrimaryCount { 0 },
     primaryMetadata(countPrimary),
     coefficientMetadata(countCoefficient) {
     for (std::size_t i = 0; i < countPrimary; ++i) {
-        primaryMetadata[i] = Metadata { "x_" + std::to_string(i), 128 };
+        primaryMetadata[i] = Metadata {
+            .alias = "x_" + std::to_string(i),
+        };
     }
     for (std::size_t i = 0; i < countCoefficient; ++i) {
-        coefficientMetadata[i] = Metadata { "c_" + std::to_string(i), 5 };
+        coefficientMetadata[i] = Metadata {
+            .alias = "c_" + std::to_string(i),
+        };
     }
 }
 
@@ -29,6 +28,12 @@ std::size_t BindingContext::getPrimaryCount() const {
 }
 std::size_t BindingContext::getCoefficientCount() const {
     return coefficientMetadata.size();
+}
+std::span<const BindingContext::Metadata> BindingContext::getPrimaryMetadata() const {
+    return { primaryMetadata.data(), primaryMetadata.size() };
+}
+std::span<const BindingContext::Metadata> BindingContext::getCoefficientMetadata() const {
+    return { coefficientMetadata.data(), coefficientMetadata.size() };
 }
 std::string_view BindingContext::getPrimaryAlias(std::size_t index) const {
     return primaryMetadata.at(index).alias;
@@ -80,7 +85,9 @@ Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
         if (it == nameToIndex.end()) {
             KAS_ASSERT(namedPrimaryCount < getPrimaryCount());
             nameToIndex[name] = namedPrimaryCount;
-            primaryMetadata[namedPrimaryCount] = Metadata { name, 128 };
+            primaryMetadata[namedPrimaryCount] = Metadata {
+                .alias = name,
+            };
             result.emplace_back(getSinglePrimaryVariableSize(namedPrimaryCount));
             ++namedPrimaryCount;
         } else {
