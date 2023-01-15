@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <sstream>
 #include <utility>
@@ -41,6 +43,42 @@ std::string UnfoldShapeOp::description() const {
     return ss.str();
 }
 
+std::vector<std::unique_ptr<UnfoldShapeOp>> UnfoldShapeOp::generate(const Shape& outputShape, GenerateOptions options) {
+    std::vector<std::unique_ptr<UnfoldShapeOp>> result;
+    if (outputShape.size() > options.dimLowerBound) {
+        std::vector<std::size_t> generals;
+        std::vector<std::size_t> windows;
+        auto meta = options.ctx.getCoefficientMetadata();
+        auto coefficientCount = options.ctx.getCoefficientCount();
+        for (std::size_t i = 0; i < outputShape.size(); ++i) {
+            const auto& size = *outputShape[i];
+            auto p = size.getPrimary();
+            if (std::any_of(p.begin(), p.end(), [](auto i) { return i != 0; })) {
+                // Here, we only allow an axis with primary variable to be unfolded. TODO: relax this?
+                generals.emplace_back(i);
+            } else {
+                auto coefficient = size.getCoefficient();
+                bool isEven = false;
+                for (std::size_t i = 0; i < coefficientCount; ++i) {
+                    if (coefficient[i] != 0 && !meta[i].isOdd) {
+                        isEven = true;
+                    }
+                }
+                if (!isEven) {
+                    windows.emplace_back(i);
+                }
+            }
+        }
+        for (auto general: generals) {
+            for (auto window: windows) {
+                KAS_ASSERT(general != window);
+                result.emplace_back(std::make_unique<UnfoldShapeOp>(std::min(general, window), general, window));
+            }
+        }
+    }
+    return result;
+}
+
 UnfoldOp::UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs):
     SplitLikePrimitiveOp { parent, childLhs, childRhs }
 {}
@@ -48,8 +86,9 @@ UnfoldOp::UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> chi
 SingleIteratorValue UnfoldOp::value(DoubleIteratorValue output) const {
     auto [outputMajor, outputMinor] = std::move(output);
     auto kernel = std::make_shared<ConstValueNode>(childRhs.lock()->getSize());
+    auto one = std::make_shared<ImmediateValueNode>(1);
     auto two = std::make_shared<ImmediateValueNode>(2);
-    return *(*outputMajor + *outputMinor) - *(*kernel / *two);
+    return *(*outputMajor + *outputMinor) - *(*(*kernel - *one) / *two);
 }
 
 } // namespace kas

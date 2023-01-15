@@ -129,13 +129,13 @@ TEST_F(transforms_tests, unfold) {
     tensorView.evaluateTensorAccess();
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,c]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[((i_0)+(i_2))-((c)/(2)),i_1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[((i_0)+(i_2))-(((c)-(1))/(2)),i_1]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H,W]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c; i_2++) {
-            out[i_0,i_1,i_2] = t[((i_0)+(i_2))-((c)/(2)),i_1];
+            out[i_0,i_1,i_2] = t[((i_0)+(i_2))-(((c)-(1))/(2)),i_1];
         }
     }
 }

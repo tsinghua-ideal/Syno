@@ -66,9 +66,15 @@ void Sampler::addNode(const Shape& base, std::size_t depth, ShapeNode::Next& poi
         for (auto& s:
             SplitShapeOp::generate(shape, { .dimLowerBound = options.dimLowerBound })
         ) result.emplace_back(std::move(s));
-        // Unfold^{-1}, TODO
+        // Unfold^{-1}
+        for (auto& u:
+            UnfoldShapeOp::generate(shape, { .ctx = ctx, .dimLowerBound = options.dimLowerBound })
+        ) result.emplace_back(std::move(u));
         // Try changing dimension size, by performing
-        // Stride^{-1}, TODO
+        // Stride^{-1}
+        for (auto& s:
+            StrideShapeOp::generate(shape)
+        ) result.emplace_back(std::move(s));
         // Or do not change the shape at all, by performing
         // Shift^{-1}, TODO
     }

@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <sstream>
 #include <utility>
@@ -33,6 +35,26 @@ std::string StrideShapeOp::description() const {
     std::stringstream ss;
     ss << "Stride " << input << " -> " << output;
     return ss.str();
+}
+
+std::vector<std::unique_ptr<StrideShapeOp>> StrideShapeOp::generate(const Shape& outputShape) {
+    std::vector<std::unique_ptr<StrideShapeOp>> result;
+    for (std::size_t i = 0; i < outputShape.size(); ++i) {
+        const Size& size = *outputShape[i];
+        auto primary = size.getPrimary();
+        if (std::all_of(primary.begin(), primary.end(), [](auto x) { return x == 0; })) {
+            // Here, we only allow an axis with primary variable to be strided. TODO: relax this?
+            continue;
+        }
+        auto coefficient = size.getCoefficient();
+        for (std::size_t j = 0; j < coefficient.size(); ++j) {
+            // Here we take one of the coefficient as stride. If you want more, you can add more StrideShapeOp.
+            auto stride = std::make_shared<Size>(primary.size(), coefficient.size());
+            stride->getCoefficient()[j] = 1;
+            result.emplace_back(std::make_unique<StrideShapeOp>(i, i, stride));
+        }
+    }
+    return result;
 }
 
 StrideOp::StrideOp(std::shared_ptr<Iterator> parent, std::shared_ptr<Size> stride):

@@ -19,7 +19,11 @@ public:
     Representation::Transform transformTensor(TensorView& tensor) const override;
     std::string description() const override;
 
-    static std::vector<std::unique_ptr<UnfoldShapeOp>> generate(const Shape& outputShape);
+    struct GenerateOptions {
+        const BindingContext& ctx;
+        int dimLowerBound;
+    };
+    static std::vector<std::unique_ptr<UnfoldShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
 };
 
 class UnfoldOp: public SplitLikePrimitiveOp {
