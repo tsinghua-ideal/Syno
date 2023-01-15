@@ -142,6 +142,7 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
         case MapType::ReLU:     tempValue = Halide::max(0.0f, tempValue); break;
         case MapType::Sigmoid:  tempValue = 1.0f / (1.0f + Halide::exp(-tempValue)); break;
         case MapType::Sign:     tempValue = Halide::select(tempValue > 0.0f, 1.0f, Halide::select(tempValue < 0.0f, -1.0f, 0.0f)); break;
+        case MapType::MapTypeCount: KAS_CRITICAL("Invalid map type"); break;
         }
         using ReduceType = Manipulation::ReduceType;
         switch (m.reduceType) {
@@ -150,6 +151,7 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
         case Manipulation::ReduceType::Mean:    newTemp(tempAccess) = Halide::sum(tempValue) / Halide::cast<float>(evaluate(m.getIterator()->getSize())); break;
         case Manipulation::ReduceType::Min:     newTemp(tempAccess) = Halide::minimum(tempValue); break;
         case Manipulation::ReduceType::Product: newTemp(tempAccess) = Halide::product(tempValue); break;
+        case Manipulation::ReduceType::ReduceTypeCount: KAS_CRITICAL("Invalid reduce type"); break;
         }
         temp = std::move(newTemp);
     }
@@ -229,7 +231,7 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
     }
     std::string scheduler;
     switch (options.scheduler) {
-    case Options::AutoScheduler::Mullapudi2016: scheduler = "mullapudi2016";    break;
+    case Options::AutoScheduler::Mullapudi2016: scheduler = "Mullapudi2016";    break;
     case Options::AutoScheduler::Li2018:        scheduler = "Li2018";           break;
     case Options::AutoScheduler::Adams2019:     scheduler = "Adams2019";        break;
     }
@@ -260,12 +262,14 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
     std::copy(forwardInputs.begin(), forwardInputs.end(), std::back_inserter(forwardArgs));
     std::copy(backwardInputs.begin(), backwardInputs.end(), std::back_inserter(backwardArgs));
 
+    Halide::AutoschedulerParams params(scheduler);
+
     Halide::Pipeline forwardPipeline(forwardFunc);
-    forwardPipeline.auto_schedule(scheduler, target);
+    forwardPipeline.apply_autoscheduler(target, params);
     forwardPipeline.compile_to(flagsForModule(outputPath / funcName), forwardArgs, std::string(funcName), target);
 
     Halide::Pipeline backwardPipeline(backwardFuncs);
-    backwardPipeline.auto_schedule(scheduler, target);
+    backwardPipeline.apply_autoscheduler(target, params);
     std::string backwardName = std::string(funcName) + "_grad";
     backwardPipeline.compile_to(flagsForModule(outputPath / backwardName), backwardArgs, backwardName, target);
 }

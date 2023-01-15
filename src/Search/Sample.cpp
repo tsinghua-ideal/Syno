@@ -51,10 +51,16 @@ void Sampler::addNode(const Shape& base, std::size_t depth, ShapeNode::Next& poi
         // Try increasing dimension, by performing
         // Share^{-1}
         for (auto& s:
-            ShareShapeOp::generate(shape, { .dimUpperBound = options.dimUpperBound })
+            ShareShapeOp::generate(shape, { .ctx = ctx, .dimUpperBound = options.dimUpperBound })
         ) result.emplace_back(std::move(s));
-        // MapReduce^{-1}, TODO
-        // Merge^{-1}, TODO
+        // MapReduce^{-1}
+        for (auto& m:
+            MapReduceShapeOp::generate(shape, { .ctx = ctx })
+        ) result.emplace_back(std::move(m));
+        // Merge^{-1}
+        for (auto& m:
+            MergeShapeOp::generate(shape, { .ctx = ctx, .dimUpperBound = options.dimUpperBound })
+        ) result.emplace_back(std::move(m));
         // Try decreasing dimension, by performing
         // Split^{-1}
         for (auto& s:

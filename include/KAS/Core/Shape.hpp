@@ -90,7 +90,7 @@ public:
     // Returns whether there are no primary variables.
     bool isLegalCoefficient() const;
 
-    std::vector<std::shared_ptr<Size>> sampleFactors(const BindingContext& ctx) const;
+    int getPrimaryPowersSum() const;
 
     // The product of two Size's
     std::shared_ptr<Size> operator*(const Size& other) const;
@@ -100,6 +100,7 @@ public:
     // The quotient of two Size's
     std::shared_ptr<Size> operator/(const Size& other) const;
     std::optional<Trait> testDividedBy(const Size& other);
+    std::optional<Trait> canBeDividedBy(const Size& other) const;
 
     bool operator==(const Size& other) const = default;
 
@@ -184,6 +185,14 @@ public:
     std::string toString(const BindingContext& ctx) const;
 
     static std::vector<std::string> parseNames(std::string_view shape);
+};
+
+struct Allowance {
+    Size::ExprType primary;
+    Size::ExprType coefficientLower;
+    Size::ExprType coefficientUpper;
+    Allowance(const Size& shape, const BindingContext& ctx);
+    bool withinAllowance(const Size& size) const;
 };
 
 } // namespace kas

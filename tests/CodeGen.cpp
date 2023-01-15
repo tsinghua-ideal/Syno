@@ -10,7 +10,10 @@ namespace kas {
 
 class codegen_tests: public ::testing::Test {
 protected:
-    Sampler sampler = { "[H,W]", "[N,C,H,W]", SampleOptions() };
+    Sampler sampler = { "[H,W]", "[N,C,H,W]", SampleOptions {
+        .seed = 19216811,
+        .depth = 3,
+    } };
     BindingContext& ctx = sampler.getBindingContext();
 };
 
@@ -22,8 +25,9 @@ TEST_F(codegen_tests, func) {
 }
 
 TEST_F(codegen_tests, generate) {
-    auto sample = std::get<TensorView>(sampler.randomSample());
-    std::cout << sample.printNestedLoops(ctx) << std::endl;
+    auto [sample, _, repr] = sampler.randomSample();
+    std::cout << sample.printNestedLoops(ctx);
+    std::cout << repr.description();
     HalideGen gen { ctx, sample };
     gen.generate("./kernel_1", "kernel_1", {
         .useGPU = false,

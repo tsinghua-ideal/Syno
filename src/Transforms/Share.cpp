@@ -2,6 +2,7 @@
 #include <memory>
 #include <utility>
 
+#include "KAS/Core/Shape.hpp"
 #include "KAS/Transforms/Share.hpp"
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
@@ -46,11 +47,14 @@ std::string ShareShapeOp::description() const {
 }
 
 std::vector<std::unique_ptr<ShareShapeOp>> ShareShapeOp::generate(const Shape& outputShape, GenerateOptions options) {
+    Allowance allowance { outputShape.totalSize(), options.ctx };
     std::vector<std::unique_ptr<ShareShapeOp>> result;
     if (outputShape.size() < options.dimUpperBound) {
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
-            // New dimension is put at 0, as the outer loop.
-            result.emplace_back(std::make_unique<ShareShapeOp>(0, i + 1, i));
+            if (allowance.withinAllowance(*outputShape[i])) {
+                // New dimension is put at 0, as the outer loop.
+                result.emplace_back(std::make_unique<ShareShapeOp>(0, i + 1, i));
+            }
         }
     }
     return result;

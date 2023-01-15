@@ -17,7 +17,11 @@ public:
     Representation::Transform transformTensor(TensorView& tensor) const override;
     std::string description() const override;
 
-    static std::vector<std::unique_ptr<MergeShapeOp>> generate(const Shape& outputShape);
+    struct GenerateOptions {
+        const BindingContext& ctx;
+        int dimUpperBound;
+    };
+    static std::vector<std::unique_ptr<MergeShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
 };
 
 class MergeOp: public MergeLikePrimitiveOp {

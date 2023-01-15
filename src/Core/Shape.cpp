@@ -4,6 +4,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <span>
 #include <sstream>
 #include <string>
@@ -97,25 +98,9 @@ bool Size::isLegalCoefficient() const {
     return true;
 }
 
-std::vector<std::shared_ptr<Size>> Size::sampleFactors(const BindingContext& ctx) const {
-    std::vector<std::shared_ptr<Size>> factors;
-    for (std::size_t primaryIndex = 0; primaryIndex < primaryCount; ++primaryIndex) {
-        int primaryDim = primary[primaryIndex];
-        if (primaryDim >= 1) {
-            auto primaryRes = std::make_shared<Size>(primaryCount, coefficientCount);
-            primaryRes->primary[primaryIndex] = 1;
-            factors.emplace_back(primaryRes);
-            for (int coefficientIndex = 0; coefficientIndex < coefficientCount; ++coefficientIndex) {
-                std::size_t coefficientDim = coefficient[coefficientIndex];
-                if (coefficientDim >= 1) {
-                    auto res = std::make_shared<Size>(*primaryRes);
-                    res->coefficient[coefficientIndex] = 1;
-                    factors.emplace_back(res);
-                }
-            }
-        }
-    }
-    return factors;
+int Size::getPrimaryPowersSum() const {
+    auto primary = getPrimary();
+    return std::accumulate(primary.begin(), primary.end(), 0);
 }
 
 std::shared_ptr<Size> Size::operator*(const Size& other) const {
@@ -198,6 +183,11 @@ std::optional<Size::Trait> Size::testDividedBy(const Size& other) {
             return Trait::One;
         }
     }
+}
+
+std::optional<Size::Trait> Size::canBeDividedBy(const Size& other) const {
+    Size temp { *this };
+    return temp.testDividedBy(other);
 }
 
 std::size_t Size::estimate(const BindingContext& ctx) const {
@@ -400,6 +390,46 @@ std::vector<std::string> Shape::parseNames(std::string_view shape) {
         result.emplace_back(std::move(size[0].first));
     }
     return result;
+}
+
+Allowance::Allowance(const Size& shape, const BindingContext& ctx):
+    primary {},
+    coefficientLower {},
+    coefficientUpper {}
+{
+    auto primaryMeta = ctx.getPrimaryMetadata();
+    auto coefficientMeta = ctx.getCoefficientMetadata();
+    auto primary = shape.getPrimary();
+    auto coefficient = shape.getCoefficient();
+    const std::size_t primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
+    for (std::size_t i = 0; i < primaryCount; ++i) {
+        // Observe that in the sampling process, the primary variables are generated only by MapReduce. So we can limit it with maximumOccurrence.
+        if (primary[i] < primaryMeta[i].maximumOccurrence) {
+            this->primary[i] = primaryMeta[i].maximumOccurrence - static_cast<std::size_t>(primary[i]);
+        }
+    }
+    for (std::size_t i = 0; i < coefficientCount; ++i) {
+        // Similar for coefficient.
+        coefficientLower[i] = -coefficientMeta[i].maximumOccurrence - static_cast<std::size_t>(coefficient[i]);
+        coefficientUpper[i] = coefficientMeta[i].maximumOccurrence - static_cast<std::size_t>(coefficient[i]);
+    }
+}
+
+bool Allowance::withinAllowance(const Size& size) const {
+    auto primary = size.getPrimary();
+    auto coefficient = size.getCoefficient();
+    const std::size_t primaryCount = primary.size(), coefficientCount = coefficient.size();
+    for (std::size_t i = 0; i < primaryCount; ++i) {
+        if (primary[i] > this->primary[i]) {
+            return false;
+        }
+    }
+    for (std::size_t i = 0; i < coefficientCount; ++i) {
+        if (coefficient[i] < coefficientLower[i] || coefficient[i] > coefficientUpper[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace kas

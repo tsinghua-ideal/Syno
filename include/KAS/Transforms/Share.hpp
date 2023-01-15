@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
@@ -17,8 +18,8 @@ public:
     std::string description() const override;
 
     struct GenerateOptions {
+        const BindingContext& ctx;
         int dimUpperBound;
-        // Restrictions on number of primary variable, e.t.c.. TODO
     };
     static std::vector<std::unique_ptr<ShareShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
 };
