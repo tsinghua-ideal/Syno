@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <optional>
 #include <sstream>
 #include <vector>
 
@@ -20,6 +21,10 @@ std::string_view Parser::what(Token tok) {
         return "'^'";
     case Token::Comma:
         return "','";
+    case Token::Colon:
+        return "':'";
+    case Token::Equal:
+        return "'='";
     case Token::OpenBracket:
         return "'('";
     case Token::CloseBracket:
@@ -54,7 +59,7 @@ Parser::Parser(std::string_view buffer) {
     };
     State state = State::Normal;
     auto finish = [&](Token tok) {
-        tokens.emplace_back(Token::Identifier, token.str());
+        tokens.emplace_back(tok, token.str());
         token.str("");
         state = State::Normal;
     };
@@ -98,6 +103,14 @@ Parser::Parser(std::string_view buffer) {
         case ',':
             switchToNormal();
             tokens.emplace_back(Token::Comma, "");
+            break;
+        case ':':
+            switchToNormal();
+            tokens.emplace_back(Token::Colon, "");
+            break;
+        case '=':
+            switchToNormal();
+            tokens.emplace_back(Token::Equal, "");
             break;
         case '[':
             switchToNormal();
@@ -188,6 +201,57 @@ std::vector<std::vector<Parser::Factor>> Parser::parseShape() {
     }
     consume(Token::CloseBracket);
     return std::move(sizes);
+}
+
+std::optional<std::string> Parser::SizeSpec::name() const {
+    if (std::holds_alternative<std::string>(quantity)) {
+        return std::get<std::string>(quantity);
+    } else if (std::holds_alternative<std::pair<std::string, std::size_t>>(quantity)) {
+        return std::get<std::pair<std::string, std::size_t>>(quantity).first;
+    }
+    return std::nullopt;
+}
+
+Parser::PureSpec Parser::SizeSpec::toPureSpec() const & {
+    if (std::holds_alternative<std::size_t>(quantity)) {
+        return { std::get<std::size_t>(quantity), maxOccurrences };
+    } else if (std::holds_alternative<std::pair<std::string, std::size_t>>(quantity)) {
+        return { std::get<std::pair<std::string, std::size_t>>(quantity).second, maxOccurrences };
+    }
+    return { std::nullopt, maxOccurrences };
+}
+
+Parser::PureSpec Parser::SizeSpec::toPureSpec() && {
+    if (std::holds_alternative<std::size_t>(quantity)) {
+        return { std::get<std::size_t>(quantity), std::move(maxOccurrences) };
+    } else if (std::holds_alternative<std::pair<std::string, std::size_t>>(quantity)) {
+        return { std::get<std::pair<std::string, std::size_t>>(quantity).second, std::move(maxOccurrences) };
+    }
+    return { std::nullopt, std::move(maxOccurrences) };
+}
+
+bool Parser::SizeSpec::operator==(const SizeSpec& other) const {
+    return quantity == other.quantity && maxOccurrences == other.maxOccurrences;
+}
+
+Parser::SizeSpec Parser::parseSizeSpec() {
+    SizeSpec::Quantity size;
+    if (current() == Token::Identifier) {
+        std::string symbol = parseIdentifier();
+        if (current() == Token::Equal) {
+            consume(Token::Equal);
+            size = std::make_pair(std::move(symbol), parseInteger());
+        } else {
+            size = std::move(symbol);
+        }
+    } else {
+        size = static_cast<std::size_t>(parseInteger());
+    }
+    if (current() == Token::Colon) {
+        consume(Token::Colon);
+        return { std::move(size), parseInteger() };
+    }
+    return { std::move(size), std::nullopt };
 }
 
 } // namespace kas

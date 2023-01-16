@@ -1,4 +1,6 @@
 #include <memory>
+#include <string>
+#include <vector>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -14,28 +16,22 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
     using namespace kas;
 
     pybind11::class_<SampleOptions>(m, "SampleOptions")
-        .def(pybind11::init([](SampleOptions::Seed seed, std::size_t countPrimaryVariables, std::size_t countCoefficientVariables, int depth, int dimLowerBound, int dimUpperBound) {
+        .def(pybind11::init([](SampleOptions::Seed seed, int depth, int dimLowerBound, int dimUpperBound) {
             return SampleOptions {
                 .seed = seed,
-                .countPrimaryVariables = countPrimaryVariables,
-                .countCoefficientVariables = countCoefficientVariables,
                 .depth = depth,
                 .dimLowerBound = dimLowerBound,
                 .dimUpperBound = dimUpperBound
             };
         }),
         pybind11::arg("seed") = 42,
-        pybind11::arg("countPrimaryVariables") = 5,
-        pybind11::arg("countCoefficientVariables") = 5,
         pybind11::arg("depth") = 4,
-        pybind11::arg("dimLowerBound") = 1,
-        pybind11::arg("dimUpperBound") = 8)
+        pybind11::arg("dim_lower") = 1,
+        pybind11::arg("dim_upper") = 8)
         .def_readwrite("seed", &SampleOptions::seed)
-        .def_readwrite("countPrimaryVariables", &SampleOptions::countPrimaryVariables)
-        .def_readwrite("countCoefficientVariables", &SampleOptions::countCoefficientVariables)
         .def_readwrite("depth", &SampleOptions::depth)
-        .def_readwrite("dimLowerBound", &SampleOptions::dimLowerBound)
-        .def_readwrite("dimUpperBound", &SampleOptions::dimUpperBound);
+        .def_readwrite("dim_lower", &SampleOptions::dimLowerBound)
+        .def_readwrite("dim_upper", &SampleOptions::dimUpperBound);
 
     pybind11::class_<HalideGen::Options> cgOpts(m, "CodeGenOptions");
     pybind11::enum_<HalideGen::Options::AutoScheduler>(cgOpts, "AutoScheduler")
@@ -50,7 +46,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("generate", &Kernel::generate);
 
     pybind11::class_<Sampler>(m, "Sampler")
-        .def(pybind11::init<std::string, std::string, SampleOptions>())
+        .def(pybind11::init<std::string, std::string, std::vector<std::string>, std::vector<std::string>, SampleOptions>())
         .def("randomPathWithPrefix", &Sampler::randomPathWithPrefix)
         .def("isFinal", &Sampler::isFinal)
         .def("countChildren", &Sampler::countChildren)

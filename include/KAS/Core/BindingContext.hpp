@@ -6,6 +6,8 @@
 #include <vector>
 #include <memory>
 
+#include "KAS/Core/Parser.hpp"
+
 
 namespace kas {
 
@@ -25,7 +27,6 @@ public:
     };
 
 protected:
-    std::size_t namedPrimaryCount;
     // The varaibles are the indices. Metadata can be accessed by index.
     std::vector<Metadata> primaryMetadata;
     std::vector<Metadata> coefficientMetadata;
@@ -36,9 +37,7 @@ public:
     BindingContext(Tp&& primaryMetadata, Tc&& coefficientMetadata):
         primaryMetadata { std::forward<Tp>(primaryMetadata) },
         coefficientMetadata { std::forward<Tc>(coefficientMetadata) }
-    {
-        namedPrimaryCount = this->primaryMetadata.size();
-    }
+    {}
 
     std::size_t getPrimaryCount() const;
     std::size_t getCoefficientCount() const;
@@ -55,6 +54,8 @@ public:
     std::vector<std::shared_ptr<Size>> getPositiveCoefficients() const;
 
     Shape getShapeFromNames(const std::vector<std::string>& names);
+    // This overwrites the current metadata.
+    void applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs);
 };
 
 } // namespace kas

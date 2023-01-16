@@ -10,9 +10,11 @@ namespace kas {
 
 class codegen_tests: public ::testing::Test {
 protected:
-    Sampler sampler = { "[H,W]", "[N,C,H,W]", SampleOptions {
+    Sampler sampler = { "[H,W]", "[N,C,H,W]", {}, {"k", "s"}, SampleOptions {
         .seed = 19216811,
         .depth = 3,
+        .dimLowerBound = 1,
+        .dimUpperBound = 8,
     } };
     BindingContext& ctx = sampler.getBindingContext();
 };

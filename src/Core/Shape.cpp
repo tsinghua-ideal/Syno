@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <numeric>
+#include <set>
 #include <span>
 #include <sstream>
 #include <string>
@@ -380,16 +381,6 @@ std::string Shape::toString(const BindingContext& ctx) const {
     return VectorToString(sizes, std::function([&ctx](const std::shared_ptr<Size>& size) -> std::string {
         return size->toString(ctx);
     }));
-}
-
-std::vector<std::string> Shape::parseNames(std::string_view shape) {
-    auto parsedShape = Parser(shape).parseShape();
-    std::vector<std::string> result;
-    for (auto& size: parsedShape) {
-        KAS_ASSERT(size.size() == 1 && size[0].second == 1);
-        result.emplace_back(std::move(size[0].first));
-    }
-    return result;
 }
 
 Allowance::Allowance(const Size& shape, const BindingContext& ctx):

@@ -4,11 +4,15 @@
 #include <functional>
 #include <memory>
 #include <random>
+#include <set>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include <gtest/gtest_prod.h>
 
+#include "KAS/Core/BindingContext.hpp"
+#include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Representation.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
@@ -21,8 +25,6 @@ struct SampleOptions {
 public:
     using Seed = std::mt19937::result_type;
     Seed seed = 42;
-    std::size_t countPrimaryVariables = 5;
-    std::size_t countCoefficientVariables = 5;
     int depth = 4;
     int dimLowerBound = 1;
     int dimUpperBound = 8;
@@ -35,10 +37,10 @@ class Sampler final {
 protected:
     std::mt19937 rng;
 
-    Shape inputShape;
-    Shape outputShape;
-    SampleOptions options;
     BindingContext ctx;
+    SampleOptions options;
+    const Shape inputShape;
+    const Shape outputShape;
 
     ShapeNode::Next root;
 
@@ -47,9 +49,15 @@ protected:
     // Visit a node along a specific path.
     ShapeNode& visit(std::vector<std::size_t> path);
 
+private:
+    Sampler(std::vector<std::string> inputShape, std::vector<std::string> outputShape, std::vector<std::pair<std::string, Parser::PureSpec>> primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>> coefficientSpecs, const SampleOptions& options);
+    Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options, std::map<std::string, Parser::SizeSpec> primaryVars, std::map<std::string, Parser::SizeSpec> coefficientVars);
 public:
+    // A specification has the following forms:
+    // <literal-value> [: <max-occurrencens>]
+    // <variable-name> [= <literal-value>] [: <max-occurrencens>]
+    Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options);
     BindingContext& getBindingContext();
-    Sampler(std::string_view inputShape, std::string_view outputShape, const SampleOptions& options);
     // Returns a random path from the current node to a final node.
     std::vector<std::size_t> randomSubPathFromNode(ShapeNode& node, std::size_t depth);
 

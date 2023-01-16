@@ -57,12 +57,10 @@ R"(for (int i_1 = 0; i_1 < x_0; i_1++) {
 TEST(search_tests, sample) {
     SampleOptions options;
     options.seed = 42;
-    options.countPrimaryVariables = 4;
-    options.countCoefficientVariables = 5;
     options.depth = 2;
     options.dimLowerBound = 4;
     options.dimUpperBound = 8;
-    Sampler sampler("[H,W]", "[N,C,H,W]", options);
+    Sampler sampler("[H,W]", "[N,C,H,W]", {}, {"k_1", "s_1", "k_2", "s_2"}, options);
     auto& ctx = sampler.getBindingContext();
     auto callback = [&](TensorView& tensorView, Representation& repr) {
         std::cout << "Input Shape: ";

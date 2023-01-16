@@ -1,7 +1,10 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string>
+#include <utility>
+#include <variant>
 #include <vector>
 
 
@@ -11,7 +14,7 @@ class Parser {
 protected:
     enum class Token {
         Identifier, Integer,
-        Times, Power, Comma,
+        Times, Power, Comma, Colon, Equal,
         OpenBracket, CloseBracket,
         End,
     };
@@ -35,6 +38,25 @@ public:
     Parser(std::string_view buffer);
     std::vector<std::vector<Factor>> parseShape();
     std::vector<std::vector<std::vector<Factor>>> parseShapes();
+
+    struct PureSpec;
+    // For size specifications.
+    // <size> [: <int>]
+    struct SizeSpec {
+        using Quantity = std::variant<std::string, std::size_t, std::pair<std::string, std::size_t>>;
+        Quantity quantity;
+        std::optional<std::size_t> maxOccurrences;
+        std::optional<std::string> name() const;
+        PureSpec toPureSpec() const &;
+        PureSpec toPureSpec() &&;
+        bool operator==(const SizeSpec& other) const;
+    };
+    // Unnamed SizeSpec
+    struct PureSpec {
+        std::optional<std::size_t> size;
+        std::optional<std::size_t> maxOccurrences;
+    };
+    SizeSpec parseSizeSpec();
 };
 
 } // namespace kas

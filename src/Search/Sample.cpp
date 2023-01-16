@@ -13,23 +13,21 @@
 #include <utility>
 #include <vector>
 
+#include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Iterator.hpp"
+#include "KAS/Core/Parser.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/ShapeNode.hpp"
 #include "KAS/Transforms.hpp"
-#include "KAS/Transforms/Finalize.hpp"
-#include "KAS/Transforms/Share.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
 
 void SampleOptions::check() const {
-    KAS_ASSERT(countPrimaryVariables > 0);
-    KAS_ASSERT(countCoefficientVariables >= 0);
     KAS_ASSERT(depth >= 0);
     KAS_ASSERT(dimLowerBound >= 1);
     KAS_ASSERT(dimUpperBound >= dimLowerBound);
@@ -107,16 +105,67 @@ BindingContext& Sampler::getBindingContext() {
     return ctx;
 }
 
-Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const SampleOptions& options):
+Sampler::Sampler(std::vector<std::string> inputShape, std::vector<std::string> outputShape, std::vector<std::pair<std::string, Parser::PureSpec>> primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>> coefficientSpecs, const SampleOptions& options):
     rng { options.seed },
     options { options },
-    ctx { options.countPrimaryVariables, options.countCoefficientVariables },
+    ctx { primarySpecs.size(), coefficientSpecs.size() },
+    inputShape { [&]() {
+        ctx.applySpecs(primarySpecs, coefficientSpecs);
+        return ctx.getShapeFromNames(inputShape);
+    }() },
+    outputShape { ctx.getShapeFromNames(outputShape) },
     root { std::make_unique<IdentityShapeOp>() }
 {
     this->options.check();
-    this->outputShape = ctx.getShapeFromNames(Shape::parseNames(outputShape));
-    this->inputShape = ctx.getShapeFromNames(Shape::parseNames(inputShape));
 }
+
+namespace {
+    void parseSpecs(const std::vector<std::string>& specs, std::map<std::string, Parser::SizeSpec>& names, const char *prefix) {
+        std::size_t unnamed = 0;
+        for (const auto& spec: specs) {
+            auto result = Parser(spec).parseSizeSpec();
+            auto name = result.name();
+            if (name) {
+                names[*name] = std::move(result);
+            } else {
+                names[std::string(prefix) + std::to_string(unnamed++)] = std::move(result);
+            }
+        }
+    }
+    auto getShapeParsingCallback(std::map<std::string, Parser::SizeSpec>& primaryVars, const std::map<std::string, Parser::SizeSpec>& coefficientVars) {
+        return [&](const std::string& newName) {
+            if (!coefficientVars.contains(newName) && !primaryVars.contains(newName)) {
+                // We have to add a default spec for the name.
+                primaryVars[newName] = Parser::SizeSpec { .quantity = newName, .maxOccurrences = std::nullopt };
+            }
+        };
+    }
+    std::vector<std::pair<std::string, Parser::PureSpec>> contractSpecs(std::map<std::string, Parser::SizeSpec>& specs) {
+        std::vector<std::pair<std::string, Parser::PureSpec>> result;
+        for (auto&& [name, spec]: specs) {
+            result.emplace_back(name, std::move(spec).toPureSpec());
+        }
+        return result;
+    }
+}
+
+Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options, std::map<std::string, Parser::SizeSpec> primaryVars, std::map<std::string, Parser::SizeSpec> coefficientVars):
+    Sampler {
+        [&]() {
+            parseSpecs(primarySpecs, primaryVars, "x_");
+            parseSpecs(coefficientSpecs, coefficientVars, "c_");
+            return Shape::parseNames(inputShape, getShapeParsingCallback(primaryVars, coefficientVars));
+        }(),
+        Shape::parseNames(outputShape, getShapeParsingCallback(primaryVars, coefficientVars)),
+        contractSpecs(primaryVars),
+        contractSpecs(coefficientVars),
+        options,
+    }
+{}
+
+Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options):
+    Sampler { inputShape, outputShape, primarySpecs, coefficientSpecs, options, {}, {} }
+{}
 
 std::vector<std::size_t> Sampler::randomSubPathFromNode(ShapeNode& node, std::size_t depth) {
     std::vector<std::size_t> path;

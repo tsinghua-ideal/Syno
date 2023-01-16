@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <set>
 #include <span>
 #include <string>
 #include <tuple>
@@ -184,7 +185,18 @@ public:
 
     std::string toString(const BindingContext& ctx) const;
 
-    static std::vector<std::string> parseNames(std::string_view shape);
+    template<typename C = decltype([](const std::string&){})>
+    static std::vector<std::string> parseNames(std::string_view shape, C&& onNewName = C()) {
+        auto parsedShape = Parser(shape).parseShape();
+        std::vector<std::string> result;
+        for (auto& size: parsedShape) {
+            KAS_ASSERT(size.size() == 1 && size[0].second == 1);
+            std::string name = std::move(size[0].first);
+            onNewName(name);
+            result.emplace_back(std::move(name));
+        }
+        return result;
+    }
 };
 
 struct Allowance {

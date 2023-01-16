@@ -1,4 +1,6 @@
 #include <map>
+#include <optional>
+#include <vector>
 
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Shape.hpp"
@@ -8,7 +10,6 @@
 namespace kas {
 
 BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoefficient):
-    namedPrimaryCount { 0 },
     primaryMetadata(countPrimary),
     coefficientMetadata(countCoefficient) {
     for (std::size_t i = 0; i < countPrimary; ++i) {
@@ -73,28 +74,46 @@ std::vector<std::shared_ptr<Size>> BindingContext::getPositiveCoefficients() con
 
 Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
     using Metadata = BindingContext::Metadata;
-    std::map<std::string, std::size_t> nameToIndex;
-    for (std::size_t i = 0; i < namedPrimaryCount; ++i) {
+    std::map<std::string, std::size_t> pNameToIndex;
+    std::map<std::string, std::size_t> cNameToIndex;
+    for (std::size_t i = 0; i < getPrimaryCount(); ++i) {
         const auto& alias = primaryMetadata[i].alias;
-        nameToIndex[alias] = i;
+        pNameToIndex[alias] = i;
+    }
+    for (std::size_t i = 0; i < getCoefficientCount(); ++i) {
+        const auto& alias = coefficientMetadata[i].alias;
+        cNameToIndex[alias] = i;
     }
     std::vector<std::shared_ptr<Size>> result;
-    for (std::size_t i = 0; i < names.size(); ++i) {
-        const auto& name = names[i];
-        auto it = nameToIndex.find(name);
-        if (it == nameToIndex.end()) {
-            KAS_ASSERT(namedPrimaryCount < getPrimaryCount());
-            nameToIndex[name] = namedPrimaryCount;
-            primaryMetadata[namedPrimaryCount] = Metadata {
-                .alias = name,
-            };
-            result.emplace_back(getSinglePrimaryVariableSize(namedPrimaryCount));
-            ++namedPrimaryCount;
-        } else {
+    for (const auto& name: names) {
+        if (auto it = pNameToIndex.find(name); it != pNameToIndex.end())
             result.emplace_back(getSinglePrimaryVariableSize(it->second));
-        }
+        else if (auto it = cNameToIndex.find(name); it != cNameToIndex.end())
+            result.emplace_back(getSingleCoefficientVariableSize(it->second));
+        else
+            throw std::runtime_error("Unknown variable name: " + name);
     }
     return Shape { std::move(result) };
+}
+
+void BindingContext::applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs) {
+    for (std::size_t i = 0; i < primarySpecs.size(); ++i) {
+        auto& [name, spec] = primarySpecs[i];
+        primaryMetadata[i] = Metadata {
+            .alias = std::move(name),
+            .maximumOccurrence = spec.maxOccurrences.value_or(3),
+            .estimate = spec.size.value_or(128),
+        };
+    }
+    for (std::size_t i = 0; i < coefficientSpecs.size(); ++i) {
+        auto& [name, spec] = coefficientSpecs[i];
+        coefficientMetadata[i] = Metadata {
+            .alias = std::move(name),
+            .isOdd = spec.size.value_or(0) % 2 == 1,
+            .maximumOccurrence = spec.maxOccurrences.value_or(3),
+            .estimate = spec.size.value_or(3),
+        };
+    }
 }
 
 } // namespace kas
