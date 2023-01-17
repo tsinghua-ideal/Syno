@@ -1,15 +1,20 @@
 import os
 import torch
+import torch.utils.cpp_extension
+from torch import nn
 import kas_cpp_bindings
 from kas_cpp_bindings import Kernel
 
-class KernelPack:
+class KernelPack(nn.Module):
     def __init__(self, identifier: str, directory: str, name: str, size_params: list[int], inputs_shapes: list[list[int]], output_shape: list[int]):
+        super(KernelPack, self).__init__()
+
         srcs = []
         filenames = [os.path.join(directory, name + '.pytorch.h'), os.path.join(directory, name + '_grad.pytorch.h')]
         for filename in filenames:
             with open(filename) as file:
                 srcs.append(file.read())
+
         # JIT the compiled operator and load it.
         self._module = torch.utils.cpp_extension.load_inline(
             name=f'kas_{identifier}',
@@ -23,21 +28,28 @@ class KernelPack:
             with_cuda=True,
             verbose=True
         )
-        def forward(ctx, *args):
+
+        def kernel_forward(ctx, *args):
             out_forward = torch.empty(output_shape)
             self._module.forward(*size_params, *args, out_forward)
             ctx.save_for_backward(*args)
             return out_forward
-        def backward(ctx, grad_output):
+        def kernel_backward(ctx, grad_output):
             grad_inputs = [torch.empty(shape) for shape in inputs_shapes]
             self._module.backward(*size_params, *ctx.saved_tensors, grad_output, *grad_inputs)
             return grad_inputs
         # Create an operator.
-        self.KernelType = type(f'KASKernel{identifier}', (torch.autograd.Function,), {
-            'forward': staticmethod(forward),
-            'backward': staticmethod(backward),
+        self._Kernel = type(f'KASKernel{identifier}', (torch.autograd.Function,), {
+            'forward': staticmethod(kernel_forward),
+            'backward': staticmethod(kernel_backward),
         })
 
+        # Initialize weights. Note that the first item is the input.
+        self.weights = nn.ParameterList([torch.randn(shape) for shape in inputs_shapes[1:]])
+
+    def forward(self, x):
+        return self._Kernel.apply(x, *self.weights)
+
     def __del__(self):
-        del self.KernelType
+        del self._Kernel
         del self._module

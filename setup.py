@@ -4,6 +4,7 @@ setup(
     name="KAS",
     version="0.0.1",
     description="A loop-level kernel architechture search tool",
+    packages=["KAS"],
     cmake_source_dir=".",
     zip_safe=False,
     install_requires=['torch>=1.10.0'],
