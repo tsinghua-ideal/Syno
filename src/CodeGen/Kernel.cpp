@@ -7,10 +7,6 @@ std::string Kernel::toNestedLoops() const {
     return tensorView.printNestedLoops(ctx);
 }
 
-std::string Kernel::description() const {
-    return repr.description();
-}
-
 void Kernel::generate(const std::string& path, const std::string& name, HalideGen::Options options, const std::map<std::string, std::size_t>& estimates) {
     ctx.applyEstimates(estimates);
     gen.generate(path, name, options);

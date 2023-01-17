@@ -25,7 +25,7 @@ Shape UnfoldShapeOp::transformShapeInverse(const Shape& outputShape) const {
     return outputShape.replace({ outputOriginal, outputWindow }, { std::make_pair(input, outputShape[outputOriginal]) });
 }
 
-Representation::Transform UnfoldShapeOp::transformTensor(TensorView& tensor) const {
+void UnfoldShapeOp::transformTensor(TensorView& tensor) const {
     KAS_ASSERT(windowSize); // transformShapeInverse() must be called before this!
     auto inputIt = tensor[input];
     std::shared_ptr<SplitLikePrimitiveOp> op { new UnfoldOp { inputIt, std::weak_ptr<Iterator>(), std::weak_ptr<Iterator>() } };
@@ -34,7 +34,6 @@ Representation::Transform UnfoldShapeOp::transformTensor(TensorView& tensor) con
     op->childLhs = outputMajor;
     op->childRhs = outputMinor;
     tensor.replaceInterface({ input }, { std::make_pair(outputOriginal, std::move(outputMajor)), std::make_pair(outputWindow, std::move(outputMinor)) });
-    return PrimitiveShapeOp::transformTensor(tensor);
 }
 
 std::string UnfoldShapeOp::description() const {

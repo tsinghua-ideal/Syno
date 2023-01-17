@@ -27,9 +27,8 @@ TEST_F(codegen_tests, func) {
 }
 
 TEST_F(codegen_tests, generate) {
-    auto [sample, _, repr] = sampler.randomSample();
+    auto [sample, _] = sampler.randomSample();
     std::cout << sample.printNestedLoops(ctx);
-    std::cout << repr.description();
     HalideGen gen { ctx, sample };
     gen.generate("./kernel_1", "kernel_1", {
         .useGPU = false,
@@ -39,7 +38,7 @@ TEST_F(codegen_tests, generate) {
 
 TEST_F(codegen_tests, path) {
     ASSERT_EQ(sampler.isFinal({ 0 }), true);
-    auto [tensorView, cgCtx, repr] = sampler.realize({ 0 });
+    auto [tensorView, cgCtx] = sampler.realize({ 0 });
     HalideGen gen { ctx, tensorView };
     gen.generate("./kernel_2", "kernel_2", {
         .useGPU = false,

@@ -23,7 +23,7 @@ Shape SplitShapeOp::transformShapeInverse(const Shape& outputShape) const {
     });
 }
 
-Representation::Transform SplitShapeOp::transformTensor(TensorView& tensor) const {
+void SplitShapeOp::transformTensor(TensorView& tensor) const {
     auto inputIt = tensor[input];
     std::shared_ptr<SplitLikePrimitiveOp> op { new SplitOp { inputIt, std::weak_ptr<Iterator>(), std::weak_ptr<Iterator>() } };
     auto outputMajorIt = std::make_shared<Iterator>(IteratorTransform { op }, *inputIt->getSize() / *block);
@@ -34,7 +34,6 @@ Representation::Transform SplitShapeOp::transformTensor(TensorView& tensor) cons
         std::make_pair(outputMajor, std::move(outputMajorIt)),
         std::make_pair(outputMinor, std::move(outputMinorIt))
     });
-    return PrimitiveShapeOp::transformTensor(tensor);
 }
 
 std::string SplitShapeOp::description() const {

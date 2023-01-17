@@ -228,12 +228,14 @@ std::string TensorView::actualAccessToString(const BindingContext& ctx, const Co
     return ss.str();
 }
 
-std::vector<Shape> TensorView::getInputShapes() const {
-    std::vector<Shape> res;
+Shape TensorView::getFusedInputShapes() const {
+    std::vector<std::shared_ptr<Size>> sizes;
     for (const auto& tensor: tensors) {
-        res.emplace_back(tensor->getShapeRef());
+        for (const auto& size: tensor->getShapeRef().getSizes()) {
+            sizes.emplace_back(size);
+        }
     }
-    return res;
+    return Shape { std::move(sizes) };
 }
 
 Shape TensorView::getShape() const {

@@ -3,7 +3,6 @@
 #include <string>
 #include <vector>
 
-#include "KAS/Core/Representation.hpp"
 #include "KAS/Search/ShapeNode.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Transforms.hpp"
@@ -27,12 +26,8 @@ TEST(search_tests, shape_node) {
     ShapeNode& n3 = *p2.node;
     auto cgCtx = std::make_shared<CodeGenContext>();
     auto tensorView = TensorView { n3.shape, cgCtx };
-    Representation repr { ctx };
-    repr.addShape(n3.shape);
-    repr.addTransform(p2.shapeOp->transformTensor(tensorView));
-    repr.addShape(n2.shape);
-    repr.addTransform(p1.shapeOp->transformTensor(tensorView));
-    repr.addShape(n1.shape);
+    p2.shapeOp->transformTensor(tensorView);
+    p1.shapeOp->transformTensor(tensorView);
     tensorView.finishConstruction();
     tensorView.setDefaultInterfaceAccess();
     tensorView.evaluateTensorAccess();
@@ -51,7 +46,6 @@ R"(for (int i_1 = 0; i_1 < x_0; i_1++) {
     }
 }
 )");
-    ASSERT_EQ(repr.description(), "[x_0*x_1,x_0,x_0,x_1]\nMapReduce Identity Sum 0\n[x_0,x_0,x_1]\nShare 0, 1 -> 0\n[x_0,x_1]\n");
 }
 
 TEST(search_tests, sample) {
@@ -62,7 +56,7 @@ TEST(search_tests, sample) {
     options.dimUpperBound = 8;
     Sampler sampler("[H,W]", "[N,C,H,W]", {}, {"k_1", "s_1", "k_2", "s_2"}, options);
     auto& ctx = sampler.getBindingContext();
-    auto callback = [&](TensorView& tensorView, Representation& repr) {
+    auto callback = [&](TensorView& tensorView) {
         std::cout << "Input Shape: ";
         bool first = true;
         for (const auto& tensor: tensorView.getUnderlyingTensors()) {
@@ -75,13 +69,12 @@ TEST(search_tests, sample) {
         }
         std::cout << std::endl;
         std::cout << tensorView.printNestedLoops(ctx);
-        std::cout << repr.description();
     };
     for (int i = 0; i < 10; ++i) {
         auto path = sampler.randomPathWithPrefix({});
-        auto [sample, cgCtx, repr] = sampler.realize(path);
-        ASSERT_EQ(Shape::concat(sample.getInputShapes()).toString(ctx), sampler.visit(path).shape.toString(ctx));
-        callback(sample, repr);
+        auto [sample, cgCtx] = sampler.realize(path);
+        ASSERT_EQ(sample.getFusedInputShapes().toString(ctx), sampler.visit(path).shape.toString(ctx));
+        callback(sample);
     }
 }
 

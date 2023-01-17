@@ -218,13 +218,28 @@ std::size_t Sampler::countChildren(std::vector<std::size_t> path) {
     return node.children.size();
 }
 
-std::tuple<TensorView, std::shared_ptr<CodeGenContext>, Representation> Sampler::realize(std::vector<std::size_t> path) {
+std::string Sampler::nodeString(std::vector<std::size_t> path) {
+    return visit(path).shape.toString(ctx);
+}
+
+std::string Sampler::opString(std::vector<std::size_t> path) {
+    KAS_ASSERT(path.size() > 0);
+    auto last = path.back();
+    path.pop_back();
+    ShapeNode& node = visit(path);
+    auto& next = node.children[last];
+    if (next.node == nullptr) {
+        addNode(node.shape, path.size() + 1, next);
+    }
+    return node.children[last].shapeOp->description();
+}
+
+std::tuple<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(std::vector<std::size_t> path) {
     if (root.node == nullptr) {
         addNode(outputShape, 0, root);
     }
     std::shared_ptr<CodeGenContext> cgCtx;
-    Representation repr { ctx };
-    const auto recursion = [this, &path, &cgCtx, &repr](const auto& self, ShapeNode& current, std::size_t depth) -> TensorView {
+    const auto recursion = [this, &path, &cgCtx](const auto& self, ShapeNode& current, std::size_t depth) -> TensorView {
         if (depth >= path.size()) {
             if (!current.isFinal) {
                 throw std::runtime_error("When realizing a tensor, the path is not ending at a final node.");
@@ -236,7 +251,6 @@ std::tuple<TensorView, std::shared_ptr<CodeGenContext>, Representation> Sampler:
             auto weight = std::make_shared<PureTensor>(cgCtx->addTensor("weight"), weightS);
             // Start to build a view of this tensor.
             auto view = TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) };
-            repr.addShape(current.shape);
             return std::move(view);
         }
         // Follow the path.
@@ -245,18 +259,17 @@ std::tuple<TensorView, std::shared_ptr<CodeGenContext>, Representation> Sampler:
             addNode(current.shape, depth + 1, child);
         }
         TensorView result = self(self, *child.node, depth + 1);
-        repr.addTransform(child.shapeOp->transformTensor(result));
-        repr.addShape(current.shape);
+        child.shapeOp->transformTensor(result);
         return std::move(result);
     };
     TensorView result = recursion(recursion, *root.node, 0);
     result.finishConstruction();
     result.setDefaultInterfaceAccess();
     result.evaluateTensorAccess();
-    return std::make_tuple(std::move(result), std::move(cgCtx), std::move(repr));
+    return std::make_tuple(std::move(result), std::move(cgCtx));
 }
 
-std::tuple<TensorView, std::shared_ptr<CodeGenContext>, Representation> Sampler::randomSample() {
+std::tuple<TensorView, std::shared_ptr<CodeGenContext>> Sampler::randomSample() {
     return realize(randomPathWithPrefix({}));
 }
 

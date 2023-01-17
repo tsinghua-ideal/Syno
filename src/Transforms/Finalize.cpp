@@ -73,7 +73,7 @@ Shape FinalizeShapeOp::transformShapeInverse(const Shape& incomingOutputShape) c
     return Shape { inputShape };
 }
 
-Representation::Transform FinalizeShapeOp::transformTensor(TensorView& tensor) const {
+void FinalizeShapeOp::transformTensor(TensorView& tensor) const {
     std::vector<std::shared_ptr<Iterator>> newInterface(outputShape.size(), nullptr);
     std::vector<std::shared_ptr<Iterator>> groups(epilogue.outputGroups.size(), nullptr);
     // Add the remainder iterators.
@@ -114,7 +114,6 @@ Representation::Transform FinalizeShapeOp::transformTensor(TensorView& tensor) c
     }
     KAS_ASSERT(sanityCounter.size() == outputShape.size());
     tensor.interface = std::move(newInterface);
-    return PrimitiveShapeOp::transformTensor(tensor);
 }
 
 std::string FinalizeShapeOp::description() const {

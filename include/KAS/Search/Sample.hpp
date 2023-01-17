@@ -13,7 +13,6 @@
 
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Parser.hpp"
-#include "KAS/Core/Representation.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/ShapeNode.hpp"
@@ -65,8 +64,10 @@ public:
     std::vector<std::size_t> randomPathWithPrefix(std::vector<std::size_t> prefix);
     bool isFinal(std::vector<std::size_t> path);
     std::size_t countChildren(std::vector<std::size_t> path);
-    std::tuple<TensorView, std::shared_ptr<CodeGenContext>, Representation> realize(std::vector<std::size_t> path);
-    std::tuple<TensorView, std::shared_ptr<CodeGenContext>, Representation> randomSample();
+    std::string nodeString(std::vector<std::size_t> path);
+    std::string opString(std::vector<std::size_t> path);
+    std::tuple<TensorView, std::shared_ptr<CodeGenContext>> realize(std::vector<std::size_t> path);
+    std::tuple<TensorView, std::shared_ptr<CodeGenContext>> randomSample();
 };
 
 } // namespace kas

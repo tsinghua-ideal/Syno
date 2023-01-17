@@ -42,7 +42,6 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<Kernel>(m, "Kernel")
         .def("__repr__", &Kernel::toNestedLoops)
-        .def("description", &Kernel::description)
         .def("generate", &Kernel::generate)
         .def("get_arguments", &Kernel::getArguments)
         .def("get_inputs_shapes", &Kernel::getInputsShapes);
@@ -53,8 +52,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("is_final", &Sampler::isFinal)
         .def("count_children", &Sampler::countChildren)
         .def("realize", [](Sampler& self, std::vector<std::size_t> path) -> std::unique_ptr<Kernel> {
-            auto [tensorView, cgCtx, repr] = self.realize(path);
-            return std::make_unique<Kernel>(std::move(tensorView), self.getBindingContext(), std::move(cgCtx), std::move(repr));
+            auto [tensorView, cgCtx] = self.realize(path);
+            return std::make_unique<Kernel>(std::move(tensorView), self.getBindingContext(), std::move(cgCtx));
         });
 
 #ifdef VERSION_INFO

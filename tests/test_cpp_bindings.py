@@ -10,7 +10,6 @@ def test_sample():
     assert sampler.is_final([0])
     kernel = sampler.realize([0])
     cg_opt = CodeGenOptions(False, CodeGenOptions.AutoScheduler.Li2018)
-    print(kernel.description())
     kernel.generate("build/py_kernel_simple", "kernel", cg_opt, {"H": 2, "W": 2, "N": 2, "C": 2})
 
     # Load file
@@ -24,7 +23,7 @@ def test_sample():
         name='test_inline_ext',
         cpp_sources=srcs,
         functions=['kernel_th_', 'kernel_grad_th_'],
-        extra_cflags=['-Wno-implicit-function-declaration', '-std=c++17', '-g'],
+        extra_cflags=['-std=c++17', '-g'],
         extra_ldflags=[f' -L{os.getcwd()}/build/py_kernel_simple ',
                        ' -lcuda ',
                        ' -l:kernel.a '

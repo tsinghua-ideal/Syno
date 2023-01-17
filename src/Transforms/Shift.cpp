@@ -19,12 +19,11 @@ Shape ShiftShapeOp::transformShapeInverse(const Shape& outputShape) const {
     return outputShape;
 }
 
-Representation::Transform ShiftShapeOp::transformTensor(TensorView& tensor) const {
+void ShiftShapeOp::transformTensor(TensorView& tensor) const {
     auto inputIt = tensor[input];
     std::unique_ptr<RepeatLikePrimitiveOp> op { new ShiftOp { inputIt, shift } };
     auto outputIt = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, inputIt->getSize());
     tensor.replaceInterface({ input }, { std::make_pair(output, std::move(outputIt)) });
-    return PrimitiveShapeOp::transformTensor(tensor);
 }
 
 std::string ShiftShapeOp::description() const {

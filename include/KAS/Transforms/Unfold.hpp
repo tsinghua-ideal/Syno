@@ -16,7 +16,7 @@ public:
     mutable std::shared_ptr<Size> windowSize;
     UnfoldShapeOp(std::size_t input, std::size_t outputOriginal, std::size_t outputWindow);
     Shape transformShapeInverse(const Shape& outputShape) const override;
-    Representation::Transform transformTensor(TensorView& tensor) const override;
+    void transformTensor(TensorView& tensor) const override;
     std::string description() const override;
 
     struct GenerateOptions {

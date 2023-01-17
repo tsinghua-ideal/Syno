@@ -6,10 +6,6 @@
 
 namespace kas {
 
-Representation::Transform PrimitiveShapeOp::transformTensor(TensorView& tensor) const {
-    return description();
-}
-
 bool PrimitiveShapeOp::isFinalizeOp() const {
     return false;
 }
@@ -18,7 +14,7 @@ Shape IdentityShapeOp::transformShapeInverse(const Shape &outputShape) const {
     return outputShape; 
 }
 
-Representation::Transform IdentityShapeOp::transformTensor(TensorView& tensor) const {
+void IdentityShapeOp::transformTensor(TensorView& tensor) const {
     KAS_CRITICAL("The root node should not call this function.");
 }
 

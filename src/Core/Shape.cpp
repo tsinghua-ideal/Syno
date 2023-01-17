@@ -352,16 +352,6 @@ Size Shape::totalSize() const {
     return std::move(*Size::Product(sizes));
 }
 
-Shape Shape::concat(const std::vector<Shape>& shapes) {
-    std::vector<std::shared_ptr<Size>> sizes;
-    for (const auto& shape: shapes) {
-        for (const auto& size: shape.getSizes()) {
-            sizes.emplace_back(size);
-        }
-    }
-    return Shape(std::move(sizes));
-}
-
 Shape Shape::replace(
     std::vector<std::size_t> drops,
     std::vector<std::pair<std::size_t, std::shared_ptr<Size>>> adds
