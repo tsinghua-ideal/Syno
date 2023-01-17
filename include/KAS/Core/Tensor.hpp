@@ -64,7 +64,7 @@ class PureTensor: public Tensor {
 
 protected:
     std::size_t tensorId;
-    Shape shape;
+    const Shape shape;
 
     std::string printInnerLoops(const BindingContext& ctx, const CodeGenContext& cgCtx, std::size_t indent) const override;
 
@@ -79,6 +79,7 @@ public:
     void evaluateTensorAccess() override;
     std::string actualAccessToString(const BindingContext& ctx, const CodeGenContext& cgCtx) const override;
     Shape getShape() const override;
+    const Shape& getShapeRef() const;
     std::string shapeToString(const BindingContext& ctx) const override;
 };
 

@@ -49,7 +49,7 @@ public:
         std::optional<std::string> name() const;
         PureSpec toPureSpec() const &;
         PureSpec toPureSpec() &&;
-        bool operator==(const SizeSpec& other) const;
+        bool operator==(const SizeSpec& other) const = default;
     };
     // Unnamed SizeSpec
     struct PureSpec {

@@ -181,6 +181,15 @@ public:
         std::vector<std::pair<std::size_t, std::shared_ptr<Size>>> adds
     ) const;
 
+    template<typename ValueType, typename Tp, typename Tc>
+    std::vector<ValueType> eval(Tp&& p, Tc&& c) const {
+        std::vector<ValueType> result;
+        for (auto& size: sizes) {
+            result.emplace_back(size->eval<ValueType>(std::forward<Tp>(p), std::forward<Tc>(c)));
+        }
+        return result;
+    };
+
     std::vector<std::size_t> estimate(const BindingContext& ctx) const;
 
     std::string toString(const BindingContext& ctx) const;

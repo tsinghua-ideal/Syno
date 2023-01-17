@@ -266,12 +266,21 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
 
     Halide::Pipeline forwardPipeline(forwardFunc);
     forwardPipeline.apply_autoscheduler(target, params);
-    forwardPipeline.compile_to(flagsForModule(outputPath / funcName), forwardArgs, std::string(funcName), target);
+    auto forwardModule = forwardPipeline.compile_to_module(forwardArgs, std::string(funcName), target);
+    for (auto& f: forwardModule.functions()) {
+        // This is to solve the pytorch codegen bug, which generates internal functions as c codegen does not.
+        f.linkage = Halide::LinkageType::External;
+    }
+    forwardModule.compile(flagsForModule(outputPath / funcName));
 
     Halide::Pipeline backwardPipeline(backwardFuncs);
     backwardPipeline.apply_autoscheduler(target, params);
     std::string backwardName = std::string(funcName) + "_grad";
-    backwardPipeline.compile_to(flagsForModule(outputPath / backwardName), backwardArgs, backwardName, target);
+    auto backwardModule = backwardPipeline.compile_to_module(backwardArgs, backwardName, target);
+    for (auto& f: backwardModule.functions()) {
+        f.linkage = Halide::LinkageType::External;
+    }
+    backwardModule.compile(flagsForModule(outputPath / backwardName));
 }
 
 } // namespace kas

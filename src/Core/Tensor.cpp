@@ -87,6 +87,10 @@ Shape PureTensor::getShape() const {
     return shape;
 }
 
+const Shape& PureTensor::getShapeRef() const {
+    return shape;
+}
+
 std::string PureTensor::shapeToString(const BindingContext& ctx) const {
     return shape.toString(ctx);
 }
@@ -227,7 +231,7 @@ std::string TensorView::actualAccessToString(const BindingContext& ctx, const Co
 std::vector<Shape> TensorView::getInputShapes() const {
     std::vector<Shape> res;
     for (const auto& tensor: tensors) {
-        res.emplace_back(tensor->getShape());
+        res.emplace_back(tensor->getShapeRef());
     }
     return res;
 }

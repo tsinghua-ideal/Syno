@@ -1,9 +1,13 @@
 #pragma once
 
+#include <cstddef>
+#include <map>
+#include <utility>
+#include <vector>
+
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/Core/Representation.hpp"
 #include "KAS/Core/Tensor.hpp"
-#include <utility>
 
 
 namespace kas {
@@ -31,7 +35,11 @@ public:
 
     std::string description() const;
 
-    void generate(const std::string& path, const std::string& name, HalideGen::Options options);
+    void generate(const std::string& path, const std::string& name, HalideGen::Options options, const std::map<std::string, std::size_t>& estimates = {});
+
+    std::vector<std::size_t> getArguments(const std::map<std::string, std::size_t>& mappings) const;
+
+    std::vector<std::vector<std::size_t>> getInputsShapes(const std::map<std::string, std::size_t>& mappings) const;
 };
 
 } // namespace kas

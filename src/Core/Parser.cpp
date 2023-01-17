@@ -230,10 +230,6 @@ Parser::PureSpec Parser::SizeSpec::toPureSpec() && {
     return { std::nullopt, std::move(maxOccurrences) };
 }
 
-bool Parser::SizeSpec::operator==(const SizeSpec& other) const {
-    return quantity == other.quantity && maxOccurrences == other.maxOccurrences;
-}
-
 Parser::SizeSpec Parser::parseSizeSpec() {
     SizeSpec::Quantity size;
     if (current() == Token::Identifier) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <map>
 #include <span>
 #include <string>
 #include <vector>
@@ -31,6 +32,9 @@ protected:
     std::vector<Metadata> primaryMetadata;
     std::vector<Metadata> coefficientMetadata;
 
+    std::map<std::string, std::size_t> getPrimaryLookupTable() const;
+    std::map<std::string, std::size_t> getCoefficientLookupTable() const;
+
 public:
     BindingContext(std::size_t countPrimary, std::size_t countCoefficient);
     template<typename Tp, typename Tc>
@@ -56,6 +60,11 @@ public:
     Shape getShapeFromNames(const std::vector<std::string>& names);
     // This overwrites the current metadata.
     void applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs);
+    // Change the estimation of the values.
+    void applyEstimates(const std::map<std::string, std::size_t>& estimates);
+    // Get the arguments for calling.
+    std::vector<std::size_t> getKernelArguments(const std::map<std::string, std::size_t>& mappings) const;
+    std::vector<std::size_t> evaluateShape(const Shape& shape, const std::map<std::string, std::size_t>& mappings) const;
 };
 
 } // namespace kas

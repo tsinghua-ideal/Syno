@@ -43,13 +43,15 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
     pybind11::class_<Kernel>(m, "Kernel")
         .def("__repr__", &Kernel::toNestedLoops)
         .def("description", &Kernel::description)
-        .def("generate", &Kernel::generate);
+        .def("generate", &Kernel::generate)
+        .def("get_arguments", &Kernel::getArguments)
+        .def("get_inputs_shapes", &Kernel::getInputsShapes);
 
     pybind11::class_<Sampler>(m, "Sampler")
         .def(pybind11::init<std::string, std::string, std::vector<std::string>, std::vector<std::string>, SampleOptions>())
-        .def("randomPathWithPrefix", &Sampler::randomPathWithPrefix)
-        .def("isFinal", &Sampler::isFinal)
-        .def("countChildren", &Sampler::countChildren)
+        .def("random_path_with_prefix", &Sampler::randomPathWithPrefix)
+        .def("is_final", &Sampler::isFinal)
+        .def("count_children", &Sampler::countChildren)
         .def("realize", [](Sampler& self, std::vector<std::size_t> path) -> std::unique_ptr<Kernel> {
             auto [tensorView, cgCtx, repr] = self.realize(path);
             return std::make_unique<Kernel>(std::move(tensorView), self.getBindingContext(), std::move(cgCtx), std::move(repr));

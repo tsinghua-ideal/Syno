@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <map>
 #include <optional>
 #include <vector>
@@ -8,6 +9,24 @@
 
 
 namespace kas {
+
+namespace {
+    std::map<std::string, std::size_t> GetLookupTable(const std::vector<BindingContext::Metadata>& metadata) {
+        std::map<std::string, std::size_t> lookupTable;
+        for (std::size_t i = 0; i < metadata.size(); ++i) {
+            lookupTable[metadata[i].alias] = i;
+        }
+        return lookupTable;
+    }
+}
+
+std::map<std::string, std::size_t> BindingContext::getPrimaryLookupTable() const {
+    return GetLookupTable(primaryMetadata);
+}
+
+std::map<std::string, std::size_t> BindingContext::getCoefficientLookupTable() const {
+    return GetLookupTable(coefficientMetadata);
+}
 
 BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoefficient):
     primaryMetadata(countPrimary),
@@ -73,17 +92,8 @@ std::vector<std::shared_ptr<Size>> BindingContext::getPositiveCoefficients() con
 }
 
 Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
-    using Metadata = BindingContext::Metadata;
-    std::map<std::string, std::size_t> pNameToIndex;
-    std::map<std::string, std::size_t> cNameToIndex;
-    for (std::size_t i = 0; i < getPrimaryCount(); ++i) {
-        const auto& alias = primaryMetadata[i].alias;
-        pNameToIndex[alias] = i;
-    }
-    for (std::size_t i = 0; i < getCoefficientCount(); ++i) {
-        const auto& alias = coefficientMetadata[i].alias;
-        cNameToIndex[alias] = i;
-    }
+    std::map<std::string, std::size_t> pNameToIndex = getPrimaryLookupTable();
+    std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();
     std::vector<std::shared_ptr<Size>> result;
     for (const auto& name: names) {
         if (auto it = pNameToIndex.find(name); it != pNameToIndex.end())
@@ -114,6 +124,47 @@ void BindingContext::applySpecs(std::vector<std::pair<std::string, Parser::PureS
             .estimate = spec.size.value_or(3),
         };
     }
+}
+
+void BindingContext::applyEstimates(const std::map<std::string, std::size_t>& estimates) {
+    std::map<std::string, std::size_t> pNameToIndex = getPrimaryLookupTable();
+    std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();
+    for (const auto& [name, estimate]: estimates) {
+        if (auto it = pNameToIndex.find(name); it != pNameToIndex.end())
+            primaryMetadata[it->second].estimate = estimate;
+        else if (auto it = cNameToIndex.find(name); it != cNameToIndex.end())
+            coefficientMetadata[it->second].estimate = estimate;
+        else
+            throw std::runtime_error("Unknown variable name: " + name);
+    }
+}
+
+namespace {
+    void shadowNames(const std::map<std::string, std::size_t>& mappings, std::vector<std::size_t>& shadowed, const std::vector<BindingContext::Metadata>& metadata) {
+        for (const auto& m: metadata) {
+            if (auto it = mappings.find(m.alias); it != mappings.end())
+                shadowed.emplace_back(it->second);
+            else
+                shadowed.emplace_back(m.estimate);
+        }
+    }
+}
+
+std::vector<std::size_t> BindingContext::getKernelArguments(const std::map<std::string, std::size_t>& mappings) const {
+    std::vector<std::size_t> result;
+    shadowNames(mappings, result, primaryMetadata);
+    shadowNames(mappings, result, coefficientMetadata);
+    return result;
+}
+
+std::vector<std::size_t> BindingContext::evaluateShape(const Shape& shape, const std::map<std::string, std::size_t>& mappings) const {
+    std::vector<std::size_t> shadowedPrimary, shadowedCoefficient;
+    shadowNames(mappings, shadowedPrimary, primaryMetadata);
+    shadowNames(mappings, shadowedCoefficient, coefficientMetadata);
+    return shape.eval<std::size_t>(
+        [&](std::size_t i) { return shadowedPrimary[i]; },
+        [&](std::size_t i) { return shadowedCoefficient[i]; }
+    );
 }
 
 } // namespace kas
