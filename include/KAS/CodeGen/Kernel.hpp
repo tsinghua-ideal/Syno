@@ -35,6 +35,8 @@ public:
     std::vector<std::size_t> getArguments(const std::map<std::string, std::size_t>& mappings) const;
 
     std::vector<std::vector<std::size_t>> getInputsShapes(const std::map<std::string, std::size_t>& mappings) const;
+
+    std::vector<std::size_t> getOutputShape(const std::map<std::string, std::size_t>& mappings) const;
 };
 
 } // namespace kas

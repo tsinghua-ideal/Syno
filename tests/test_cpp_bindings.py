@@ -14,7 +14,7 @@ def test_sample():
 
     # Load file
     srcs = []
-    for filename in ['build/py_kernel_simple/kernel.h', 'build/py_kernel_simple/kernel.pytorch.h', 'build/py_kernel_simple/kernel_grad.h', 'build/py_kernel_simple/kernel_grad.pytorch.h']:
+    for filename in ['build/py_kernel_simple/kernel.pytorch.h', 'build/py_kernel_simple/kernel_grad.pytorch.h']:
         with open(filename) as file:
             srcs.append(file.read())
 
@@ -34,7 +34,7 @@ def test_sample():
 
     kernel_args = kernel.get_arguments({})
     inputs_shapes = kernel.get_inputs_shapes({})
-    # Tthe first item is the real input. The other are weights.
+    # The first item is the real input. The other are weights.
     inputs = [torch.randn(s) for s in inputs_shapes]
     output_tensor = torch.randn((2, 2, 2, 2))
 

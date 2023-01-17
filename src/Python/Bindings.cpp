@@ -28,10 +28,10 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         pybind11::arg("depth") = 4,
         pybind11::arg("dim_lower") = 1,
         pybind11::arg("dim_upper") = 8)
-        .def_readwrite("seed", &SampleOptions::seed)
-        .def_readwrite("depth", &SampleOptions::depth)
-        .def_readwrite("dim_lower", &SampleOptions::dimLowerBound)
-        .def_readwrite("dim_upper", &SampleOptions::dimUpperBound);
+        .def_readonly("seed", &SampleOptions::seed)
+        .def_readonly("depth", &SampleOptions::depth)
+        .def_readonly("dim_lower", &SampleOptions::dimLowerBound)
+        .def_readonly("dim_upper", &SampleOptions::dimUpperBound);
 
     pybind11::class_<HalideGen::Options> cgOpts(m, "CodeGenOptions");
     pybind11::enum_<HalideGen::Options::AutoScheduler>(cgOpts, "AutoScheduler")
@@ -44,13 +44,16 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("__repr__", &Kernel::toNestedLoops)
         .def("generate", &Kernel::generate)
         .def("get_arguments", &Kernel::getArguments)
-        .def("get_inputs_shapes", &Kernel::getInputsShapes);
+        .def("get_inputs_shapes", &Kernel::getInputsShapes)
+        .def("get_output_shape", &Kernel::getOutputShape);
 
     pybind11::class_<Sampler>(m, "Sampler")
         .def(pybind11::init<std::string, std::string, std::vector<std::string>, std::vector<std::string>, SampleOptions>())
         .def("random_path_with_prefix", &Sampler::randomPathWithPrefix)
         .def("is_final", &Sampler::isFinal)
         .def("count_children", &Sampler::countChildren)
+        .def("node_str", &Sampler::nodeString)
+        .def("op_str", &Sampler::opString)
         .def("realize", [](Sampler& self, std::vector<std::size_t> path) -> std::unique_ptr<Kernel> {
             auto [tensorView, cgCtx] = self.realize(path);
             return std::make_unique<Kernel>(std::move(tensorView), self.getBindingContext(), std::move(cgCtx));

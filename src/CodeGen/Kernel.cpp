@@ -24,4 +24,8 @@ std::vector<std::vector<std::size_t>> Kernel::getInputsShapes(const std::map<std
     return result;
 }
 
+std::vector<std::size_t> Kernel::getOutputShape(const std::map<std::string, std::size_t>& mappings) const {
+    return ctx.evaluateShape(tensorView.getShape(), mappings);
+}
+
 } // namespace kas
