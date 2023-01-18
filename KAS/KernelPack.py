@@ -16,10 +16,12 @@ class KernelPack(nn.Module):
                 srcs.append(file.read())
 
         # JIT the compiled operator and load it.
+        forward_name = f'{name}_th_'
+        backward_name = f'{name}_grad_th_'
         self._module = torch.utils.cpp_extension.load_inline(
             name=f'kas_{identifier}',
             cpp_sources=srcs,
-            functions=[f'{name}_th_', f'{name}_grad_th_'],
+            functions=[forward_name, backward_name],
             extra_cflags=['-std=c++17', '-g'],
             extra_ldflags=[f' -L{os.path.abspath(directory)} ',
                         ' -lcuda ',
@@ -31,12 +33,12 @@ class KernelPack(nn.Module):
 
         def kernel_forward(ctx, *args):
             out_forward = torch.empty(output_shape)
-            self._module.forward(*size_params, *args, out_forward)
+            getattr(self._module, forward_name)(*size_params, *args, out_forward)
             ctx.save_for_backward(*args)
             return out_forward
         def kernel_backward(ctx, grad_output):
             grad_inputs = [torch.empty(shape) for shape in inputs_shapes]
-            self._module.backward(*size_params, *ctx.saved_tensors, grad_output, *grad_inputs)
+            getattr(self._module, backward_name)(*size_params, *ctx.saved_tensors, grad_output, *grad_inputs)
             return grad_inputs
         # Create an operator.
         self._Kernel = type(f'KASKernel{identifier}', (torch.autograd.Function,), {

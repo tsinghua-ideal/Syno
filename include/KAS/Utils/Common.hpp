@@ -53,7 +53,7 @@ template<class CharT, class Traits>
     ConsoleError() << ConsoleColors::red;
     ConsoleError() << "Assert error (" << file << ":" << line << "): " << statement;
     ConsoleError() << ConsoleColors::reset << std::endl;
-    std::abort();
+    throw std::runtime_error("KAS assertion failed!");
 }
 
 [[noreturn]] [[maybe_unused]] static void UnimplementedImpl(int line, const char* file) {

@@ -1,5 +1,7 @@
-#include <gtest/gtest.h>
 #include <iostream>
+#include <string>
+
+#include <gtest/gtest.h>
 
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/Core/BindingContext.hpp"
@@ -27,13 +29,15 @@ TEST_F(codegen_tests, func) {
 }
 
 TEST_F(codegen_tests, generate) {
-    auto [sample, _] = sampler.randomSample();
-    std::cout << sample.printNestedLoops(ctx);
-    HalideGen gen { ctx, sample };
-    gen.generate("./kernel_1", "kernel_1", {
-        .useGPU = false,
-        .scheduler = HalideGen::Options::AutoScheduler::Li2018
-    });
+    for (int i = 0; i < 3; ++i) {
+        auto [sample, _] = sampler.randomSample();
+        std::cout << sample.printNestedLoops(ctx);
+        HalideGen gen { ctx, sample };
+        gen.generate("./kernel_1_" + std::to_string(i), "kernel_1_" + std::to_string(i), {
+            .useGPU = false,
+            .scheduler = HalideGen::Options::AutoScheduler::Mullapudi2016
+        });
+    }
 }
 
 TEST_F(codegen_tests, path) {

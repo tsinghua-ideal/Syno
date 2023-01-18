@@ -56,6 +56,8 @@ TEST(search_tests, sample) {
     options.dimUpperBound = 8;
     Sampler sampler("[H,W]", "[N,C,H,W]", {}, {"k_1", "s_1", "k_2", "s_2"}, options);
     auto& ctx = sampler.getBindingContext();
+    ASSERT_EQ(ctx.getPrimaryCount(), 4);
+    ASSERT_EQ(ctx.getCoefficientCount(), 4);
     auto callback = [&](TensorView& tensorView) {
         std::cout << "Input Shape: ";
         bool first = true;
