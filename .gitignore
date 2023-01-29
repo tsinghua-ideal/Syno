@@ -225,5 +225,8 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# VSCode files
+/.vscode/
+
 # Generated kernels
 /save/

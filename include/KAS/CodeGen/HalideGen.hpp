@@ -19,6 +19,7 @@ namespace kas {
 
 class HalideGen: public IteratorValueVisitor {
     FRIEND_TEST(codegen_tests, func);
+    friend class transforms_tests;
 
     static bool AutoSchedulerLoaded;
 

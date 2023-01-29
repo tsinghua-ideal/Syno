@@ -1,2 +1,2 @@
 #!/bin/sh
-cloc --exclude-dir=.cache,.pytest_cache,build,KAS.egg-info .
+cloc --exclude-dir=.cache,.pytest_cache,.vscode,build,KAS.egg-info .
