@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <ranges>
@@ -27,7 +28,7 @@ std::vector<T> ReplaceVector(
         std::size_t dropIndex = 0;
         int nextDrop = drops[dropIndex];
         for (std::size_t i = 0; i < vec.size(); ++i) {
-            if (nextDrop == i) {
+            if (static_cast<std::size_t>(nextDrop) == i) {
                 ++dropIndex;
                 if (dropIndex < drops.size()) {
                     nextDrop = drops[dropIndex];

@@ -174,7 +174,7 @@ std::vector<Parser::Factor> Parser::parseSize() {
             consume(Token::Times);
             factors.emplace_back(parseBaseAndPower());
         }
-        return std::move(factors);
+        return factors;
     } else if (current() == Token::Integer) {
         int value = parseInteger();
         if (value != 1) {
@@ -190,7 +190,7 @@ std::vector<std::vector<Parser::Factor>> Parser::parseCommaSeparatedSizes() {
         consume(Token::Comma);
         sizes.emplace_back(parseSize());
     }
-    return std::move(sizes);
+    return sizes;
 }
 
 std::vector<std::vector<Parser::Factor>> Parser::parseShape() {
@@ -200,7 +200,7 @@ std::vector<std::vector<Parser::Factor>> Parser::parseShape() {
         sizes = parseCommaSeparatedSizes();
     }
     consume(Token::CloseBracket);
-    return std::move(sizes);
+    return sizes;
 }
 
 std::optional<std::string> Parser::SizeSpec::name() const {

@@ -21,7 +21,7 @@ public:
 
     struct GenerateOptions {
         const BindingContext& ctx;
-        int dimLowerBound;
+        std::size_t dimLowerBound;
     };
     static std::vector<std::unique_ptr<UnfoldShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
 };

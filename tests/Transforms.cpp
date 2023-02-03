@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -75,7 +76,7 @@ protected:
             params.set(param, static_cast<int>(coeffcientDim));
         }
         auto inputBuffer = Halide::Buffer<float, InputDimensions>(std::vector<int>(inputDimensions, inputDimensions + InputDimensions));
-        inputBuffer.for_each_element(inputInitializer(inputBuffer));
+        inputBuffer.for_each_element(std::bind_front(inputInitializer, std::ref(inputBuffer)));
         input.set(inputBuffer);
         func.compute_root();
         Halide::Buffer<float, OutputDimensions> outputBuffer = func.realize(std::vector<int>(outputDimensions, outputDimensions + OutputDimensions), Halide::get_host_target(), params);
@@ -102,9 +103,9 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     auto [input, func, outputBuffer] = realize(
         tensorView, 4, 2,
         {4, 4, 4, 8},
-        [](auto&& buf) { return [&](int i, int j, int k, int l) {
-                buf(i, j, k, l) = 4 * i + j;
-        }; },
+        [](auto&& buf, int i, int j, int k, int l) {
+            buf(i, j, k, l) = 4 * i + j;
+        },
         {4, 4, 8}
     );
     ASSERT_EQ(input.dimensions(), 4);
@@ -141,9 +142,9 @@ R"(for (int i_1 = 0; i_1 < H; i_1++) {
     auto [input, func, outputBuffer] = realize(
         tensorView, 4, 2,
         {16, 4, 4, 8},
-        [](auto&& buf) { return [&](int i, int j, int k, int l) {
-                buf(i, j, k, l) = 32 * j + 8 * k + l + i;
-        }; },
+        [](auto&& buf, int i, int j, int k, int l) {
+            buf(i, j, k, l) = 32 * j + 8 * k + l + i;
+        },
         {4, 4, 8}
     );
     ASSERT_EQ(input.dimensions(), 4);
@@ -176,9 +177,9 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     auto [input, func, outputBuffer] = realize(
         tensorView, 4, 2,
         {4, 4, 8},
-        [](auto&& buf) { return [&](int i, int j, int k) {
-                buf(i, j, k) = 32 * i + 8 * j + k;
-        }; },
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = 32 * i + 8 * j + k;
+        },
         {4, 4, 8}
     );
     ASSERT_EQ(input.dimensions(), 3);

@@ -28,7 +28,6 @@
 namespace kas {
 
 void SampleOptions::check() const {
-    KAS_ASSERT(depth >= 0);
     KAS_ASSERT(dimLowerBound >= 1);
     KAS_ASSERT(dimUpperBound >= dimLowerBound);
 }
@@ -107,8 +106,8 @@ BindingContext& Sampler::getBindingContext() {
 
 Sampler::Sampler(std::vector<std::string> inputShape, std::vector<std::string> outputShape, std::vector<std::pair<std::string, Parser::PureSpec>> primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>> coefficientSpecs, const SampleOptions& options):
     rng { options.seed },
-    options { options },
     ctx { primarySpecs.size(), coefficientSpecs.size() },
+    options { options },
     inputShape { [&]() {
         ctx.applySpecs(primarySpecs, coefficientSpecs);
         return ctx.getShapeFromNames(inputShape);
@@ -251,7 +250,7 @@ std::tuple<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(std::ve
             auto weight = std::make_shared<PureTensor>(cgCtx->addTensor("weight"), weightS);
             // Start to build a view of this tensor.
             auto view = TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) };
-            return std::move(view);
+            return view;
         }
         // Follow the path.
         auto& child = current.children.at(path[depth]);
@@ -260,7 +259,7 @@ std::tuple<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(std::ve
         }
         TensorView result = self(self, *child.node, depth + 1);
         child.shapeOp->transformTensor(result);
-        return std::move(result);
+        return result;
     };
     TensorView result = recursion(recursion, *root.node, 0);
     result.finishConstruction();

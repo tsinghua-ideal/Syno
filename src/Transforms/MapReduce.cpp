@@ -53,7 +53,7 @@ std::vector<std::unique_ptr<MapReduceShapeOp>> MapReduceShapeOp::generate(const 
     std::map<std::size_t, std::size_t> primaryAllowance;
     for (std::size_t i = 0; i < primaryCount; ++i) {
         // Observe that in the sampling process, the primary variables are generated only by MapReduce. So we can limit it with maximumOccurrence.
-        if (primary[i] < primaryMeta[i].maximumOccurrence) {
+        if (static_cast<std::size_t>(primary[i]) < primaryMeta[i].maximumOccurrence) {
             primaryAllowance[i] = primaryMeta[i].maximumOccurrence - static_cast<std::size_t>(primary[i]);
         }
     }

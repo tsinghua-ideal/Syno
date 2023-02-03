@@ -20,7 +20,7 @@ namespace kas {
 
 struct Size {
     friend class BindingContext;
-    friend class LabeledSize;
+    friend struct LabeledSize;
     friend class HalideGen;
 
 public:
@@ -67,12 +67,14 @@ public:
             for (std::size_t i = 0; i < cnt; ++i) {
                 if (powers[i] > 0) {
                     const ValueType v = f(i);
-                    for (std::size_t j = 0; j < powers[i]; ++j) {
+                    auto power = static_cast<std::size_t>(powers[i]);
+                    for (std::size_t j = 0; j < power; ++j) {
                         nominator *= v;
                     }
                 } else if (powers[i] < 0) {
                     const ValueType v = f(i);
-                    for (std::size_t j = 0; j < -powers[i]; ++j) {
+                    auto power = static_cast<std::size_t>(-powers[i]);
+                    for (std::size_t j = 0; j < power; ++j) {
                         denominator *= v;
                     }
                 }

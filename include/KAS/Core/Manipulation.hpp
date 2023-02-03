@@ -40,9 +40,9 @@ public:
     static std::string_view what(ReduceType);
 
 protected:
+    std::shared_ptr<Iterator> iterator;
     MapType mapType;
     ReduceType reduceType;
-    std::shared_ptr<Iterator> iterator;
 
 public:
     // Illegal. Must be set before use.

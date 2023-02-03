@@ -225,13 +225,13 @@ std::string Size::toString(const BindingContext& ctx) const {
 }
 
 LabeledSize::LabeledSize(std::size_t primaryCount, std::size_t coefficientCount):
-    trait { Trait::One },
-    Size { primaryCount, coefficientCount }
+    Size { primaryCount, coefficientCount },
+    trait { Trait::One }
 {}
 
 LabeledSize::LabeledSize(const Size& size):
-    trait { size.getTrait() },
-    Size { size }
+    Size { size },
+    trait { size.getTrait() }
 {}
 
 LabeledSize LabeledSize::identity() const {
@@ -385,7 +385,7 @@ Allowance::Allowance(const Size& shape, const BindingContext& ctx):
     const std::size_t primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
     for (std::size_t i = 0; i < primaryCount; ++i) {
         // Observe that in the sampling process, the primary variables are generated only by MapReduce. So we can limit it with maximumOccurrence.
-        if (primary[i] < primaryMeta[i].maximumOccurrence) {
+        if (static_cast<std::size_t>(primary[i]) < primaryMeta[i].maximumOccurrence) {
             this->primary[i] = primaryMeta[i].maximumOccurrence - static_cast<std::size_t>(primary[i]);
         }
     }

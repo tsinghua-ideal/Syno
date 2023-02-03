@@ -24,9 +24,9 @@ struct SampleOptions {
 public:
     using Seed = std::mt19937::result_type;
     Seed seed = 42;
-    int depth = 4;
-    int dimLowerBound = 1;
-    int dimUpperBound = 8;
+    std::size_t depth = 4;
+    std::size_t dimLowerBound = 1;
+    std::size_t dimUpperBound = 8;
     void check() const;
 };
 

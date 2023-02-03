@@ -143,6 +143,7 @@ std::string TensorView::printInnerLoops(const BindingContext& ctx, const CodeGen
 }
 
 TensorView::TensorView(std::vector<std::shared_ptr<PureTensor>> tensors, std::shared_ptr<CodeGenContext> cgCtx):
+    Tensor { std::vector<std::shared_ptr<IteratorValue>> {} },
     interface { [&tensors]() -> std::vector<std::shared_ptr<Iterator>> {
         std::vector<std::shared_ptr<Iterator>> res;
         for (const auto& tensor : tensors) {
@@ -152,9 +153,8 @@ TensorView::TensorView(std::vector<std::shared_ptr<PureTensor>> tensors, std::sh
         return res;
     }() },
     manipulations {},
-    cgCtx { std::move(cgCtx) },
     tensors { std::move(tensors) },
-    Tensor { std::vector<std::shared_ptr<IteratorValue>> {} }
+    cgCtx { std::move(cgCtx) }
 {}
 
 TensorView::TensorView(const Shape& shape, std::shared_ptr<CodeGenContext> cgCtx):

@@ -16,7 +16,7 @@
 namespace kas {
 
 class Iterator;
-class IteratorValue;
+struct IteratorValue;
 class Tensor: public std::enable_shared_from_this<Tensor> {
     friend class HalideGen;
     friend class TensorView;

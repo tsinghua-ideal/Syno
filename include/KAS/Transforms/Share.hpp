@@ -19,7 +19,7 @@ public:
 
     struct GenerateOptions {
         const BindingContext& ctx;
-        int dimUpperBound;
+        std::size_t dimUpperBound;
     };
     static std::vector<std::unique_ptr<ShareShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
 };

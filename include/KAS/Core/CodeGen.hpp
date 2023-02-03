@@ -51,7 +51,7 @@ public:
 };
 
 class IteratorValueVisitor;
-class BinaryOpValueNode;
+struct BinaryOpValueNode;
 
 struct IteratorValue: public std::enable_shared_from_this<IteratorValue> {
     virtual void accept(IteratorValueVisitor& visitor) = 0;

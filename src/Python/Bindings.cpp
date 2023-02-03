@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -16,7 +17,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
     using namespace kas;
 
     pybind11::class_<SampleOptions>(m, "SampleOptions")
-        .def(pybind11::init([](SampleOptions::Seed seed, int depth, int dimLowerBound, int dimUpperBound) {
+        .def(pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound) {
             return SampleOptions {
                 .seed = seed,
                 .depth = depth,

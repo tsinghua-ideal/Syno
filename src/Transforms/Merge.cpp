@@ -60,7 +60,7 @@ std::vector<std::unique_ptr<MergeShapeOp>> MergeShapeOp::generate(const Shape& o
                     if (canBeDivided.has_value() && canBeDivided.value() != Size::Trait::One) {
                         res.emplace_back(std::make_unique<MergeShapeOp>(i, i + 1, i, primaryRes));
                     }
-                    for (int coefficientIndex = 0; coefficientIndex < coefficientCount; ++coefficientIndex) {
+                    for (std::size_t coefficientIndex = 0; coefficientIndex < coefficientCount; ++coefficientIndex) {
                         std::size_t coefficientDim = coefficient[coefficientIndex];
                         if (coefficientDim != 0) {
                             auto coefRes = std::make_shared<Size>(*primaryRes);

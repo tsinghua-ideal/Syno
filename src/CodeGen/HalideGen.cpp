@@ -146,12 +146,12 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
         }
         using ReduceType = Manipulation::ReduceType;
         switch (m.reduceType) {
-        case Manipulation::ReduceType::Sum:     newTemp(tempAccess) = Halide::sum(tempValue); break;
-        case Manipulation::ReduceType::Max:     newTemp(tempAccess) = Halide::maximum(tempValue); break;
-        case Manipulation::ReduceType::Mean:    newTemp(tempAccess) = Halide::sum(tempValue) / Halide::cast<float>(evaluate(m.getIterator()->getSize())); break;
-        case Manipulation::ReduceType::Min:     newTemp(tempAccess) = Halide::minimum(tempValue); break;
-        case Manipulation::ReduceType::Product: newTemp(tempAccess) = Halide::product(tempValue); break;
-        case Manipulation::ReduceType::ReduceTypeCount: KAS_CRITICAL("Invalid reduce type"); break;
+        case ReduceType::Sum:     newTemp(tempAccess) = Halide::sum(tempValue); break;
+        case ReduceType::Max:     newTemp(tempAccess) = Halide::maximum(tempValue); break;
+        case ReduceType::Mean:    newTemp(tempAccess) = Halide::sum(tempValue) / Halide::cast<float>(evaluate(m.getIterator()->getSize())); break;
+        case ReduceType::Min:     newTemp(tempAccess) = Halide::minimum(tempValue); break;
+        case ReduceType::Product: newTemp(tempAccess) = Halide::product(tempValue); break;
+        case ReduceType::ReduceTypeCount: KAS_CRITICAL("Invalid reduce type"); break;
         }
         temp = std::move(newTemp);
     }

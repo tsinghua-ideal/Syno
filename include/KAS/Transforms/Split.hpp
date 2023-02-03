@@ -19,7 +19,7 @@ public:
     std::string description() const override;
 
     struct GenerateOptions {
-        int dimLowerBound;
+        std::size_t dimLowerBound;
     };
     static std::vector<std::unique_ptr<SplitShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
 };
