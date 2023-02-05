@@ -10,7 +10,7 @@ from .Placeholder import Placeholder
 
 
 class Sampler:
-    def __init__(self, input_shape: str, output_shape: str, primary_specs: list[str], coefficient_specs: list[str], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, save_path: str = './save', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.Li2018):
+    def __init__(self, input_shape: str, output_shape: str, primary_specs: list[str], coefficient_specs: list[str], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, save_path: str = './save', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot):
         options = kas_cpp_bindings.SampleOptions(
             seed=seed,
             depth=depth,

@@ -246,6 +246,23 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
+    auto [input, func, outputBuffer] = realize(
+        tensorView, 4, 2,
+        {2, 4, 4, 4},
+        [](auto&& buf, int i, int j, int k, int l) {
+            buf(i, j, k, l) = 4 * i + j;
+        },
+        {4, 4, 8}
+    );
+    ASSERT_EQ(input.dimensions(), 4);
+    ASSERT_EQ(func.dimensions(), 3);
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 8; k++) {
+                ASSERT_EQ(outputBuffer(i, j, k), k);
+            }
+        }
+    }
 }
 
 TEST_F(transforms_tests, split) {
@@ -264,12 +281,32 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
+    auto [input, func, outputBuffer] = realize(
+        tensorView, 4, 2,
+        {16, 8},
+        [](auto&& buf, int i, int j) {
+            buf(i, j) = i;
+        },
+        {4, 4, 8}
+    );
+    ASSERT_EQ(input.dimensions(), 2);
+    ASSERT_EQ(func.dimensions(), 3);
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 8; k++) {
+                ASSERT_EQ(outputBuffer(i, j, k), 4 * i + j);
+            }
+        }
+    }
 }
 
 TEST_F(transforms_tests, finalize) {
     Shape outputShape { std::vector<std::shared_ptr<Size>> { *(*sizeH * *sizeW) / *sizeC, *sizeC * *sizeW } };
     Shape desired { std::vector<std::shared_ptr<Size>> { sizeH, sizeW } };
-    FinalizeShapeOp finalizeOp(outputShape, desired, FinalizeShapeOp::Epilogue { { 0, 0 }, { { 0, 1 } } });
+    FinalizeShapeOp finalizeOp(outputShape, desired, FinalizeShapeOp::Epilogue {
+        { 0, 0 }, // Map the inputs H and W to group 0
+        { { 0, 1 } }, // Group 0 consists of c^-1*H*W and c*W
+    });
     auto [tensorView, cgCtx] = applyOp(finalizeOp, outputShape);
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[c^-1*H*W,c*W]");
@@ -293,6 +330,21 @@ R"(for (int i_0 = 0; i_0 < c^-1*H*W; i_0++) {
     }
 }
 )");
+    auto [input, func, outputBuffer] = realize(
+        tensorView, 4, 2,
+        {4, 4, 4},
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = k * 16 + i * 4 + j;
+        },
+        {8, 8}
+    );
+    ASSERT_EQ(input.dimensions(), 3);
+    ASSERT_EQ(func.dimensions(), 2);
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 8; j++) {
+            ASSERT_EQ(outputBuffer(i, j), 8 * i + j);
+        }
+    }
 }
 
 TEST_F(transforms_tests, finalize_gen) {

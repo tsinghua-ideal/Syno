@@ -215,27 +215,25 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
 
     auto target = GetTarget(options.useGPU);
     auto ext = Halide::Internal::get_output_info(target);
-    const auto flagsForModule = [&ext](std::filesystem::path filename) -> std::map<Halide::OutputFileType, std::string> { 
-        using FileType = Halide::OutputFileType;
-        return {
-            {FileType::stmt, filename.replace_extension(ext.at(FileType::stmt).extension)},
-            {FileType::static_library, filename.replace_extension(ext.at(FileType::static_library).extension)},
-            {FileType::pytorch_wrapper, filename.replace_extension(ext.at(FileType::pytorch_wrapper).extension)},
-        };
-    };
     if (!AutoSchedulerLoaded) {
         Halide::load_plugin("autoschedule_mullapudi2016");
         Halide::load_plugin("autoschedule_li2018");
         Halide::load_plugin("autoschedule_adams2019");
         AutoSchedulerLoaded = true;
     }
-    std::string scheduler;
-    switch (options.scheduler) {
-    case Options::AutoScheduler::Mullapudi2016: scheduler = "Mullapudi2016";    break;
-    case Options::AutoScheduler::Li2018:        scheduler = "Li2018";           break;
-    case Options::AutoScheduler::Adams2019:     scheduler = "Adams2019";        break;
+    std::optional<Halide::AutoschedulerParams> params;
+    using Scheduler = Options::AutoScheduler;
+    const bool computeRoot = options.scheduler == Scheduler::ComputeRoot;
+    if (!computeRoot) {
+        std::string scheduler;
+        switch (options.scheduler) {
+        case Scheduler::Mullapudi2016:  scheduler = "Mullapudi2016";    break;
+        case Scheduler::Li2018:         scheduler = "Li2018";           break;
+        case Scheduler::Adams2019:      scheduler = "Adams2019";        break;
+        case Scheduler::ComputeRoot:    KAS_UNREACHABLE();
+        }
+        params = { scheduler };
     }
-    std::filesystem::create_directories(outputPath);
 
     auto [forwardInputs, forwardFunc] = createFunc(funcName);
     auto [backwardInputs, backwardFuncs] = createFuncGrad(funcName);
@@ -262,19 +260,38 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
     std::copy(forwardInputs.begin(), forwardInputs.end(), std::back_inserter(forwardArgs));
     std::copy(backwardInputs.begin(), backwardInputs.end(), std::back_inserter(backwardArgs));
 
-    Halide::AutoschedulerParams params(scheduler);
+    if (computeRoot) {
+        forwardFunc.compute_root();
+        for (auto& func: backwardFuncs) {
+            func.compute_root();
+        }
+    }
 
-    Halide::Pipeline forwardPipeline(forwardFunc);
-    forwardPipeline.apply_autoscheduler(target, params);
+    const auto flagsForModule = [&ext](std::filesystem::path filename) -> std::map<Halide::OutputFileType, std::string> {
+        using FileType = Halide::OutputFileType;
+        return {
+            {FileType::stmt, filename.replace_extension(ext.at(FileType::stmt).extension)},
+            {FileType::static_library, filename.replace_extension(ext.at(FileType::static_library).extension)},
+            {FileType::pytorch_wrapper, filename.replace_extension(ext.at(FileType::pytorch_wrapper).extension)},
+        };
+    };
+
+    Halide::Pipeline forwardPipeline { forwardFunc };
+    if (!computeRoot) {
+        forwardPipeline.apply_autoscheduler(target, params.value());
+    }
     auto forwardModule = forwardPipeline.compile_to_module(forwardArgs, std::string(funcName), target);
     for (auto& f: forwardModule.functions()) {
         // This is to solve the pytorch codegen bug, which generates internal functions as c codegen does not.
         f.linkage = Halide::LinkageType::External;
     }
+    std::filesystem::create_directories(outputPath);
     forwardModule.compile(flagsForModule(outputPath / funcName));
 
     Halide::Pipeline backwardPipeline(backwardFuncs);
-    backwardPipeline.apply_autoscheduler(target, params);
+    if (!computeRoot) {
+        backwardPipeline.apply_autoscheduler(target, params.value());
+    }
     std::string backwardName = std::string(funcName) + "_grad";
     auto backwardModule = backwardPipeline.compile_to_module(backwardArgs, backwardName, target);
     for (auto& f: backwardModule.functions()) {

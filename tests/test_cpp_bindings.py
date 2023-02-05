@@ -1,3 +1,4 @@
+import logging
 from kas_cpp_bindings import *
 import torch
 import torch.utils.cpp_extension
@@ -9,7 +10,7 @@ def test_sample():
     print(sampler.random_path_with_prefix([]))
     assert sampler.is_final([0])
     kernel = sampler.realize([0])
-    cg_opt = CodeGenOptions(False, CodeGenOptions.AutoScheduler.Li2018)
+    cg_opt = CodeGenOptions(False, CodeGenOptions.AutoScheduler.ComputeRoot)
     kernel.generate("build/py_kernel_simple", "kernel", cg_opt, {"H": 2, "W": 2, "N": 2, "C": 2})
 
     # Load file
@@ -43,3 +44,7 @@ def test_sample():
     print(' * '.join([str(input_tensor) for input_tensor in inputs]), '=', output_tensor)
     computed = torch.einsum('ij, kl -> ijkl', *inputs)
     assert torch.isclose(output_tensor, computed).all()
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    test_sample()

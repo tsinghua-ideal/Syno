@@ -47,6 +47,7 @@ std::string FinalizeShapeOp::Epilogue::toDebugString(const BindingContext& ctx, 
 Shape FinalizeShapeOp::transformShapeInverse(const Shape& incomingOutputShape) const {
     KAS_ASSERT(desired.size() == epilogue.desiredInputToGroupId.size());
     KAS_ASSERT(outputShape == incomingOutputShape);
+    KAS_ASSERT(weightRemainderInputToGroupId.empty(), "FinalizeShapeOp is supposed to fill up remainders, but it already contains {} sizes.", weightRemainderInputToGroupId.size());
     // First, the desired input constitute the frontmost dimensions.
     std::vector<std::shared_ptr<Size>> inputShape(desired.getSizes());
     // Next, we would like to compute if the groups has excessive size.

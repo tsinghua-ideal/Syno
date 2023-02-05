@@ -17,7 +17,7 @@ class Model(nn.Module):
         return x
 
 def test_sampler():
-    sampler = Sampler("[H,W]", "[N,C,H,W]", [], ["s_1=2", "s_2=2"], depth=2, autoscheduler=CodeGenOptions.AutoScheduler.Mullapudi2016)
+    sampler = Sampler("[H,W]", "[N,C,H,W]", [], ["s_1=2", "s_2=2"], depth=2, autoscheduler=CodeGenOptions.AutoScheduler.ComputeRoot)
 
     net = Model()
     path = sampler.sample(net)
