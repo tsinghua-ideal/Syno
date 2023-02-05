@@ -12,10 +12,12 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-add_compile_options(-Wall)
-
 # Includes and libraries
 include_directories(include)
+
+# fmtlib
+find_package(fmt REQUIRED)
+link_libraries(fmt::fmt)
 
 # Halide
 find_package(Halide REQUIRED)

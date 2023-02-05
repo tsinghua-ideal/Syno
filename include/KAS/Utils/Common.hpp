@@ -1,87 +1,78 @@
 #pragma once
 
-#include <cassert>
+#include <fmt/core.h>
 #include <iostream>
-#include <memory>
-#include <string>
-#include <string_view>
 
+#define KAS_ASSERT(expr, ...) ((expr) ? ((void)(0)) : ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE_NAME__, __LINE__, "Assertion failed: " #expr __VA_OPT__(,) __VA_ARGS__))
+
+#define KAS_WARNING(...) ::kas::detail::FormatAndLog<::kas::detail::ConsoleType::Out, ::kas::detail::ColorType::Green>(__FILE_NAME__, __LINE__, "Warning" __VA_OPT__(,) __VA_ARGS__)
+#define KAS_UNREACHABLE(...) ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE_NAME__, __LINE__, "Unreachable" __VA_OPT__(,) __VA_ARGS__)
+#define KAS_CRITICAL(...) ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE_NAME__, __LINE__, "Error" __VA_OPT__(,) __VA_ARGS__)
 
 namespace kas {
 
-#define KAS_ASSERT(expr) ((expr) ? ((void)(0)) : kas::AssertImpl(__LINE__, __FILE_NAME__, #expr))
+namespace detail {
 
-#define KAS_CRITICAL(info) kas::CriticalImpl(__LINE__, __FILE_NAME__, info)
-#define KAS_UNIMPLEMENTED() kas::UnimplementedImpl(__LINE__, __FILE_NAME__)
-#define KAS_UNREACHABLE() kas::UnreachableImpl(__LINE__, __FILE_NAME__)
-#define KAS_WARNING(info) kas::WarningImpl(__LINE__, __FILE_NAME__, info)
-#define KAS_WORKING_IN_PROGRESS() kas::WorkingInProgressImpl(__LINE__, __FILE_NAME__)
-
-class [[maybe_unused]] ConsoleColors {
-public:
-    [[maybe_unused]] static constexpr std::string_view reset = "\033[0m";
-    [[maybe_unused]] static constexpr std::string_view black = "\033[30m";
-    [[maybe_unused]] static constexpr std::string_view red = "\033[31m";
-    [[maybe_unused]] static constexpr std::string_view green = "\033[32m";
-    [[maybe_unused]] static constexpr std::string_view yellow = "\033[33m";
-    [[maybe_unused]] static constexpr std::string_view blue = "\033[34m";
-    [[maybe_unused]] static constexpr std::string_view white = "\033[37m";
-    [[maybe_unused]] static constexpr std::string_view clear = "\033[2K\r";
+enum class ColorType {
+    Reset,
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    White,
+    Clear,
 };
+template<ColorType>
+[[maybe_unused]] static constexpr const char *ConsoleColor = "\033[0m";
+template<> [[maybe_unused]] constexpr inline const char *ConsoleColor<ColorType::Reset> = "\033[0m";
+template<> [[maybe_unused]] constexpr inline const char *ConsoleColor<ColorType::Black> = "\033[30m";
+template<> [[maybe_unused]] constexpr inline const char *ConsoleColor<ColorType::Red> = "\033[31m";
+template<> [[maybe_unused]] constexpr inline const char *ConsoleColor<ColorType::Green> = "\033[32m";
+template<> [[maybe_unused]] constexpr inline const char *ConsoleColor<ColorType::Yellow> = "\033[33m";
+template<> [[maybe_unused]] constexpr inline const char *ConsoleColor<ColorType::Blue> = "\033[34m";
+template<> [[maybe_unused]] constexpr inline const char *ConsoleColor<ColorType::White> = "\033[37m";
+template<> [[maybe_unused]] constexpr inline const char *ConsoleColor<ColorType::Clear> = "\033[2K\r";
 
+enum class ConsoleType {
+    Out,
+    Error,
+};
 // May change to a class structure to record logs
-[[nodiscard]] static inline std::ostream& Console() {
-    return std::cout;
+template<ConsoleType consoleType>
+[[maybe_unused]] static constexpr std::ostream& Console = std::cout;
+template<> [[maybe_unused]] constexpr inline std::ostream& Console<ConsoleType::Out> = std::cout;
+template<> [[maybe_unused]] constexpr inline std::ostream& Console<ConsoleType::Error> = std::cerr;
+
+template<ConsoleType consoleType, ColorType consoleColor, typename... Args>
+static inline void FormatAndLog(const char *fileName, int line, const char *caption, fmt::format_string<Args...> format, Args&&... args) {
+    constexpr auto& console = Console<consoleType>;
+    console << ConsoleColor<consoleColor>;
+    console << caption << fmt::format(" ({}:{}): ", fileName, line) << std::endl;
+    console << fmt::format(format, std::forward<Args>(args)...) << std::endl;
+    console << ConsoleColor<ColorType::Reset>;
 }
 
-[[nodiscard]] static inline std::ostream& ConsoleError() {
-    return std::cerr;
+template<ConsoleType consoleType, ColorType consoleColor>
+static inline void FormatAndLog(const char *fileName, int line, const char *caption) {
+    constexpr auto& console = Console<consoleType>;
+    console << ConsoleColor<consoleColor>;
+    console << caption << fmt::format(" ({}:{})", fileName, line) << std::endl;
+    console << ConsoleColor<ColorType::Reset>;
 }
 
-template<class CharT, class Traits>
-[[nodiscard]] static inline auto& Endl(std::basic_ostream<CharT, Traits>& os) {
-    return std::endl(os);
+template<ConsoleType consoleType, ColorType consoleColor, typename... Args>
+[[noreturn]] static inline void FormatAndLogAndThrow(const char *fileName, int line, const char *caption, fmt::format_string<Args...> format, Args&&... args) {
+    FormatAndLog<consoleType, consoleColor>(fileName, line, caption, format, std::forward<Args>(args)...);
+    throw std::runtime_error(caption);
 }
 
-[[maybe_unused]] static void WarningImpl(int line, const char* file, std::string_view info) {
-    Console() << ConsoleColors::green;
-    Console() << "Warning (" << file << ":" << line << "):" << std::endl;
-    Console() << " " << info << ConsoleColors::reset << std::endl;
+template<ConsoleType consoleType, ColorType consoleColor>
+[[noreturn]] static inline void FormatAndLogAndThrow(const char *fileName, int line, const char *caption) {
+    FormatAndLog<consoleType, consoleColor>(fileName, line, caption);
+    throw std::runtime_error(caption);
 }
 
-[[noreturn]] [[maybe_unused]] static void AssertImpl(int line, const char* file, std::string_view statement) {
-    ConsoleError() << ConsoleColors::red;
-    ConsoleError() << "Assert error (" << file << ":" << line << "): " << statement;
-    ConsoleError() << ConsoleColors::reset << std::endl;
-    throw std::runtime_error("KAS assertion failed!");
-}
-
-[[noreturn]] [[maybe_unused]] static void UnimplementedImpl(int line, const char* file) {
-    ConsoleError() << ConsoleColors::red;
-    ConsoleError() << "Unimplemented (" << file << ":" << line << ")";
-    ConsoleError() << ConsoleColors::reset << std::endl;
-    std::exit(EXIT_FAILURE);
-}
-
-[[noreturn]] [[maybe_unused]] static void WorkingInProgressImpl(int line, const char* file) {
-    ConsoleError() << ConsoleColors::red;
-    ConsoleError() << "Working in progress (" << file << ":" << line << ")";
-    ConsoleError() << ConsoleColors::reset << std::endl;
-    std::exit(EXIT_FAILURE);
-}
-
-[[noreturn]] [[maybe_unused]] static void UnreachableImpl(int line, const char* file) {
-    ConsoleError() << ConsoleColors::red;
-    ConsoleError() << "Unreachable (" << file << ":" << line << ")";
-    ConsoleError() << ConsoleColors::reset << std::endl;
-    std::exit(EXIT_FAILURE);
-}
-
-[[noreturn]] [[maybe_unused]] static void CriticalImpl(int line, const char* file, std::string_view info) {
-    ConsoleError() << ConsoleColors::red;
-    ConsoleError() << "Error (" << file << ":" << line << "):" << std::endl;
-    ConsoleError() << "  " << info << ConsoleColors::reset << std::endl;
-    std::exit(EXIT_FAILURE);
-}
+} // namespace detail
 
 } // namespace kas
