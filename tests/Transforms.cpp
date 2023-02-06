@@ -59,10 +59,10 @@ protected:
     template<std::size_t InputDimensions, std::size_t OutputDimensions>
     HalideEssentials<OutputDimensions> realize(
         const TensorView& tensorView,
-        std::size_t primaryDim, std::size_t coeffcientDim,
-        const int(&inputDimensions)[InputDimensions],
+        std::size_t primaryDim, std::size_t coefficientDim,
+        const int (&inputDimensions)[InputDimensions],
         auto&& inputInitializer,
-        const int(&outputDimensions)[OutputDimensions]
+        const int (&outputDimensions)[OutputDimensions]
     ) const {
         HalideGen gen(ctx, tensorView);
         auto [inputs, func] = gen.createFunc("semantic_test");
@@ -73,7 +73,7 @@ protected:
             params.set(param, static_cast<int>(primaryDim));
         }
         for (auto& param: gen.coefficientConsts) {
-            params.set(param, static_cast<int>(coeffcientDim));
+            params.set(param, static_cast<int>(coefficientDim));
         }
         auto inputBuffer = Halide::Buffer<float, InputDimensions>(std::vector<int>(inputDimensions, inputDimensions + InputDimensions));
         inputBuffer.for_each_element(std::bind_front(inputInitializer, std::ref(inputBuffer)));

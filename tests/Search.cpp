@@ -1,13 +1,18 @@
+#include <map>
 #include <memory>
-#include <gtest/gtest.h>
+#include <ranges>
 #include <string>
 #include <vector>
 
-#include "KAS/Search/ShapeNode.hpp"
+#include <fmt/ranges.h>
+#include <gtest/gtest.h>
+
+#include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Transforms.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Sample.hpp"
+#include "KAS/Search/ShapeNode.hpp"
+#include "KAS/Transforms.hpp"
 
 
 namespace kas {
@@ -58,25 +63,34 @@ TEST(search_tests, sample) {
     auto& ctx = sampler.getBindingContext();
     ASSERT_EQ(ctx.getPrimaryCount(), 4);
     ASSERT_EQ(ctx.getCoefficientCount(), 4);
-    auto callback = [&](TensorView& tensorView) {
-        std::cout << "Input Shape: ";
-        bool first = true;
-        for (const auto& tensor: tensorView.getUnderlyingTensors()) {
-            if (first) {
-                first = false;
-            } else {
-                std::cout << ", ";
-            }
-            std::cout << tensor->shapeToString(ctx);
-        }
-        std::cout << std::endl;
-        std::cout << tensorView.printNestedLoops(ctx);
-    };
     for (int i = 0; i < 10; ++i) {
         auto path = sampler.randomPathWithPrefix({});
-        auto [sample, cgCtx] = sampler.realize(path);
-        ASSERT_EQ(sample.getFusedInputShapes().toString(ctx), sampler.visit(path).shape.toString(ctx));
-        callback(sample);
+        auto [tensorView, cgCtx] = sampler.realize(path);
+        ASSERT_EQ(tensorView.getFusedInputShapes().toString(ctx), sampler.visit(path).shape.toString(ctx));
+
+        auto r = tensorView.getUnderlyingTensors() | std::ranges::views::transform([&](const auto& tensor) { return tensor->shapeToString(ctx); });
+        std::cout << fmt::format("Input Shape: {}", fmt::join(r, ", ")) << std::endl;
+        std::cout << tensorView.printNestedLoops(ctx);
+
+        constexpr int dimH = 16, dimW = 16, dimN = 16, dimC = 16, dimK1 = 3, dimS1 = 2, dimK2 = 3, dimS2 = 2;
+        HalideGen gen(ctx, tensorView);
+        auto [inputs, func] = gen.createFunc("search_codegen_test");
+        ASSERT_EQ(inputs.size(), 2);
+        auto& input = inputs[0], & weight = inputs[1];
+        std::map<std::string, std::size_t> dict { { "H", dimH }, { "W", dimW }, { "N", dimN }, { "C", dimC }, { "k_1", dimK1 }, { "s_1", dimS1 }, { "k_2", dimK2 }, { "s_2", dimS2 } };
+        auto getInputsShape = [&](int i) -> std::vector<std::size_t> {
+            return ctx.evaluateShape(tensorView.getUnderlyingTensors()[i]->getShapeRef(), dict);
+        };
+        auto inputShape = getInputsShape(0), weightShape = getInputsShape(1);
+        auto expectedInputShape = std::vector<std::size_t> {dimH, dimW};
+        ASSERT_EQ(inputShape, expectedInputShape);
+        Halide::ParamMap params = gen.getParamMap(dict);
+        auto inputBuffer = Halide::Buffer<float, 2>(std::vector<int> {dimH, dimW});
+        input.set(inputBuffer);
+        auto weightBuffer = Halide::Buffer<float>(std::vector<int>(weightShape.begin(), weightShape.end()));
+        weight.set(weightBuffer);
+        func.compute_root();
+        Halide::Buffer<float, 4> outputBuffer = func.realize({dimN, dimC, dimH, dimW}, Halide::get_host_target(), params);
     }
 }
 

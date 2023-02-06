@@ -300,4 +300,17 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
     backwardModule.compile(flagsForModule(outputPath / backwardName));
 }
 
+Halide::ParamMap HalideGen::getParamMap(const std::map<std::string, std::size_t>& mappings) const {
+    Halide::ParamMap params;
+    for (std::size_t i = 0; i < primaryConsts.size(); ++i) {
+        auto alias = ctx.getPrimaryAlias(i);
+        params.set(primaryConsts[i], static_cast<int>(mappings.at(std::string(alias))));
+    }
+    for (std::size_t i = 0; i < coefficientConsts.size(); ++i) {
+        auto alias = ctx.getCoefficientAlias(i);
+        params.set(coefficientConsts[i], static_cast<int>(mappings.at(std::string(alias))));
+    }
+    return params;
+}
+
 } // namespace kas

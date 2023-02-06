@@ -19,6 +19,7 @@ namespace kas {
 
 class HalideGen: public IteratorValueVisitor {
     FRIEND_TEST(codegen_tests, func);
+    FRIEND_TEST(search_tests, sample);
     friend class transforms_tests;
 
     static bool AutoSchedulerLoaded;
@@ -68,6 +69,8 @@ public:
     };
 
     void generate(std::filesystem::path outputPath, std::string_view funcName, Options options);
+    // Requires all variables to be assigned.
+    Halide::ParamMap getParamMap(const std::map<std::string, std::size_t>& mappings) const;
 };
 
 } // namespace kas
