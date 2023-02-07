@@ -76,6 +76,8 @@ Halide::Region HalideGen::evaluate(const Shape& shape) {
     for (const auto& s: shape.getSizes()) {
         region.emplace_back(0, evaluate(s));
     }
+    // Because Halide uses column-major, we need to reverse the order of indices.
+    std::ranges::reverse(region);
     return region;
 }
 
@@ -86,9 +88,13 @@ void HalideGen::evaluateAccess() {
     for (std::size_t i: cgCtx.outerLoopIterators) {
         outerLoops.emplace_back(vars.at(i));
     }
+    // Adapt to column-major layout.
+    std::ranges::reverse(outerLoops);
     for (const auto& m: tensorView.manipulations) {
         reduceLoops.emplace_back(vars.at(m.iteratorVariableId));
     }
+    // Adapt to column-major layout.
+    std::ranges::reverse(reduceLoops);
     const auto& tensors = tensorView.getUnderlyingTensors();
     for (std::size_t inputId = 0; inputId < tensors.size(); ++inputId) {
         const auto& tensor = tensors[inputId];
@@ -96,6 +102,8 @@ void HalideGen::evaluateAccess() {
         for (std::size_t i = 0; i < tensor->shape.size(); ++i) {
             indices.emplace_back(evaluate(*tensor->access.at(i)));
         }
+        // Adapt to column-major layout.
+        std::ranges::reverse(indices);
         tensorIndices.emplace_back(std::move(indices));
     }
     accessEvaluated = true;
@@ -114,21 +122,23 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
     }
     Halide::Expr rhs = 1.0f;
     for (std::size_t inputId = 0; inputId < tensors.size(); ++inputId) {
+        // Here for simplicity and to avoid out of bound errors (still not sure why this happens), use zero padding. Need better solution. TODO
+        Halide::Func wrappedInput = Halide::BoundaryConditions::constant_exterior(inputs[inputId], 0, evaluate(tensors[inputId]->getShapeRef()));
         // Add support for other arithmetic operations. TODO
-        rhs *= inputs[inputId](tensorIndices.at(inputId));
+        rhs *= wrappedInput(tensorIndices.at(inputId));
     }
 
-    std::vector<Halide::Var> tempAccess(outerLoops);
-    std::copy(reduceLoops.rbegin(), reduceLoops.rend(), std::back_inserter(tempAccess));
+    // tempAccess = [...reversed reduce loops, ...reversed outer loops], to adapt to column major Halide.
+    std::vector<Halide::Var> tempAccess(reduceLoops);
+    std::ranges::copy(outerLoops, std::back_inserter(tempAccess));
     Halide::Func temp;
     temp(tempAccess) = rhs;
     for(const auto& m: tensorView.manipulations) {
         Halide::Func newTemp;
         Halide::RDom r(0, evaluate(m.getIterator()->getSize()));
-        tempAccess.pop_back();
-        std::vector<Halide::Expr> reduceAccess;
-        std::copy(tempAccess.begin(), tempAccess.end(), std::back_inserter(reduceAccess));
-        reduceAccess.emplace_back(r);
+        tempAccess.erase(tempAccess.begin());
+        std::vector<Halide::Expr> reduceAccess { r };
+        std::ranges::copy(tempAccess, std::back_inserter(reduceAccess));
         Halide::Expr tempValue = temp(reduceAccess);
         using MapType = Manipulation::MapType;
         switch (m.mapType) {
@@ -177,11 +187,13 @@ std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> HalideGen:
     return { std::move(input), std::move(gradFuncs) };
 }
 
-Halide::Region HalideGen::ShapeEstimateToRegion(const std::vector<std::size_t>& estimate) {
+Halide::Region HalideGen::ConcreteShapeToRegion(const std::vector<std::size_t>& shape) {
     Halide::Region region;
-    for (std::size_t i = 0; i < estimate.size(); ++i) {
-        region.emplace_back(0, static_cast<int>(estimate[i]));
+    for (auto dim: shape) {
+        region.emplace_back(0, static_cast<int>(dim));
     }
+    // Because Halide uses column-major, we need to reverse the order of indices.
+    std::ranges::reverse(region);
     return region;
 }
 
@@ -242,12 +254,12 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
     KAS_ASSERT(backwardFuncs.size() == tensors.size());
     for (std::size_t i = 0; i < tensors.size(); ++i) {
         const auto& tensor = tensors[i];
-        auto est = ShapeEstimateToRegion(tensor->shape.estimate(ctx));
+        auto est = ConcreteShapeToRegion(tensor->shape.estimate(ctx));
         forwardInputs[i].set_estimates(est);
         backwardInputs[i].set_estimates(est);
         backwardFuncs[i].set_estimates(est);
     }
-    auto outputShapeEst = ShapeEstimateToRegion(tensorView.getShape().estimate(ctx));
+    auto outputShapeEst = ConcreteShapeToRegion(tensorView.getShape().estimate(ctx));
     forwardFunc.set_estimates(outputShapeEst);
     backwardInputs.back().set_estimates(outputShapeEst);
 

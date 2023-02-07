@@ -48,6 +48,9 @@ TEST(core_tests, tensor) {
     auto sizeC = ctx.getSingleCoefficientVariableSize(0);
     ASSERT_EQ(sizeC->toString(ctx), "c_0");
     auto shape = Shape { std::vector<std::shared_ptr<Size>> { sizeH, sizeW, sizeC } };
+    auto [shape1, shape2] = shape.cut<2>({1, 2});
+    ASSERT_EQ(shape1.toString(ctx), "[x_0]");
+    ASSERT_EQ(shape2.toString(ctx), "[x_1,c_0]");
     auto cgCtx = std::make_shared<CodeGenContext>();
     auto tensor = std::make_shared<PureTensor>(cgCtx->addTensor("t"), shape);
     auto tensorView = TensorView { { tensor }, cgCtx };

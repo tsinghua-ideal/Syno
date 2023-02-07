@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <fmt/core.h>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -21,6 +22,7 @@
 #include "KAS/Transforms/Finalize.hpp"
 #include "KAS/Transforms/Share.hpp"
 #include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/Functional.hpp"
 
 
 namespace kas {
@@ -53,16 +55,16 @@ protected:
     struct HalideEssentials {
         Halide::ImageParam input;
         Halide::Func func;
-        Halide::Buffer<float, OutputDimensions> outputBuffer;
+        HalideGen::BufferAdaptor<float, OutputDimensions> outputBuffer;
     };
 
     template<std::size_t InputDimensions, std::size_t OutputDimensions>
     HalideEssentials<OutputDimensions> realize(
         const TensorView& tensorView,
         std::size_t primaryDim, std::size_t coefficientDim,
-        const int (&inputDimensions)[InputDimensions],
+        const int (&rawInputDimensions)[InputDimensions],
         auto&& inputInitializer,
-        const int (&outputDimensions)[OutputDimensions]
+        const int (&rawOutputDimensions)[OutputDimensions]
     ) const {
         HalideGen gen(ctx, tensorView);
         auto [inputs, func] = gen.createFunc("semantic_test");
@@ -75,12 +77,17 @@ protected:
         for (auto& param: gen.coefficientConsts) {
             params.set(param, static_cast<int>(coefficientDim));
         }
-        auto inputBuffer = Halide::Buffer<float, InputDimensions>(std::vector<int>(inputDimensions, inputDimensions + InputDimensions));
-        inputBuffer.for_each_element(std::bind_front(inputInitializer, std::ref(inputBuffer)));
+        std::span<const int, InputDimensions> inputDimensions(rawInputDimensions);
+        // Give special care to the column-major layout.
+        auto inputBuffer = Halide::Buffer<float, InputDimensions>(std::vector<int>(inputDimensions.rbegin(), inputDimensions.rend()));
+        auto proxy = HalideGen::BufferAdaptor<float, InputDimensions>(std::move(inputBuffer));
+        proxy.content.for_each_element(ReverseArguments<InputDimensions>(std::bind_front(inputInitializer, std::ref(proxy))));
+        inputBuffer = std::move(proxy.content);
         input.set(inputBuffer);
         func.compute_root();
-        Halide::Buffer<float, OutputDimensions> outputBuffer = func.realize(std::vector<int>(outputDimensions, outputDimensions + OutputDimensions), Halide::get_host_target(), params);
-        return { std::move(input), std::move(func), std::move(outputBuffer) };
+        std::span<const int, OutputDimensions> outputDimensions(rawOutputDimensions);
+        Halide::Buffer<float, OutputDimensions> outputBuffer = func.realize(std::vector<int>(outputDimensions.rbegin(), outputDimensions.rend()), Halide::get_host_target(), params);
+        return { std::move(input), std::move(func), { std::move(outputBuffer) } };
     }
 };
 

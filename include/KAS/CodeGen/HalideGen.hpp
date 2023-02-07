@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <memory>
 #include <stack>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -13,6 +14,7 @@
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Tensor.hpp"
+#include "KAS/Utils/Tuple.hpp"
 
 
 namespace kas {
@@ -53,7 +55,7 @@ protected:
     // Returns the (input (including the gradient of output), gradient funcs) pair.
     std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> createFuncGrad(std::string_view funcName);
 
-    static Halide::Region ShapeEstimateToRegion(const std::vector<std::size_t>& estimate);
+    static Halide::Region ConcreteShapeToRegion(const std::vector<std::size_t>& estimate);
 
     static Halide::Target GetTarget(bool useGPU);
 
@@ -71,6 +73,25 @@ public:
     void generate(std::filesystem::path outputPath, std::string_view funcName, Options options);
     // Requires all variables to be assigned.
     Halide::ParamMap getParamMap(const std::map<std::string, std::size_t>& mappings) const;
+
+    // This is a workaround for reverse indexing caused by Halide's column-major buffers.
+    template<typename T = void, int Dims = Halide::AnyDims>
+    struct BufferAdaptor {
+        Halide::Buffer<T, Dims> content;
+        T& operator()(const std::vector<int>& indices) {
+            std::vector<int> indicesCopy(indices.rbegin(), indices.rend());
+            return content(indicesCopy);
+        }
+        template<typename... Args>
+        requires(Halide::Runtime::AllInts<Args...>::value)
+        T& operator()(Args... args) {
+            auto helper = [this]<typename... Params>(Params&&... params) -> decltype(auto) {
+                return content(std::forward<Params>(params)...);
+            };
+            return std::apply(helper, ReverseTuple(std::forward_as_tuple(std::forward<Args>(args)...)));
+        }
+    };
+
 };
 
 } // namespace kas
