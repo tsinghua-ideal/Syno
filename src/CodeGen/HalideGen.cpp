@@ -176,7 +176,8 @@ std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> HalideGen:
     Shape outputShape = tensorView.getShape();
     Halide::Region outputRegion = evaluate(outputShape);
     Halide::ImageParam outputGrad(Halide::type_of<float>(), outputShape.size(), "output_grad");
-    Halide::Derivative d = Halide::propagate_adjoints(func, outputGrad, outputRegion);
+    Halide::Func wrappedOutputGrad = Halide::BoundaryConditions::constant_exterior(outputGrad, 0, outputRegion);
+    Halide::Derivative d = Halide::propagate_adjoints(func, wrappedOutputGrad, outputRegion);
     std::vector<Halide::Func> gradFuncs;
     for (std::size_t i = 0; i < input.size(); ++i) {
         Halide::Func dInput(input[i].name() + "_grad");
