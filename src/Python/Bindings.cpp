@@ -53,10 +53,12 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def(pybind11::init<std::string, std::string, std::vector<std::string>, std::vector<std::string>, SampleOptions>())
         .def("random_path_with_prefix", &Sampler::randomPathWithPrefix)
         .def("is_final", &Sampler::isFinal)
-        .def("count_children", &Sampler::countChildren)
+        .def("children_count", &Sampler::childrenCount)
+        .def("children_types", &Sampler::childrenTypes)
         .def("node_str", &Sampler::nodeString)
         .def("op_str", &Sampler::opString)
-        .def("realize", [](Sampler& self, std::vector<std::size_t> path) -> std::unique_ptr<Kernel> {
+        .def("op_type", &Sampler::opType)
+        .def("realize", [](Sampler& self, const std::vector<std::size_t>& path) -> std::unique_ptr<Kernel> {
             auto [tensorView, cgCtx] = self.realize(path);
             return std::make_unique<Kernel>(std::move(tensorView), self.getBindingContext(), std::move(cgCtx));
         });

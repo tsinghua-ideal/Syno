@@ -19,7 +19,7 @@ void IdentityShapeOp::transformTensor(TensorView& tensor) const {
 }
 
 std::string IdentityShapeOp::description() const {
-    KAS_CRITICAL("The root node should not call this function.");
+    return "Root";
 }
 
 RepeatLikePrimitiveOp::RepeatLikePrimitiveOp(std::shared_ptr<Iterator> parent):

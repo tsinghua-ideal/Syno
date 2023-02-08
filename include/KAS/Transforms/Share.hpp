@@ -15,6 +15,7 @@ public:
     ShareShapeOp(std::size_t inputLhs, std::size_t inputRhs, std::size_t output);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
+    inline std::string type() const override { return "Share"; }
     std::string description() const override;
 
     struct GenerateOptions {

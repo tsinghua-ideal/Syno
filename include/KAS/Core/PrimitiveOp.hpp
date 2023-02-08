@@ -10,7 +10,7 @@
 namespace kas {
 
 class Iterator;
-class IteratorValue;
+struct IteratorValue;
 
 class PrimitiveShapeOp {
 public:
@@ -18,6 +18,7 @@ public:
     virtual Shape transformShapeInverse(const Shape& input) const = 0;
     // After the search, when the resulting tensor has a shape that is verified to be eligible, we can build the TensorView, which is a series of transforms on a tensor. The semantics, rather than by this class, are implemented by the PrimitiveOp's defined below. They are inserted by this function to the TensorView.
     virtual void transformTensor(TensorView& tensor) const = 0;
+    virtual std::string type() const = 0;
     virtual std::string description() const = 0;
     virtual bool isFinalizeOp() const;
     virtual ~PrimitiveShapeOp() = default;
@@ -27,6 +28,7 @@ class IdentityShapeOp final: public PrimitiveShapeOp {
 public:
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
+    inline std::string type() const override { return "Root"; }
     std::string description() const override;
 };
 

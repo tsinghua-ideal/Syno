@@ -17,6 +17,7 @@ class Sampler:
             dim_lower=dim_lower,
             dim_upper=dim_upper,
         )
+        self._seed = seed
         self._save_path = save_path
         self._sampler = kas_cpp_bindings.Sampler(input_shape, output_shape, primary_specs, coefficient_specs, options)
         self._codegen_options = kas_cpp_bindings.CodeGenOptions(cuda, autoscheduler)
@@ -55,3 +56,19 @@ class Sampler:
             placeholder.reload(KernelPack(identifier, save_path, kernel_name, kernel_args, inputs_shapes, output_shape))
         return path
 
+    def is_dead_end(self, path: list[int]) -> bool:
+        return (not self._sampler.is_final(path)) and self._sampler.children_count(path) == 0
+
+    def is_terminal(self, path: list[int]) -> bool:
+        # Either the path is a final node, or it is a dead end.
+        return self._sampler.is_final(path) or self._sampler.children_count(path) == 0
+
+    def children_count(self, path: list[int]) -> int:
+        if self.is_terminal(path):
+            raise ValueError("Cannot get children count of a terminal node.")
+        return self._sampler.children_count(path)
+
+    def children_types(self, path: list[int]) -> list[str]:
+        if self.is_terminal(path):
+            raise ValueError("Cannot get children types of a terminal node.")
+        return self._sampler.children_types(path)

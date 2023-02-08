@@ -148,7 +148,7 @@ TensorView::TensorView(std::vector<std::shared_ptr<PureTensor>> tensors, std::sh
         std::vector<std::shared_ptr<Iterator>> res;
         for (const auto& tensor : tensors) {
             auto tensorInterface = tensor->getInterfaceStubs();
-            res.insert(res.end(), tensorInterface.begin(), tensorInterface.end());
+            std::ranges::copy(tensorInterface, std::back_inserter(res));
         }
         return res;
     }() },

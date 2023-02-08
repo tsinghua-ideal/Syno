@@ -46,7 +46,9 @@ protected:
     void addNode(const Shape& base, std::size_t depth, ShapeNode::Next& pointer) const;
 
     // Visit a node along a specific path.
-    ShapeNode& visit(std::vector<std::size_t> path);
+    ShapeNode& visit(const std::vector<std::size_t>& path);
+    // Visit the pointer that is pointing to `visit(path)`.
+    ShapeNode::Next& visitPointer(const std::vector<std::size_t>& path);
 
 private:
     Sampler(std::vector<std::string> inputShape, std::vector<std::string> outputShape, std::vector<std::pair<std::string, Parser::PureSpec>> primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>> coefficientSpecs, const SampleOptions& options);
@@ -62,11 +64,13 @@ public:
 
     // The following apis can be provided for Python bindings.
     std::vector<std::size_t> randomPathWithPrefix(std::vector<std::size_t> prefix);
-    bool isFinal(std::vector<std::size_t> path);
-    std::size_t countChildren(std::vector<std::size_t> path);
-    std::string nodeString(std::vector<std::size_t> path);
-    std::string opString(std::vector<std::size_t> path);
-    std::tuple<TensorView, std::shared_ptr<CodeGenContext>> realize(std::vector<std::size_t> path);
+    bool isFinal(const std::vector<std::size_t>& path);
+    std::size_t childrenCount(const std::vector<std::size_t>& path);
+    std::map<std::string, std::size_t> childrenTypes(const std::vector<std::size_t>& path);
+    std::string nodeString(const std::vector<std::size_t>& path);
+    std::string opString(const std::vector<std::size_t>& path);
+    std::string opType(const std::vector<std::size_t>& path);
+    std::tuple<TensorView, std::shared_ptr<CodeGenContext>> realize(const std::vector<std::size_t>& path);
     std::tuple<TensorView, std::shared_ptr<CodeGenContext>> randomSample();
 };
 

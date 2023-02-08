@@ -78,7 +78,7 @@ void Sampler::addNode(const Shape& base, std::size_t depth, ShapeNode::Next& poi
     pointer.node->children = std::move(result);
 }
 
-ShapeNode& Sampler::visit(std::vector<std::size_t> path) {
+ShapeNode& Sampler::visit(const std::vector<std::size_t>& path) {
     if (root.node == nullptr) {
         addNode(outputShape, 0, root);
     }
@@ -98,6 +98,13 @@ ShapeNode& Sampler::visit(std::vector<std::size_t> path) {
         node = next.node.get();
     }
     return *node;
+}
+
+ShapeNode::Next& Sampler::visitPointer(const std::vector<std::size_t>& path) {
+    KAS_ASSERT(path.size() > 0, "Cannot get the op string of the root node.");
+    auto last = path.back();
+    ShapeNode& node = visit(std::vector<std::size_t>(path.begin(), --path.end()));
+    return node.children.at(last);
 }
 
 BindingContext& Sampler::getBindingContext() {
@@ -201,15 +208,15 @@ std::vector<std::size_t> Sampler::randomSubPathFromNode(ShapeNode& node, std::si
 std::vector<std::size_t> Sampler::randomPathWithPrefix(std::vector<std::size_t> prefix) {
     auto& node = visit(prefix);
     auto suffix = randomSubPathFromNode(node, prefix.size());
-    prefix.insert(prefix.end(), suffix.begin(), suffix.end());
+    std::ranges::copy(suffix, std::back_inserter(prefix));
     return prefix;
 }
 
-bool Sampler::isFinal(std::vector<std::size_t> path) {
+bool Sampler::isFinal(const std::vector<std::size_t>& path) {
     return visit(path).isFinal;
 }
 
-std::size_t Sampler::countChildren(std::vector<std::size_t> path) {
+std::size_t Sampler::childrenCount(const std::vector<std::size_t>& path) {
     const ShapeNode& node = visit(path);
     if (node.isFinal) {
         throw std::runtime_error("A final node has no child.");
@@ -217,20 +224,31 @@ std::size_t Sampler::countChildren(std::vector<std::size_t> path) {
     return node.children.size();
 }
 
-std::string Sampler::nodeString(std::vector<std::size_t> path) {
+std::map<std::string, std::size_t> Sampler::childrenTypes(const std::vector<std::size_t>& path) {
+    const ShapeNode& node = visit(path);
+    if (node.isFinal) {
+        return {};
+    }
+    std::map<std::string, std::size_t> result;
+    for (const auto& child: node.children) {
+        result[child.shapeOp->type()]++;
+    }
+    return result;
+}
+
+std::string Sampler::nodeString(const std::vector<std::size_t>& path) {
     return visit(path).shape.toString(ctx);
 }
 
-std::string Sampler::opString(std::vector<std::size_t> path) {
-    KAS_ASSERT(path.size() > 0, "Cannot get the op string of the root node.");
-    auto last = path.back();
-    path.pop_back();
-    ShapeNode& node = visit(path);
-    auto& next = node.children.at(last);
-    return next.shapeOp->description();
+std::string Sampler::opString(const std::vector<std::size_t>& path) {
+    return visitPointer(path).shapeOp->description();
 }
 
-std::tuple<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(std::vector<std::size_t> path) {
+std::string Sampler::opType(const std::vector<std::size_t>& path) {
+    return visitPointer(path).shapeOp->type();
+}
+
+std::tuple<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(const std::vector<std::size_t>& path) {
     if (root.node == nullptr) {
         addNode(outputShape, 0, root);
     }

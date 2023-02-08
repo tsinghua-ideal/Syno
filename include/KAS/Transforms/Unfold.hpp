@@ -17,6 +17,7 @@ public:
     UnfoldShapeOp(std::size_t input, std::size_t outputOriginal, std::size_t outputWindow);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
+    inline std::string type() const override { return "Unfold"; }
     std::string description() const override;
 
     struct GenerateOptions {

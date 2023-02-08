@@ -41,7 +41,10 @@ public:
 
     struct PureSpec;
     // For size specifications.
-    // <size> [: <int>]
+    // `SizeSpec` ::= `Size` (`:` `int`)?.
+    // The integer is the maximum occurrences of a size.
+    // `Size` ::= `int` | `id` | `id` `=` `int`.
+    // A size can be anonymous (in which case it is a numeric constant), or named with optional specified value.
     struct SizeSpec {
         using Quantity = std::variant<std::string, std::size_t, std::pair<std::string, std::size_t>>;
         Quantity quantity;

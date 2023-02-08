@@ -85,16 +85,18 @@ void HalideGen::evaluateAccess() {
     if (accessEvaluated) {
         return;
     }
+
     for (std::size_t i: cgCtx.outerLoopIterators) {
         outerLoops.emplace_back(vars.at(i));
     }
     // Adapt to column-major layout.
     std::ranges::reverse(outerLoops);
+
     for (const auto& m: tensorView.manipulations) {
         reduceLoops.emplace_back(vars.at(m.iteratorVariableId));
     }
-    // Adapt to column-major layout.
-    std::ranges::reverse(reduceLoops);
+    // Since reduce loops are in order, we should not reverse them.
+
     const auto& tensors = tensorView.getUnderlyingTensors();
     for (std::size_t inputId = 0; inputId < tensors.size(); ++inputId) {
         const auto& tensor = tensors[inputId];

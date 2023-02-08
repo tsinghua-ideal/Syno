@@ -16,6 +16,7 @@ public:
     SplitShapeOp(std::size_t input, std::size_t outputMajor, std::size_t outputMinor);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
+    inline std::string type() const override { return "Split"; }
     std::string description() const override;
 
     struct GenerateOptions {

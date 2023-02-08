@@ -18,6 +18,7 @@ public:
     MapReduceShapeOp(std::size_t input, std::shared_ptr<Size> size, Manipulation::MapType mapType, Manipulation::ReduceType reduceType);
     Shape transformShapeInverse(const Shape& outputShape) const override;
     void transformTensor(TensorView& tensor) const override;
+    inline std::string type() const override { return "MapReduce"; }
     std::string description() const override;
     struct GenerateOptions {
         const BindingContext& ctx;
