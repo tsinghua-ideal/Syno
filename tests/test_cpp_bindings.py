@@ -10,12 +10,13 @@ def test_sample():
     print(sampler.random_path_with_prefix([]))
     assert sampler.is_final([0])
     kernel = sampler.realize([0])
+    print("FinalizeOp:", sampler.op_str([0]))
     cg_opt = CodeGenOptions(False, CodeGenOptions.AutoScheduler.ComputeRoot)
-    kernel.generate("build/py_kernel_simple", "kernel", cg_opt, {"H": 2, "W": 2, "N": 2, "C": 2})
+    kernel.generate("./save/py_kernel_simple", "kernel", cg_opt, {"H": 2, "W": 3, "N": 4, "C": 5})
 
     # Load file
     srcs = []
-    for filename in ['build/py_kernel_simple/kernel.pytorch.h', 'build/py_kernel_simple/kernel_grad.pytorch.h']:
+    for filename in ['./save/py_kernel_simple/kernel.pytorch.h', './save/py_kernel_simple/kernel_grad.pytorch.h']:
         with open(filename) as file:
             srcs.append(file.read())
 
@@ -25,7 +26,7 @@ def test_sample():
         cpp_sources=srcs,
         functions=['kernel_th_', 'kernel_grad_th_'],
         extra_cflags=['-std=c++17', '-g'],
-        extra_ldflags=[f' -L{os.getcwd()}/build/py_kernel_simple ',
+        extra_ldflags=[f' -L{os.getcwd()}/save/py_kernel_simple ',
                        ' -lcuda ',
                        ' -l:kernel.a '
                        ' -l:kernel_grad.a '],
@@ -37,12 +38,13 @@ def test_sample():
     inputs_shapes = kernel.get_inputs_shapes({})
     # The first item is the real input. The other are weights.
     inputs = [torch.randn(s) for s in inputs_shapes]
-    output_tensor = torch.randn((2, 2, 2, 2))
+    output_tensor = torch.empty((4, 5, 2, 3), dtype=torch.float32)
 
     module.kernel_th_(*kernel_args, *inputs, output_tensor)
-    
+
     print(' * '.join([str(input_tensor) for input_tensor in inputs]), '=', output_tensor)
-    computed = torch.einsum('ij, kl -> ijkl', *inputs)
+    computed = torch.einsum('ij, kl -> klij', *inputs) # [H, W] * [N, C] -> [N, C, H, W]
+    print("Expected:", computed)
     assert torch.isclose(output_tensor, computed).all()
 
 if __name__ == "__main__":

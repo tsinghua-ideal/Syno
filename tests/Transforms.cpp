@@ -80,9 +80,8 @@ protected:
         std::span<const int, InputDimensions> inputDimensions(rawInputDimensions);
         // Give special care to the column-major layout.
         auto inputBuffer = Halide::Buffer<float, InputDimensions>(std::vector<int>(inputDimensions.rbegin(), inputDimensions.rend()));
-        auto proxy = HalideGen::BufferAdaptor<float, InputDimensions>(std::move(inputBuffer));
-        proxy.content.for_each_element(ReverseArguments<InputDimensions>(std::bind_front(inputInitializer, std::ref(proxy))));
-        inputBuffer = std::move(proxy.content);
+        auto proxy = HalideGen::BufferRefAdaptor<float, InputDimensions> { inputBuffer };
+        inputBuffer.for_each_element(ReverseArguments<InputDimensions>(std::bind_front(inputInitializer, std::ref(proxy))));
         input.set(inputBuffer);
         func.compute_root();
         std::span<const int, OutputDimensions> outputDimensions(rawOutputDimensions);

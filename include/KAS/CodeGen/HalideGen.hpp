@@ -75,22 +75,28 @@ public:
     Halide::ParamMap getParamMap(const std::map<std::string, std::size_t>& mappings) const;
 
     // This is a workaround for reverse indexing caused by Halide's column-major buffers.
-    template<typename T = void, int Dims = Halide::AnyDims>
-    struct BufferAdaptor {
-        Halide::Buffer<T, Dims> content;
-        T& operator()(const std::vector<int>& indices) {
+    template<typename BufferType>
+    struct ReverseAdaptor {
+        BufferType content;
+        auto operator()(const std::vector<int>& indices) -> decltype(auto) {
             std::vector<int> indicesCopy(indices.rbegin(), indices.rend());
             return content(indicesCopy);
         }
         template<typename... Args>
         requires(Halide::Runtime::AllInts<Args...>::value)
-        T& operator()(Args... args) {
+        auto operator()(Args... args) -> decltype(auto) {
             auto helper = [this]<typename... Params>(Params&&... params) -> decltype(auto) {
                 return content(std::forward<Params>(params)...);
             };
             return std::apply(helper, ReverseTuple(std::forward_as_tuple(std::forward<Args>(args)...)));
         }
     };
+
+    template<typename T = void, int Dims = Halide::AnyDims>
+    using BufferAdaptor = ReverseAdaptor<Halide::Buffer<T, Dims>>;
+
+    template<typename T = void, int Dims = Halide::AnyDims>
+    using BufferRefAdaptor = ReverseAdaptor<Halide::Buffer<T, Dims>&>;
 
 };
 

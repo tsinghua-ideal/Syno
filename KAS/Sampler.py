@@ -34,10 +34,8 @@ class Sampler:
     def sample(self, net: nn.Module, prefix: list[int] = []) -> list[int]:
         path = self._sampler.random_path_with_prefix(prefix)
         kernel = self._sampler.realize(path)
-        logging.debug("Sampled kernel:")
-        logging.debug(kernel)
-        logging.debug("Path:")
-        logging.debug(self._path_str(path))
+        logging.debug("Sampled kernel:", kernel)
+        logging.debug("Path:", self._path_str(path))
         placeholders: list[Placeholder] = [node for node in net.modules() if isinstance(node, Placeholder)]
         identifier_prefix = '_'.join(map(str, path))
         save_path = os.path.join(self._save_path, identifier_prefix)
