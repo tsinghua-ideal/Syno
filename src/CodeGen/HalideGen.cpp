@@ -123,7 +123,7 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
     Halide::Expr rhs = 1.0f;
     for (std::size_t inputId = 0; inputId < tensors.size(); ++inputId) {
         // Here for simplicity and to avoid out of bound errors (still not sure why this happens), use zero padding. Need better solution. TODO
-        Halide::Func wrappedInput = Halide::BoundaryConditions::constant_exterior(inputs[inputId], 0, evaluate(tensors[inputId]->getShapeRef()));
+        Halide::Func wrappedInput = Halide::BoundaryConditions::constant_exterior(inputs[inputId], 0.0f, evaluate(tensors[inputId]->getShapeRef()));
         // Add support for other arithmetic operations. TODO
         rhs *= wrappedInput(tensorIndices.at(inputId));
     }
@@ -176,7 +176,7 @@ std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> HalideGen:
     Shape outputShape = tensorView.getShape();
     Halide::Region outputRegion = evaluate(outputShape);
     Halide::ImageParam outputGrad(Halide::type_of<float>(), outputShape.size(), "output_grad");
-    Halide::Func wrappedOutputGrad = Halide::BoundaryConditions::constant_exterior(outputGrad, 0, outputRegion);
+    Halide::Func wrappedOutputGrad = Halide::BoundaryConditions::constant_exterior(outputGrad, 0.0f, outputRegion);
     Halide::Derivative d = Halide::propagate_adjoints(func, wrappedOutputGrad, outputRegion);
     std::vector<Halide::Func> gradFuncs;
     for (std::size_t i = 0; i < input.size(); ++i) {

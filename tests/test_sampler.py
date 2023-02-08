@@ -22,11 +22,10 @@ def test_sampler():
 
     net = Model()
     path = sampler.sample(net)
-    in_tensor = torch.rand((16, 16))
+    in_tensor = torch.randn((16, 16))
     out_tensor = net(in_tensor)
-    print("First output: ")
-    print(out_tensor)
-    target = torch.empty((4, 3, 16, 16))
+    print("First output:", out_tensor)
+    target = torch.randn((4, 3, 16, 16))
     # compute gradient
     loss = F.mse_loss(out_tensor, target)
     print("First loss:", loss)
@@ -37,8 +36,7 @@ def test_sampler():
             param -= param.grad * 0.01
             param.grad.zero_()
     out_tensor = net(in_tensor)
-    print("Second output: ")
-    print(out_tensor)
+    print("Second output:", out_tensor)
     new_loss = F.mse_loss(out_tensor, target)
     print("Second loss:", new_loss)
     assert new_loss < loss
