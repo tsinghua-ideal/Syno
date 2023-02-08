@@ -391,7 +391,7 @@ std::optional<FinalizeShapeOp::Epilogue> FinalizeShapeOp::solveWithMappings(cons
     for (auto& g: desiredGroups) put(g.indices);
     for (auto& g: coefficientDimsGroups) put(g.indices);
     for (auto& g: generalDimsGroups) put(g.indices);
-    std::sort(groups.begin(), groups.end(), [](const auto& a, const auto& b) {
+    std::ranges::sort(groups, [](const auto& a, const auto& b) {
         return a.at(0) < b.at(0);
     });
     std::vector<std::size_t> desiredDimToGroupId;
@@ -399,7 +399,7 @@ std::optional<FinalizeShapeOp::Epilogue> FinalizeShapeOp::solveWithMappings(cons
     for (std::size_t i = 0; i < mappings.size(); ++i) {
         std::size_t target = mappings[i];
         for (std::size_t j = 0; j < groups.size(); ++j) {
-            if (std::binary_search(groups[j].begin(), groups[j].end(), target)) {
+            if (std::ranges::binary_search(groups[j], target)) {
                 desiredDimToGroupId.emplace_back(j);
                 break;
             }

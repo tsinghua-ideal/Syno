@@ -191,7 +191,7 @@ std::vector<std::size_t> Sampler::randomSubPathFromNode(ShapeNode& node, std::si
         return false;
     };
     if (recursion(recursion, node, depth)) {
-        std::reverse(path.begin(), path.end());
+        std::ranges::reverse(path);
     } else {
         throw std::runtime_error("Cannot find a path from the current node.");
     }
@@ -222,15 +222,12 @@ std::string Sampler::nodeString(std::vector<std::size_t> path) {
 }
 
 std::string Sampler::opString(std::vector<std::size_t> path) {
-    KAS_ASSERT(path.size() > 0);
+    KAS_ASSERT(path.size() > 0, "Cannot get the op string of the root node.");
     auto last = path.back();
     path.pop_back();
     ShapeNode& node = visit(path);
-    auto& next = node.children[last];
-    if (next.node == nullptr) {
-        addNode(node.shape, path.size() + 1, next);
-    }
-    return node.children[last].shapeOp->description();
+    auto& next = node.children.at(last);
+    return next.shapeOp->description();
 }
 
 std::tuple<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(std::vector<std::size_t> path) {

@@ -52,7 +52,7 @@ std::vector<std::unique_ptr<UnfoldShapeOp>> UnfoldShapeOp::generate(const Shape&
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
             const auto& size = *outputShape[i];
             auto p = size.getPrimary();
-            if (std::any_of(p.begin(), p.end(), [](auto i) { return i != 0; })) {
+            if (std::ranges::any_of(p, [](auto i) { return i != 0; })) {
                 // Here, we only allow an axis with primary variable to be unfolded. TODO: relax this?
                 generals.emplace_back(i);
             } else {

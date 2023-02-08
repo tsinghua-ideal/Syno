@@ -207,7 +207,7 @@ const std::vector<Manipulation>& TensorView::getManipulations() const {
 
 void TensorView::evaluateTensorAccess() {
     KAS_ASSERT(access.size() == interface.size());
-    KAS_ASSERT(std::all_of(access.begin(), access.end(), [](const auto& value) {
+    KAS_ASSERT(std::ranges::all_of(access, [](const auto& value) {
         return value != nullptr;
     }));
     IteratorEvaluator evaluator;

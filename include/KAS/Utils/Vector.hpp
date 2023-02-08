@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -16,10 +17,10 @@ std::vector<T> ReplaceVector(
     std::vector<std::size_t>& drops,
     std::vector<std::pair<std::size_t, T>>& adds
 ) {
-    std::sort(drops.begin(), drops.end());
-    std::sort(adds.begin(), adds.end(), std::function([](const std::pair<std::size_t, T>& a, const std::pair<std::size_t, T>& b) -> bool {
+    std::ranges::sort(drops);
+    std::ranges::sort(adds, [](const std::pair<std::size_t, T>& a, const std::pair<std::size_t, T>& b) -> bool {
         return a.first < b.first;
-    }));
+    });
 
     std::vector<T> newVec;
     newVec.reserve(vec.size() + adds.size() - drops.size());

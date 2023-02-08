@@ -41,7 +41,7 @@ std::vector<std::unique_ptr<StrideShapeOp>> StrideShapeOp::generate(const Shape&
     for (std::size_t i = 0; i < outputShape.size(); ++i) {
         const Size& size = *outputShape[i];
         auto primary = size.getPrimary();
-        if (std::all_of(primary.begin(), primary.end(), [](auto x) { return x == 0; })) {
+        if (std::ranges::all_of(primary, [](auto x) { return x == 0; })) {
             // Here, we only allow an axis with primary variable to be strided. TODO: relax this?
             continue;
         }

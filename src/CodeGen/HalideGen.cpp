@@ -266,12 +266,12 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
 
     std::vector<Halide::Argument> forwardArgs;
     std::vector<Halide::Argument> backwardArgs;
-    std::copy(primaryConsts.begin(), primaryConsts.end(), std::back_inserter(forwardArgs));
-    std::copy(primaryConsts.begin(), primaryConsts.end(), std::back_inserter(backwardArgs));
-    std::copy(coefficientConsts.begin(), coefficientConsts.end(), std::back_inserter(forwardArgs));
-    std::copy(coefficientConsts.begin(), coefficientConsts.end(), std::back_inserter(backwardArgs));
-    std::copy(forwardInputs.begin(), forwardInputs.end(), std::back_inserter(forwardArgs));
-    std::copy(backwardInputs.begin(), backwardInputs.end(), std::back_inserter(backwardArgs));
+    std::ranges::copy(primaryConsts, std::back_inserter(forwardArgs));
+    std::ranges::copy(primaryConsts, std::back_inserter(backwardArgs));
+    std::ranges::copy(coefficientConsts, std::back_inserter(forwardArgs));
+    std::ranges::copy(coefficientConsts, std::back_inserter(backwardArgs));
+    std::ranges::copy(forwardInputs, std::back_inserter(forwardArgs));
+    std::ranges::copy(backwardInputs, std::back_inserter(backwardArgs));
 
     if (computeRoot) {
         forwardFunc.compute_root();
