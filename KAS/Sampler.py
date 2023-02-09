@@ -31,12 +31,15 @@ class Sampler:
         layers.reverse()
         return '\n'.join(layers)
 
+    def _realize(self, path: list[int]) -> kas_cpp_bindings.Kernel:
+        return self._sampler.realize(path)
+
     # Here we simply replace the placeholders with sampled kernels. TODO: Add support for storing and loading kernels.
     def sample(self, net: nn.Module, prefix: list[int] = []) -> list[int]:
         path = self._sampler.random_path_with_prefix(prefix)
-        kernel = self._sampler.realize(path)
-        logging.debug("Sampled kernel:", kernel)
-        logging.debug("Path:", self._path_str(path))
+        kernel = self._realize(path)
+        logging.debug(f"Sampled kernel: {kernel}")
+        logging.debug(f"Path: {self._path_str(path)}")
         placeholders: list[Placeholder] = [node for node in net.modules() if isinstance(node, Placeholder)]
         identifier_prefix = '_'.join(map(str, path))
         save_path = os.path.join(self._save_path, identifier_prefix)
@@ -44,7 +47,7 @@ class Sampler:
         for i, placeholder in enumerate(placeholders):
             kernel_name = f'kernel_{i}'
             mappings = placeholder.mappings
-            logging.debug(f"For kernel_{i} mappings:", mappings)
+            logging.debug(f"For kernel_{i} mappings: {mappings}")
             kernel.generate(save_path, kernel_name, self._codegen_options, mappings)
             identifier = identifier_prefix + "__" + str(i)
             kernel_args = kernel.get_arguments(mappings)

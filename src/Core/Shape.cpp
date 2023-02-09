@@ -55,12 +55,12 @@ Size Size::identity() const {
 
 Size::Trait Size::getTrait() const {
     bool hasPrimary = false;
-    for (auto p: getPrimary()) {
+    for (auto P = getPrimary(); auto p: P) {
         hasPrimary |= p > 0;
     }
     bool hasCoefficient = false;
     bool hasNegativeCoefficient = false;
-    for (auto c: getCoefficient()) {
+    for (auto C = getCoefficient(); auto c: C) {
         hasCoefficient |= c != 0;
         hasNegativeCoefficient |= c < 0;
     }
@@ -80,20 +80,20 @@ Size::Trait Size::getTrait() const {
 }
 
 bool Size::is1() const {
-    for (auto p: getPrimary()) {
+    for (auto P = getPrimary(); auto p: P) {
         if (p != 0) return false;
     }
-    for (auto c: getCoefficient()) {
+    for (auto C = getCoefficient(); auto c: C) {
         if (c != 0) return false;
     }
     return true;
 }
 
 bool Size::isLegalCoefficient() const {
-    for (auto p: getPrimary()) {
+    for (auto P = getPrimary(); auto p: P) {
         if (p != 0) return false;
     }
-    for (auto c: getCoefficient()) {
+    for (auto C = getCoefficient(); auto c: C) {
         if (c < 0) return false;
     }
     return true;

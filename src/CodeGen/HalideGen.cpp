@@ -135,7 +135,7 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
     std::ranges::copy(outerLoops, std::back_inserter(tempAccess));
     Halide::Func temp;
     temp(tempAccess) = rhs;
-    for(const auto& m: tensorView.manipulations) {
+    for (const auto& m: tensorView.manipulations) {
         Halide::Func newTemp;
         Halide::RDom r(0, evaluate(m.getIterator()->getSize()));
         tempAccess.erase(tempAccess.begin());

@@ -41,37 +41,30 @@ void Sampler::addNode(const Shape& base, std::size_t depth, ShapeNode::Next& poi
     }
     const Shape& shape = pointer.node->shape;
     std::vector<ShapeNode::Next> result;
-    for (auto& f:
-        FinalizeShapeOp::generate(shape, { .desired = inputShape })
-    ) result.emplace_back(std::move(f));
+    for (auto g = FinalizeShapeOp::generate(shape, { .desired = inputShape }); auto& f: g)
+        result.emplace_back(std::move(f));
     if (depth < options.depth) {
         // Try increasing dimension, by performing
         // Share^{-1}
-        for (auto& s:
-            ShareShapeOp::generate(shape, { .ctx = ctx, .dimUpperBound = options.dimUpperBound })
-        ) result.emplace_back(std::move(s));
+        for (auto g = ShareShapeOp::generate(shape, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }); auto& s: g)
+            result.emplace_back(std::move(s));
         // MapReduce^{-1}
-        for (auto& m:
-            MapReduceShapeOp::generate(shape, { .ctx = ctx })
-        ) result.emplace_back(std::move(m));
+        for (auto g = MapReduceShapeOp::generate(shape, { .ctx = ctx }); auto& m: g)
+            result.emplace_back(std::move(m));
         // Merge^{-1}
-        for (auto& m:
-            MergeShapeOp::generate(shape, { .ctx = ctx, .dimUpperBound = options.dimUpperBound })
-        ) result.emplace_back(std::move(m));
+        for (auto g = MergeShapeOp::generate(shape, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }); auto& m: g)
+            result.emplace_back(std::move(m));
         // Try decreasing dimension, by performing
         // Split^{-1}
-        for (auto& s:
-            SplitShapeOp::generate(shape, { .dimLowerBound = options.dimLowerBound })
-        ) result.emplace_back(std::move(s));
+        for (auto g = SplitShapeOp::generate(shape, { .dimLowerBound = options.dimLowerBound }); auto& s: g)
+            result.emplace_back(std::move(s));
         // Unfold^{-1}
-        for (auto& u:
-            UnfoldShapeOp::generate(shape, { .ctx = ctx, .dimLowerBound = options.dimLowerBound })
-        ) result.emplace_back(std::move(u));
+        for (auto g = UnfoldShapeOp::generate(shape, { .ctx = ctx, .dimLowerBound = options.dimLowerBound }); auto& u: g)
+            result.emplace_back(std::move(u));
         // Try changing dimension size, by performing
         // Stride^{-1}
-        for (auto& s:
-            StrideShapeOp::generate(shape)
-        ) result.emplace_back(std::move(s));
+        for (auto g = StrideShapeOp::generate(shape); auto& s: g)
+            result.emplace_back(std::move(s));
         // Or do not change the shape at all, by performing
         // Shift^{-1}, TODO
     }
