@@ -7,7 +7,7 @@
 
 namespace kas {
 
-std::string_view Manipulation::what(MapType type) {
+std::string Manipulation::what(MapType type) {
     switch (type) {
         case MapType::Absolute: return "Absolute";
         case MapType::ArcTan:   return "ArcTan";
@@ -24,7 +24,7 @@ std::string_view Manipulation::what(MapType type) {
     KAS_UNREACHABLE();
 }
 
-std::string_view Manipulation::what(ReduceType type) {
+std::string Manipulation::what(ReduceType type) {
     switch (type) {
         case ReduceType::Sum:     return "Sum";
         case ReduceType::Max:     return "Max";
@@ -47,14 +47,14 @@ std::shared_ptr<Iterator> Manipulation::getIterator() const {
 }
 
 std::string Manipulation::whatMap() const {
-    return std::string(what(mapType));
+    return what(mapType);
 }
 std::string Manipulation::whatReduce() const {
-    return std::string(what(reduceType));
+    return what(reduceType);
 }
 
 std::string Manipulation::what() const {
-    return std::string(what(mapType)) + "+" + std::string(what(reduceType));
+    return what(mapType) + "+" + what(reduceType);
 }
 
 } // namespace kas

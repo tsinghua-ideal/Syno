@@ -47,8 +47,8 @@ public:
     std::size_t getCoefficientCount() const;
     std::span<const Metadata> getPrimaryMetadata() const;
     std::span<const Metadata> getCoefficientMetadata() const;
-    std::string_view getPrimaryAlias(std::size_t index) const;
-    std::string_view getCoefficientAlias(std::size_t index) const;
+    std::string getPrimaryAlias(std::size_t index) const;
+    std::string getCoefficientAlias(std::size_t index) const;
     std::size_t getPrimaryEstimate(std::size_t index) const;
     std::size_t getCoefficientEstimate(std::size_t index) const;
 

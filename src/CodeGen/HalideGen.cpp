@@ -120,7 +120,7 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
     const auto& tensors = tensorView.getUnderlyingTensors();
     for (std::size_t inputId = 0; inputId < tensors.size(); ++inputId) {
         auto tensor = tensors[inputId];
-        inputs.emplace_back(Halide::type_of<float>(), tensor->shape.size(), std::string(cgCtx.getTensorName(tensor->tensorId)));
+        inputs.emplace_back(Halide::type_of<float>(), tensor->shape.size(), cgCtx.getTensorName(tensor->tensorId));
     }
     Halide::Expr rhs = 1.0f;
     for (std::size_t inputId = 0; inputId < tensors.size(); ++inputId) {
@@ -319,11 +319,11 @@ Halide::ParamMap HalideGen::getParamMap(const std::map<std::string, std::size_t>
     Halide::ParamMap params;
     for (std::size_t i = 0; i < primaryConsts.size(); ++i) {
         auto alias = ctx.getPrimaryAlias(i);
-        params.set(primaryConsts[i], static_cast<int>(mappings.at(std::string(alias))));
+        params.set(primaryConsts[i], static_cast<int>(mappings.at(alias)));
     }
     for (std::size_t i = 0; i < coefficientConsts.size(); ++i) {
         auto alias = ctx.getCoefficientAlias(i);
-        params.set(coefficientConsts[i], static_cast<int>(mappings.at(std::string(alias))));
+        params.set(coefficientConsts[i], static_cast<int>(mappings.at(alias)));
     }
     return params;
 }

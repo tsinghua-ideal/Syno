@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <numeric>
+#include <ranges>
 #include <set>
 #include <span>
 #include <sstream>
@@ -368,7 +369,7 @@ std::vector<std::size_t> Shape::estimate(const BindingContext& ctx) const {
 }
 
 std::string Shape::toString(const BindingContext& ctx) const {
-    return VectorToString(sizes, std::function([&ctx](const std::shared_ptr<Size>& size) -> std::string {
+    return VectorToString(sizes | std::ranges::views::transform([&ctx](const std::shared_ptr<Size>& size) {
         return size->toString(ctx);
     }));
 }

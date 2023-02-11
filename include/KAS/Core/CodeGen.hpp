@@ -38,10 +38,10 @@ protected:
     std::vector<std::size_t> outerLoopIterators;
 
 public:
-    std::string_view getTensorName(std::size_t index) const;
+    std::string getTensorName(std::size_t index) const;
     std::size_t addTensor(std::string_view name);
 
-    std::string_view getIteratorVariableName(std::size_t index) const;
+    std::string getIteratorVariableName(std::size_t index) const;
     std::size_t addIteratorVariable(std::shared_ptr<Iterator> iterator, bool isOuterLoopIterator);
 
     // Returns the outer loop initializers and depth of the loops.
@@ -68,7 +68,9 @@ struct IteratorValueImpl {
 };
 
 struct IteratorValue {
+protected:
     std::shared_ptr<IteratorValueImpl> value;
+public:
     explicit IteratorValue() = default;
     inline explicit IteratorValue(std::shared_ptr<IteratorValueImpl> value): value { std::move(value) } {}
     inline bool hasValue() const { return value != nullptr; }

@@ -29,7 +29,7 @@ public:
         Sign,
         MapTypeCount,
     };
-    static std::string_view what(MapType);
+    static std::string what(MapType);
     enum class ReduceType {
         Sum,
         Max,
@@ -38,7 +38,7 @@ public:
         Product,
         ReduceTypeCount
     };
-    static std::string_view what(ReduceType);
+    static std::string what(ReduceType);
 
 protected:
     std::shared_ptr<Iterator> iterator;

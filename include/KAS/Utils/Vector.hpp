@@ -57,18 +57,4 @@ std::string VectorToString(Range&& range) {
     return fmt::format("[{}]", fmt::join(range, ","));
 }
 
-template<typename T>
-std::string VectorToString(const std::vector<T>& vec, std::function<std::string(const T&)> mapper) {
-    std::stringstream ss;
-    ss << "[";
-    for (std::size_t i = 0; i < vec.size(); i++) {
-        if (i != 0) {
-            ss << ",";
-        }
-        ss << mapper(vec[i]);
-    }
-    ss << "]";
-    return ss.str();
-}
-
 } // namespace kas

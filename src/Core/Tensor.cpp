@@ -252,11 +252,11 @@ std::string TensorView::printNestedLoops(const BindingContext& ctx) const {
 }
 
 std::string TensorView::shapeToString(const BindingContext &ctx) const {
-    auto s1 = VectorToString(interface, std::function([&ctx](const std::shared_ptr<Iterator>& iterator) -> std::string {
+    auto s1 = VectorToString(interface | std::ranges::views::transform([&ctx](const std::shared_ptr<Iterator>& iterator) {
         return iterator->getSize()->toString(ctx);
     }));
     if (!manipulations.empty()) {
-        auto s2 = VectorToString(manipulations, std::function([&ctx](const Manipulation& m) -> std::string {
+        auto s2 = VectorToString(manipulations | std::ranges::views::transform([&ctx](const Manipulation& m) {
             return m.getIterator()->getSize()->toString(ctx);
         }));
         return s1 + " with reduced " + s2;

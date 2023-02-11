@@ -19,7 +19,7 @@ CodeGenContext::IteratorVariableMetadata::IteratorVariableMetadata(std::string_v
     name { name }
 {}
 
-std::string_view CodeGenContext::getTensorName(std::size_t index) const {
+std::string CodeGenContext::getTensorName(std::size_t index) const {
     return tensorMetadata.at(index).name;
 }
 
@@ -28,7 +28,7 @@ std::size_t CodeGenContext::addTensor(std::string_view name) {
     return tensorMetadata.size() - 1;
 }
 
-std::string_view CodeGenContext::getIteratorVariableName(std::size_t index) const {
+std::string CodeGenContext::getIteratorVariableName(std::size_t index) const {
     return iteratorVariableMetadata.at(index).second.name;
 }
 
@@ -63,8 +63,8 @@ std::string CodeGenContext::printOuterLoopsTail() const {
 }
 
 std::string CodeGenContext::outerLoopIteratorsToString() const {
-    return VectorToString(outerLoopIterators, std::function([&](const std::size_t& id) -> std::string {
-        return std::string(getIteratorVariableName(id));
+    return VectorToString(outerLoopIterators | std::ranges::views::transform([&](const std::size_t& id) {
+        return getIteratorVariableName(id);
     }));
 }
 

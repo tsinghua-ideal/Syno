@@ -55,10 +55,10 @@ std::span<const BindingContext::Metadata> BindingContext::getPrimaryMetadata() c
 std::span<const BindingContext::Metadata> BindingContext::getCoefficientMetadata() const {
     return { coefficientMetadata.data(), coefficientMetadata.size() };
 }
-std::string_view BindingContext::getPrimaryAlias(std::size_t index) const {
+std::string BindingContext::getPrimaryAlias(std::size_t index) const {
     return primaryMetadata.at(index).alias;
 }
-std::string_view BindingContext::getCoefficientAlias(std::size_t index) const {
+std::string BindingContext::getCoefficientAlias(std::size_t index) const {
     return coefficientMetadata.at(index).alias;
 }
 std::size_t BindingContext::getPrimaryEstimate(std::size_t index) const {
