@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -24,12 +25,12 @@ std::string Tensor::GetIndentSpaces(std::size_t indent) {
     return std::string(4 * indent, ' ');
 }
 
-void Tensor::setAccess(std::shared_ptr<IteratorValue> value, std::size_t index) {
+void Tensor::setAccess(IteratorValue value, std::size_t index) {
     KAS_ASSERT(index < access.size());
     access[index] = std::move(value);
 }
 
-std::shared_ptr<IteratorValue> Tensor::getAccess(std::size_t index) const {
+IteratorValue Tensor::getAccess(std::size_t index) const {
     KAS_ASSERT(index < access.size());
     return access[index];
 }
@@ -46,8 +47,8 @@ std::vector<std::shared_ptr<Iterator>> Tensor::getInterfaceStubs() {
 
 std::string Tensor::interfaceAccessToString(const BindingContext& ctx, const CodeGenContext& cgCtx) const {
     IteratorValuePrinter printer(ctx, cgCtx);
-    return VectorToString(access, std::function([&](const std::shared_ptr<IteratorValue>& value) {
-        return printer.toString(*value);
+    return VectorToString(access | std::ranges::views::transform([&](const IteratorValue& value) {
+        return printer.toString(value);
     }));
 }
 
@@ -65,7 +66,7 @@ TensorStub::TensorStub(std::shared_ptr<Tensor> tensor, std::size_t index):
     index { index }
 {}
 
-void TensorStub::setAccess(std::shared_ptr<IteratorValue> value) const {
+void TensorStub::setAccess(IteratorValue value) const {
     tensor->setAccess(std::move(value), index);
 }
 
@@ -143,7 +144,7 @@ std::string TensorView::printInnerLoops(const BindingContext& ctx, const CodeGen
 }
 
 TensorView::TensorView(std::vector<std::shared_ptr<PureTensor>> tensors, std::shared_ptr<CodeGenContext> cgCtx):
-    Tensor { std::vector<std::shared_ptr<IteratorValue>> {} },
+    Tensor { std::vector<IteratorValue> {} },
     interface { [&tensors]() -> std::vector<std::shared_ptr<Iterator>> {
         std::vector<std::shared_ptr<Iterator>> res;
         for (const auto& tensor : tensors) {
@@ -208,7 +209,7 @@ const std::vector<Manipulation>& TensorView::getManipulations() const {
 void TensorView::evaluateTensorAccess() {
     KAS_ASSERT(access.size() == interface.size());
     KAS_ASSERT(std::ranges::all_of(access, [](const auto& value) {
-        return value != nullptr;
+        return value.hasValue();
     }));
     IteratorEvaluator evaluator;
     evaluator.evaluateTensorAccess(*this);

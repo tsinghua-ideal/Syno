@@ -68,54 +68,28 @@ std::string CodeGenContext::outerLoopIteratorsToString() const {
     }));
 }
 
-std::shared_ptr<BinaryOpValueNode> IteratorValue::operator+(IteratorValue& other) {
-    return std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Add, shared_from_this(), other.shared_from_this());
+IteratorValue IteratorValue::operator+(const IteratorValue& other) const {
+    return IteratorValue(std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Add, *this, other));
 }
-std::shared_ptr<BinaryOpValueNode> IteratorValue::operator-(IteratorValue& other) {
-    return std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Sub, shared_from_this(), other.shared_from_this());
+IteratorValue IteratorValue::operator-(const IteratorValue& other) const {
+    return IteratorValue(std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Sub, *this, other));
 }
-std::shared_ptr<BinaryOpValueNode> IteratorValue::operator*(IteratorValue& other) {
-    return std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Mul, shared_from_this(), other.shared_from_this());
+IteratorValue IteratorValue::operator*(const IteratorValue& other) const {
+    return IteratorValue(std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Mul, *this, other));
 }
-std::shared_ptr<BinaryOpValueNode> IteratorValue::operator%(IteratorValue& other) {
-    return std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Mod, shared_from_this(), other.shared_from_this());
+IteratorValue IteratorValue::operator/(const IteratorValue& other) const {
+    return IteratorValue(std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Div, *this, other));
 }
-std::shared_ptr<BinaryOpValueNode> IteratorValue::operator/(IteratorValue& other) {
-    return std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Div, shared_from_this(), other.shared_from_this());
+IteratorValue IteratorValue::operator%(const IteratorValue& other) const {
+    return IteratorValue(std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Mod, *this, other));
 }
-std::vector<std::shared_ptr<IteratorValue>> IteratorValue::DefaultAccessForShape(const std::vector<std::shared_ptr<Iterator>>& interface, CodeGenContext& ctx) {
-    std::vector<std::shared_ptr<IteratorValue>> result;
+std::vector<IteratorValue> IteratorValue::DefaultAccessForShape(const std::vector<std::shared_ptr<Iterator>>& interface, CodeGenContext& ctx) {
+    std::vector<IteratorValue> result;
     for (const auto& it: interface) {
         auto id = ctx.addIteratorVariable(it, true);
         result.emplace_back(std::make_shared<VariableValueNode>(id));
     }
     return result;
-}
-VariableValueNode::VariableValueNode(std::size_t variableId):
-    variableId { variableId }
-{}
-void VariableValueNode::accept(IteratorValueVisitor& visitor) {
-    visitor.visit(*this);
-}
-ConstValueNode::ConstValueNode(std::shared_ptr<Size> value):
-    value { std::move(value) }
-{}
-void ConstValueNode::accept(IteratorValueVisitor& visitor) {
-    visitor.visit(*this);
-}
-ImmediateValueNode::ImmediateValueNode(int value):
-    value { value }
-{}
-void ImmediateValueNode::accept(IteratorValueVisitor& visitor) {
-    visitor.visit(*this);
-}
-BinaryOpValueNode::BinaryOpValueNode(Type type, std::shared_ptr<IteratorValue> op1, std::shared_ptr<IteratorValue> op2):
-    type { type },
-    op1 { std::move(op1) },
-    op2 { std::move(op2) }
-{}
-void BinaryOpValueNode::accept(IteratorValueVisitor& visitor) {
-    visitor.visit(*this);
 }
 
 IteratorValuePrinter::IteratorValuePrinter(const BindingContext& ctx, const CodeGenContext& cgCtx):
@@ -133,7 +107,7 @@ void IteratorValuePrinter::visit(ImmediateValueNode &value) {
 }
 void IteratorValuePrinter::visit(BinaryOpValueNode& value) {
     ss << "(";
-    value.op1->accept(*this);
+    value.op1.accept(*this);
     ss << ")";
     switch (value.type) {
         case BinaryOpValueNode::Type::Add:
@@ -153,10 +127,10 @@ void IteratorValuePrinter::visit(BinaryOpValueNode& value) {
             break;
     }
     ss << "(";
-    value.op2->accept(*this);
+    value.op2.accept(*this);
     ss << ")";
 }
-std::string IteratorValuePrinter::toString(IteratorValue& value) {
+std::string IteratorValuePrinter::toString(const IteratorValue& value) {
     value.accept(*this);
     std::string result = ss.str();
     ss.str("");

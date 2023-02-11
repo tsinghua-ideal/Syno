@@ -40,7 +40,7 @@ protected:
     void visit(ConstValueNode& value) override;
     void visit(ImmediateValueNode& value) override;
     void visit(BinaryOpValueNode& value) override;
-    Halide::Expr evaluate(IteratorValue& value);
+    Halide::Expr evaluate(const IteratorValue& value);
     Halide::Expr evaluate(std::shared_ptr<Size> value);
     Halide::Region evaluate(const Shape& shape);
 

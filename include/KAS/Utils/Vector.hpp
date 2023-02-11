@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <fmt/format.h>
 #include <functional>
 #include <memory>
 #include <ranges>
@@ -49,6 +50,11 @@ std::vector<T> ReplaceVector(
     }
 
     return newVec;
+}
+
+template<typename Range>
+std::string VectorToString(Range&& range) {
+    return fmt::format("[{}]", fmt::join(range, ","));
 }
 
 template<typename T>

@@ -28,7 +28,7 @@ public:
 class ShareOp: public MergeLikePrimitiveOp {
 public:
     ShareOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> parentRhs);
-    DoubleIteratorValue value(SingleIteratorValue output) const override;
+    DoubleIteratorValue value(IteratorValue output) const override;
 };
 
 } // namespace kas

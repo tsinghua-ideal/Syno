@@ -29,7 +29,7 @@ public:
 class MapReduceOp: public RepeatLikePrimitiveOp {
 public:
     MapReduceOp(std::shared_ptr<Iterator> parent);
-    SingleIteratorValue value(SingleIteratorValue output) const override;
+    IteratorValue value(IteratorValue output) const override;
 };
 
 } // namespace kas

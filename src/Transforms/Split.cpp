@@ -59,10 +59,10 @@ SplitOp::SplitOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> child
     SplitLikePrimitiveOp { parent, childLhs, childRhs }
 {}
 
-SingleIteratorValue SplitOp::value(DoubleIteratorValue output) const {
-    auto [outputMajor, outputMinor] = std::move(output);
-    auto block = std::make_shared<ConstValueNode>(childRhs.lock()->getSize());
-    return *(*outputMajor * *block) + *outputMinor;
+IteratorValue SplitOp::value(DoubleIteratorValue output) const {
+    auto& [outputMajor, outputMinor] = output;
+    auto block = ConstValueNode::create(childRhs.lock()->getSize());
+    return outputMajor * block + outputMinor;
 }
 
 } // namespace kas

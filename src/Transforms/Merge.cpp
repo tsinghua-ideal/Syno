@@ -87,9 +87,9 @@ MergeOp::MergeOp(std::shared_ptr<Iterator> parentMajor, std::shared_ptr<Iterator
     MergeLikePrimitiveOp { std::move(parentMajor), std::move(parentMinor) }
 {}
 
-DoubleIteratorValue MergeOp::value(SingleIteratorValue output) const {
-    auto block = std::make_shared<ConstValueNode>(parentRhs->getSize());
-    return std::make_pair(*output / *block, *output % *block);
+DoubleIteratorValue MergeOp::value(IteratorValue output) const {
+    auto block = ConstValueNode::create(parentRhs->getSize());
+    return std::make_pair(output / block, output % block);
 }
 
 } // namespace kas

@@ -37,10 +37,10 @@ ShiftOp::ShiftOp(std::shared_ptr<Iterator> parent, int shift):
     shift { shift }
 {}
 
-SingleIteratorValue ShiftOp::value(SingleIteratorValue output) const {
-    auto imm = std::make_shared<ImmediateValueNode>(shift);
-    auto size = std::make_shared<ConstValueNode>(parent->getSize());
-    return *(*(*output + *imm) + *size) % *size;
+IteratorValue ShiftOp::value(IteratorValue output) const {
+    auto imm = ImmediateValueNode::create(shift);
+    auto size = ConstValueNode::create(parent->getSize());
+    return (output + imm + size) % size;
 }
 
 } // namespace kas

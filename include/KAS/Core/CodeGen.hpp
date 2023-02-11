@@ -50,50 +50,10 @@ public:
     std::string outerLoopIteratorsToString() const;
 };
 
-class IteratorValueVisitor;
+struct VariableValueNode;
+struct ConstValueNode;
+struct ImmediateValueNode;
 struct BinaryOpValueNode;
-
-struct IteratorValue: public std::enable_shared_from_this<IteratorValue> {
-    virtual void accept(IteratorValueVisitor& visitor) = 0;
-    std::shared_ptr<BinaryOpValueNode> operator+(IteratorValue& other);
-    std::shared_ptr<BinaryOpValueNode> operator-(IteratorValue& other);
-    std::shared_ptr<BinaryOpValueNode> operator*(IteratorValue& other);
-    std::shared_ptr<BinaryOpValueNode> operator%(IteratorValue& other);
-    std::shared_ptr<BinaryOpValueNode> operator/(IteratorValue& other);
-    static std::vector<std::shared_ptr<IteratorValue>> DefaultAccessForShape(const std::vector<std::shared_ptr<Iterator>>& interface, CodeGenContext& ctx);
-    template<typename Derived>
-    std::shared_ptr<Derived> shared_from_base() {
-        return std::dynamic_pointer_cast<Derived>(shared_from_this());
-    }
-};
-
-struct VariableValueNode: public IteratorValue {
-    std::size_t variableId;
-    VariableValueNode(std::size_t variableId);
-    void accept(IteratorValueVisitor& visitor) override;
-};
-
-struct ConstValueNode: public IteratorValue {
-    std::shared_ptr<Size> value;
-    ConstValueNode(std::shared_ptr<Size> value);
-    void accept(IteratorValueVisitor& visitor) override;
-};
-
-struct ImmediateValueNode: public IteratorValue {
-    int value;
-    ImmediateValueNode(int value);
-    void accept(IteratorValueVisitor& visitor) override;
-};
-
-struct BinaryOpValueNode: public IteratorValue {
-    enum class Type {
-        Add, Sub, Mul, Mod, Div
-    };
-    Type type;
-    std::shared_ptr<IteratorValue> op1, op2;
-    BinaryOpValueNode(Type type, std::shared_ptr<IteratorValue> op1, std::shared_ptr<IteratorValue> op2);
-    void accept(IteratorValueVisitor& visitor) override;
-};
 
 class IteratorValueVisitor {
 public:
@@ -103,7 +63,63 @@ public:
     virtual void visit(BinaryOpValueNode& value) = 0;
 };
 
-class IteratorValuePrinter: public IteratorValueVisitor {
+struct IteratorValueImpl {
+    virtual void accept(IteratorValueVisitor& visitor) = 0;
+};
+
+struct IteratorValue {
+    std::shared_ptr<IteratorValueImpl> value;
+    explicit IteratorValue() = default;
+    inline explicit IteratorValue(std::shared_ptr<IteratorValueImpl> value): value { std::move(value) } {}
+    inline bool hasValue() const { return value != nullptr; }
+    inline void accept(IteratorValueVisitor& visitor) const { value->accept(visitor); }
+    IteratorValue operator+(const IteratorValue& other) const;
+    IteratorValue operator-(const IteratorValue& other) const;
+    IteratorValue operator*(const IteratorValue& other) const;
+    IteratorValue operator%(const IteratorValue& other) const;
+    IteratorValue operator/(const IteratorValue& other) const;
+    static std::vector<IteratorValue> DefaultAccessForShape(const std::vector<std::shared_ptr<Iterator>>& interface, CodeGenContext& ctx);
+};
+
+struct VariableValueNode final: public IteratorValueImpl {
+    std::size_t variableId;
+    inline VariableValueNode(std::size_t variableId): variableId { variableId } {}
+    inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
+    static inline IteratorValue create(std::size_t variableId) { return IteratorValue(std::make_shared<VariableValueNode>(variableId)); }
+};
+
+struct ConstValueNode final: public IteratorValueImpl {
+    std::shared_ptr<Size> value;
+    inline ConstValueNode(std::shared_ptr<Size> value): value { std::move(value) } {}
+    inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
+    static inline IteratorValue create(std::shared_ptr<Size> value) { return IteratorValue(std::make_shared<ConstValueNode>(std::move(value))); }
+};
+
+struct ImmediateValueNode final: public IteratorValueImpl {
+    int value;
+    inline ImmediateValueNode(int value) : value { value } {}
+    inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
+    static inline IteratorValue create(int value) { return IteratorValue(std::make_shared<ImmediateValueNode>(value)); }
+};
+
+struct BinaryOpValueNode final: public IteratorValueImpl {
+    enum class Type {
+        Add, Sub, Mul, Mod, Div
+    };
+    Type type;
+    IteratorValue op1, op2;
+    BinaryOpValueNode(Type type, auto&& op1, auto&& op2):
+        type { type },
+        op1 { std::forward<decltype(op1)>(op1) },
+        op2 { std::forward<decltype(op2)>(op2) }
+    {}
+    inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
+    static inline IteratorValue create(Type type, auto&& op1, auto&& op2) {
+        return IteratorValue(std::make_shared<BinaryOpValueNode>(type, std::forward<decltype(op1)>(op1), std::forward<decltype(op2)>(op2)));
+    }
+};
+
+class IteratorValuePrinter final: public IteratorValueVisitor {
     const BindingContext& ctx;
     const CodeGenContext& cgCtx;
     std::stringstream ss;
@@ -113,7 +129,20 @@ public:
     void visit(ConstValueNode& value) override;
     void visit(ImmediateValueNode& value) override;
     void visit(BinaryOpValueNode& value) override;
-    std::string toString(IteratorValue& value);
+    std::string toString(const IteratorValue& value);
+};
+
+struct ConditionalValue {
+    enum class Type {
+        Greater, Less, GreaterEq, LessEq
+    };
+    Type type;
+    IteratorValue op1, op2;
+    ConditionalValue(Type type, auto&& op1, auto&& op2):
+        type { type },
+        op1 { std::forward<decltype(op1)>(op1) },
+        op2 { std::forward<decltype(op2)>(op2) }
+    {}
 };
 
 } // namespace kas

@@ -25,7 +25,7 @@ class StrideOp: public RepeatLikePrimitiveOp {
 public:
     std::shared_ptr<Size> stride;
     StrideOp(std::shared_ptr<Iterator> parent, std::shared_ptr<Size> stride);
-    SingleIteratorValue value(SingleIteratorValue output) const override;
+    IteratorValue value(IteratorValue output) const override;
 };
 
 } // namespace kas

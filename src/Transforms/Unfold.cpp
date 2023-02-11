@@ -82,12 +82,12 @@ UnfoldOp::UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> chi
     SplitLikePrimitiveOp { parent, childLhs, childRhs }
 {}
 
-SingleIteratorValue UnfoldOp::value(DoubleIteratorValue output) const {
-    auto [outputMajor, outputMinor] = std::move(output);
-    auto kernel = std::make_shared<ConstValueNode>(childRhs.lock()->getSize());
-    auto one = std::make_shared<ImmediateValueNode>(1);
-    auto two = std::make_shared<ImmediateValueNode>(2);
-    return *(*outputMajor + *outputMinor) - *(*(*kernel - *one) / *two);
+IteratorValue UnfoldOp::value(DoubleIteratorValue output) const {
+    auto& [outputMajor, outputMinor] = output;
+    auto kernel = ConstValueNode::create(childRhs.lock()->getSize());
+    auto one = ImmediateValueNode::create(1);
+    auto two = ImmediateValueNode::create(2);
+    return outputMajor + outputMinor - (kernel - one) / two;
 }
 
 } // namespace kas

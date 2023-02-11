@@ -28,7 +28,7 @@ public:
 class SplitOp: public SplitLikePrimitiveOp {
 public:
     SplitOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs);
-    SingleIteratorValue value(DoubleIteratorValue output) const override;
+    IteratorValue value(DoubleIteratorValue output) const override;
 };
 
 } // namespace kas

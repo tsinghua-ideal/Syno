@@ -34,8 +34,7 @@ public:
 
 // There are 3 kinds of PrimitiveOp's, listed below. Those classes can transform the Iterator, from those that index the output tensor, to forms that index the original tensors. So this is also kind of bottom-up.
 
-using SingleIteratorValue = std::shared_ptr<IteratorValue>;
-using DoubleIteratorValue = std::pair<SingleIteratorValue, SingleIteratorValue>;
+using DoubleIteratorValue = std::pair<IteratorValue, IteratorValue>;
 
 // By repeat-like, we refer to the primitives that have one input iterator and one output iterator.
 class RepeatLikePrimitiveOp {
@@ -44,7 +43,7 @@ public:
     // std::weak_ptr<Iterator> child; // Actually not needed
     RepeatLikePrimitiveOp(std::shared_ptr<Iterator> parent);
     // Compute input iterator from output iterator
-    virtual SingleIteratorValue value(SingleIteratorValue output) const = 0;
+    virtual IteratorValue value(IteratorValue output) const = 0;
     virtual ~RepeatLikePrimitiveOp() = default;
 };
 
@@ -56,7 +55,7 @@ public:
     // The std::weak_ptr<Iterator> is impossible to be given during construction. You can just give a default constructed pointer, for example, std::weak_ptr<Iterator>(). The parameters are just a reminder: do not forget to set them after Iterator is constructed.
     SplitLikePrimitiveOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs);
     // Compute input iterator from output iterators
-    virtual SingleIteratorValue value(DoubleIteratorValue output) const = 0;
+    virtual IteratorValue value(DoubleIteratorValue output) const = 0;
     virtual ~SplitLikePrimitiveOp() = default;
 };
 
@@ -67,7 +66,7 @@ public:
     // std::weak_ptr<Iterator> child; // Actually not needed
     MergeLikePrimitiveOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> parentRhs);
     // Compute output iterators from input iterator
-    virtual DoubleIteratorValue value(SingleIteratorValue output) const = 0;
+    virtual DoubleIteratorValue value(IteratorValue output) const = 0;
     virtual ~MergeLikePrimitiveOp() = default;
 };
 

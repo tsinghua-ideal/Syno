@@ -11,7 +11,7 @@
 
 namespace kas {
 
-using IteratorValueMap = std::map<std::shared_ptr<Iterator>, std::shared_ptr<IteratorValue>>;
+using IteratorValueMap = std::map<std::shared_ptr<Iterator>, IteratorValue>;
 
 class IteratorEvaluator {
 public:

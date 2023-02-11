@@ -22,18 +22,17 @@ class Tensor: public std::enable_shared_from_this<Tensor> {
     friend class TensorView;
 
 protected:
-    std::vector<std::shared_ptr<IteratorValue>> access;
+    std::vector<IteratorValue> access;
 
     static std::string GetIndentSpaces(std::size_t indent);
     virtual std::string printInnerLoops(const BindingContext& ctx, const CodeGenContext& cgCtx, std::size_t indent) const = 0;
 
 public:
-    template<typename T>
-    Tensor(T&& access):
-        access(std::forward<T>(access))
+    Tensor(auto&& access):
+        access(std::forward<decltype(access)>(access))
     {}
-    void setAccess(std::shared_ptr<IteratorValue> value, std::size_t index);
-    std::shared_ptr<IteratorValue> getAccess(std::size_t index) const;
+    void setAccess(IteratorValue value, std::size_t index);
+    IteratorValue getAccess(std::size_t index) const;
     virtual void evaluateTensorAccess() = 0;
     std::vector<std::shared_ptr<Iterator>> getInterfaceStubs();
     // The standard interface.
@@ -55,7 +54,7 @@ public:
     const std::size_t index;
     TensorStub(std::shared_ptr<Tensor> tensor, std::size_t index);
 
-    void setAccess(std::shared_ptr<IteratorValue> value) const;
+    void setAccess(IteratorValue value) const;
 };
 
 // PureTensor must be created with std::make_shared()!
@@ -70,11 +69,10 @@ protected:
 
 public:
     // Initialize access as nullptr
-    template<typename T>
-    PureTensor(std::size_t tensorId, T&& shape):
-        Tensor { std::vector<std::shared_ptr<IteratorValue>>(shape.size(), nullptr) },
+    PureTensor(std::size_t tensorId, auto&& shape):
+        Tensor { std::vector<IteratorValue>(shape.size(), IteratorValue()) },
         tensorId { tensorId },
-        shape { std::forward<T>(shape) }
+        shape { std::forward<decltype(shape)>(shape) }
     {}
     void evaluateTensorAccess() override;
     std::string actualAccessToString(const BindingContext& ctx, const CodeGenContext& cgCtx) const override;
@@ -88,8 +86,12 @@ class TensorView: public Tensor {
     friend class HalideGen;
 
 protected:
+    // The interface iterators.
     std::vector<std::shared_ptr<Iterator>> interface;
+    // The map-reduce manipulations.
     std::vector<Manipulation> manipulations;
+    // The out-of-bound conditions. This is used to enforce zero-padding semantics.
+    std::vector<ConditionalValue> outOfBoundConditions;
     // How to blend the tensors? TODO
     std::vector<std::shared_ptr<PureTensor>> tensors;
 

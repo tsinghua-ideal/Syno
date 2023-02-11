@@ -40,8 +40,8 @@ void HalideGen::visit(ImmediateValueNode& value) {
     stack.emplace(value.value);
 }
 void HalideGen::visit(BinaryOpValueNode& value) {
-    value.op1->accept(*this);
-    value.op2->accept(*this);
+    value.op1.accept(*this);
+    value.op2.accept(*this);
     Halide::Expr rhs = std::move(stack.top());
     stack.pop();
     Halide::Expr lhs = std::move(stack.top());
@@ -56,7 +56,7 @@ void HalideGen::visit(BinaryOpValueNode& value) {
     }
 }
 
-Halide::Expr HalideGen::evaluate(IteratorValue& value) {
+Halide::Expr HalideGen::evaluate(const IteratorValue& value) {
     value.accept(*this);
     KAS_ASSERT(stack.size() == 1);
     Halide::Expr result = std::move(stack.top());
@@ -102,7 +102,7 @@ void HalideGen::evaluateAccess() {
         const auto& tensor = tensors[inputId];
         std::vector<Halide::Expr> indices;
         for (std::size_t i = 0; i < tensor->shape.size(); ++i) {
-            indices.emplace_back(evaluate(*tensor->access.at(i)));
+            indices.emplace_back(evaluate(tensor->access.at(i)));
         }
         // Adapt to column-major layout.
         std::ranges::reverse(indices);

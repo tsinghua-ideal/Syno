@@ -85,7 +85,7 @@ MapReduceOp::MapReduceOp(std::shared_ptr<Iterator> parent):
     RepeatLikePrimitiveOp { std::move(parent) }
 {}
 
-SingleIteratorValue MapReduceOp::value(SingleIteratorValue output) const {
+IteratorValue MapReduceOp::value(IteratorValue output) const {
     return output;
 }
 
