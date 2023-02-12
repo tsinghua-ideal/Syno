@@ -58,7 +58,7 @@ protected:
     void evaluateAccess();
 
     // Returns the (input, func) pair.
-    std::pair<std::vector<Halide::ImageParam>, Halide::Func> createFunc(std::string_view funcName);
+    std::pair<std::vector<Halide::ImageParam>, Halide::Func> createFunc(std::string_view funcName, bool zeroBoundary = false);
     // Returns the (input (including the gradient of output), gradient funcs) pair.
     std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> createFuncGrad(std::string_view funcName);
 

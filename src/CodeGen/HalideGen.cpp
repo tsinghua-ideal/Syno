@@ -127,7 +127,7 @@ void HalideGen::evaluateAccess() {
     accessEvaluated = true;
 }
 
-std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(std::string_view funcName) {
+std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(std::string_view funcName, bool zeroBoundary) {
     std::vector<Halide::ImageParam> inputs;
     Halide::Func func { std::string(funcName) };
 
@@ -140,11 +140,14 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
     }
     Halide::Expr rhs = 1.0f;
     for (std::size_t inputId = 0; inputId < tensors.size(); ++inputId) {
-        // Here for simplicity and to avoid out of bound errors (still not sure why this happens), use zero padding. Need better solution. TODO
-        // Halide::Func wrappedInput = Halide::BoundaryConditions::constant_exterior(inputs[inputId], 0.0f, evaluate(tensors[inputId]->getShapeRef()));
-        // Add support for other arithmetic operations. TODO
-        // rhs *= wrappedInput(tensorIndices.at(inputId));
-        rhs *= inputs[inputId](tensorIndices.at(inputId));
+        // Here for simplicity and to avoid out of bound errors when using auto-diff (still not sure why this happens), use zero padding. Need better solution. TODO
+        if (zeroBoundary) {
+            Halide::Func wrappedInput = Halide::BoundaryConditions::constant_exterior(inputs[inputId], 0.0f, evaluate(tensors[inputId]->getShapeRef()));
+            // Add support for other arithmetic operations. TODO
+            rhs *= wrappedInput(tensorIndices.at(inputId));
+        } else {
+            rhs *= inputs[inputId](tensorIndices.at(inputId));
+        }
     }
 
     // To avoid out of bound errors, we need to compute constraints of the region.
@@ -201,7 +204,7 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
 }
 
 std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> HalideGen::createFuncGrad(std::string_view funcName) {
-    auto [input, func] = createFunc(funcName);
+    auto [input, func] = createFunc(funcName, true);
     Shape outputShape = tensorView.getShape();
     Halide::Region outputRegion = evaluate(outputShape);
     Halide::ImageParam outputGrad(Halide::type_of<float>(), outputShape.size(), "output_grad");
