@@ -29,8 +29,8 @@ public:
 
 class UnfoldOp: public SplitLikePrimitiveOp {
 public:
-    std::shared_ptr<Size> window;
-    UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs);
+    std::shared_ptr<Size> originalSize;
+    UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs, std::shared_ptr<Size> originalSize);
     IteratorValue value(DoubleIteratorValue output) const override;
 };
 

@@ -88,7 +88,7 @@ MergeOp::MergeOp(std::shared_ptr<Iterator> parentMajor, std::shared_ptr<Iterator
 {}
 
 DoubleIteratorValue MergeOp::value(IteratorValue output) const {
-    auto block = ConstValueNode::create(parentRhs->getSize());
+    auto block = ConstValueNode::Create(parentRhs->getSize());
     return std::make_pair(output / block, output % block);
 }
 

@@ -1,9 +1,10 @@
 #include <algorithm>
 #include <cstddef>
+#include <fmt/core.h>
 #include <memory>
-#include <sstream>
 #include <utility>
 
+#include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Transforms/Unfold.hpp"
 #include "KAS/Utils/Common.hpp"
@@ -28,7 +29,7 @@ Shape UnfoldShapeOp::transformShapeInverse(const Shape& outputShape) const {
 void UnfoldShapeOp::transformTensor(TensorView& tensor) const {
     KAS_ASSERT(windowSize); // transformShapeInverse() must be called before this!
     auto inputIt = tensor[input];
-    std::shared_ptr<SplitLikePrimitiveOp> op { new UnfoldOp { inputIt, std::weak_ptr<Iterator>(), std::weak_ptr<Iterator>() } };
+    std::shared_ptr<SplitLikePrimitiveOp> op { new UnfoldOp { inputIt, std::weak_ptr<Iterator>(), std::weak_ptr<Iterator>(), inputIt->getSize() } };
     auto outputMajor = std::make_shared<Iterator>(IteratorTransform { op }, inputIt->getSize());
     auto outputMinor = std::make_shared<Iterator>(IteratorTransform { op }, windowSize);
     op->childLhs = outputMajor;
@@ -37,9 +38,7 @@ void UnfoldShapeOp::transformTensor(TensorView& tensor) const {
 }
 
 std::string UnfoldShapeOp::description() const {
-    std::stringstream ss;
-    ss << "Unfold " << input << " -> " << outputOriginal << ", " << outputWindow;
-    return ss.str();
+    return fmt::format("Unfold {} -> {}, {}", input, outputOriginal, outputWindow);
 }
 
 std::vector<std::unique_ptr<UnfoldShapeOp>> UnfoldShapeOp::generate(const Shape& outputShape, GenerateOptions options) {
@@ -78,16 +77,16 @@ std::vector<std::unique_ptr<UnfoldShapeOp>> UnfoldShapeOp::generate(const Shape&
     return result;
 }
 
-UnfoldOp::UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs):
-    SplitLikePrimitiveOp { parent, childLhs, childRhs }
+UnfoldOp::UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs, std::shared_ptr<Size> originalSize):
+    SplitLikePrimitiveOp { parent, childLhs, childRhs },
+    originalSize { std::move(originalSize) }
 {}
 
 IteratorValue UnfoldOp::value(DoubleIteratorValue output) const {
     auto& [outputMajor, outputMinor] = output;
-    auto kernel = ConstValueNode::create(childRhs.lock()->getSize());
-    auto one = ImmediateValueNode::create(1);
-    auto two = ImmediateValueNode::create(2);
-    return outputMajor + outputMinor - (kernel - one) / two;
+    auto kernel = ConstValueNode::Create(childRhs.lock()->getSize());
+    auto access = outputMajor + outputMinor - (kernel - ImmediateValueNode::One) / ImmediateValueNode::Two;
+    return IteratorValue(std::make_shared<IntervalBoundValueNode>(access, ImmediateValueNode::Zero, ConstValueNode::Create(originalSize)));
 }
 
 } // namespace kas

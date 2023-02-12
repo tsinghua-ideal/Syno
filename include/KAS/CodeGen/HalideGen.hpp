@@ -35,19 +35,26 @@ protected:
     std::vector<Halide::Param<int>> coefficientConsts;
     std::vector<Halide::Var> vars;
 
-    std::stack<Halide::Expr> stack;
+    Halide::Expr evaluator;
+    std::map<std::shared_ptr<IteratorValueImpl>, Halide::Expr> cache;
     void visit(VariableValueNode& value) override;
     void visit(ConstValueNode& value) override;
     void visit(ImmediateValueNode& value) override;
     void visit(BinaryOpValueNode& value) override;
+    // This `visit` produces a `clamp`.
+    void visit(IntervalBoundValueNode& value) override;
     Halide::Expr evaluate(const IteratorValue& value);
-    Halide::Expr evaluate(std::shared_ptr<Size> value);
+    Halide::Expr evaluate(const Size& value);
     Halide::Region evaluate(const Shape& shape);
+    // This `evaluate` produces a condition expression.
+    Halide::Expr evaluate(const IntervalBoundValueNode& value);
 
     bool accessEvaluated = false;
     std::vector<Halide::Var> outerLoops;
     std::vector<Halide::Var> reduceLoops;
     std::vector<std::vector<Halide::Expr>> tensorIndices;
+    // The conditions that must be satisfied in order that no out-of-bound error occurs. This is used to enforce zero-padding semantics.
+    std::vector<Halide::Expr> constraintsBounds;
     void evaluateAccess();
 
     // Returns the (input, func) pair.

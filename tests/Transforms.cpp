@@ -1,5 +1,4 @@
 #include <cstddef>
-#include <fmt/core.h>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -10,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include <fmt/core.h>
 #include <gtest/gtest.h>
 #include <Halide.h>
 
@@ -19,8 +19,6 @@
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Transforms.hpp"
-#include "KAS/Transforms/Finalize.hpp"
-#include "KAS/Transforms/Share.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Functional.hpp"
 
@@ -215,6 +213,23 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
+    auto [input, func, outputBuffer] = realize(
+        tensorView, 4, 2,
+        {8, 4, 8},
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = 32 * i + 8 * j + k;
+        },
+        {4, 4, 8}
+    );
+    ASSERT_EQ(input.dimensions(), 3);
+    ASSERT_EQ(func.dimensions(), 3);
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 8; k++) {
+                ASSERT_EQ(outputBuffer(i, j, k), 32 * 2 * i + 8 * j + k);
+            }
+        }
+    }
 }
 
 TEST_F(transforms_tests, unfold) {
@@ -223,17 +238,38 @@ TEST_F(transforms_tests, unfold) {
     auto [tensorView, cgCtx] = applyOp(unfoldOp, shape);
     ASSERT_EQ(tensorView.actualAccessToString(ctx, *cgCtx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.shapeToString(ctx), "[H,W,c]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[((i_0)+(i_2))-(((c)-(1))/(2)),i_1]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->interfaceAccessToString(ctx, *cgCtx), "[restrict(((i_0)+(i_2))-(((c)-(1))/(2)),0,H),i_1]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0]->shapeToString(ctx), "[H,W]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c; i_2++) {
-            out[i_0,i_1,i_2] = t[((i_0)+(i_2))-(((c)-(1))/(2)),i_1];
+            out[i_0,i_1,i_2] = t[restrict(((i_0)+(i_2))-(((c)-(1))/(2)),0,H),i_1];
         }
     }
 }
 )");
+    auto [input, func, outputBuffer] = realize(
+        tensorView, 4, 3,
+        {4, 4},
+        [](auto&& buf, int i, int j) {
+            buf(i, j) = 4 * i + j;
+        },
+        {4, 4, 3}
+    );
+    ASSERT_EQ(input.dimensions(), 2);
+    ASSERT_EQ(func.dimensions(), 3);
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 3; k++) {
+                bool inRange = (i + k) >= 1 && (i + k) < 5;
+                if (inRange)
+                    ASSERT_EQ(outputBuffer(i, j, k), 4 * (i + k - 1) + j);
+                else
+                    ASSERT_EQ(outputBuffer(i, j, k), 0);
+            }
+        }
+    }
 }
 
 TEST_F(transforms_tests, merge) {
@@ -372,9 +408,9 @@ TEST_F(transforms_tests, finalize_gen) {
     };
     auto epilogue = FinalizeShapeOp::solveWithMappings(outputShape, desiredShape, mappings).value();
     std::cout << epilogue.toDebugString(ctx, outputShape, desiredShape);
-    std::cout << "\nNow automatically generate epilogue:\n" << std::endl;
+    // std::cout << "\nNow automatically generate epilogue:\n" << std::endl;
     for (auto&& e: FinalizeShapeOp::generate(outputShape, { .desired = desiredShape })) {
-        std::cout << e->getEpilogue().toDebugString(ctx, outputShape, desiredShape);
+        // std::cout << e->getEpilogue().toDebugString(ctx, outputShape, desiredShape);
         auto tensorView = TensorView { e->transformShapeInverse(outputShape), std::make_shared<CodeGenContext>() };
         e->transformTensor(tensorView);
         tensorView.finishConstruction();

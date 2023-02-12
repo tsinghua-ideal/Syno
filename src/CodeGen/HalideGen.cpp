@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <iterator>
 #include <memory>
+#include <numeric>
 #include <utility>
 #include <vector>
 
@@ -31,41 +32,50 @@ Halide::Target HalideGen::GetTarget(bool useGPU) {
 }
 
 void HalideGen::visit(VariableValueNode& value) {
-    stack.emplace(vars[value.variableId]);
+    evaluator = vars[value.variableId];
 }
 void HalideGen::visit(ConstValueNode& value) {
-    stack.emplace(evaluate(value.value));
+    evaluator = evaluate(*value.value);
 }
 void HalideGen::visit(ImmediateValueNode& value) {
-    stack.emplace(value.value);
+    evaluator = value.value;
 }
 void HalideGen::visit(BinaryOpValueNode& value) {
-    value.op1.accept(*this);
-    value.op2.accept(*this);
-    Halide::Expr rhs = std::move(stack.top());
-    stack.pop();
-    Halide::Expr lhs = std::move(stack.top());
-    stack.pop();
+    Halide::Expr lhs = evaluate(value.op1);
+    Halide::Expr rhs = evaluate(value.op2);
     using Type = BinaryOpValueNode::Type;
     switch (value.type) {
-    case Type::Add: stack.emplace(lhs + rhs); break;
-    case Type::Sub: stack.emplace(lhs - rhs); break;
-    case Type::Mul: stack.emplace(lhs * rhs); break;
-    case Type::Mod: stack.emplace(lhs % rhs); break;
-    case Type::Div: stack.emplace(lhs / rhs); break;
+    case Type::Add: evaluator = lhs + rhs; break;
+    case Type::Sub: evaluator = lhs - rhs; break;
+    case Type::Mul: evaluator = lhs * rhs; break;
+    case Type::Mod: evaluator = lhs % rhs; break;
+    case Type::Div: evaluator = lhs / rhs; break;
+    }
+}
+void HalideGen::visit(IntervalBoundValueNode& value) {
+    Halide::Expr input = evaluate(value.input);
+    Halide::Expr min = evaluate(value.min), max = evaluate(value.max);
+    evaluator = Halide::clamp(input, min, max - 1);
+    // Add this constraint to the constraints list.
+    if (!accessEvaluated) {
+        constraintsBounds.emplace_back(evaluate(value));
     }
 }
 
 Halide::Expr HalideGen::evaluate(const IteratorValue& value) {
+    auto it = cache.find(value.value);
+    if (it != cache.end()) {
+        return it->second;
+    }
     value.accept(*this);
-    KAS_ASSERT(stack.size() == 1);
-    Halide::Expr result = std::move(stack.top());
-    stack.pop();
+    Halide::Expr result = std::move(evaluator);
+    evaluator = 0;
+    cache.emplace(value.value, result);
     return result;
 }
 
-Halide::Expr HalideGen::evaluate(std::shared_ptr<Size> value) {
-    return value->eval<Halide::Expr>(
+Halide::Expr HalideGen::evaluate(const Size& value) {
+    return value.eval<Halide::Expr>(
         [this](std::size_t i) { return primaryConsts[i]; },
         [this](std::size_t i) { return coefficientConsts[i]; }
     );
@@ -74,11 +84,17 @@ Halide::Expr HalideGen::evaluate(std::shared_ptr<Size> value) {
 Halide::Region HalideGen::evaluate(const Shape& shape) {
     Halide::Region region;
     for (const auto& s: shape.getSizes()) {
-        region.emplace_back(0, evaluate(s));
+        region.emplace_back(0, evaluate(*s));
     }
     // Because Halide uses column-major, we need to reverse the order of indices.
     std::ranges::reverse(region);
     return region;
+}
+
+Halide::Expr HalideGen::evaluate(const IntervalBoundValueNode& value) {
+    auto input = evaluate(value.input);
+    auto min = evaluate(value.min), max = evaluate(value.max);
+    return min <= input && input < max;
 }
 
 void HalideGen::evaluateAccess() {
@@ -125,19 +141,30 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
     Halide::Expr rhs = 1.0f;
     for (std::size_t inputId = 0; inputId < tensors.size(); ++inputId) {
         // Here for simplicity and to avoid out of bound errors (still not sure why this happens), use zero padding. Need better solution. TODO
-        Halide::Func wrappedInput = Halide::BoundaryConditions::constant_exterior(inputs[inputId], 0.0f, evaluate(tensors[inputId]->getShapeRef()));
+        // Halide::Func wrappedInput = Halide::BoundaryConditions::constant_exterior(inputs[inputId], 0.0f, evaluate(tensors[inputId]->getShapeRef()));
         // Add support for other arithmetic operations. TODO
-        rhs *= wrappedInput(tensorIndices.at(inputId));
+        // rhs *= wrappedInput(tensorIndices.at(inputId));
+        rhs *= inputs[inputId](tensorIndices.at(inputId));
     }
+
+    // To avoid out of bound errors, we need to compute constraints of the region.
+    Halide::Expr guardCond = std::accumulate(
+        constraintsBounds.begin(),
+        constraintsBounds.end(),
+        Halide::cast<bool>(true),
+        [](auto&& lhs, auto&& rhs) { return lhs && rhs; }
+    );
+    // Enforce zero-padding.
+    Halide::Expr guardedRhs = Halide::select(guardCond, Halide::likely(rhs), 0.0f);
 
     // tempAccess = [...reversed reduce loops, ...reversed outer loops], to adapt to column major Halide.
     std::vector<Halide::Var> tempAccess(reduceLoops);
     std::ranges::copy(outerLoops, std::back_inserter(tempAccess));
     Halide::Func temp;
-    temp(tempAccess) = rhs;
+    temp(tempAccess) = guardedRhs;
     for (const auto& m: tensorView.manipulations) {
         Halide::Func newTemp;
-        Halide::RDom r(0, evaluate(m.getIterator()->getSize()));
+        Halide::RDom r(0, evaluate(*m.getIterator()->getSize()));
         tempAccess.erase(tempAccess.begin());
         std::vector<Halide::Expr> reduceAccess { r };
         std::ranges::copy(tempAccess, std::back_inserter(reduceAccess));
@@ -160,7 +187,7 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(s
         switch (m.reduceType) {
         case ReduceType::Sum:     newTemp(tempAccess) = Halide::sum(tempValue); break;
         case ReduceType::Max:     newTemp(tempAccess) = Halide::maximum(tempValue); break;
-        case ReduceType::Mean:    newTemp(tempAccess) = Halide::sum(tempValue) / Halide::cast<float>(evaluate(m.getIterator()->getSize())); break;
+        case ReduceType::Mean:    newTemp(tempAccess) = Halide::sum(tempValue) / Halide::cast<float>(evaluate(*m.getIterator()->getSize())); break;
         case ReduceType::Min:     newTemp(tempAccess) = Halide::minimum(tempValue); break;
         case ReduceType::Product: newTemp(tempAccess) = Halide::product(tempValue); break;
         case ReduceType::ReduceTypeCount: KAS_CRITICAL("Invalid reduce type"); break;

@@ -62,7 +62,7 @@ StrideOp::StrideOp(std::shared_ptr<Iterator> parent, std::shared_ptr<Size> strid
 {}
 
 IteratorValue StrideOp::value(IteratorValue output) const {
-    auto stride = ConstValueNode::create(this->stride);
+    auto stride = ConstValueNode::Create(this->stride);
     return stride * output;
 }
 

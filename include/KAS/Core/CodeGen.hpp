@@ -54,6 +54,7 @@ struct VariableValueNode;
 struct ConstValueNode;
 struct ImmediateValueNode;
 struct BinaryOpValueNode;
+struct IntervalBoundValueNode;
 
 class IteratorValueVisitor {
 public:
@@ -61,6 +62,7 @@ public:
     virtual void visit(ConstValueNode& value) = 0;
     virtual void visit(ImmediateValueNode& value) = 0;
     virtual void visit(BinaryOpValueNode& value) = 0;
+    virtual void visit(IntervalBoundValueNode& value) = 0;
 };
 
 struct IteratorValueImpl {
@@ -68,6 +70,7 @@ struct IteratorValueImpl {
 };
 
 struct IteratorValue {
+    friend class HalideGen;
 protected:
     std::shared_ptr<IteratorValueImpl> value;
 public:
@@ -87,21 +90,24 @@ struct VariableValueNode final: public IteratorValueImpl {
     std::size_t variableId;
     inline VariableValueNode(std::size_t variableId): variableId { variableId } {}
     inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
-    static inline IteratorValue create(std::size_t variableId) { return IteratorValue(std::make_shared<VariableValueNode>(variableId)); }
+    static inline IteratorValue Create(std::size_t variableId) { return IteratorValue(std::make_shared<VariableValueNode>(variableId)); }
 };
 
 struct ConstValueNode final: public IteratorValueImpl {
     std::shared_ptr<Size> value;
     inline ConstValueNode(std::shared_ptr<Size> value): value { std::move(value) } {}
     inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
-    static inline IteratorValue create(std::shared_ptr<Size> value) { return IteratorValue(std::make_shared<ConstValueNode>(std::move(value))); }
+    static inline IteratorValue Create(std::shared_ptr<Size> value) { return IteratorValue(std::make_shared<ConstValueNode>(std::move(value))); }
 };
 
 struct ImmediateValueNode final: public IteratorValueImpl {
     int value;
     inline ImmediateValueNode(int value) : value { value } {}
     inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
-    static inline IteratorValue create(int value) { return IteratorValue(std::make_shared<ImmediateValueNode>(value)); }
+    static inline IteratorValue Create(int value) { return IteratorValue(std::make_shared<ImmediateValueNode>(value)); }
+    static const IteratorValue Zero;
+    static const IteratorValue One;
+    static const IteratorValue Two;
 };
 
 struct BinaryOpValueNode final: public IteratorValueImpl {
@@ -116,8 +122,23 @@ struct BinaryOpValueNode final: public IteratorValueImpl {
         op2 { std::forward<decltype(op2)>(op2) }
     {}
     inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
-    static inline IteratorValue create(Type type, auto&& op1, auto&& op2) {
+    static inline IteratorValue Create(Type type, auto&& op1, auto&& op2) {
         return IteratorValue(std::make_shared<BinaryOpValueNode>(type, std::forward<decltype(op1)>(op1), std::forward<decltype(op2)>(op2)));
+    }
+};
+
+// When used as an IteratorValue, this is equivalent to a clamp(input, min, max - 1). When used to implement zero padding, this is equivalent to select(min <= input && input < max && other_clauses..., likely(input_tensor[access]), 0)
+struct IntervalBoundValueNode final: public IteratorValueImpl {
+    IteratorValue input;
+    IteratorValue min, max;
+    IntervalBoundValueNode(auto&& input, auto&& min, auto&& max):
+        input { std::forward<decltype(input)>(input) },
+        min { std::forward<decltype(min)>(min) },
+        max { std::forward<decltype(max)>(max) }
+    {}
+    inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
+    static inline IteratorValue Create(auto&& input, auto&& min, auto&& max) {
+        return IteratorValue(std::make_shared<IntervalBoundValueNode>(std::forward<decltype(input)>(input), std::forward<decltype(min)>(min), std::forward<decltype(max)>(max)));
     }
 };
 
@@ -131,20 +152,8 @@ public:
     void visit(ConstValueNode& value) override;
     void visit(ImmediateValueNode& value) override;
     void visit(BinaryOpValueNode& value) override;
+    void visit(IntervalBoundValueNode& value) override;
     std::string toString(const IteratorValue& value);
-};
-
-struct ConditionalValue {
-    enum class Type {
-        Greater, Less, GreaterEq, LessEq
-    };
-    Type type;
-    IteratorValue op1, op2;
-    ConditionalValue(Type type, auto&& op1, auto&& op2):
-        type { type },
-        op1 { std::forward<decltype(op1)>(op1) },
-        op2 { std::forward<decltype(op2)>(op2) }
-    {}
 };
 
 } // namespace kas

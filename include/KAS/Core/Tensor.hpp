@@ -90,8 +90,6 @@ protected:
     std::vector<std::shared_ptr<Iterator>> interface;
     // The map-reduce manipulations.
     std::vector<Manipulation> manipulations;
-    // The out-of-bound conditions. This is used to enforce zero-padding semantics.
-    std::vector<ConditionalValue> outOfBoundConditions;
     // How to blend the tensors? TODO
     std::vector<std::shared_ptr<PureTensor>> tensors;
 

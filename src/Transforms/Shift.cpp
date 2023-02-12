@@ -38,8 +38,8 @@ ShiftOp::ShiftOp(std::shared_ptr<Iterator> parent, int shift):
 {}
 
 IteratorValue ShiftOp::value(IteratorValue output) const {
-    auto imm = ImmediateValueNode::create(shift);
-    auto size = ConstValueNode::create(parent->getSize());
+    auto imm = ImmediateValueNode::Create(shift);
+    auto size = ConstValueNode::Create(parent->getSize());
     return (output + imm + size) % size;
 }
 

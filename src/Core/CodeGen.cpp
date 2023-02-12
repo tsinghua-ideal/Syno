@@ -92,6 +92,10 @@ std::vector<IteratorValue> IteratorValue::DefaultAccessForShape(const std::vecto
     return result;
 }
 
+const IteratorValue ImmediateValueNode::Zero = ImmediateValueNode::Create(0);
+const IteratorValue ImmediateValueNode::One = ImmediateValueNode::Create(1);
+const IteratorValue ImmediateValueNode::Two = ImmediateValueNode::Create(2);
+
 IteratorValuePrinter::IteratorValuePrinter(const BindingContext& ctx, const CodeGenContext& cgCtx):
     ctx { ctx },
     cgCtx { cgCtx }
@@ -128,6 +132,15 @@ void IteratorValuePrinter::visit(BinaryOpValueNode& value) {
     }
     ss << "(";
     value.op2.accept(*this);
+    ss << ")";
+}
+void IteratorValuePrinter::visit(IntervalBoundValueNode& value) {
+    ss << "restrict(";
+    value.input.accept(*this);
+    ss << ",";
+    value.min.accept(*this);
+    ss << ",";
+    value.max.accept(*this);
     ss << ")";
 }
 std::string IteratorValuePrinter::toString(const IteratorValue& value) {

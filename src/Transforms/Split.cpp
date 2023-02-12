@@ -61,7 +61,7 @@ SplitOp::SplitOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> child
 
 IteratorValue SplitOp::value(DoubleIteratorValue output) const {
     auto& [outputMajor, outputMinor] = output;
-    auto block = ConstValueNode::create(childRhs.lock()->getSize());
+    auto block = ConstValueNode::Create(childRhs.lock()->getSize());
     return outputMajor * block + outputMinor;
 }
 
