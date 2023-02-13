@@ -253,12 +253,15 @@ std::tuple<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(const s
             }
             // First divide the shape into input tensor and weight tensor.
             cgCtx = std::make_shared<CodeGenContext>();
+            // If no parameter is needed, just return the input tensor.
+            if (current.shape.size() == inputShape.size()) {
+                return TensorView { { std::make_shared<PureTensor>(cgCtx->addTensor("input"), current.shape) }, std::move(cgCtx) };
+            }
             auto [inputS, weightS] = current.shape.cut<2>({ inputShape.size(), current.shape.size() - inputShape.size() });
             auto input = std::make_shared<PureTensor>(cgCtx->addTensor("input"), inputS);
             auto weight = std::make_shared<PureTensor>(cgCtx->addTensor("weight"), weightS);
             // Start to build a view of this tensor.
-            auto view = TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) };
-            return view;
+            return TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) };
         }
         // Follow the path.
         auto& child = current.children.at(path[depth]);
