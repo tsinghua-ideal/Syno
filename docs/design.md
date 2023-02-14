@@ -23,14 +23,24 @@ Fine grained primitives that work on loop iterators are devised. Along with the 
 | `Split` | Split. | Merge. |
 | `MapReduce` | Eliminates a dimension. | Creates a dimension of arbitrary size. |
 
+`Shift` and `Reverse` have trivial shape semantics.
+
 ### Color Semantics
 
 The dimensions of each tensor are assigned a unique color. It is possible for intermediate dimensions to have more than one color, or no color at all.
 
+Note that `Share`-ing two dimensions with common color is catastrophic, as some entries in the tensor can no longer be accessed. Colors are devised to make the transforms legal, in the sense that all entries are utilized in the kernel.
+
+Next, when we use the term dimension in the backward settings, we refer to the set of colors it has.
+
 | Primitives | Forward | Backward |
 | --- | --- | --- |
-| `Share` | Two input dimensions shall not have common color. The output color is the union of input colors. | |
-| `Stride` | The input and output dimensions shall not have color. | |
-| `Unfold` | The window dimension is assigned no color. | |
-| `Merge` | Blend the colors. | |
-| `Split` | Duplicate the color. | |
+| `Share` | Two input dimensions shall not have common color. The output color is the union of input colors. | Add a new disjoint constraint, and substitute with the union of two dimensions. |
+| `Stride` | The input and output dimensions shall not have color. | Simplify constraints with an empty set, and add it to known-clear-color list. |
+| `Unfold` | The window dimension is assigned no color. | Remove from known-clear-color list, or simplify constraints with an empty set. |
+| `Merge` | Blend the colors. | Substitute with the union of two dimensions. |
+| `Split` | Duplicate the color. | Substitute the two output dimensions with the color of the new dimension and simplify. |
+
+`MapReduce` does not have color semantics.
+
+`Shift` and `Reverse` have trivial color semantics.
