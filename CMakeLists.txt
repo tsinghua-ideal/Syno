@@ -15,6 +15,11 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 # Includes and libraries
 include_directories(include)
 
+# Boost
+find_package(Boost REQUIRED COMPONENTS program_options REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+link_directories(${Boost_LIBRARY_DIRS})
+
 # fmtlib
 find_package(fmt REQUIRED)
 link_libraries(fmt::fmt)

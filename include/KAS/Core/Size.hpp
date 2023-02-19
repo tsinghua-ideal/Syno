@@ -3,10 +3,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <set>
 #include <span>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 #include <memory>
@@ -17,6 +15,8 @@
 
 
 namespace kas {
+
+class ShapeView;
 
 struct Size {
     friend class BindingContext;
@@ -96,16 +96,16 @@ public:
     int getPrimaryPowersSum() const;
 
     // The product of two Size's
-    std::shared_ptr<Size> operator*(const Size& other) const;
+    Size operator*(const Size& other) const;
     // The product of multiple Size's
-    std::shared_ptr<Size> static Product(const std::vector<std::shared_ptr<Size>>& operands);
+    Size static Product(ShapeView operands);
 
     // The quotient of two Size's
-    std::shared_ptr<Size> operator/(const Size& other) const;
+    Size operator/(const Size& other) const;
     std::optional<Trait> testDividedBy(const Size& other);
     std::optional<Trait> canBeDividedBy(const Size& other) const;
 
-    bool operator==(const Size& other) const = default;
+    bool operator==(const Size& other) const;
 
     std::size_t estimate(const BindingContext& ctx) const;
 
@@ -141,71 +141,54 @@ public:
     int scoreOfGeneralDimension(const LabeledSize& other) const;
 };
 
-struct Shape final {
-protected:
-    std::vector<std::shared_ptr<Size>> sizes;
+class Shape {
+    std::vector<Size> sizes;
+
+    struct Iterator {
+        using value_type = const Size;
+        using difference_type = std::ptrdiff_t;
+        using pointer = value_type *;
+        using reference = value_type&;
+
+        pointer dim;
+
+        inline Iterator(): dim { nullptr } {}
+        inline Iterator(pointer dim): dim { dim } {}
+        inline Iterator(const Iterator& other): dim { other.dim } {}
+
+        inline reference operator*() const { return *dim; }
+        inline pointer operator->() const { return dim; }
+        inline reference operator[](difference_type n) const { return dim[n]; }
+
+        inline Iterator& operator++() { ++dim; return *this; }
+        inline Iterator operator++(int) { auto res = *this; ++dim; return res; }
+        inline Iterator& operator--() { --dim; return *this; }
+        inline Iterator operator--(int) { auto res = *this; --dim; return res; }
+        inline Iterator& operator+=(difference_type n) { dim += n; return *this; }
+        inline Iterator& operator-=(difference_type n) { dim -= n; return *this; }
+        inline Iterator operator+(difference_type n) const { return dim + n; }
+        friend inline Iterator operator+(difference_type n, const Iterator& it) { return n + it.dim; }
+        inline Iterator operator-(difference_type n) const { return dim - n; }
+        inline difference_type operator-(const Iterator& other) const { return dim - other.dim; }
+
+        inline bool operator==(const Iterator& other) const = default;
+        inline std::strong_ordering operator<=>(const Iterator& other) const = default;
+    };
 
 public:
-    Shape() = default;
-    Shape(const Shape& shape) = default;
-    Shape(Shape&& shape) = default;
-    Shape& operator=(const Shape& shape) & = default;
-    Shape& operator=(Shape&& shape) & = default;
-    explicit Shape(const std::vector<std::shared_ptr<Size>>& sizes);
-    explicit Shape(std::vector<std::shared_ptr<Size>>&& sizes);
+    Shape(auto&& sizes): sizes { std::forward<decltype(sizes)>(sizes) } {}
 
-    const std::vector<std::shared_ptr<Size>>& getSizes() const;
-    bool operator==(const Shape& other) const = default;
-    std::size_t size() const;
-    const std::shared_ptr<Size>& operator[](std::size_t index) const;
-    Size totalSize() const;
+    inline std::size_t size() const { return sizes.size(); }
+    inline const Size& operator[](std::size_t i) const { return sizes[i]; }
 
-    template<std::size_t N>
-    std::array<Shape, N> cut(std::array<std::size_t, N> dimensions) const {
-        std::array<Shape, N> res;
-        std::size_t begin = 0;
-        for (std::size_t i = 0; i < dimensions.size(); ++i) {
-            std::size_t dim = dimensions[i];
-            const std::size_t end = begin + dim;
-            std::vector<std::shared_ptr<Size>> newSizes;
-            std::copy(sizes.begin() + begin, sizes.begin() + end, std::back_inserter(newSizes));
-            res[i] = Shape(std::move(newSizes));
-            begin = end;
-        }
-        KAS_ASSERT(begin == size());
-        return res;
-    }
+    inline Iterator begin() const { return Iterator { sizes.data() }; }
+    inline Iterator end() const { return Iterator { sizes.data() + sizes.size() }; }
 
-    Shape replace(
-        std::vector<std::size_t> drops,
-        std::vector<std::pair<std::size_t, std::shared_ptr<Size>>> adds
-    ) const;
-
-    template<typename ValueType, typename Tp, typename Tc>
-    std::vector<ValueType> eval(Tp&& p, Tc&& c) const {
-        std::vector<ValueType> result;
-        for (auto& size: sizes) {
-            result.emplace_back(size->eval<ValueType>(std::forward<Tp>(p), std::forward<Tc>(c)));
-        }
-        return result;
-    };
+    bool operator==(const Shape& other) const;
 
     std::vector<std::size_t> estimate(const BindingContext& ctx) const;
 
     std::string toString(const BindingContext& ctx) const;
-
-    template<typename C = decltype([](const std::string&){})>
-    static std::vector<std::string> parseNames(std::string_view shape, C&& onNewName = C()) {
-        auto parsedShape = Parser(shape).parseShape();
-        std::vector<std::string> result;
-        for (auto& size: parsedShape) {
-            KAS_ASSERT(size.size() == 1 && size[0].second == 1);
-            std::string name = std::move(size[0].first);
-            onNewName(name);
-            result.emplace_back(std::move(name));
-        }
-        return result;
-    }
 };
 
 struct Allowance {

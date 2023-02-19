@@ -82,15 +82,6 @@ std::shared_ptr<Size> BindingContext::getSingleCoefficientVariableSize(std::size
     return res;
 }
 
-std::vector<std::shared_ptr<Size>> BindingContext::getPositiveCoefficients() const {
-    std::vector<std::shared_ptr<Size>> result;
-    result.reserve(getCoefficientCount());
-    for (std::size_t i = 0; i < getCoefficientCount(); ++i) {
-        result.emplace_back(getSingleCoefficientVariableSize(i));
-    }
-    return result;
-}
-
 Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
     std::map<std::string, std::size_t> pNameToIndex = getPrimaryLookupTable();
     std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();

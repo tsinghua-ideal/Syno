@@ -12,7 +12,7 @@
 
 namespace kas {
 
-struct Shape;
+class Shape;
 struct Size;
 
 class BindingContext final {
@@ -52,10 +52,8 @@ public:
     std::size_t getPrimaryEstimate(std::size_t index) const;
     std::size_t getCoefficientEstimate(std::size_t index) const;
 
-    std::shared_ptr<Size> getSinglePrimaryVariableSize(std::size_t index) const;
-    std::shared_ptr<Size> getSingleCoefficientVariableSize(std::size_t index) const;
-
-    std::vector<std::shared_ptr<Size>> getPositiveCoefficients() const;
+    Size getSinglePrimaryVariableSize(std::size_t index) const;
+    Size getSingleCoefficientVariableSize(std::size_t index) const;
 
     Shape getShapeFromNames(const std::vector<std::string>& names);
     // This overwrites the current metadata.

@@ -1,1 +1,1 @@
-add_library(search-lib STATIC Sample.cpp ShapeNode.cpp)
+add_library(search-obj OBJECT Sample.cpp ShapeNode.cpp)

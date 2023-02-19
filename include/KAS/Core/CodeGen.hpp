@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "KAS/Core/BindingContext.hpp"
-#include "KAS/Core/Shape.hpp"
+#include "KAS/Core/Size.hpp"
 
 
 namespace kas {

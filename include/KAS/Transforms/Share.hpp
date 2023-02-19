@@ -1,34 +1,36 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 
 #include "KAS/Core/BindingContext.hpp"
+#include "KAS/Core/DimensionDecl.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
 namespace kas {
 
-class ShareShapeOp final: public PrimitiveShapeOp {
+class ShareOp {
 public:
-    std::size_t inputLhs, inputRhs;
-    std::size_t output;
-    ShareShapeOp(std::size_t inputLhs, std::size_t inputRhs, std::size_t output);
-    Shape transformShapeInverse(const Shape& outputShape) const override;
-    void transformTensor(TensorView& tensor) const override;
-    inline std::string type() const override { return "Share"; }
-    std::string description() const override;
+    Dimension output;
+    FirstOrSecond firstOrSecond;
+    inline ShareOp(auto&& output, FirstOrSecond firstOrSecond):
+        output { std::forward<decltype(output)>(output) },
+        firstOrSecond { firstOrSecond }
+    {}
+    bool operator==(const ShareOp& other) const = default;
+    inline const Size& size() const noexcept { return output.size(); }
+    DoubleIteratorValue value(const IteratorValue& output) const;
+    // Since ShareOp keeps no metadata, the initial hash is the same for all ShareOps.
+    consteval std::size_t initialHash() const noexcept { return std::hash<std::string>{}(Type()); }
+    consteval static const char *Type() { return "Share"; }
 
     struct GenerateOptions {
         const BindingContext& ctx;
         std::size_t dimUpperBound;
     };
-    static std::vector<std::unique_ptr<ShareShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
+    static std::vector<std::pair<Dimension, Dimension>> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
-
-class ShareOp: public MergeLikePrimitiveOp {
-public:
-    ShareOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> parentRhs);
-    DoubleIteratorValue value(IteratorValue output) const override;
-};
+static_assert(MergeLikePrimitiveOp<ShareOp>);
 
 } // namespace kas

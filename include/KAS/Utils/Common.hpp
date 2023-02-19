@@ -8,6 +8,7 @@
 #define KAS_WARNING(...) ::kas::detail::FormatAndLog<::kas::detail::ConsoleType::Out, ::kas::detail::ColorType::Green>(__FILE_NAME__, __LINE__, "Warning" __VA_OPT__(,) __VA_ARGS__)
 #define KAS_UNREACHABLE(...) ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE_NAME__, __LINE__, "Unreachable" __VA_OPT__(,) __VA_ARGS__)
 #define KAS_CRITICAL(...) ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE_NAME__, __LINE__, "Error" __VA_OPT__(,) __VA_ARGS__)
+#define KAS_UNIMPLEMENTED(...) ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE_NAME__, __LINE__, "Unimplemented" __VA_OPT__(,) __VA_ARGS__)
 
 namespace kas {
 
@@ -24,7 +25,7 @@ enum class ColorType {
     Clear,
 };
 template<ColorType>
-[[maybe_unused]] static constexpr const char *ConsoleColor = "\033[0m";
+[[maybe_unused]] constexpr inline const char *ConsoleColor = "\033[0m";
 template<> [[maybe_unused]] constexpr inline const char *ConsoleColor<ColorType::Reset> = "\033[0m";
 template<> [[maybe_unused]] constexpr inline const char *ConsoleColor<ColorType::Black> = "\033[30m";
 template<> [[maybe_unused]] constexpr inline const char *ConsoleColor<ColorType::Red> = "\033[31m";
@@ -40,7 +41,7 @@ enum class ConsoleType {
 };
 // May change to a class structure to record logs
 template<ConsoleType consoleType>
-[[maybe_unused]] static constexpr std::ostream& Console = std::cout;
+[[maybe_unused]] constexpr inline std::ostream& Console = std::cout;
 template<> [[maybe_unused]] constexpr inline std::ostream& Console<ConsoleType::Out> = std::cout;
 template<> [[maybe_unused]] constexpr inline std::ostream& Console<ConsoleType::Error> = std::cerr;
 
