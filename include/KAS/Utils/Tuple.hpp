@@ -28,4 +28,19 @@ void TupleForEach(Tuple&& tuple, F&& f) {
     TupleForEachImpl(std::forward<Tuple>(tuple), std::forward<F>(f), std::make_index_sequence<N>{});
 }
 
+template <typename T, typename Tuple>
+struct TupleHasType;
+
+template <typename T>
+struct TupleHasType<T, std::tuple<>> : std::false_type {};
+
+template <typename T, typename U, typename... Ts>
+struct TupleHasType<T, std::tuple<U, Ts...>> : TupleHasType<T, std::tuple<Ts...>> {};
+
+template <typename T, typename... Ts>
+struct TupleHasType<T, std::tuple<T, Ts...>> : std::true_type {};
+
+template <typename T, typename... Ts>
+constexpr bool TupleHasTypeV = TupleHasType<T, std::tuple<Ts...>>::value;
+
 } // namespace kas

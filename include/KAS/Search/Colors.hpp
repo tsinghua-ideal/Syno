@@ -1,6 +1,6 @@
 #pragma once
 
-#include "KAS/Core/DimensionDecl.hpp"
+#include "KAS/Core/Dimension.hpp"
 
 
 namespace kas {

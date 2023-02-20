@@ -4,7 +4,7 @@
 #include <concepts>
 #include <cstddef>
 
-#include "KAS/Core/DimensionDecl.hpp"
+#include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Size.hpp"
 
 

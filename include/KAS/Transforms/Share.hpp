@@ -1,29 +1,26 @@
 #pragma once
 
-#include <functional>
-#include <memory>
-
-#include "KAS/Core/BindingContext.hpp"
-#include "KAS/Core/DimensionDecl.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
 namespace kas {
 
-class ShareOp {
+class ShareOp final: public MergeLikePrimitiveOp {
 public:
-    Dimension output;
-    FirstOrSecond firstOrSecond;
-    inline ShareOp(auto&& output, FirstOrSecond firstOrSecond):
-        output { std::forward<decltype(output)>(output) },
-        firstOrSecond { firstOrSecond }
+    inline ShareOp(auto&& output, Order order):
+        MergeLikePrimitiveOp { std::forward<decltype(output)>(output), order }
     {}
-    bool operator==(const ShareOp& other) const = default;
-    inline const Size& size() const noexcept { return output.size(); }
-    DoubleIteratorValue value(const IteratorValue& output) const;
+
+    inline const Size& size() const noexcept override { return output.size(); }
     // Since ShareOp keeps no metadata, the initial hash is the same for all ShareOps.
-    consteval std::size_t initialHash() const noexcept { return std::hash<std::string>{}(Type()); }
-    consteval static const char *Type() { return "Share"; }
+    constexpr std::size_t initialHash() const noexcept override { return std::hash<std::string>{}("Share"); }
+    constexpr DimensionType type() const noexcept override { return DimensionType::Share; }
+
+    DoubleIteratorValue value(const IteratorValue& output) const override;
+
+    inline bool operator==(const ShareOp& other) const noexcept {
+        return output == other.output && order == other.order;
+    }
 
     struct GenerateOptions {
         const BindingContext& ctx;
@@ -31,6 +28,5 @@ public:
     };
     static std::vector<std::pair<Dimension, Dimension>> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
-static_assert(MergeLikePrimitiveOp<ShareOp>);
 
 } // namespace kas

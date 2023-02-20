@@ -2,7 +2,8 @@
 
 #include <fmt/core.h>
 
-#include "KAS/Core/Dimension.hpp"
+#include "KAS/Transforms/DimensionStore.hpp"
+#include "KAS/Transforms/Share.hpp"
 
 
 namespace kas {
@@ -15,7 +16,7 @@ std::vector<std::pair<Dimension, Dimension>> ShareOp::Generate(DimensionStore& s
     std::vector<std::pair<Dimension, Dimension>> result;
     if (outputShape.size() < options.dimUpperBound) {
         for (auto&& dim: outputShape) {
-            result.emplace_back(store.get<ShareOp>(dim, FirstOrSecond::First), store.get<ShareOp>(dim, FirstOrSecond::Second));
+            result.emplace_back(store.get<ShareOp>(dim, Order::Left), store.get<ShareOp>(dim, Order::Right));
         }
     }
     // Allowance allowance { outputShape.totalSize(), options.ctx };
