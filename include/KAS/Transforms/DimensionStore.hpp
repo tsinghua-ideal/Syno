@@ -1,7 +1,8 @@
 #pragma once
 
 #include <tuple>
-#include <unordered_map>
+#include <type_traits>
+#include <unordered_set>
 
 #include <boost/functional/hash.hpp>
 
@@ -14,16 +15,31 @@
 
 namespace kas {
 
+namespace detail {
+
+template<typename Op>
+using Pointer = const Op *;
+
+template<typename Op>
+struct PointerEqual {
+    bool operator()(const Pointer<Op>& lhs, const Pointer<Op>& rhs) const noexcept {
+        return *lhs == *rhs;
+    }
+};
+
+template<typename Op, typename Hash>
+using Store = std::unordered_set<Pointer<Op>, Hash, PointerEqual<Op>>;
+
 template<typename Op>
 struct SingleRepeatLikeOpDimensionStore {
     struct Hash {
-        std::size_t operator()(const Op& op) const noexcept {
-            auto h = op.initialHash();
-            boost::hash_combine(h, op.output.get());
+        std::size_t operator()(Pointer<Op> op) const noexcept {
+            auto h = op->initialHash();
+            boost::hash_combine(h, op->output.get());
             return h;
         }
     };
-    std::unordered_map<Op, Dimension::PointerType, Hash> value;
+    Store<Op, Hash> value;
 };
 template<typename... Ops>
 struct RepeatLikeOpDimensionStore {
@@ -34,14 +50,14 @@ struct RepeatLikeOpDimensionStore {
 template<typename Op>
 struct SingleSplitLikeOpDimensionStore {
     struct Hash {
-        std::size_t operator()(const Op& op) const noexcept {
-            auto h = op.initialHash();
-            boost::hash_combine(h, op.outputLhs.get());
-            boost::hash_combine(h, op.outputRhs.get());
+        std::size_t operator()(Pointer<Op> op) const noexcept {
+            auto h = op->initialHash();
+            boost::hash_combine(h, op->outputLhs.get());
+            boost::hash_combine(h, op->outputRhs.get());
             return h;
         }
     };
-    std::unordered_map<Op, Dimension::PointerType, Hash> value;
+    Store<Op, Hash> value;
 };
 template<typename... Ops>
 struct SplitLikeOpDimensionStore {
@@ -52,14 +68,14 @@ struct SplitLikeOpDimensionStore {
 template<typename Op>
 struct SingleMergeLikeOpDimensionStore {
     struct Hash {
-        std::size_t operator()(const Op& op) const noexcept {
-            auto h = op.initialHash();
-            boost::hash_combine(h, op.output.get());
-            boost::hash_combine(h, op.order);
+        std::size_t operator()(Pointer<Op> op) const noexcept {
+            auto h = op->initialHash();
+            boost::hash_combine(h, op->output.get());
+            boost::hash_combine(h, op->order);
             return h;
         }
     };
-    std::unordered_map<Op, Dimension::PointerType, Hash> value;
+    Store<Op, Hash> value;
 };
 template<typename... Ops>
 struct MergeLikeOpDimensionStore {
@@ -67,11 +83,13 @@ struct MergeLikeOpDimensionStore {
     std::tuple<SingleMergeLikeOpDimensionStore<Ops>...> stores;
 };
 
+} // namespace
+
 // Remember to register the Ops!
 class DimensionStore {
-    RepeatLikeOpDimensionStore<> repeatLikes;
-    SplitLikeOpDimensionStore<> splitLikes;
-    MergeLikeOpDimensionStore<ShareOp> mergeLikes;
+    detail::RepeatLikeOpDimensionStore<> repeatLikes;
+    detail::SplitLikeOpDimensionStore<> splitLikes;
+    detail::MergeLikeOpDimensionStore<ShareOp> mergeLikes;
     template<typename Op> consteval bool isRepeatLike() {
         return TupleHasTypeV<Op, decltype(repeatLikes)::Primitives>;
     }
@@ -86,19 +104,21 @@ class DimensionStore {
         isRepeatLike<Op>() || isSplitLike<Op>() || isMergeLike<Op>()
     ) {
         if constexpr (isRepeatLike<Op>()) {
-            return std::get<SingleRepeatLikeOpDimensionStore<Op>>(repeatLikes.stores).value;
+            return std::get<detail::SingleRepeatLikeOpDimensionStore<Op>>(repeatLikes.stores).value;
         } else if constexpr (isSplitLike<Op>()) {
-            return std::get<SingleSplitLikeOpDimensionStore<Op>>(splitLikes.stores).value;
+            return std::get<detail::SingleSplitLikeOpDimensionStore<Op>>(splitLikes.stores).value;
         } else if constexpr (isMergeLike<Op>()) {
-            return std::get<SingleMergeLikeOpDimensionStore<Op>>(mergeLikes.stores).value;
+            return std::get<detail::SingleMergeLikeOpDimensionStore<Op>>(mergeLikes.stores).value;
         }
     }
+public:
     template<typename Op, typename... Args>
-    Dimension GetFromStore(Args&&... args) {
+    Dimension get(Args&&... args) {
         auto& store = getStore<Op>();
-        auto op = static_cast<DimensionImpl *>(new Op(std::forward<Args>(args)...));
+        static_assert(std::is_same_v<typename std::remove_reference_t<decltype(store)>::key_type, detail::Pointer<Op>>);
+        auto op = new Op(std::forward<Args>(args)...);
         try {
-            auto [it, inserted] = store.try_emplace(*op, op);
+            auto [it, inserted] = store.insert(op);
             if (!inserted) {
                 delete op;
                 return it->second;
@@ -109,27 +129,10 @@ class DimensionStore {
         }
         return Dimension(op);
     }
-public:
-    template<typename Op, typename... Args>
-    Dimension get(Args&&... args) {
-        auto& store = getStore<Op>();
-        auto op = new Op(std::forward<Args>(args)...);
-        try {
-            auto [it, inserted] = store.try_emplace(*op, op);
-            if (!inserted) {
-                delete op;
-                return it->second;
-            }
-        } catch (...) {
-            delete op;
-            throw;
-        }
-        return Dimension(static_cast<DimensionImpl>(op));
-    }
     inline ~DimensionStore() {
         auto deleteOp = [](auto&& store) {
-            for (auto&& [op, dim]: store) {
-                delete dim;
+            for (auto&& op: store) {
+                delete op;
             }
         };
         TupleForEach(repeatLikes, deleteOp);
