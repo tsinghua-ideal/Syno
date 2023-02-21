@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KAS/Core/PrimitiveOp.hpp"
+#include <boost/container_hash/hash.hpp>
 
 
 namespace kas {
@@ -13,7 +14,7 @@ public:
 
     inline const Size& size() const noexcept override { return output.size(); }
     // Since ShareOp keeps no metadata, the initial hash is the same for all ShareOps.
-    constexpr std::size_t initialHash() const noexcept override { return std::hash<std::string>{}("Share"); }
+    constexpr std::size_t initialHash() const noexcept override { return boost::hash<std::string>{}("Share"); }
     constexpr DimensionType type() const noexcept override { return DimensionType::Share; }
 
     DoubleIteratorValue value(const IteratorValue& output) const override;

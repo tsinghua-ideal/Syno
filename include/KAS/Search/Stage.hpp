@@ -6,7 +6,7 @@
 
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Search/Colors.hpp"
-#include "KAS/Transforms/Finalize.hpp"
+#include "KAS/Search/Finalize.hpp"
 
 
 namespace kas {
@@ -19,7 +19,7 @@ class Stage {
     // Lazily computed.
     std::optional<FinalizeOp> finalizer;
 public:
-    const FinalizeOp& getFinalizer() const;
+    const FinalizeOp& getFinalizer();
 };
 
 } // namespace kas

@@ -10,7 +10,6 @@
 
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Core/Manipulation.hpp"
 
 
 namespace kas {
