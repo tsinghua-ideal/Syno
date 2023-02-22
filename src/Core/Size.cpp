@@ -105,26 +105,6 @@ Size Size::operator*(const Size& other) const {
     return newSize;
 }
 
-Size Size::Product(ShapeView operands) {
-    KAS_ASSERT(operands.size() > 0);
-    auto newSize = Size(operands[0]);
-    auto& newPrimary = newSize.primary;
-    auto& newCoefficient = newSize.coefficient;
-    const auto primaryCount = newSize.primaryCount;
-    const auto coefficientCount = newSize.coefficientCount;
-    for (std::size_t index = 1; index < operands.size(); ++index) {
-        const auto& operand = operands[index];
-        KAS_ASSERT(primaryCount == operand.primaryCount && coefficientCount == operand.coefficientCount);
-        for (std::size_t i = 0; i < primaryCount; ++i) {
-            newPrimary[i] += operand.primary[i];
-        }
-        for (std::size_t i = 0; i < coefficientCount; ++i) {
-            newCoefficient[i] += operand.coefficient[i];
-        }
-    }
-    return newSize;
-}
-
 Size Size::operator/(const Size &other) const {
     KAS_ASSERT(primaryCount == other.primaryCount && coefficientCount == other.coefficientCount);
     auto newSize = Size(*this);

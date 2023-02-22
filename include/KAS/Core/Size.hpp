@@ -15,8 +15,6 @@
 
 namespace kas {
 
-class ShapeView;
-
 struct Size {
     friend class BindingContext;
     friend struct LabeledSize;
@@ -97,7 +95,26 @@ public:
     // The product of two Size's
     Size operator*(const Size& other) const;
     // The product of multiple Size's
-    Size static Product(ShapeView operands);
+    template<typename Storage, auto Mapping>
+    Size static Product(AbstractShape<Storage, Mapping> operands) {
+        KAS_ASSERT(operands.size() > 0);
+        auto newSize = Size(operands[0]);
+        auto& newPrimary = newSize.primary;
+        auto& newCoefficient = newSize.coefficient;
+        const auto primaryCount = newSize.primaryCount;
+        const auto coefficientCount = newSize.coefficientCount;
+        for (std::size_t index = 1; index < operands.size(); ++index) {
+            const auto& operand = operands[index];
+            KAS_ASSERT(primaryCount == operand.primaryCount && coefficientCount == operand.coefficientCount);
+            for (std::size_t i = 0; i < primaryCount; ++i) {
+                newPrimary[i] += operand.primary[i];
+            }
+            for (std::size_t i = 0; i < coefficientCount; ++i) {
+                newCoefficient[i] += operand.coefficient[i];
+            }
+        }
+        return newSize;
+    }
 
     // The quotient of two Size's
     Size operator/(const Size& other) const;
