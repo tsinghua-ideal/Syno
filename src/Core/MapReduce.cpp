@@ -1,13 +1,11 @@
 #include <string>
-#include <utility>
 
-#include "KAS/Core/Manipulation.hpp"
-#include "KAS/Utils/Common.hpp"
+#include "KAS/Core/MapReduce.hpp"
 
 
 namespace kas {
 
-std::string Manipulation::what(MapType type) {
+std::string MapReduceOp::what(MapType type) {
     switch (type) {
         case MapType::Absolute: return "Absolute";
         case MapType::ArcTan:   return "ArcTan";
@@ -24,7 +22,7 @@ std::string Manipulation::what(MapType type) {
     KAS_UNREACHABLE();
 }
 
-std::string Manipulation::what(ReduceType type) {
+std::string MapReduceOp::what(ReduceType type) {
     switch (type) {
         case ReduceType::Sum:     return "Sum";
         case ReduceType::Max:     return "Max";
@@ -36,24 +34,14 @@ std::string Manipulation::what(ReduceType type) {
     KAS_UNREACHABLE();
 }
 
-Manipulation::Manipulation(std::shared_ptr<Iterator> iterator, MapType mapType, ReduceType reduceType):
-    iterator { std::move(iterator) },
-    mapType { mapType },
-    reduceType { reduceType }
-{}
-
-std::shared_ptr<Iterator> Manipulation::getIterator() const {
-    return iterator;
-}
-
-std::string Manipulation::whatMap() const {
+std::string MapReduceOp::whatMap() const {
     return what(mapType);
 }
-std::string Manipulation::whatReduce() const {
+std::string MapReduceOp::whatReduce() const {
     return what(reduceType);
 }
 
-std::string Manipulation::what() const {
+std::string MapReduceOp::what() const {
     return what(mapType) + "+" + what(reduceType);
 }
 

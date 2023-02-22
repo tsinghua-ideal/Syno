@@ -8,7 +8,7 @@ namespace kas {
 
 class ShareOp final: public MergeLikePrimitiveOp {
 public:
-    inline ShareOp(auto&& output, Order order):
+    ShareOp(auto&& output, Order order):
         MergeLikePrimitiveOp { std::forward<decltype(output)>(output), order }
     {}
 

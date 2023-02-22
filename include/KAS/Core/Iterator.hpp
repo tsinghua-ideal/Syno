@@ -11,14 +11,14 @@ class Iterator final: public DimensionImpl {
     std::size_t index;
     Size domain;
 public:
-    explicit inline Iterator(std::size_t index, auto&& domain):
+    explicit Iterator(std::size_t index, auto&& domain):
         index { index },
         domain { std::forward<decltype(domain)>(domain) }
     {}
     inline const Size& size() const noexcept override { return domain; }
     inline std::size_t initialHash() const noexcept override {
         auto h = index;
-        boost::hash_combine(h, "Iterator");
+        boost::hash_combine(h, DimensionType::Iterator);
         return h;
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::Iterator; }

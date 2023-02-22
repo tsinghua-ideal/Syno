@@ -1,22 +1,8 @@
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
-#include <functional>
-#include <map>
-#include <memory>
 #include <numeric>
-#include <ranges>
-#include <set>
-#include <span>
 #include <sstream>
-#include <string>
-#include <string_view>
-#include <vector>
 
-#include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Utils/Common.hpp"
-#include "KAS/Utils/Vector.hpp"
+#include "KAS/Core/Size.hpp"
 
 
 namespace kas {
@@ -105,11 +91,11 @@ int Size::getPrimaryPowersSum() const {
     return std::accumulate(primary.begin(), primary.end(), 0);
 }
 
-std::shared_ptr<Size> Size::operator*(const Size& other) const {
+Size Size::operator*(const Size& other) const {
     KAS_ASSERT(primaryCount == other.primaryCount && coefficientCount == other.coefficientCount);
-    auto newSize = std::make_shared<Size>(*this);
-    auto& newPrimary = newSize->primary;
-    auto& newCoefficient = newSize->coefficient;
+    auto newSize = Size(*this);
+    auto& newPrimary = newSize.primary;
+    auto& newCoefficient = newSize.coefficient;
     for (std::size_t i = 0; i < primaryCount; ++i) {
         newPrimary[i] += other.primary[i];
     }
@@ -119,14 +105,15 @@ std::shared_ptr<Size> Size::operator*(const Size& other) const {
     return newSize;
 }
 
-std::shared_ptr<Size> Size::Product(const std::vector<std::shared_ptr<Size>>& operands) {
-    auto newSize = std::make_shared<Size>(*operands.at(0));
-    auto& newPrimary = newSize->primary;
-    auto& newCoefficient = newSize->coefficient;
-    const auto primaryCount = newSize->primaryCount;
-    const auto coefficientCount = newSize->coefficientCount;
+Size Size::Product(ShapeView operands) {
+    KAS_ASSERT(operands.size() > 0);
+    auto newSize = Size(operands[0]);
+    auto& newPrimary = newSize.primary;
+    auto& newCoefficient = newSize.coefficient;
+    const auto primaryCount = newSize.primaryCount;
+    const auto coefficientCount = newSize.coefficientCount;
     for (std::size_t index = 1; index < operands.size(); ++index) {
-        const auto& operand = *operands[index];
+        const auto& operand = operands[index];
         KAS_ASSERT(primaryCount == operand.primaryCount && coefficientCount == operand.coefficientCount);
         for (std::size_t i = 0; i < primaryCount; ++i) {
             newPrimary[i] += operand.primary[i];
@@ -138,11 +125,11 @@ std::shared_ptr<Size> Size::Product(const std::vector<std::shared_ptr<Size>>& op
     return newSize;
 }
 
-std::shared_ptr<Size> Size::operator/(const Size &other) const {
+Size Size::operator/(const Size &other) const {
     KAS_ASSERT(primaryCount == other.primaryCount && coefficientCount == other.coefficientCount);
-    auto newSize = std::make_shared<Size>(*this);
-    auto& newPrimary = newSize->primary;
-    auto& newCoefficient = newSize->coefficient;
+    auto newSize = Size(*this);
+    auto& newPrimary = newSize.primary;
+    auto& newCoefficient = newSize.coefficient;
     for (std::size_t i = 0; i < primaryCount; ++i) {
         newPrimary[i] -= other.primary[i];
         // Ensure that no primary variable is in denominator
@@ -328,50 +315,6 @@ int LabeledSize::scoreOfGeneralDimension(const LabeledSize& other) const {
         score += std::abs(coefficient[i]) + std::abs(other.coefficient[i]) - std::abs(coefficient[i] + other.coefficient[i]);
     }
     return score;
-}
-
-Shape::Shape(const std::vector<std::shared_ptr<Size>>& sizes):
-    sizes(sizes)
-{}
-Shape::Shape(std::vector<std::shared_ptr<Size>>&& sizes):
-    sizes(std::move(sizes))
-{}
-
-const std::vector<std::shared_ptr<Size>>& Shape::getSizes() const {
-    return sizes;
-}
-
-std::size_t Shape::size() const {
-    return sizes.size();
-}
-
-const std::shared_ptr<Size>& Shape::operator[](std::size_t index) const {
-    return sizes.at(index);
-}
-
-Size Shape::totalSize() const {
-    return std::move(*Size::Product(sizes));
-}
-
-Shape Shape::replace(
-    std::vector<std::size_t> drops,
-    std::vector<std::pair<std::size_t, std::shared_ptr<Size>>> adds
-) const {
-    return Shape { ReplaceVector(sizes, drops, adds) };
-}
-
-std::vector<std::size_t> Shape::estimate(const BindingContext& ctx) const {
-    std::vector<std::size_t> result;
-    for (const auto& size: sizes) {
-        result.emplace_back(size->estimate(ctx));
-    }
-    return result;
-}
-
-std::string Shape::toString(const BindingContext& ctx) const {
-    return VectorToString(sizes | std::ranges::views::transform([&ctx](const std::shared_ptr<Size>& size) {
-        return size->toString(ctx);
-    }));
 }
 
 Allowance::Allowance(const Size& shape, const BindingContext& ctx):

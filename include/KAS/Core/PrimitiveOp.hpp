@@ -17,7 +17,7 @@ using DoubleIteratorValue = std::pair<IteratorValue, IteratorValue>;
 class RepeatLikePrimitiveOp: public DimensionImpl {
 public:
     Dimension output;
-    inline RepeatLikePrimitiveOp(auto&& output):
+    RepeatLikePrimitiveOp(auto&& output):
         output { std::forward<decltype(output)>(output) }
     {}
     virtual IteratorValue value(const IteratorValue& value) const = 0;
@@ -27,7 +27,7 @@ public:
 class SplitLikePrimitiveOp: public DimensionImpl {
 public:
     Dimension outputLhs, outputRhs;
-    inline SplitLikePrimitiveOp(auto&& outputLhs, auto&& outputRhs):
+    SplitLikePrimitiveOp(auto&& outputLhs, auto&& outputRhs):
         outputLhs { std::forward<decltype(outputLhs)>(outputLhs) },
         outputRhs { std::forward<decltype(outputRhs)>(outputRhs) }
     {}
@@ -43,7 +43,7 @@ class MergeLikePrimitiveOp: public DimensionImpl {
 public:
     Dimension output;
     Order order;
-    inline MergeLikePrimitiveOp(auto&& output, Order order):
+    MergeLikePrimitiveOp(auto&& output, Order order):
         output { std::forward<decltype(output)>(output) },
         order { order }
     {}

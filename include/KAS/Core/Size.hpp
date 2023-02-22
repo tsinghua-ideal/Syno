@@ -7,7 +7,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <memory>
 #include <optional>
 
 #include "KAS/Core/BindingContext.hpp"
@@ -110,6 +109,19 @@ public:
     std::size_t estimate(const BindingContext& ctx) const;
 
     std::string toString(const BindingContext& ctx) const;
+
+    template<typename C = decltype([](const std::string&){})>
+    static std::vector<std::string> parseNames(std::string_view shape, C&& onNewName = C()) {
+        auto parsedShape = Parser(shape).parseShape();
+        std::vector<std::string> result;
+        for (auto& size: parsedShape) {
+            KAS_ASSERT(size.size() == 1 && size[0].second == 1);
+            std::string name = std::move(size[0].first);
+            onNewName(name);
+            result.emplace_back(std::move(name));
+        }
+        return result;
+    }
 };
 
 struct LabeledSize: public Size {
@@ -139,56 +151,6 @@ public:
 
     // Assumes this is IllegalCoefficient and other is General. Computes how much the variables can counteract.
     int scoreOfGeneralDimension(const LabeledSize& other) const;
-};
-
-class Shape {
-    std::vector<Size> sizes;
-
-    struct Iterator {
-        using value_type = const Size;
-        using difference_type = std::ptrdiff_t;
-        using pointer = value_type *;
-        using reference = value_type&;
-
-        pointer dim;
-
-        inline Iterator(): dim { nullptr } {}
-        inline Iterator(pointer dim): dim { dim } {}
-        inline Iterator(const Iterator& other): dim { other.dim } {}
-
-        inline reference operator*() const { return *dim; }
-        inline pointer operator->() const { return dim; }
-        inline reference operator[](difference_type n) const { return dim[n]; }
-
-        inline Iterator& operator++() { ++dim; return *this; }
-        inline Iterator operator++(int) { auto res = *this; ++dim; return res; }
-        inline Iterator& operator--() { --dim; return *this; }
-        inline Iterator operator--(int) { auto res = *this; --dim; return res; }
-        inline Iterator& operator+=(difference_type n) { dim += n; return *this; }
-        inline Iterator& operator-=(difference_type n) { dim -= n; return *this; }
-        inline Iterator operator+(difference_type n) const { return dim + n; }
-        friend inline Iterator operator+(difference_type n, const Iterator& it) { return n + it.dim; }
-        inline Iterator operator-(difference_type n) const { return dim - n; }
-        inline difference_type operator-(const Iterator& other) const { return dim - other.dim; }
-
-        inline bool operator==(const Iterator& other) const = default;
-        inline std::strong_ordering operator<=>(const Iterator& other) const = default;
-    };
-
-public:
-    Shape(auto&& sizes): sizes { std::forward<decltype(sizes)>(sizes) } {}
-
-    inline std::size_t size() const { return sizes.size(); }
-    inline const Size& operator[](std::size_t i) const { return sizes[i]; }
-
-    inline Iterator begin() const { return Iterator { sizes.data() }; }
-    inline Iterator end() const { return Iterator { sizes.data() + sizes.size() }; }
-
-    bool operator==(const Shape& other) const;
-
-    std::vector<std::size_t> estimate(const BindingContext& ctx) const;
-
-    std::string toString(const BindingContext& ctx) const;
 };
 
 struct Allowance {

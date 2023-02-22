@@ -13,43 +13,6 @@
 
 namespace kas {
 
-class Iterator;
-
-class CodeGenContext {
-    friend class HalideGen;
-
-public:
-    struct TensorMetadata {
-        std::string name;
-        TensorMetadata() = default;
-        TensorMetadata(std::string_view name);
-    };
-
-    struct IteratorVariableMetadata {
-        std::string name;
-        IteratorVariableMetadata() = default;
-        IteratorVariableMetadata(std::string_view name);
-    };
-
-protected:
-    std::vector<TensorMetadata> tensorMetadata;
-    std::vector<std::pair<std::shared_ptr<Iterator>, IteratorVariableMetadata>> iteratorVariableMetadata;
-
-    std::vector<std::size_t> outerLoopIterators;
-
-public:
-    std::string getTensorName(std::size_t index) const;
-    std::size_t addTensor(std::string_view name);
-
-    std::string getIteratorVariableName(std::size_t index) const;
-    std::size_t addIteratorVariable(std::shared_ptr<Iterator> iterator, bool isOuterLoopIterator);
-
-    // Returns the outer loop initializers and depth of the loops.
-    std::pair<std::string, std::size_t> printOuterLoopsHeader(const BindingContext& ctx) const;
-    std::string printOuterLoopsTail() const;
-    std::string outerLoopIteratorsToString() const;
-};
-
 struct VariableValueNode;
 struct ConstValueNode;
 struct ImmediateValueNode;
@@ -83,7 +46,6 @@ public:
     IteratorValue operator*(const IteratorValue& other) const;
     IteratorValue operator%(const IteratorValue& other) const;
     IteratorValue operator/(const IteratorValue& other) const;
-    static std::vector<IteratorValue> DefaultAccessForShape(const std::vector<std::shared_ptr<Iterator>>& interface, CodeGenContext& ctx);
 };
 
 struct VariableValueNode final: public IteratorValueImpl {
@@ -144,10 +106,9 @@ struct IntervalBoundValueNode final: public IteratorValueImpl {
 
 class IteratorValuePrinter final: public IteratorValueVisitor {
     const BindingContext& ctx;
-    const CodeGenContext& cgCtx;
     std::stringstream ss;
 public:
-    IteratorValuePrinter(const BindingContext& ctx, const CodeGenContext& cgCtx);
+    IteratorValuePrinter(const BindingContext& ctx);
     void visit(VariableValueNode& value) override;
     void visit(ConstValueNode& value) override;
     void visit(ImmediateValueNode& value) override;

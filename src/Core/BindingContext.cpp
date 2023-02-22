@@ -68,24 +68,24 @@ std::size_t BindingContext::getCoefficientEstimate(std::size_t index) const {
     return coefficientMetadata.at(index).estimate;
 }
 
-std::shared_ptr<Size> BindingContext::getSinglePrimaryVariableSize(std::size_t index) const {
+Size BindingContext::getSinglePrimaryVariableSize(std::size_t index) const {
     KAS_ASSERT(index >= 0 && index < getPrimaryCount());
-    auto res = std::make_shared<Size>(getPrimaryCount(), getCoefficientCount());
-    res->primary[index] = 1;
+    auto res = Size(getPrimaryCount(), getCoefficientCount());
+    res.primary[index] = 1;
     return res;
 }
 
-std::shared_ptr<Size> BindingContext::getSingleCoefficientVariableSize(std::size_t index) const {
+Size BindingContext::getSingleCoefficientVariableSize(std::size_t index) const {
     KAS_ASSERT(index >= 0 && index < getCoefficientCount());
-    auto res = std::make_shared<Size>(getPrimaryCount(), getCoefficientCount());
-    res->coefficient[index] = 1;
+    auto res = Size(getPrimaryCount(), getCoefficientCount());
+    res.coefficient[index] = 1;
     return res;
 }
 
 Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
     std::map<std::string, std::size_t> pNameToIndex = getPrimaryLookupTable();
     std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();
-    std::vector<std::shared_ptr<Size>> result;
+    std::vector<Size> result;
     for (const auto& name: names) {
         if (auto it = pNameToIndex.find(name); it != pNameToIndex.end())
             result.emplace_back(getSinglePrimaryVariableSize(it->second));

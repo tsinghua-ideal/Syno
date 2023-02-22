@@ -8,9 +8,6 @@
 
 namespace kas {
 
-class Node;
-class StageStore;
-
 class MapReduceOp final: public DimensionImpl {
 public:
     enum class MapType {
@@ -55,7 +52,7 @@ public:
     inline const Size& size() const noexcept override { return domain; }
     inline std::size_t initialHash() const noexcept override {
         auto h = priority;
-        boost::hash_combine(h, "MapReduce");
+        boost::hash_combine(h, DimensionType::MapReduce);
         return h;
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::MapReduce; }
@@ -63,12 +60,6 @@ public:
     std::string whatMap() const;
     std::string whatReduce() const;
     std::string what() const;
-
-    struct GenerateOptions {
-        const BindingContext& ctx;
-        std::size_t dimUpperBound;
-    };
-    static std::vector<std::unique_ptr<Node>> Generate(StageStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

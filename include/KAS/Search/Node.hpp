@@ -6,6 +6,8 @@
 
 namespace kas {
 
+class StageStore;
+
 class RootNode {
     
 };
@@ -17,6 +19,11 @@ class Node {
 public:
     inline Node(Stage *data): data { data } {}
 
+    struct GenerateOptions {
+        const BindingContext& ctx;
+        std::size_t dimUpperBound;
+    };
+    static std::vector<std::unique_ptr<Node>> GenerateMapReduce(StageStore& store, const Shape& outputShape, const BindingContext& ctx, std::size_t dimUpperBound);
 };
 
 }
