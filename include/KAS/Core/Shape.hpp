@@ -4,6 +4,7 @@
 #include <concepts>
 #include <cstddef>
 #include <ranges>
+#include <type_traits>
 
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Size.hpp"
@@ -12,6 +13,8 @@
 
 namespace kas {
 
+// The signature of the mapping must be
+// (const std::remove_cvref_t<Storage>::value_type *) -> const Size&
 template<typename Storage, auto Mapping>
 class AbstractShape {
     Storage sizes;
@@ -80,7 +83,7 @@ public:
     }
 
     inline std::string toString(const BindingContext& ctx) const {
-        return VectorToString(*this | std::ranges::views::transform([&ctx](const Size& size) {
+        return VectorToString(*this | std::views::transform([&ctx](const Size& size) {
             return size.toString(ctx);
         }));
     }

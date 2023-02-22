@@ -22,6 +22,11 @@ public:
         return h;
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::Iterator; }
+
+    inline std::size_t getIndex() const { return index; }
+    inline std::string getName() const {
+        return "i_" + std::to_string(index);
+    }
 };
 
 } // namespace kas

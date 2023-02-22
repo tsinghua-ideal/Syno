@@ -1,267 +1,169 @@
-#include <algorithm>
-#include <cstddef>
-#include <functional>
-#include <memory>
-#include <optional>
+#include <iterator>
+#include <map>
 #include <ranges>
 #include <sstream>
 #include <string>
-#include <utility>
+
+#include <fmt/core.h>
 #include <vector>
 
-#include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/CodeGen.hpp"
-#include "KAS/Core/Manipulation.hpp"
+#include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/Tensor.hpp"
-#include "KAS/Core/Iterator.hpp"
-#include "KAS/Utils/Common.hpp"
-#include "KAS/Utils/Vector.hpp"
-#include "KAS/Core/IteratorEvaluator.hpp"
-
 
 namespace kas {
 
-std::string Tensor::GetIndentSpaces(std::size_t indent) {
-    return std::string(4 * indent, ' ');
+std::string PureTensor::shapeToString(const BindingContext& ctx) const {
+    return getShape().toString(ctx);
 }
 
-void Tensor::setAccess(IteratorValue value, std::size_t index) {
-    KAS_ASSERT(index < access.size());
-    access[index] = std::move(value);
-}
-
-IteratorValue Tensor::getAccess(std::size_t index) const {
-    KAS_ASSERT(index < access.size());
-    return access[index];
-}
-
-std::vector<std::shared_ptr<Iterator>> Tensor::getInterfaceStubs() {
-    std::vector<std::shared_ptr<Iterator>> interface;
-    const auto shape = getShape();
-    interface.reserve(shape.size());
-    for (std::size_t i = 0; i < shape.size(); i++) {
-        interface.emplace_back(std::make_shared<Iterator>(IteratorTransform { TensorStub { shared_from_this(), i } }, shape[i]));
-    }
-    return interface;
-}
-
-std::string Tensor::interfaceAccessToString(const BindingContext& ctx, const CodeGenContext& cgCtx) const {
-    IteratorValuePrinter printer(ctx, cgCtx);
-    return VectorToString(access | std::ranges::views::transform([&](const IteratorValue& value) {
+std::string PureTensor::accessToString(const BindingContext& ctx) const {
+    auto printer = IteratorValuePrinter(ctx);
+    return VectorToString(access | std::views::transform([&](const IteratorValue& value) {
         return printer.toString(value);
     }));
 }
 
-std::string Tensor::printNestedLoops(const BindingContext& ctx, const CodeGenContext& cgCtx) const {
+namespace {
+    auto SSIt(std::stringstream& ss) -> decltype(auto) {
+        return std::ostreambuf_iterator<char>(ss);
+    }
+    void IndentSpaces(std::stringstream& ss, std::size_t indent) {
+        fmt::format_to(SSIt(ss), "{:{}}", "", 4 * indent);
+    }
+}
+
+std::string TensorView::printInnerLoops(const BindingContext& ctx, std::size_t indent, std::string_view outputName) const {
     std::stringstream ss;
-    auto [header, depth] = cgCtx.printOuterLoopsHeader(ctx);
-    ss << header;
-    ss << printInnerLoops(ctx, cgCtx, depth);
-    ss << cgCtx.printOuterLoopsTail();
-    return ss.str();
-}
-
-TensorStub::TensorStub(std::shared_ptr<Tensor> tensor, std::size_t index):
-    tensor { std::move(tensor) },
-    index { index }
-{}
-
-void TensorStub::setAccess(IteratorValue value) const {
-    tensor->setAccess(std::move(value), index);
-}
-
-std::string PureTensor::printInnerLoops(const BindingContext& ctx, const CodeGenContext& cgCtx, std::size_t indent) const {
-    // PureTensor does not need any loop.
-    return GetIndentSpaces(indent) + actualAccessToString(ctx, cgCtx) + "\n";
-}
-
-void PureTensor::evaluateTensorAccess() {
-    // no need to evaluate
-}
-
-std::string PureTensor::actualAccessToString(const BindingContext& ctx, const CodeGenContext& cgCtx) const {
-    // They are actually the same.
-    return std::string(cgCtx.getTensorName(tensorId)) + interfaceAccessToString(ctx, cgCtx);
-}
-
-Shape PureTensor::getShape() const {
-    return shape;
-}
-
-const Shape& PureTensor::getShapeRef() const {
-    return shape;
-}
-
-std::string PureTensor::shapeToString(const BindingContext& ctx) const {
-    return shape.toString(ctx);
-}
-
-std::string TensorView::printInnerLoops(const BindingContext& ctx, const CodeGenContext& cgCtx, std::size_t indent) const {
-    std::stringstream ss;
-    const auto recursion = [this, &ctx, &cgCtx, &ss](const auto& self, std::size_t manipId, std::size_t depth) -> std::string {
+    const auto recursion = [this, &ctx, &ss](const auto& self, std::size_t manipId, std::size_t depth) -> std::string {
         if (manipId-- == 0) {
+            auto r = tensors | std::views::transform([&](const auto& tensor) {
+                return tensor.getName() + tensor.accessToString(ctx);
+            });
+            // TODO: other blending schemes other than multiplication
+            return fmt::format("{}", fmt::join(r, " * "));
             std::stringstream innerSs;
-            bool first = true;
-            for (const auto& tensor: tensors) {
-                if (first) {
-                    first = false;
-                } else {
-                    innerSs << "*"; // TODO: other blending schemes other than multiplication
-                }
-                innerSs << tensor->actualAccessToString(ctx, cgCtx);
-            }
-            return innerSs.str();
         }
 
         auto& m = manipulations[manipId];
-        auto name = cgCtx.getIteratorVariableName(m.iteratorVariableId);
-        std::string tempName = "temp_" + std::string(name);
+        std::string tempName = "temp_" + m->getName();
 
-        // float temp_i_idx = 0;
-        ss << GetIndentSpaces(depth);
-        ss << "float " << tempName << " = 0;\n";
+        // float temp_ri_idx = 0;
+        IndentSpaces(ss, depth);
+        fmt::format_to(SSIt(ss), "float {} = 0;\n", tempName);
 
-        // for (int i_idx = 0; i_idx < size_idx; i_idx++) {
-        ss << GetIndentSpaces(depth);
-        ss << "for (int " << name << " = 0; " << name << " < " << m.getIterator()->getSize()->toString(ctx) << "; " << name << "++) {\n";
+        // for (int ri_idx = 0; ri_idx < size_ri_idx; ri_idx++) {
+        IndentSpaces(ss, depth);
+        fmt::format_to(SSIt(ss), "for (int {0} = 0; {0} < {1}; {0}++) {{\n", m->getName(), m->size().toString(ctx));
 
         // Generate inner loops, and obtain the temporary variable.
         std::string inner = self(self, manipId, depth + 1);
 
-        ss << GetIndentSpaces(depth + 1);
+        IndentSpaces(ss, depth + 1);
         // Can be other reduce than sum. TODO.
-        ss << tempName << " += " << m.whatMap() << "(" << inner << ");\n";
+        fmt::format_to(SSIt(ss), "{} += {}({});\n", tempName, m->whatMap(), inner);
 
-        ss << GetIndentSpaces(depth);
+        IndentSpaces(ss, depth);
         ss << "}\n";
 
         return tempName;
     };
     std::string lastTemp = recursion(recursion, manipulations.size(), indent);
-    ss << GetIndentSpaces(indent);
-    ss << "out" << interfaceAccessToString(ctx, cgCtx) << " = " << lastTemp << ";\n";
+    IndentSpaces(ss, indent);
+    fmt::format_to(SSIt(ss), "{}{} = {};\n", outputName, interfaceAccessToString(ctx), lastTemp);
     return ss.str();
 }
 
-TensorView::TensorView(std::vector<std::shared_ptr<PureTensor>> tensors, std::shared_ptr<CodeGenContext> cgCtx):
-    Tensor { std::vector<IteratorValue> {} },
-    interface { [&tensors]() -> std::vector<std::shared_ptr<Iterator>> {
-        std::vector<std::shared_ptr<Iterator>> res;
-        for (const auto& tensor : tensors) {
-            auto tensorInterface = tensor->getInterfaceStubs();
-            std::ranges::copy(tensorInterface, std::back_inserter(res));
+namespace {
+    struct DimensionEvaluator: public IteratorValueVisitor {
+        std::map<Dimension, IteratorValue> memoize;
+        std::vector<const Iterator *> outer;
+        std::vector<const MapReduceOp *> inner;
+        void visit(VariableValueNode& value) {
+
         }
-        return res;
-    }() },
-    manipulations {},
-    tensors { std::move(tensors) },
-    cgCtx { std::move(cgCtx) }
-{}
+        void visit(ConstValueNode& value) {
 
-TensorView::TensorView(const Shape& shape, std::shared_ptr<CodeGenContext> cgCtx):
-    TensorView { { std::make_shared<PureTensor>(cgCtx->addTensor("t"), shape) }, std::move(cgCtx) }
-{}
-
-void TensorView::finishConstruction() {
-    access.resize(interface.size());
-    for (auto& m: manipulations) {
-        m.iteratorVariableId = cgCtx->addIteratorVariable(m.getIterator(), false);
-    }
-}
-
-void TensorView::setDefaultInterfaceAccess() {
-    auto defaultAccess = IteratorValue::DefaultAccessForShape(interface, *cgCtx);
-    KAS_ASSERT(defaultAccess.size() == interface.size());
-    access = std::move(defaultAccess);
-}
-
-std::size_t TensorView::size() const {
-    return interface.size();
-}
-const std::shared_ptr<Iterator>& TensorView::operator[](std::size_t index) const {
-    return interface.at(index);
-}
-
-void TensorView::replaceInterface(
-    std::vector<std::size_t> drops,
-    std::vector<std::pair<std::size_t, std::shared_ptr<Iterator>>> adds
-) {
-    auto replaced = ReplaceVector(interface, drops, adds);
-    interface.swap(replaced);
-}
-
-void TensorView::addManipulation(Manipulation manipulation) {
-    manipulations.emplace_back(std::move(manipulation));
-}
-
-const std::vector<std::shared_ptr<PureTensor>>& TensorView::getUnderlyingTensors() const {
-    return tensors;
-}
-
-const std::vector<std::shared_ptr<Iterator>>& TensorView::getInterfaceIterators() const {
-    return interface;
-}
-
-const std::vector<Manipulation>& TensorView::getManipulations() const {
-    return manipulations;
-}
-
-void TensorView::evaluateTensorAccess() {
-    KAS_ASSERT(access.size() == interface.size());
-    KAS_ASSERT(std::ranges::all_of(access, [](const auto& value) {
-        return value.hasValue();
-    }));
-    IteratorEvaluator evaluator;
-    evaluator.evaluateTensorAccess(*this);
-    for (const auto& tensor: tensors) {
-        tensor->evaluateTensorAccess();
-    }
-}
-
-std::string TensorView::actualAccessToString(const BindingContext& ctx, const CodeGenContext& cgCtx) const {
-    std::stringstream ss;
-    // Here we assume the outer loops are exactly the interface iterators.
-    ss << cgCtx.outerLoopIteratorsToString();
-    for (const auto& m: manipulations) {
-        ss << " with " << m.whatMap() << " mapped";
-        ss << " with " << cgCtx.getIteratorVariableName(m.iteratorVariableId) << " " << m.whatReduce() << " reduced";
-    }
-    return ss.str();
-}
-
-Shape TensorView::getFusedInputShapes() const {
-    std::vector<std::shared_ptr<Size>> sizes;
-    for (const auto& tensor: tensors) {
-        for (const auto& size: tensor->getShapeRef().getSizes()) {
-            sizes.emplace_back(size);
         }
+        void visit(ImmediateValueNode& value) {
+
+        }
+        void visit(BinaryOpValueNode& value) {
+
+        }
+        void visit(IntervalBoundValueNode& value) {
+
+        }
+        IteratorValue dfs(Dimension dim) {
+            // TODO
+        }
+    };
+}
+
+TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors)
+{
+    auto eval = DimensionEvaluator();
+    for (auto&& tensor: tensors) {
+
     }
-    return Shape { std::move(sizes) };
+    interface = std::move(eval.outer);
+    manipulations = std::move(eval.inner);
 }
 
-Shape TensorView::getShape() const {
-    std::vector<std::shared_ptr<Size>> sizes;
-    for (const auto& iterator: interface) {
-        sizes.emplace_back(iterator->getSize());
-    }
-    return Shape { sizes };
-}
-
-std::string TensorView::printNestedLoops(const BindingContext& ctx) const {
-    return Tensor::printNestedLoops(ctx, *cgCtx);
-}
-
-std::string TensorView::shapeToString(const BindingContext &ctx) const {
-    auto s1 = VectorToString(interface | std::ranges::views::transform([&ctx](const std::shared_ptr<Iterator>& iterator) {
-        return iterator->getSize()->toString(ctx);
-    }));
+std::string TensorView::shapeToString(const BindingContext& ctx) const {
+    auto s1 = IteratorShapeView(interface).toString(ctx);
     if (!manipulations.empty()) {
-        auto s2 = VectorToString(manipulations | std::ranges::views::transform([&ctx](const Manipulation& m) {
-            return m.getIterator()->getSize()->toString(ctx);
-        }));
+        auto s2 = ReduceIteratorShapeView(manipulations).toString(ctx);
         return s1 + " with reduced " + s2;
     }
     return s1;
+}
+
+std::string TensorView::interfaceAccessToString(const BindingContext& ctx) const {
+    return VectorToString(interface
+        | std::views::transform([&](const Iterator *it) {
+            return it->getName();
+        })
+    );
+}
+
+std::string TensorView::actualAccessToString(const BindingContext& ctx) const {
+    std::stringstream ss;
+    // Here the outer loops are exactly the interface iterators.
+    ss << VectorToString(tensors
+        | std::views::transform([](const PureTensor& t) -> ShapeView {
+            return t.getShape();
+        })
+        | std::views::join
+        | std::views::transform([&](const Size& size) {
+            return size.toString(ctx);
+        })
+    );
+    for (const auto& m: manipulations) {
+        ss << " with " << m->whatMap() << " mapped";
+        ss << " with " << m->getName() << " " << m->whatReduce() << " reduced";
+    }
+    return ss.str();
+}
+
+std::string TensorView::printNestedLoops(const BindingContext& ctx, std::string_view outputName) const {
+    std::stringstream ss;
+    std::size_t depth = 0;
+
+    for (auto it: interface) {
+        auto name = "i_" + std::to_string(it->getIndex());
+        IndentSpaces(ss, depth);
+        fmt::format_to(SSIt(ss), "for (int {0} = 0; {0} < {1}; {0}++) {{\n", name, it->size().toString(ctx));
+        ++depth;
+    }
+
+    ss << printInnerLoops(ctx, depth, outputName);
+
+    while (depth --> 0) {
+        IndentSpaces(ss, depth);
+        ss << "}\n";
+    }
+    return ss.str();
 }
 
 } // namespace kas
