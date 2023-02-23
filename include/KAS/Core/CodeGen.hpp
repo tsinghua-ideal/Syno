@@ -4,6 +4,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -46,6 +47,9 @@ public:
     IteratorValue operator*(const IteratorValue& other) const;
     IteratorValue operator%(const IteratorValue& other) const;
     IteratorValue operator/(const IteratorValue& other) const;
+    template<typename T>
+    requires std::is_base_of_v<IteratorValueImpl, T>
+    T& as() { return *std::dynamic_pointer_cast<T>(value); }
 };
 
 struct VariableValueNode final: public IteratorValueImpl {
@@ -56,10 +60,10 @@ struct VariableValueNode final: public IteratorValueImpl {
 };
 
 struct ConstValueNode final: public IteratorValueImpl {
-    std::shared_ptr<Size> value;
-    inline ConstValueNode(std::shared_ptr<Size> value): value { std::move(value) } {}
+    Size value;
+    inline ConstValueNode(auto&& value): value { std::forward<decltype(value)>(value) } {}
     inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
-    static inline IteratorValue Create(std::shared_ptr<Size> value) { return IteratorValue(std::make_shared<ConstValueNode>(std::move(value))); }
+    static inline IteratorValue Create(auto&& value) { return IteratorValue(std::make_shared<ConstValueNode>(std::forward<decltype(value)>(value))); }
 };
 
 struct ImmediateValueNode final: public IteratorValueImpl {

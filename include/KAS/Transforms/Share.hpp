@@ -1,7 +1,8 @@
 #pragma once
 
-#include "KAS/Core/PrimitiveOp.hpp"
 #include <boost/container_hash/hash.hpp>
+
+#include "KAS/Core/PrimitiveOp.hpp"
 
 
 namespace kas {
@@ -17,7 +18,7 @@ public:
     constexpr std::size_t initialHash() const noexcept override { return boost::hash<std::string>{}("Share"); }
     constexpr DimensionType type() const noexcept override { return DimensionType::Share; }
 
-    DoubleIteratorValue value(const IteratorValue& output) const override;
+    IteratorValue value(const IteratorValue& output, Order order) const override;
 
     inline bool operator==(const ShareOp& other) const noexcept {
         return output == other.output && order == other.order;

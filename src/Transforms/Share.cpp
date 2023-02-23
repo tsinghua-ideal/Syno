@@ -9,8 +9,8 @@
 
 namespace kas {
 
-DoubleIteratorValue ShareOp::value(const IteratorValue& output) const {
-    return { output, output };
+IteratorValue ShareOp::value(const IteratorValue& output, Order order) const {
+    return output;
 }
 
 std::vector<std::pair<Dimension, Dimension>> ShareOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {

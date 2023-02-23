@@ -36,10 +36,10 @@ protected:
     // The interface iterators.
     std::vector<const Iterator *> interface;
     // Define the corresponding shape view for interface.
-    using IteratorShapeView = AbstractShape<const std::vector<const Iterator *>&, [](const Iterator * const *ptr) -> const Size& { return (*ptr)->size(); }>;
+    using IteratorShapeView = AbstractShape<const std::vector<const Iterator *>&, [](const Iterator * const& ptr) -> const Size& { return ptr->size(); }>;
     // The map-reduce iterators.
     std::vector<const MapReduceOp *> manipulations;
-    using ReduceIteratorShapeView = AbstractShape<const std::vector<const MapReduceOp *>&, [](const MapReduceOp * const *ptr) -> const Size& { return (*ptr)->size(); }>;
+    using ReduceIteratorShapeView = AbstractShape<const std::vector<const MapReduceOp *>&, [](const MapReduceOp * const& ptr) -> const Size& { return ptr->size(); }>;
     // How to blend the tensors? TODO
     std::vector<PureTensor> tensors;
 

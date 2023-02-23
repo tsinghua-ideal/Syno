@@ -14,7 +14,7 @@ namespace kas {
 
 struct Size;
 template<typename Storage, auto Mapping> class AbstractShape;
-using Shape = AbstractShape<std::vector<Size>, [](const Size *size) -> const Size& { return *size; }>;
+using Shape = AbstractShape<std::vector<Size>, [](const Size& size) -> const Size& { return size; }>;
 
 class BindingContext final {
     friend class HalideGen;

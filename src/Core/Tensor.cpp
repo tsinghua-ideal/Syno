@@ -1,15 +1,18 @@
 #include <iterator>
+#include <limits>
 #include <map>
 #include <ranges>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include <fmt/core.h>
-#include <vector>
 
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Tensor.hpp"
+#include "KAS/Utils/Common.hpp"
 
 namespace kas {
 
@@ -75,39 +78,75 @@ std::string TensorView::printInnerLoops(const BindingContext& ctx, std::size_t i
 }
 
 namespace {
-    struct DimensionEvaluator: public IteratorValueVisitor {
+    struct DimensionEvaluator {
         std::map<Dimension, IteratorValue> memoize;
-        std::vector<const Iterator *> outer;
-        std::vector<const MapReduceOp *> inner;
-        void visit(VariableValueNode& value) {
-
-        }
-        void visit(ConstValueNode& value) {
-
-        }
-        void visit(ImmediateValueNode& value) {
-
-        }
-        void visit(BinaryOpValueNode& value) {
-
-        }
-        void visit(IntervalBoundValueNode& value) {
-
-        }
+        std::map<const Iterator *, IteratorValue> outer;
+        std::map<const MapReduceOp *, IteratorValue> inner;
         IteratorValue dfs(Dimension dim) {
-            // TODO
+            if (auto it = memoize.find(dim); it != memoize.end()) {
+                return it->second;
+            }
+            IteratorValue result;
+            if (auto it = dynamic_cast<const RepeatLikePrimitiveOp *>(dim.get()); it) {
+                auto out = dfs(it->output);
+                result = it->value(out);
+            } else if (auto it = dynamic_cast<const SplitLikePrimitiveOp *>(dim.get()); it) {
+                auto outLeft = dfs(it->outputLhs);
+                auto outRight = dfs(it->outputRhs);
+                result = it->value(outLeft, outRight);
+            } else if (auto it = dynamic_cast<const MergeLikePrimitiveOp *>(dim.get()); it) {
+                auto out = dfs(it->output);
+                result = it->value(out, it->order);
+            } else if (auto it = dynamic_cast<const Iterator *>(dim.get()); it) {
+                // Here we have not figured out the order of the iterators. We have to wait until all the iterators are collected.
+                result = VariableValueNode::Create(std::numeric_limits<std::size_t>::max());
+                auto [ptr, inserted] = outer.insert({it, result});
+                if (!inserted) {
+                    result = ptr->second;
+                }
+            } else if (auto it = dynamic_cast<const MapReduceOp *>(dim.get()); it) {
+                // Same reason.
+                result = VariableValueNode::Create(std::numeric_limits<std::size_t>::max());
+                auto [ptr, inserted] = inner.insert({it, result});
+                if (!inserted) {
+                    result = ptr->second;
+                }
+            } else {
+                KAS_CRITICAL("When evaluating access, encountered unknown dimension type: {}", typeid(*dim.get()).name());
+            }
+            memoize.insert({dim, result});
+            return result;
+        }
+        void fill(std::vector<const Iterator *> interface, std::vector<const MapReduceOp *> manipulations) {
+            std::ranges::copy(outer | std::views::transform([](auto&& pair) { return pair.first; }), std::back_inserter(interface));
+            std::ranges::copy(inner | std::views::transform([](auto&& pair) { return pair.first; }), std::back_inserter(manipulations));
+            std::ranges::sort(interface, [](const Iterator *lhs, const Iterator *rhs) {
+                return lhs->getIndex() < rhs->getIndex();
+            });
+            std::ranges::sort(manipulations, [](const MapReduceOp *lhs, const MapReduceOp *rhs) {
+                return lhs->getPriority() < rhs->getPriority();
+            });
+            std::size_t index = 0;
+            for (auto&& it: interface)
+                outer[it].as<VariableValueNode>().variableId = index++;
+            for (auto&& it: manipulations)
+                inner[it].as<VariableValueNode>().variableId = index++;
         }
     };
 }
 
-TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors)
-{
+TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     auto eval = DimensionEvaluator();
-    for (auto&& tensor: tensors) {
-
+    for (std::size_t tId = 0; auto&& tensor: tensors) {
+        auto access = std::vector<IteratorValue>();
+        std::ranges::copy(tensor | std::views::transform([&](const auto& dim) {
+            return eval.dfs(dim);
+        }), std::back_inserter(access));
+        auto name = "in_" + std::to_string(tId);
+        this->tensors.emplace_back(std::move(name), tensor, std::move(access));
+        ++tId;
     }
-    interface = std::move(eval.outer);
-    manipulations = std::move(eval.inner);
+    eval.fill(interface, manipulations);
 }
 
 std::string TensorView::shapeToString(const BindingContext& ctx) const {
@@ -151,9 +190,8 @@ std::string TensorView::printNestedLoops(const BindingContext& ctx, std::string_
     std::size_t depth = 0;
 
     for (auto it: interface) {
-        auto name = "i_" + std::to_string(it->getIndex());
         IndentSpaces(ss, depth);
-        fmt::format_to(SSIt(ss), "for (int {0} = 0; {0} < {1}; {0}++) {{\n", name, it->size().toString(ctx));
+        fmt::format_to(SSIt(ss), "for (int {0} = 0; {0} < {1}; {0}++) {{\n", it->getName(), it->size().toString(ctx));
         ++depth;
     }
 

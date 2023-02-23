@@ -11,8 +11,6 @@ class DimensionStore;
 
 // There are 3 kinds of `PrimitiveOp`'s, listed below. Those classes can transform `Dimension`s, from those that index the output tensor, to forms that index the original tensors. So this is also kind of bottom-up.
 
-using DoubleIteratorValue = std::pair<IteratorValue, IteratorValue>;
-
 // By repeat-like, we refer to the primitives that have one input iterator and one output iterator.
 class RepeatLikePrimitiveOp: public DimensionImpl {
 public:
@@ -31,7 +29,7 @@ public:
         outputLhs { std::forward<decltype(outputLhs)>(outputLhs) },
         outputRhs { std::forward<decltype(outputRhs)>(outputRhs) }
     {}
-    virtual IteratorValue value(const DoubleIteratorValue& value) const = 0;
+    virtual IteratorValue value(const IteratorValue& leftValue, const IteratorValue& rightValue) const = 0;
 };
 
 enum class Order: bool {
@@ -47,7 +45,7 @@ public:
         output { std::forward<decltype(output)>(output) },
         order { order }
     {}
-    virtual DoubleIteratorValue value(const IteratorValue& value) const = 0;
+    virtual IteratorValue value(const IteratorValue& value, Order order) const = 0;
 };
 
 } // namespace kas
