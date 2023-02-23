@@ -159,13 +159,6 @@ std::optional<Size::Trait> Size::canBeDividedBy(const Size& other) const {
     return temp.testDividedBy(other);
 }
 
-std::size_t Size::estimate(const BindingContext& ctx) const {
-    return eval<std::size_t>(
-        [&ctx](std::size_t i) { return ctx.getPrimaryEstimate(i); },
-        [&ctx](std::size_t i) { return ctx.getCoefficientEstimate(i); }
-    );
-}
-
 std::string Size::toString(const BindingContext& ctx) const {
     KAS_ASSERT(primaryCount == ctx.getPrimaryCount() && coefficientCount == ctx.getCoefficientCount());
     std::stringstream result;

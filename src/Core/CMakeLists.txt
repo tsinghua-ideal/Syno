@@ -1,1 +1,1 @@
-add_library(core-lib STATIC BindingContext.cpp CodeGen.cpp Dimension.cpp Manipulation.cpp Parser.cpp Shape.cpp Tensor.cpp)
+add_library(core-lib STATIC BindingContext.cpp CodeGen.cpp Dimension.cpp MapReduce.cpp Parser.cpp Size.cpp Tensor.cpp)

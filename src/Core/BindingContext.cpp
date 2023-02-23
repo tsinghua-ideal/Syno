@@ -117,45 +117,29 @@ void BindingContext::applySpecs(std::vector<std::pair<std::string, Parser::PureS
     }
 }
 
-void BindingContext::applyEstimates(const std::map<std::string, std::size_t>& estimates) {
-    std::map<std::string, std::size_t> pNameToIndex = getPrimaryLookupTable();
-    std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();
-    for (const auto& [name, estimate]: estimates) {
-        if (auto it = pNameToIndex.find(name); it != pNameToIndex.end())
-            primaryMetadata[it->second].estimate = estimate;
-        else if (auto it = cNameToIndex.find(name); it != cNameToIndex.end())
-            coefficientMetadata[it->second].estimate = estimate;
-        else
-            throw std::runtime_error("Unknown variable name: " + name);
-    }
-}
-
-namespace {
-    void shadowNames(const std::map<std::string, std::size_t>& mappings, std::vector<std::size_t>& shadowed, const std::vector<BindingContext::Metadata>& metadata) {
-        for (const auto& m: metadata) {
-            if (auto it = mappings.find(m.alias); it != mappings.end())
-                shadowed.emplace_back(it->second);
-            else
-                shadowed.emplace_back(m.estimate);
+ConcreteConsts BindingContext::realizeConsts(const std::map<std::string, std::size_t>& mappings) const {
+    ConcreteConsts consts;
+    for (std::size_t i = 0; const auto& metadata: primaryMetadata) {
+        int concrete;
+        if (auto it = mappings.find(metadata.alias); it != mappings.end()) {
+            concrete = static_cast<int>(it->second);
+        } else {
+            concrete = static_cast<int>(getPrimaryEstimate(i));
         }
+        consts.primary.emplace_back(concrete);
+        ++i;
     }
-}
-
-std::vector<std::size_t> BindingContext::getKernelArguments(const std::map<std::string, std::size_t>& mappings) const {
-    std::vector<std::size_t> result;
-    shadowNames(mappings, result, primaryMetadata);
-    shadowNames(mappings, result, coefficientMetadata);
-    return result;
-}
-
-std::vector<std::size_t> BindingContext::evaluateShape(const Shape& shape, const std::map<std::string, std::size_t>& mappings) const {
-    std::vector<std::size_t> shadowedPrimary, shadowedCoefficient;
-    shadowNames(mappings, shadowedPrimary, primaryMetadata);
-    shadowNames(mappings, shadowedCoefficient, coefficientMetadata);
-    return shape.eval<std::size_t>(
-        [&](std::size_t i) { return shadowedPrimary[i]; },
-        [&](std::size_t i) { return shadowedCoefficient[i]; }
-    );
+    for (std::size_t i = 0; const auto& metadata: coefficientMetadata) {
+        int concrete;
+        if (auto it = mappings.find(metadata.alias); it != mappings.end()) {
+            concrete = static_cast<int>(it->second);
+        } else {
+            concrete = static_cast<int>(getCoefficientEstimate(i));
+        }
+        consts.coefficient.emplace_back(concrete);
+        ++i;
+    }
+    return consts;
 }
 
 } // namespace kas

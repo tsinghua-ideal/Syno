@@ -6,6 +6,7 @@
 #include <ranges>
 #include <type_traits>
 
+#include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Size.hpp"
 #include "KAS/Utils/Vector.hpp"
@@ -76,12 +77,9 @@ public:
         return result;
     };
 
-    inline std::vector<std::size_t> estimate(const BindingContext& ctx) const {
-        std::vector<std::size_t> result;
-        for (const auto& size: sizes) {
-            result.emplace_back(size.estimate(ctx));
-        }
-        return result;
+    template<typename ValueType>
+    std::vector<ValueType> eval(const ConcreteConsts& consts) const {
+        return eval<ValueType>(consts.primaryWrapper(), consts.coefficientWrapper());
     }
 
     inline std::string toString(const BindingContext& ctx) const {

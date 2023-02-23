@@ -40,13 +40,15 @@ protected:
 public:
     explicit IteratorValue() = default;
     inline explicit IteratorValue(std::shared_ptr<IteratorValueImpl> value): value { std::move(value) } {}
+    inline const std::shared_ptr<IteratorValueImpl>& get() const { return value; }
     inline bool hasValue() const { return value != nullptr; }
     inline void accept(IteratorValueVisitor& visitor) const { value->accept(visitor); }
     IteratorValue operator+(const IteratorValue& other) const;
     IteratorValue operator-(const IteratorValue& other) const;
     IteratorValue operator*(const IteratorValue& other) const;
-    IteratorValue operator%(const IteratorValue& other) const;
     IteratorValue operator/(const IteratorValue& other) const;
+    IteratorValue operator%(const IteratorValue& other) const;
+    bool operator==(const IteratorValue& other) const = default;
     template<typename T>
     requires std::is_base_of_v<IteratorValueImpl, T>
     T& as() { return *std::dynamic_pointer_cast<T>(value); }
@@ -54,9 +56,10 @@ public:
 
 struct VariableValueNode final: public IteratorValueImpl {
     std::size_t variableId;
-    inline VariableValueNode(std::size_t variableId): variableId { variableId } {}
+    std::string name;
+    VariableValueNode(std::size_t variableId, auto&& name): variableId { variableId }, name { std::forward<decltype(name)>(name) } {}
     inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
-    static inline IteratorValue Create(std::size_t variableId) { return IteratorValue(std::make_shared<VariableValueNode>(variableId)); }
+    static IteratorValue Create(std::size_t variableId, auto&& name) { return IteratorValue(std::make_shared<VariableValueNode>(variableId, std::forward<decltype(name)>(name))); }
 };
 
 struct ConstValueNode final: public IteratorValueImpl {
@@ -112,7 +115,7 @@ class IteratorValuePrinter final: public IteratorValueVisitor {
     const BindingContext& ctx;
     std::stringstream ss;
 public:
-    IteratorValuePrinter(const BindingContext& ctx);
+    inline IteratorValuePrinter(const BindingContext& ctx): ctx { ctx } {}
     void visit(VariableValueNode& value) override;
     void visit(ConstValueNode& value) override;
     void visit(ImmediateValueNode& value) override;
@@ -122,3 +125,10 @@ public:
 };
 
 } // namespace kas
+
+template<>
+struct std::hash<kas::IteratorValue> {
+    std::size_t operator()(const kas::IteratorValue& value) const {
+        return std::hash<std::shared_ptr<kas::IteratorValueImpl>>()(value.get());
+    }
+};

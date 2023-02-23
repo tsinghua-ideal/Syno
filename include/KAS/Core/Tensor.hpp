@@ -32,6 +32,7 @@ public:
 };
 
 class TensorView {
+    friend class HalideGen;
 protected:
     // The interface iterators.
     std::vector<const Iterator *> interface;
@@ -54,6 +55,7 @@ public:
     inline const Iterator *operator[](std::size_t index) const { return interface[index]; }
 
     inline IteratorShapeView getShape() const { return IteratorShapeView(interface); }
+    inline ReduceIteratorShapeView getReduceShape() const { return ReduceIteratorShapeView(manipulations); }
 
     // Returns the underlying tensor underneath the view.
     inline const std::vector<PureTensor>& getUnderlyingTensors() const { return tensors; }

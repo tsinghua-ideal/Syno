@@ -123,8 +123,6 @@ public:
 
     bool operator==(const Size& other) const;
 
-    std::size_t estimate(const BindingContext& ctx) const;
-
     std::string toString(const BindingContext& ctx) const;
 
     template<typename C = decltype([](const std::string&){})>

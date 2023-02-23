@@ -19,7 +19,7 @@
 
 namespace kas {
 
-class HalideGen: public IteratorValueVisitor {
+class HalideGen {
     FRIEND_TEST(codegen_tests, func);
     FRIEND_TEST(search_tests, sample);
     friend class transforms_tests;
@@ -28,43 +28,59 @@ class HalideGen: public IteratorValueVisitor {
 
 protected:
     const BindingContext& ctx;
-    const CodeGenContext& cgCtx;
     const TensorView& tensorView;
 
-    std::vector<Halide::Param<int>> primaryConsts;
-    std::vector<Halide::Param<int>> coefficientConsts;
     std::vector<Halide::Var> vars;
+    std::vector<Halide::Var> outerIterators;
+    std::vector<Halide::Var> innerIterators;
 
-    Halide::Expr evaluator;
-    std::map<std::shared_ptr<IteratorValueImpl>, Halide::Expr> cache;
-    void visit(VariableValueNode& value) override;
-    void visit(ConstValueNode& value) override;
-    void visit(ImmediateValueNode& value) override;
-    void visit(BinaryOpValueNode& value) override;
-    // This `visit` produces a `clamp`.
-    void visit(IntervalBoundValueNode& value) override;
-    Halide::Expr evaluate(const IteratorValue& value);
-    Halide::Expr evaluate(const Size& value);
-    Halide::Region evaluate(const Shape& shape);
-    // This `evaluate` produces a condition expression.
-    Halide::Expr evaluate(const IntervalBoundValueNode& value);
+    struct HalideExprEvaluator: public IteratorValueVisitor {
+        using Cache = std::map<IteratorValue, Halide::Expr>;
+        Halide::Expr evaluator;
+        const ConcreteConsts& consts;
+        Cache& cache;
+        std::vector<Halide::Expr>& constraintsBounds;
+        const HalideGen& parent;
+        HalideExprEvaluator(const ConcreteConsts& consts, Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const HalideGen& parent): consts { consts }, cache { cache }, constraintsBounds { constraintsBounds }, parent { parent } {}
+        void visit(VariableValueNode& value) override;
+        void visit(ConstValueNode& value) override;
+        void visit(ImmediateValueNode& value) override;
+        void visit(BinaryOpValueNode& value) override;
+        // This `visit` produces a `clamp`.
+        void visit(IntervalBoundValueNode& value) override;
+        Halide::Expr evaluate(const IteratorValue& value);
+        // This `evaluate` produces a condition expression.
+        Halide::Expr evaluate(const IntervalBoundValueNode& value);
+    };
+    Halide::Expr evaluate(const ConcreteConsts& consts, HalideExprEvaluator::Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const IteratorValue& value) const;
+    Halide::Expr evaluate(const ConcreteConsts& consts, const Size& value) const;
+    template<typename Storage, auto Mapping>
+    Halide::Region evaluate(const ConcreteConsts& consts, const AbstractShape<Storage, Mapping>& shape, bool reverse = true) const {
+        Halide::Region region;
+        for (const auto& s: shape) {
+            region.emplace_back(0, evaluate(consts, s));
+        }
+        if (reverse) {
+            // Because Halide uses column-major, we need to reverse the order of indices.
+            std::ranges::reverse(region);
+        }
+        return region;
+    }
 
-    bool accessEvaluated = false;
-    std::vector<Halide::Var> outerLoops;
-    std::vector<Halide::Var> reduceLoops;
-    std::vector<std::vector<Halide::Expr>> tensorIndices;
-    // The conditions that must be satisfied in order that no out-of-bound error occurs. This is used to enforce zero-padding semantics.
-    std::vector<Halide::Expr> constraintsBounds;
-    void evaluateAccess();
+    struct EvaluatedAccess {
+        std::vector<std::vector<Halide::Expr>> tensorIndices;
+        // The conditions that must be satisfied in order that no out-of-bound error occurs. This is used to enforce zero-padding semantics.
+        std::vector<Halide::Expr> constraintsBounds;
+    };
+    ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings) const;
+    EvaluatedAccess evaluateAccess(const ConcreteConsts& consts) const;
 
     // Returns the (input, func) pair.
-    std::pair<std::vector<Halide::ImageParam>, Halide::Func> createFunc(std::string_view funcName, bool zeroBoundary = false);
+    std::pair<std::vector<Halide::ImageParam>, Halide::Func> createFunc(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName, bool zeroBoundary = false);
     // Returns the (input (including the gradient of output), gradient funcs) pair.
-    std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> createFuncGrad(std::string_view funcName);
+    std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> createFuncGrad(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName);
 
-    static Halide::Region ConcreteShapeToRegion(const std::vector<std::size_t>& estimate);
-
-    static Halide::Target GetTarget(bool useGPU);
+    static Halide::Target GetHostTarget(bool useGPU);
 
 public:
     HalideGen(const BindingContext& ctx, const TensorView& tensorView);
@@ -77,9 +93,7 @@ public:
         AutoScheduler scheduler = AutoScheduler::Li2018;
     };
 
-    void generate(std::filesystem::path outputPath, std::string_view funcName, Options options);
-    // Requires all variables to be assigned.
-    Halide::ParamMap getParamMap(const std::map<std::string, std::size_t>& mappings) const;
+    void generate(std::filesystem::path outputPath, std::string_view funcName, const std::map<std::string, std::size_t>& mappings, Options options);
 
     // This is a workaround for reverse indexing caused by Halide's column-major buffers.
     template<typename BufferType>

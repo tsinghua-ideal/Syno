@@ -16,6 +16,17 @@ struct Size;
 template<typename Storage, auto Mapping> class AbstractShape;
 using Shape = AbstractShape<std::vector<Size>, [](const Size& size) -> const Size& { return size; }>;
 
+struct ConcreteConsts {
+    std::vector<int> primary;
+    std::vector<int> coefficient;
+    inline auto primaryWrapper() const {
+        return [this](std::size_t i) { return primary[i]; };
+    }
+    inline auto coefficientWrapper() const {
+        return [this](std::size_t i) { return coefficient[i]; };
+    }
+};
+
 class BindingContext final {
     friend class HalideGen;
 
@@ -59,11 +70,8 @@ public:
     Shape getShapeFromNames(const std::vector<std::string>& names);
     // This overwrites the current metadata.
     void applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs);
-    // Change the estimation of the values.
-    void applyEstimates(const std::map<std::string, std::size_t>& estimates);
-    // Get the arguments for calling.
-    std::vector<std::size_t> getKernelArguments(const std::map<std::string, std::size_t>& mappings) const;
-    std::vector<std::size_t> evaluateShape(const Shape& shape, const std::map<std::string, std::size_t>& mappings) const;
+
+    ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings) const;
 };
 
 } // namespace kas
