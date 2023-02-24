@@ -1,7 +1,5 @@
 #include <vector>
 
-#include <fmt/core.h>
-
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Share.hpp"
@@ -9,7 +7,7 @@
 
 namespace kas {
 
-IteratorValue ShareOp::value(const IteratorValue& output, Order order) const {
+IteratorValue ShareOp::value(const IteratorValue& output) const {
     return output;
 }
 

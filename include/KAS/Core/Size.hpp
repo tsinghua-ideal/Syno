@@ -1,8 +1,10 @@
 #pragma once
 
 #include <array>
+#include <boost/container_hash/hash_fwd.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <span>
 #include <string>
 #include <utility>
@@ -177,3 +179,24 @@ struct Allowance {
 };
 
 } // namespace kas
+
+template<typename T>
+struct std::hash<std::span<T>> {
+    std::size_t operator()(const std::span<T>& span) const noexcept {
+        std::size_t seed = span.size();
+        for (const auto& item: span) {
+            boost::hash_combine(seed, item);
+        }
+        return seed;
+    }
+};
+
+template<>
+struct std::hash<kas::Size> {
+    std::size_t operator()(const kas::Size& size) const noexcept {
+        auto h = std::hash<std::string>{}("Size");
+        boost::hash_combine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getPrimary()));
+        boost::hash_combine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getCoefficient()));
+        return h;
+    }
+};

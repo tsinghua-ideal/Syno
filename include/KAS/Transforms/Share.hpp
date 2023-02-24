@@ -18,7 +18,7 @@ public:
     constexpr std::size_t initialHash() const noexcept override { return boost::hash<std::string>{}("Share"); }
     constexpr DimensionType type() const noexcept override { return DimensionType::Share; }
 
-    IteratorValue value(const IteratorValue& output, Order order) const override;
+    IteratorValue value(const IteratorValue& output) const override;
 
     inline bool operator==(const ShareOp& other) const noexcept {
         return output == other.output && order == other.order;

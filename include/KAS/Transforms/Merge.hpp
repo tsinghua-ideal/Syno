@@ -1,34 +1,44 @@
 #pragma once
 
-#include <memory>
+#include <boost/container_hash/hash.hpp>
 
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
 namespace kas {
 
-class MergeShapeOp final: public PrimitiveShapeOp {
+class MergeOp final: public MergeLikePrimitiveOp {
+    Size block;
+    Size major;
 public:
-    std::size_t inputMajor, inputMinor;
-    std::size_t output;
-    std::shared_ptr<Size> block;
-    MergeShapeOp(std::size_t inputMajor, std::size_t inputMinor, std::size_t output, std::shared_ptr<Size> block);
-    Shape transformShapeInverse(const Shape& outputShape) const override;
-    void transformTensor(TensorView& tensor) const override;
-    inline std::string type() const override { return "Merge"; }
-    std::string description() const override;
+    MergeOp(auto&& output, Order order, auto&& block):
+        MergeLikePrimitiveOp { std::forward<decltype(output)>(output), order },
+        block { std::forward<decltype(block)>(block) },
+        major { this->output.size() / this->block }
+    {}
+
+    inline const Size& size() const noexcept override {
+        switch (order) {
+            case Order::Left:
+                return major;
+            case Order::Right:
+                return block;
+        }
+    }
+    std::size_t initialHash() const noexcept override;
+    constexpr DimensionType type() const noexcept override { return DimensionType::Merge; }
+
+    IteratorValue value(const IteratorValue& output) const override;
+
+    inline bool operator==(const MergeOp& other) const noexcept {
+        return output == other.output && order == other.order && block == other.block;
+    }
 
     struct GenerateOptions {
         const BindingContext& ctx;
         std::size_t dimUpperBound;
     };
-    static std::vector<std::unique_ptr<MergeShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
-};
-
-class MergeOp: public MergeLikePrimitiveOp {
-public:
-    MergeOp(std::shared_ptr<Iterator> parentLhs, std::shared_ptr<Iterator> parentRhs);
-    DoubleIteratorValue value(IteratorValue output) const override;
+    static std::vector<std::pair<Dimension, Dimension>> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

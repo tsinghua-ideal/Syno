@@ -45,7 +45,7 @@ public:
         output { std::forward<decltype(output)>(output) },
         order { order }
     {}
-    virtual IteratorValue value(const IteratorValue& value, Order order) const = 0;
+    virtual IteratorValue value(const IteratorValue& value) const = 0;
 };
 
 } // namespace kas

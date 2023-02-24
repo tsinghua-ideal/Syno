@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <unordered_set>
@@ -8,7 +9,10 @@
 
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Transforms/Merge.hpp"
 #include "KAS/Transforms/Share.hpp"
+#include "KAS/Transforms/Split.hpp"
+#include "KAS/Transforms/Stride.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Tuple.hpp"
 
@@ -87,9 +91,9 @@ struct MergeLikeOpDimensionStore {
 
 // Remember to register the Ops!
 class DimensionStore {
-    detail::RepeatLikeOpDimensionStore<> repeatLikes;
-    detail::SplitLikeOpDimensionStore<> splitLikes;
-    detail::MergeLikeOpDimensionStore<ShareOp> mergeLikes;
+    detail::RepeatLikeOpDimensionStore<StrideOp> repeatLikes;
+    detail::SplitLikeOpDimensionStore<SplitOp> splitLikes;
+    detail::MergeLikeOpDimensionStore<MergeOp, ShareOp> mergeLikes;
     template<typename Op> consteval bool isRepeatLike() {
         return TupleHasTypeV<Op, decltype(repeatLikes)::Primitives>;
     }
@@ -116,18 +120,13 @@ public:
     Dimension get(Args&&... args) {
         auto& store = getStore<Op>();
         static_assert(std::is_same_v<typename std::remove_reference_t<decltype(store)>::key_type, detail::Pointer<Op>>);
-        auto op = new Op(std::forward<Args>(args)...);
-        try {
-            auto [it, inserted] = store.insert(op);
-            if (!inserted) {
-                delete op;
-                return it->second;
-            }
-        } catch (...) {
-            delete op;
-            throw;
+        auto op = std::make_unique<Op>(std::forward<Args>(args)...);
+        auto [it, inserted] = store.insert(op.get());
+        if (!inserted) {
+            // Newly allocated op is automatically destroyed.
+            return it->second;
         }
-        return Dimension(op);
+        return Dimension(op.release());
     }
     inline ~DimensionStore() {
         auto deleteOp = [](auto&& store) {

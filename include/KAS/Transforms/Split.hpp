@@ -1,34 +1,35 @@
 #pragma once
 
-#include <memory>
+#include <boost/container_hash/hash.hpp>
 
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
 namespace kas {
 
-class SplitShapeOp final: public PrimitiveShapeOp {
+class SplitOp final: public SplitLikePrimitiveOp {
+    Size sz;
 public:
-    std::size_t input;
-    std::size_t outputMajor, outputMinor;
-    // A bit ugly, but we have to maintain the size here.
-    mutable std::shared_ptr<Size> block;
-    SplitShapeOp(std::size_t input, std::size_t outputMajor, std::size_t outputMinor);
-    Shape transformShapeInverse(const Shape& outputShape) const override;
-    void transformTensor(TensorView& tensor) const override;
-    inline std::string type() const override { return "Split"; }
-    std::string description() const override;
+    SplitOp(auto&& outputLhs, auto&& outputRhs):
+        SplitLikePrimitiveOp { std::forward<decltype(outputLhs)>(outputLhs), std::forward<decltype(outputRhs)>(outputRhs) },
+        sz { this->outputLhs.size() * this->outputRhs.size() }
+    {}
+
+    inline const Size& size() const noexcept override { return sz; }
+    // SplitOp keeps no metadata.
+    constexpr std::size_t initialHash() const noexcept override { return boost::hash<std::string>{}("Split"); }
+    constexpr DimensionType type() const noexcept override { return DimensionType::Split; }
+
+    IteratorValue value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const override;
+    
+    inline bool operator==(const SplitOp& other) const noexcept {
+        return outputLhs == other.outputLhs && outputRhs == other.outputRhs;
+    }
 
     struct GenerateOptions {
         std::size_t dimLowerBound;
     };
-    static std::vector<std::unique_ptr<SplitShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
-};
-
-class SplitOp: public SplitLikePrimitiveOp {
-public:
-    SplitOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs);
-    IteratorValue value(DoubleIteratorValue output) const override;
+    static std::vector<Dimension> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

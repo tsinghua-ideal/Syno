@@ -1,31 +1,32 @@
 #pragma once
 
-#include <memory>
+#include <boost/container_hash/hash.hpp>
 
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
 namespace kas {
 
-class StrideShapeOp final: public PrimitiveShapeOp {
+class StrideOp final: public RepeatLikePrimitiveOp {
+    Size stride;
+    Size sz;
 public:
-    std::size_t input;
-    std::size_t output;
-    std::shared_ptr<Size> stride;
-    StrideShapeOp(std::size_t input, std::size_t output, std::shared_ptr<Size> stride);
-    Shape transformShapeInverse(const Shape& outputShape) const override;
-    void transformTensor(TensorView& tensor) const override;
-    inline std::string type() const override { return "Stride"; }
-    std::string description() const override;
+    StrideOp(auto&& output, auto&& stride):
+        RepeatLikePrimitiveOp { std::forward<decltype(output)>(output) },
+        stride { stride },
+        sz { this->output.size() * this->stride }
+    {}
+    inline const Size& size() const noexcept override { return sz; }
+    std::size_t initialHash() const noexcept override;
+    constexpr DimensionType type() const noexcept override { return DimensionType::Stride; }
 
-    static std::vector<std::unique_ptr<StrideShapeOp>> generate(const Shape& outputShape);
-};
+    IteratorValue value(const IteratorValue& output) const override;
 
-class StrideOp: public RepeatLikePrimitiveOp {
-public:
-    std::shared_ptr<Size> stride;
-    StrideOp(std::shared_ptr<Iterator> parent, std::shared_ptr<Size> stride);
-    IteratorValue value(IteratorValue output) const override;
+    inline bool operator==(const StrideOp& other) const noexcept {
+        return output == other.output && stride == other.stride;
+    }
+
+    static std::vector<Dimension> Generate(DimensionStore& store, const Interface& outputShape);
 };
 
 } // namespace kas

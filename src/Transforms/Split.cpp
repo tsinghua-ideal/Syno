@@ -1,68 +1,28 @@
-#include <memory>
-#include <sstream>
-#include <utility>
+#include <vector>
 
+#include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Split.hpp"
-#include "KAS/Core/Iterator.hpp"
 
 
 namespace kas {
 
-SplitShapeOp::SplitShapeOp(std::size_t input, std::size_t outputMajor, std::size_t outputMinor):
-    input { input },
-    outputMajor { outputMajor },
-    outputMinor { outputMinor }
-{}
-
-Shape SplitShapeOp::transformShapeInverse(const Shape& outputShape) const {
-    auto outputMajorSize = outputShape[outputMajor];
-    auto outputMinorSize = outputShape[outputMinor];
-    block = outputMinorSize;
-    return outputShape.replace({ outputMajor, outputMinor }, {
-        std::make_pair(input, *outputMajorSize * *outputMinorSize)
-    });
+IteratorValue SplitOp::value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const {
+    auto block = ConstValueNode::Create(outputRhs.size());
+    return outputMajor * block + outputMinor;
 }
 
-void SplitShapeOp::transformTensor(TensorView& tensor) const {
-    auto inputIt = tensor[input];
-    std::shared_ptr<SplitLikePrimitiveOp> op { new SplitOp { inputIt, std::weak_ptr<Iterator>(), std::weak_ptr<Iterator>() } };
-    auto outputMajorIt = std::make_shared<Iterator>(IteratorTransform { op }, *inputIt->getSize() / *block);
-    auto outputMinorIt = std::make_shared<Iterator>(IteratorTransform { op }, block);
-    op->childLhs = outputMajorIt;
-    op->childRhs = outputMinorIt;
-    tensor.replaceInterface({ input }, {
-        std::make_pair(outputMajor, std::move(outputMajorIt)),
-        std::make_pair(outputMinor, std::move(outputMinorIt))
-    });
-}
-
-std::string SplitShapeOp::description() const {
-    std::stringstream ss;
-    ss << "Split " << input << " -> " << outputMajor << ", " << outputMinor;
-    return ss.str();
-}
-
-std::vector<std::unique_ptr<SplitShapeOp>> SplitShapeOp::generate(const Shape& outputShape, GenerateOptions options) {
-    std::vector<std::unique_ptr<SplitShapeOp>> result;
+std::vector<Dimension> SplitOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
+    std::vector<Dimension> result;
     if (outputShape.size() > options.dimLowerBound) {
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
-            for (std::size_t j = i + 1; j < outputShape.size(); ++j) {
+            for (std::size_t j = 0; j < outputShape.size(); ++j) {
+                if (i == j) continue;
                 // Merged to the dimension at front.
-                result.emplace_back(std::make_unique<SplitShapeOp>(i, i, j));
+                result.emplace_back(store.get<SplitOp>(outputShape[i], outputShape[j]));
             }
         }
     }
     return result;
-}
-
-SplitOp::SplitOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs):
-    SplitLikePrimitiveOp { parent, childLhs, childRhs }
-{}
-
-IteratorValue SplitOp::value(DoubleIteratorValue output) const {
-    auto& [outputMajor, outputMinor] = output;
-    auto block = ConstValueNode::Create(childRhs.lock()->getSize());
-    return outputMajor * block + outputMinor;
 }
 
 } // namespace kas

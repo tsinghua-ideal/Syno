@@ -96,7 +96,7 @@ namespace {
                 result = it->value(outLeft, outRight);
             } else if (auto it = dynamic_cast<const MergeLikePrimitiveOp *>(dim.get()); it) {
                 auto out = dfs(it->output);
-                result = it->value(out, it->order);
+                result = it->value(out);
             } else if (auto it = dynamic_cast<const Iterator *>(dim.get()); it) {
                 // Here we have not figured out the order of the iterators. We have to wait until all the iterators are collected.
                 result = VariableValueNode::Create(std::numeric_limits<std::size_t>::max(), it->getName());
