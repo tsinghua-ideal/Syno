@@ -1,32 +1,29 @@
 #pragma once
 
-#include <memory>
-
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
 namespace kas {
 
-class ShiftShapeOp final: public PrimitiveShapeOp {
-public:
-    std::size_t input;
-    std::size_t output;
+class ShiftOp final: public RepeatLikePrimitiveOp {
     // Not very sure how to represent shift. TODO
     int shift;
-    ShiftShapeOp(std::size_t input, std::size_t output, int shift);
-    Shape transformShapeInverse(const Shape& outputShape) const override;
-    void transformTensor(TensorView& tensor) const override;
-    inline std::string type() const override { return "Shift"; }
-    std::string description() const override;
-
-    static std::vector<std::unique_ptr<ShiftShapeOp>> generate(const Shape& outputShape);
-};
-
-class ShiftOp: public RepeatLikePrimitiveOp {
 public:
-    int shift;
-    ShiftOp(std::shared_ptr<Iterator> parent, int shift);
-    IteratorValue value(IteratorValue output) const override;
+    ShiftOp(auto&& output, int shift):
+        RepeatLikePrimitiveOp { std::forward<decltype(output)>(output) },
+        shift { shift }
+    {}
+    inline const Size& size() const noexcept override { return output.size(); }
+    std::size_t initialHash() const noexcept override;
+    constexpr DimensionType type() const noexcept override { return DimensionType::Shift; }
+
+    IteratorValue value(const IteratorValue& output) const override;
+
+    inline bool operator==(const ShiftOp& other) const noexcept {
+        return output == other.output && shift == other.shift;
+    }
+
+    static std::vector<Dimension> Generate(DimensionStore& store, const Interface& outputShape);
 };
 
 } // namespace kas

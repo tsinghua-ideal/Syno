@@ -1,5 +1,3 @@
-#include "KAS/Transforms/Finalize.hpp"
-#include "KAS/Transforms/MapReduce.hpp"
 #include "KAS/Transforms/Merge.hpp"
 #include "KAS/Transforms/Share.hpp"
 #include "KAS/Transforms/Shift.hpp"

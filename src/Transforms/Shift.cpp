@@ -1,46 +1,18 @@
-#include <memory>
-#include <sstream>
-#include <utility>
-
 #include "KAS/Transforms/Shift.hpp"
-#include "KAS/Utils/Common.hpp"
-#include "KAS/Core/Iterator.hpp"
 
 
 namespace kas {
 
-ShiftShapeOp::ShiftShapeOp(std::size_t input, std::size_t output, int shift):
-    input { input },
-    output { output },
-    shift { shift }
-{}
-
-Shape ShiftShapeOp::transformShapeInverse(const Shape& outputShape) const {
-    return outputShape;
+std::size_t ShiftOp::initialHash() const noexcept {
+    auto h = static_cast<std::size_t>(type());
+    HashCombine(h, shift);
+    return h;
 }
 
-void ShiftShapeOp::transformTensor(TensorView& tensor) const {
-    auto inputIt = tensor[input];
-    std::unique_ptr<RepeatLikePrimitiveOp> op { new ShiftOp { inputIt, shift } };
-    auto outputIt = std::make_shared<Iterator>(IteratorTransform { std::move(op) }, inputIt->getSize());
-    tensor.replaceInterface({ input }, { std::make_pair(output, std::move(outputIt)) });
-}
-
-std::string ShiftShapeOp::description() const {
-    std::stringstream ss;
-    ss << "Shift " << input << " -> " << output << " by " << shift;
-    return ss.str();
-}
-
-ShiftOp::ShiftOp(std::shared_ptr<Iterator> parent, int shift):
-    RepeatLikePrimitiveOp { std::move(parent) },
-    shift { shift }
-{}
-
-IteratorValue ShiftOp::value(IteratorValue output) const {
+IteratorValue ShiftOp::value(const IteratorValue& output) const {
     auto imm = ImmediateValueNode::Create(shift);
-    auto size = ConstValueNode::Create(parent->getSize());
-    return (output + imm + size) % size;
+    auto size = ConstValueNode::Create(this->output.size());
+    return (output + imm) % size;
 }
 
 } // namespace kas

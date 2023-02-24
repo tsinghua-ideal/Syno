@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tuple>
+#include <type_traits>
 
 
 namespace kas {
@@ -24,23 +25,17 @@ void TupleForEachImpl(Tuple&& tuple, F&& f, std::index_sequence<Indices...>) {
 
 template <typename Tuple, typename F>
 void TupleForEach(Tuple&& tuple, F&& f) {
-    constexpr std::size_t N = std::tuple_size<std::remove_reference_t<Tuple>>::value;
+    constexpr std::size_t N = std::tuple_size<std::remove_cvref_t<Tuple>>::value;
     TupleForEachImpl(std::forward<Tuple>(tuple), std::forward<F>(f), std::make_index_sequence<N>{});
 }
 
 template <typename T, typename Tuple>
-struct TupleHasType;
-
-template <typename T>
-struct TupleHasType<T, std::tuple<>> : std::false_type {};
-
-template <typename T, typename U, typename... Ts>
-struct TupleHasType<T, std::tuple<U, Ts...>> : TupleHasType<T, std::tuple<Ts...>> {};
+struct TupleHasType: std::false_type {};
 
 template <typename T, typename... Ts>
-struct TupleHasType<T, std::tuple<T, Ts...>> : std::true_type {};
+struct TupleHasType<T, std::tuple<Ts...>>: std::disjunction<std::is_same<T, Ts>...> {};
 
-template <typename T, typename... Ts>
-constexpr bool TupleHasTypeV = TupleHasType<T, std::tuple<Ts...>>::value;
+template <typename T, typename Tuple>
+constexpr bool TupleHasTypeV = TupleHasType<T, Tuple>::value;
 
 } // namespace kas

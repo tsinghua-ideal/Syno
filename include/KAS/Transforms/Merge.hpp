@@ -1,7 +1,5 @@
 #pragma once
 
-#include <boost/container_hash/hash.hpp>
-
 #include "KAS/Core/PrimitiveOp.hpp"
 
 

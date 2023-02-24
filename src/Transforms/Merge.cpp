@@ -5,8 +5,8 @@
 namespace kas {
 
 std::size_t MergeOp::initialHash() const noexcept {
-    std::size_t seed = std::hash<std::string>{}("Merge");
-    boost::hash_combine(seed, block);
+    std::size_t seed = static_cast<std::size_t>(type());
+    HashCombine(seed, block);
     return seed;
 }
 
@@ -46,14 +46,14 @@ std::vector<std::pair<Dimension, Dimension>> MergeOp::Generate(DimensionStore& s
                     for (std::size_t coefficientIndex = 0; coefficientIndex < coefficientCount; ++coefficientIndex) {
                         std::size_t coefficientDim = coefficient[coefficientIndex];
                         if (coefficientDim != 0) {
-                            auto coefRes = std::make_shared<Size>(primaryRes);
+                            auto coefRes = Size(primaryRes);
                             // Here we simply split out the coefficient in half. TODO: better sampling.
                             if (canBeDivided.has_value()) {
-                                coefRes->getCoefficient()[coefficientIndex] = coefficientDim > 0 ? ((coefficientDim + 1) / 2) : ((coefficientDim - 1) / 2);
+                                coefRes.getCoefficient()[coefficientIndex] = coefficientDim > 0 ? ((coefficientDim + 1) / 2) : ((coefficientDim - 1) / 2);
                             } else {
-                                coefRes->getCoefficient()[coefficientIndex] = coefficientDim > 0 ? ((coefficientDim + 1) / 2) : coefficientDim;
+                                coefRes.getCoefficient()[coefficientIndex] = coefficientDim > 0 ? ((coefficientDim + 1) / 2) : coefficientDim;
                             }
-                            canBeDivided = size.canBeDividedBy(*coefRes);
+                            canBeDivided = size.canBeDividedBy(coefRes);
                             if (canBeDivided.has_value() && canBeDivided.value() != Size::Trait::One) {
                                 res.emplace_back(store.get<MergeOp>(outputShape[i], Order::Left, coefRes), store.get<MergeOp>(outputShape[i], Order::Right, coefRes));
                             }

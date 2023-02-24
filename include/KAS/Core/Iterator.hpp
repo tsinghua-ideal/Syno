@@ -1,8 +1,7 @@
 #pragma once
 
-#include <boost/container_hash/hash_fwd.hpp>
-
 #include "KAS/Core/Dimension.hpp"
+#include "KAS/Utils/Hash.hpp"
 
 
 namespace kas {
@@ -18,7 +17,7 @@ public:
     inline const Size& size() const noexcept override { return domain; }
     inline std::size_t initialHash() const noexcept override {
         auto h = index;
-        boost::hash_combine(h, DimensionType::Iterator);
+        HashCombine(h, DimensionType::Iterator);
         return h;
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::Iterator; }

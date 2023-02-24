@@ -5,15 +5,11 @@
 #include <type_traits>
 #include <unordered_set>
 
-#include <boost/functional/hash.hpp>
-
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
-#include "KAS/Transforms/Merge.hpp"
-#include "KAS/Transforms/Share.hpp"
-#include "KAS/Transforms/Split.hpp"
-#include "KAS/Transforms/Stride.hpp"
+#include "KAS/Transforms.hpp"
 #include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/Hash.hpp"
 #include "KAS/Utils/Tuple.hpp"
 
 
@@ -22,7 +18,7 @@ namespace kas {
 namespace detail {
 
 template<typename Op>
-using Pointer = const Op *;
+using Pointer = Op *;
 
 template<typename Op>
 struct PointerEqual {
@@ -39,7 +35,7 @@ struct SingleRepeatLikeOpDimensionStore {
     struct Hash {
         std::size_t operator()(Pointer<Op> op) const noexcept {
             auto h = op->initialHash();
-            boost::hash_combine(h, op->output.get());
+            HashCombine(h, op->output.get());
             return h;
         }
     };
@@ -49,6 +45,10 @@ template<typename... Ops>
 struct RepeatLikeOpDimensionStore {
     using Primitives = std::tuple<Ops...>;
     std::tuple<SingleRepeatLikeOpDimensionStore<Ops>...> stores;
+    template<typename Op>
+    auto& get() {
+        return std::get<SingleRepeatLikeOpDimensionStore<Op>>(stores).value;
+    }
 };
 
 template<typename Op>
@@ -56,8 +56,8 @@ struct SingleSplitLikeOpDimensionStore {
     struct Hash {
         std::size_t operator()(Pointer<Op> op) const noexcept {
             auto h = op->initialHash();
-            boost::hash_combine(h, op->outputLhs.get());
-            boost::hash_combine(h, op->outputRhs.get());
+            HashCombine(h, op->outputLhs.get());
+            HashCombine(h, op->outputRhs.get());
             return h;
         }
     };
@@ -67,6 +67,10 @@ template<typename... Ops>
 struct SplitLikeOpDimensionStore {
     using Primitives = std::tuple<Ops...>;
     std::tuple<SingleSplitLikeOpDimensionStore<Ops>...> stores;
+    template<typename Op>
+    auto& get() {
+        return std::get<SingleSplitLikeOpDimensionStore<Op>>(stores).value;
+    }
 };
 
 template<typename Op>
@@ -74,8 +78,8 @@ struct SingleMergeLikeOpDimensionStore {
     struct Hash {
         std::size_t operator()(Pointer<Op> op) const noexcept {
             auto h = op->initialHash();
-            boost::hash_combine(h, op->output.get());
-            boost::hash_combine(h, op->order);
+            HashCombine(h, op->output.get());
+            HashCombine(h, op->order);
             return h;
         }
     };
@@ -85,34 +89,42 @@ template<typename... Ops>
 struct MergeLikeOpDimensionStore {
     using Primitives = std::tuple<Ops...>;
     std::tuple<SingleMergeLikeOpDimensionStore<Ops>...> stores;
+    template<typename Op>
+    auto& get() {
+        return std::get<SingleMergeLikeOpDimensionStore<Op>>(stores).value;
+    }
 };
 
-} // namespace
-
 // Remember to register the Ops!
+using RepeatLikes = RepeatLikeOpDimensionStore<ShiftOp, StrideOp>;
+using SplitLikes = SplitLikeOpDimensionStore<SplitOp, UnfoldOp>;
+using MergeLikes = MergeLikeOpDimensionStore<MergeOp, ShareOp>;
+
+} // namespace detail
+
 class DimensionStore {
-    detail::RepeatLikeOpDimensionStore<StrideOp> repeatLikes;
-    detail::SplitLikeOpDimensionStore<SplitOp> splitLikes;
-    detail::MergeLikeOpDimensionStore<MergeOp, ShareOp> mergeLikes;
-    template<typename Op> consteval bool isRepeatLike() {
-        return TupleHasTypeV<Op, decltype(repeatLikes)::Primitives>;
+    detail::RepeatLikes repeatLikes;
+    detail::SplitLikes splitLikes;
+    detail::MergeLikes mergeLikes;
+    template<typename Op> consteval static bool isRepeatLike() {
+        return TupleHasTypeV<Op, detail::RepeatLikes::Primitives>;
     }
-    template<typename Op> consteval bool isSplitLike() {
-        return TupleHasTypeV<Op, decltype(splitLikes)::Primitives>;
+    template<typename Op> consteval static bool isSplitLike() {
+        return TupleHasTypeV<Op, detail::SplitLikes::Primitives>;
     }
-    template<typename Op> consteval bool isMergeLike() {
-        return TupleHasTypeV<Op, decltype(mergeLikes)::Primitives>;
+    template<typename Op> consteval static bool isMergeLike() {
+        return TupleHasTypeV<Op, detail::MergeLikes::Primitives>;
     }
     template<typename Op> auto getStore() -> decltype(auto)
     requires(
         isRepeatLike<Op>() || isSplitLike<Op>() || isMergeLike<Op>()
     ) {
         if constexpr (isRepeatLike<Op>()) {
-            return std::get<detail::SingleRepeatLikeOpDimensionStore<Op>>(repeatLikes.stores).value;
+            return repeatLikes.get<Op>();
         } else if constexpr (isSplitLike<Op>()) {
-            return std::get<detail::SingleSplitLikeOpDimensionStore<Op>>(splitLikes.stores).value;
+            return splitLikes.get<Op>();
         } else if constexpr (isMergeLike<Op>()) {
-            return std::get<detail::SingleMergeLikeOpDimensionStore<Op>>(mergeLikes.stores).value;
+            return mergeLikes.get<Op>();
         }
     }
 public:
@@ -124,19 +136,19 @@ public:
         auto [it, inserted] = store.insert(op.get());
         if (!inserted) {
             // Newly allocated op is automatically destroyed.
-            return it->second;
+            return Dimension(*it);
         }
         return Dimension(op.release());
     }
     inline ~DimensionStore() {
         auto deleteOp = [](auto&& store) {
-            for (auto&& op: store) {
+            for (auto&& op: store.value) {
                 delete op;
             }
         };
-        TupleForEach(repeatLikes, deleteOp);
-        TupleForEach(splitLikes, deleteOp);
-        TupleForEach(mergeLikes, deleteOp);
+        TupleForEach(repeatLikes.stores, deleteOp);
+        TupleForEach(splitLikes.stores, deleteOp);
+        TupleForEach(mergeLikes.stores, deleteOp);
     }
 };
 

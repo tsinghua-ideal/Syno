@@ -1,5 +1,3 @@
-#include <vector>
-
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Split.hpp"
 

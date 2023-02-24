@@ -8,30 +8,25 @@
 
 namespace kas {
 
-class UnfoldShapeOp final: public PrimitiveShapeOp {
+class UnfoldOp final: public SplitLikePrimitiveOp {
 public:
-    std::size_t input;
-    std::size_t outputOriginal, outputWindow;
-    // A bit ugly, but we have to maintain the size here.
-    mutable std::shared_ptr<Size> windowSize;
-    UnfoldShapeOp(std::size_t input, std::size_t outputOriginal, std::size_t outputWindow);
-    Shape transformShapeInverse(const Shape& outputShape) const override;
-    void transformTensor(TensorView& tensor) const override;
-    inline std::string type() const override { return "Unfold"; }
-    std::string description() const override;
+    using SplitLikePrimitiveOp::SplitLikePrimitiveOp;
+
+    inline const Size& size() const noexcept override { return outputLhs.size(); }
+    constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(type()); }
+    constexpr DimensionType type() const noexcept override { return DimensionType::Unfold; }
+
+    IteratorValue value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const override;
+
+    inline bool operator==(const UnfoldOp& other) const noexcept {
+        return outputLhs == other.outputLhs && outputRhs == other.outputRhs;
+    }
 
     struct GenerateOptions {
         const BindingContext& ctx;
         std::size_t dimLowerBound;
     };
-    static std::vector<std::unique_ptr<UnfoldShapeOp>> generate(const Shape& outputShape, GenerateOptions options);
-};
-
-class UnfoldOp: public SplitLikePrimitiveOp {
-public:
-    std::shared_ptr<Size> originalSize;
-    UnfoldOp(std::shared_ptr<Iterator> parent, std::weak_ptr<Iterator> childLhs, std::weak_ptr<Iterator> childRhs, std::shared_ptr<Size> originalSize);
-    IteratorValue value(DoubleIteratorValue output) const override;
+    static std::vector<Dimension> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

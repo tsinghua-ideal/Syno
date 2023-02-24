@@ -1,7 +1,5 @@
 #pragma once
 
-#include <boost/container_hash/hash.hpp>
-
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
@@ -17,7 +15,7 @@ public:
 
     inline const Size& size() const noexcept override { return sz; }
     // SplitOp keeps no metadata.
-    constexpr std::size_t initialHash() const noexcept override { return boost::hash<std::string>{}("Split"); }
+    constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(type()); }
     constexpr DimensionType type() const noexcept override { return DimensionType::Split; }
 
     IteratorValue value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const override;

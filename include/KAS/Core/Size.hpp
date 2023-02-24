@@ -1,7 +1,6 @@
 #pragma once
 
 #include <array>
-#include <boost/container_hash/hash_fwd.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -13,6 +12,7 @@
 
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/Hash.hpp"
 
 
 namespace kas {
@@ -185,7 +185,7 @@ struct std::hash<std::span<T>> {
     std::size_t operator()(const std::span<T>& span) const noexcept {
         std::size_t seed = span.size();
         for (const auto& item: span) {
-            boost::hash_combine(seed, item);
+            kas::HashCombine(seed, item);
         }
         return seed;
     }
@@ -195,8 +195,8 @@ template<>
 struct std::hash<kas::Size> {
     std::size_t operator()(const kas::Size& size) const noexcept {
         auto h = std::hash<std::string>{}("Size");
-        boost::hash_combine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getPrimary()));
-        boost::hash_combine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getCoefficient()));
+        kas::HashCombine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getPrimary()));
+        kas::HashCombine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getCoefficient()));
         return h;
     }
 };

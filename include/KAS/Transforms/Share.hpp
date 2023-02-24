@@ -1,7 +1,5 @@
 #pragma once
 
-#include <boost/container_hash/hash.hpp>
-
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
@@ -9,13 +7,11 @@ namespace kas {
 
 class ShareOp final: public MergeLikePrimitiveOp {
 public:
-    ShareOp(auto&& output, Order order):
-        MergeLikePrimitiveOp { std::forward<decltype(output)>(output), order }
-    {}
+    using MergeLikePrimitiveOp::MergeLikePrimitiveOp;
 
     inline const Size& size() const noexcept override { return output.size(); }
     // Since ShareOp keeps no metadata, the initial hash is the same for all ShareOps.
-    constexpr std::size_t initialHash() const noexcept override { return boost::hash<std::string>{}("Share"); }
+    constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(type()); }
     constexpr DimensionType type() const noexcept override { return DimensionType::Share; }
 
     IteratorValue value(const IteratorValue& output) const override;

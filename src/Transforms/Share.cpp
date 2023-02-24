@@ -1,5 +1,3 @@
-#include <vector>
-
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Share.hpp"

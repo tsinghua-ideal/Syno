@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Stride.hpp"
 
@@ -5,8 +7,8 @@
 namespace kas {
 
 std::size_t StrideOp::initialHash() const noexcept {
-    auto h = boost::hash<std::string>{}("Split");
-    boost::hash_combine(h, stride);
+    auto h = static_cast<std::size_t>(type());
+    HashCombine(h, stride);
     return h;
 }
 
