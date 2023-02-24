@@ -40,7 +40,7 @@ protected:
     // Require that same `DimensionImpl`s have same address, i.e., uniqued.
     PointerType inner;
 public:
-    inline explicit Dimension(PointerType inner): inner { inner } {}
+    inline Dimension(PointerType inner): inner { inner } {}
     inline PointerType get() const noexcept { return inner; }
     inline const Size& size() const noexcept { return inner->size(); }
     // Checks the underlying type of the dimension.

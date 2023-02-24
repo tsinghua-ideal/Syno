@@ -1,5 +1,6 @@
 #pragma once
 
+#include <compare>
 #include <cstddef>
 #include <memory>
 #include <sstream>
@@ -49,6 +50,7 @@ public:
     IteratorValue operator/(const IteratorValue& other) const;
     IteratorValue operator%(const IteratorValue& other) const;
     bool operator==(const IteratorValue& other) const = default;
+    std::strong_ordering operator<=>(const IteratorValue& other) const = default;
     template<typename T>
     requires std::is_base_of_v<IteratorValueImpl, T>
     T& as() { return *std::dynamic_pointer_cast<T>(value); }

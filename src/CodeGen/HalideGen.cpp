@@ -164,7 +164,7 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(c
 
 std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> HalideGen::createFuncGrad(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName) {
     auto [input, func] = createFunc(consts, access, funcName, true);
-    Shape outputShape = tensorView.getShape();
+    auto outputShape = tensorView.getShape();
     Halide::Region outputRegion = evaluate(consts, outputShape);
     Halide::ImageParam outputGrad(Halide::type_of<float>(), outputShape.size(), "output_grad");
     Halide::Func wrappedOutputGrad = Halide::BoundaryConditions::constant_exterior(outputGrad, 0.0f, outputRegion);

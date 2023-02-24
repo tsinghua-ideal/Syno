@@ -117,7 +117,7 @@ namespace {
             memoize.insert({dim, result});
             return result;
         }
-        void fill(std::vector<const Iterator *> interface, std::vector<const MapReduceOp *> manipulations) {
+        void fill(std::vector<const Iterator *>& interface, std::vector<const MapReduceOp *>& manipulations) {
             std::ranges::copy(outer | std::views::transform([](auto&& pair) { return pair.first; }), std::back_inserter(interface));
             std::ranges::copy(inner | std::views::transform([](auto&& pair) { return pair.first; }), std::back_inserter(manipulations));
             std::ranges::sort(interface, [](const Iterator *lhs, const Iterator *rhs) {

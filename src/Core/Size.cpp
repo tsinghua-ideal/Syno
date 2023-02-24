@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <numeric>
 #include <sstream>
 
@@ -157,6 +158,10 @@ std::optional<Size::Trait> Size::testDividedBy(const Size& other) {
 std::optional<Size::Trait> Size::canBeDividedBy(const Size& other) const {
     Size temp { *this };
     return temp.testDividedBy(other);
+}
+
+bool Size::operator==(const Size& other) const {
+    return std::ranges::equal(primary, other.primary) && std::ranges::equal(coefficient, other.coefficient);
 }
 
 std::string Size::toString(const BindingContext& ctx) const {
