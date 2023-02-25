@@ -326,6 +326,11 @@ TEST_F(transforms_tests, dimension_store) {
     Dimension s1 = store.get<ShiftOp>(dimH, 1);
     Dimension s2 = store.get<ShiftOp>(dimH, 1);
     ASSERT_EQ(s1, s2);
+    Dimension sL = store.get<ShareOp>(dimH, Order::Left);
+    Dimension sR = store.get<ShareOp>(dimH, Order::Right);
+    ASSERT_NE(sL, sR);
+    ASSERT_NE(s1, sL);
+    ASSERT_NE(s1, sR);
 }
 
 } // namespace kas
