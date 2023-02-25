@@ -33,6 +33,9 @@ public:
     virtual ~DimensionImpl() = default;
 };
 
+class Dimension;
+using Interface = std::vector<Dimension>;
+
 class Dimension {
 public:
     using PointerType = const DimensionImpl *;
@@ -45,13 +48,17 @@ public:
     inline const Size& size() const noexcept { return inner->size(); }
     // Checks the underlying type of the dimension.
     inline bool is(DimensionType ty) const noexcept { return inner->type() == ty; }
+    template<typename T>
+    const T& as() const noexcept { return *dynamic_cast<const T *>(inner); }
     bool operator==(const Dimension& other) const = default;
     // Sort the dimensions in an interface to obtain hash for it.
     std::strong_ordering operator<=>(const Dimension& other) const = default;
     std::string description(const BindingContext& ctx) const;
-};
 
-using Interface = std::vector<Dimension>;
+    static Interface applyRepeatLike(const Dimension& dim, const Interface& interface);
+    static Interface applyMergeLike(const Dimension& dimLeft, const Dimension& dimRight, const Interface& interface);
+    static Interface applySplitLike(const Dimension& dim, const Interface& interface);
+};
 
 } // namespace kas
 

@@ -1,9 +1,7 @@
 #include <cstddef>
-#include <memory>
 #include <optional>
-#include <set>
-#include <string>
 #include <vector>
+
 #include <gtest/gtest.h>
 
 #include "KAS/Core/CodeGen.hpp"

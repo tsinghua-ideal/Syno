@@ -140,24 +140,28 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(c
     // Enforce zero-padding.
     Halide::Expr guardedRhs = Halide::select(guardCond, Halide::likely(rhs), 0.0f);
 
-    // tempAccess = [...forward reduce loops, ...reverse outer loops], to adapt to column major Halide.
-    std::vector<Halide::Var> fullAccess(innerIterators);
-    std::ranges::copy(outerIterators, std::back_inserter(fullAccess));
-    Halide::Func full;
-    full(fullAccess) = guardedRhs;
+    if (innerIterators.empty()) {
+        func(outerIterators) = guardedRhs;
+    } else {
+        // tempAccess = [...forward reduce loops, ...reverse outer loops], to adapt to column major Halide.
+        std::vector<Halide::Var> fullAccess(innerIterators);
+        std::ranges::copy(outerIterators, std::back_inserter(fullAccess));
+        Halide::Func full;
+        full(fullAccess) = guardedRhs;
 
-    // Since the reduce iterators are in order, do not revert.
-    Halide::Region reduceRegion = evaluate(consts, tensorView.getReduceShape(), false);
-    Halide::RDom reduction = reduceRegion;
+        // Since the reduce iterators are in order, do not revert.
+        Halide::Region reduceRegion = evaluate(consts, tensorView.getReduceShape(), false);
+        Halide::RDom reduction = reduceRegion;
 
-    std::vector<Halide::Expr> reduceAccess;
-    for (std::size_t i = 0; i < reduction.dimensions(); ++i) {
-        reduceAccess.emplace_back(reduction[i]);
+        std::vector<Halide::Expr> reduceAccess;
+        for (std::size_t i = 0; i < reduction.dimensions(); ++i) {
+            reduceAccess.emplace_back(reduction[i]);
+        }
+        std::ranges::copy(outerIterators, std::back_inserter(reduceAccess));
+
+        // Here we ignore all the `Map`s and `Reduce`s, and just sum up the entries for simplicity. TODO: Add other operations, and consider fusions of reductions.
+        func(outerIterators) = Halide::sum(full(reduceAccess));
     }
-    std::ranges::copy(outerIterators, std::back_inserter(reduceAccess));
-
-    // Here we ignore all the `Map`s and `Reduce`s, and just sum up the entries for simplicity. TODO: Add other operations, and consider fusions of reductions.
-    func(outerIterators) = Halide::sum(full(reduceAccess));
 
     return { std::move(inputs), std::move(func) };
 }
