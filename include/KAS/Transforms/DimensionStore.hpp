@@ -18,7 +18,7 @@ namespace kas {
 namespace detail {
 
 template<typename Op>
-using Pointer = Op *;
+using Pointer = const Op *;
 
 template<typename Op>
 struct PointerEqual {

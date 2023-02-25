@@ -8,6 +8,7 @@
 
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Dimension.hpp"
+#include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Iterator.hpp"
@@ -42,23 +43,41 @@ TEST(core_tests, size) {
 
 TEST(core_tests, tensor) {
     auto ctx = BindingContext { static_cast<std::size_t>(3), static_cast<std::size_t>(2) };
-    auto sizeH = ctx.getSinglePrimaryVariableSize(0);
-    ASSERT_EQ(sizeH.toString(ctx), "x_0");
-    auto sizeW = ctx.getSinglePrimaryVariableSize(1);
-    ASSERT_EQ(sizeW.toString(ctx), "x_1");
-    auto sizeC = ctx.getSingleCoefficientVariableSize(0);
-    ASSERT_EQ(sizeC.toString(ctx), "c_0");
-    auto shape = Shape { std::vector<Size> { sizeH, sizeW, sizeC } };
-    Iterator i_0 { 0, sizeH }, i_1 { 1, sizeW }, i_2 { 2, sizeC };
-    Interface interface { &i_0, &i_1, &i_2 };
+    auto sizeX0 = ctx.getSinglePrimaryVariableSize(0);
+    ASSERT_EQ(sizeX0.toString(ctx), "x_0");
+    auto sizeX1 = ctx.getSinglePrimaryVariableSize(1);
+    ASSERT_EQ(sizeX1.toString(ctx), "x_1");
+    auto sizeC0 = ctx.getSingleCoefficientVariableSize(0);
+    ASSERT_EQ(sizeC0.toString(ctx), "c_0");
+    auto sizeC1 = ctx.getSingleCoefficientVariableSize(1);
+    ASSERT_EQ(sizeC1.toString(ctx), "c_1");
+    Iterator i_0 { 0, sizeX0 }, i_1 { 1, sizeX1 }, i_2 { 2, sizeC0 };
+    MapReduceOp i_3 { 0, sizeC1, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum };
+    Interface interface { &i_0, &i_1, &i_2, &i_3 };
     auto tensorView = TensorView { { interface } };
+    ASSERT_EQ(tensorView.getShape().toString(ctx), "[x_0,x_1,c_0]");
+    ASSERT_EQ(tensorView.getReduceShape().toString(ctx), "[c_1]");
     ASSERT_EQ(tensorView.interfaceAccessToString(ctx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.shapeToString(ctx), "[x_0,x_1,c_0]");
+    ASSERT_EQ(tensorView.reduceAccessToString(ctx), "[ri_0]");
+    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2,ri_0] with ri_0 Sum reduced");
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, "out"),
+R"(for (int i_0 = 0; i_0 < x_0; i_0++) {
+    for (int i_1 = 0; i_1 < x_1; i_1++) {
+        for (int i_2 = 0; i_2 < c_0; i_2++) {
+            float temp_ri_0 = 0;
+            for (int ri_0 = 0; ri_0 < c_1; ri_0++) {
+                temp_ri_0 += in_0[i_0,i_1,i_2,ri_0];
+            }
+            out[i_0,i_1,i_2] = temp_ri_0;
+        }
+    }
+}
+)");
     const auto& tensors = tensorView.getUnderlyingTensors();
     ASSERT_EQ(tensors.size(), 1);
     const auto& tensor = tensors[0];
-    ASSERT_EQ(tensor.accessToString(ctx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensor.shapeToString(ctx), "[x_0,x_1,c_0]");
+    ASSERT_EQ(tensor.accessToString(ctx), "[i_0,i_1,i_2,ri_0]");
+    ASSERT_EQ(tensor.shapeToString(ctx), "[x_0,x_1,c_0,c_1]");
 }
 
 TEST(core_tests, parse_shape_names) {

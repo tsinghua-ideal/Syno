@@ -27,6 +27,11 @@ IteratorValue IteratorValue::operator%(const IteratorValue& other) const {
     return IteratorValue(std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Mod, *this, other));
 }
 
+std::string IteratorValue::toString(const BindingContext& ctx) const {
+    IteratorValuePrinter printer { ctx };
+    return printer.toString(*this);
+}
+
 const IteratorValue ImmediateValueNode::Zero = ImmediateValueNode::Create(0);
 const IteratorValue ImmediateValueNode::One = ImmediateValueNode::Create(1);
 const IteratorValue ImmediateValueNode::Two = ImmediateValueNode::Create(2);

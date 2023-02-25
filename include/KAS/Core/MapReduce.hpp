@@ -57,6 +57,9 @@ public:
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::MapReduce; }
 
+    inline MapType getMap() const { return mapType; }
+    inline ReduceType getReduce() const { return reduceType; }
+
     inline std::size_t getPriority() const { return priority; }
     inline std::string getName() const {
         return "ri_" + std::to_string(priority);

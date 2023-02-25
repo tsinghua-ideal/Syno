@@ -35,7 +35,7 @@ public:
 
 class Dimension {
 public:
-    using PointerType = DimensionImpl *;
+    using PointerType = const DimensionImpl *;
 protected:
     // Require that same `DimensionImpl`s have same address, i.e., uniqued.
     PointerType inner;

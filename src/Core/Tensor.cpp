@@ -21,9 +21,8 @@ std::string PureTensor::shapeToString(const BindingContext& ctx) const {
 }
 
 std::string PureTensor::accessToString(const BindingContext& ctx) const {
-    auto printer = IteratorValuePrinter(ctx);
     return VectorToString(access | std::views::transform([&](const IteratorValue& value) {
-        return printer.toString(value);
+        return value.toString(ctx);
     }));
 }
 
@@ -45,7 +44,6 @@ std::string TensorView::printInnerLoops(const BindingContext& ctx, std::size_t i
             });
             // TODO: other blending schemes other than multiplication
             return fmt::format("{}", fmt::join(r, " * "));
-            std::stringstream innerSs;
         }
 
         auto& m = manipulations[manipId];
@@ -64,7 +62,11 @@ std::string TensorView::printInnerLoops(const BindingContext& ctx, std::size_t i
 
         IndentSpaces(ss, depth + 1);
         // Can be other reduce than sum. TODO.
-        fmt::format_to(SSIt(ss), "{} += {}({});\n", tempName, m->whatMap(), inner);
+        if (m->getMap() == MapReduceOp::MapType::Identity) {
+            fmt::format_to(SSIt(ss), "{} += {};\n", tempName, inner);
+        } else {
+            fmt::format_to(SSIt(ss), "{} += {}({});\n", tempName, m->whatMap(), inner);
+        }
 
         IndentSpaces(ss, depth);
         ss << "}\n";
@@ -149,40 +151,44 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     eval.fill(interface, manipulations);
 }
 
-std::string TensorView::shapeToString(const BindingContext& ctx) const {
-    auto s1 = IteratorShapeView(interface).toString(ctx);
-    if (!manipulations.empty()) {
-        auto s2 = ReduceIteratorShapeView(manipulations).toString(ctx);
-        return s1 + " with reduced " + s2;
-    }
-    return s1;
-}
-
 std::string TensorView::interfaceAccessToString(const BindingContext& ctx) const {
     return VectorToString(interface
-        | std::views::transform([&](const Iterator *it) {
+        | std::views::transform([](const Iterator *it) {
             return it->getName();
         })
     );
 }
 
-std::string TensorView::actualAccessToString(const BindingContext& ctx) const {
-    std::stringstream ss;
-    // Here the outer loops are exactly the interface iterators.
-    ss << VectorToString(tensors
-        | std::views::transform([](const PureTensor& t) -> ShapeView {
-            return t.getShape();
-        })
-        | std::views::join
-        | std::views::transform([&](const Size& size) {
-            return size.toString(ctx);
+std::string TensorView::reduceAccessToString(const BindingContext& ctx) const {
+    return VectorToString(manipulations
+        | std::views::transform([](const MapReduceOp *m) {
+            return m->getName();
         })
     );
-    for (const auto& m: manipulations) {
-        ss << " with " << m->whatMap() << " mapped";
-        ss << " with " << m->getName() << " " << m->whatReduce() << " reduced";
+}
+
+std::string TensorView::actualAccessToString(const BindingContext& ctx) const {
+    if (manipulations.empty()) {
+        return interfaceAccessToString(ctx);
     }
-    return ss.str();
+    return fmt::format(
+        "[{},{}]{}",
+        fmt::join(interface
+        | std::views::transform([](const Iterator *it) -> std::string {
+            return it->getName();
+        }), ","),
+        fmt::join(manipulations
+        | std::views::transform([](const MapReduceOp *m) -> std::string {
+            return m->getName();
+        }), ","),
+        fmt::join(manipulations
+        | std::views::transform([](const MapReduceOp *m) -> std::string {
+            if (m->getMap() == MapReduceOp::MapType::Identity) {
+                return fmt::format(" with {} {} reduced", m->getName(), m->whatReduce());
+            }
+            return fmt::format(" with {} mapped with {} {} reduced", m->whatMap(), m->getName(), m->whatReduce());
+        }), "")
+    );
 }
 
 std::string TensorView::printNestedLoops(const BindingContext& ctx, std::string_view outputName) const {

@@ -54,6 +54,7 @@ public:
     template<typename T>
     requires std::is_base_of_v<IteratorValueImpl, T>
     T& as() { return *std::dynamic_pointer_cast<T>(value); }
+    std::string toString(const BindingContext& ctx) const;
 };
 
 struct VariableValueNode final: public IteratorValueImpl {

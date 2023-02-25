@@ -66,12 +66,13 @@ public:
     // Returns the map-reduce manipulations.
     inline const std::vector<const MapReduceOp *>& getManipulations() const { return manipulations; }
 
-    std::string shapeToString(const BindingContext& ctx) const;
-
-    // The standard interface.
+    // The standard interface, i.e., the outer loops.
     std::string interfaceAccessToString(const BindingContext& ctx) const;
 
-    // Returns something like "[i_0,i_1] with reduced [i_2]".
+    // The inner reduction loops.
+    std::string reduceAccessToString(const BindingContext& ctx) const;
+
+    // Returns something like "[i_0,i_1,ri_0] with ri_0 Sum reduced". This is just the combined above two.
     std::string actualAccessToString(const BindingContext &ctx) const;
 
     std::string printNestedLoops(const BindingContext& ctx, std::string_view outputName = std::string_view("out")) const;
