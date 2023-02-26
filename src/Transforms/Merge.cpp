@@ -20,10 +20,10 @@ IteratorValue MergeOp::value(const IteratorValue& output) const {
     }
 }
 
-std::vector<std::pair<Dimension, Dimension>> MergeOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
+std::vector<NextMergeLike> MergeOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
     const auto& ctx = options.ctx;
     auto primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
-    std::vector<std::pair<Dimension, Dimension>> res;
+    std::vector<NextMergeLike> res;
     if (outputShape.size() < options.dimUpperBound) {
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
             const auto& size = outputShape[i].size();

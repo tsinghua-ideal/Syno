@@ -14,7 +14,8 @@ namespace kas {
 
 struct Size;
 template<typename Storage, auto Mapping> class AbstractShape;
-using Shape = AbstractShape<std::vector<Size>, [](const Size& size) -> const Size& { return size; }>;
+inline const Size& ShapeMapping(const Size& size) { return size; };
+using Shape = AbstractShape<std::vector<Size>, ShapeMapping>;
 
 struct ConcreteConsts {
     std::vector<int> primary;

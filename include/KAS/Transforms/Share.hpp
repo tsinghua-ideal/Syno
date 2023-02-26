@@ -24,7 +24,7 @@ public:
         const BindingContext& ctx;
         std::size_t dimUpperBound;
     };
-    static std::vector<std::pair<Dimension, Dimension>> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
+    static std::vector<NextMergeLike> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

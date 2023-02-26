@@ -24,7 +24,7 @@ public:
         return output == other.output && stride == other.stride;
     }
 
-    static std::vector<Dimension> Generate(DimensionStore& store, const Interface& outputShape);
+    static std::vector<NextRepeatLike> Generate(DimensionStore& store, const Interface& outputShape);
 };
 
 } // namespace kas

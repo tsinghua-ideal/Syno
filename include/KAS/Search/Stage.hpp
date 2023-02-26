@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
@@ -9,6 +8,7 @@
 #include <variant>
 #include <vector>
 
+#include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Tensor.hpp"
@@ -19,6 +19,8 @@
 
 namespace kas {
 
+class Sampler;
+
 struct Next {
     enum class Type {
         Finalize,
@@ -28,7 +30,6 @@ struct Next {
     };
     Type type;
     std::size_t index;
-    std::string toString() const;
 };
 
 struct NextBound {
@@ -40,7 +41,30 @@ struct NextBound {
     Next get(std::size_t index) const;
 };
 
-class StageStore;
+class Stage;
+
+class StageStore {
+    DimensionStore dimensionStore;
+    struct Hash {
+        std::size_t operator()(Interface * const interface) const noexcept {
+            return std::hash<std::vector<Dimension>>{}(*interface);
+        }
+    };
+    struct Equal {
+        bool operator()(Interface * const lhs, Interface * const rhs) const noexcept {
+            return *lhs == *rhs;
+        }
+    };
+    std::unordered_set<Interface *, Hash, Equal> interfaces;
+
+    // This is just the `container_of()` in Linux kernel.
+    static Stage *Convert(Interface *from);
+public:
+    inline DimensionStore& dimStore() { return dimensionStore; }
+    Stage *find(Interface * const interface) const;
+    bool insert(Stage * const stage);
+    ~StageStore();
+};
 
 class Stage {
     friend class StageStore;
@@ -56,41 +80,59 @@ class Stage {
     std::vector<std::pair<const NextMergeLike, Stage *>> nextMergeLikes;
 
     // Metadata.
+    Sampler& sampler;
+    std::size_t depth; // Stages with identical interfaces must be the same depth.
     Colors colors;
     std::vector<std::reference_wrapper<const Size>> missingSizes;
 
+    // This checks whether the nexts are evaluated. If not, it evaluates them.
+    void guard();
+
+    TensorView *getFinalize(std::size_t index);
+    template<typename NextOp>
+    requires (std::same_as<NextOp, NextRepeatLike> || std::same_as<NextOp, NextSplitLike> || std::same_as<NextOp, NextMergeLike>)
+    auto& getNextBuffer() {
+        if constexpr (std::same_as<NextOp, NextRepeatLike>) {
+            return nextRepeatLikes;
+        } else if constexpr (std::same_as<NextOp, NextSplitLike>) {
+            return nextSplitLikes;
+        } else if constexpr (std::same_as<NextOp, NextMergeLike>) {
+            return nextMergeLikes;
+        }
+    }
+    template<typename NextOp>
+    Stage *getNext(StageStore& store, std::size_t index) {
+        auto& [op, stage] = getNextBuffer<NextOp>()[index];
+        if (!stage) {
+            auto newInterface = op.applyTo(interface);
+            if (Stage *found = store.find(&newInterface); found) {
+                stage = found;
+            } else {
+                auto tempStage = std::unique_ptr<Stage> { new Stage { std::move(newInterface), sampler, depth + 1 } };
+                if(store.insert(tempStage.get())) {
+                    stage = tempStage.release();
+                } else {
+                    KAS_CRITICAL("StageStore::insert() failed.");
+                }
+            }
+        }
+        return stage;
+    }
+
 public:
-    std::size_t size();
+    Stage(auto&& interface, Sampler& sampler, std::size_t depth):
+        interface { std::forward<decltype(interface)>(interface) },
+        sampler { sampler },
+        depth { depth }
+    {
+        // Compute colors and missing sizes. TODO.
+    }
+    inline const std::vector<Dimension>& getInterface() const { return interface; }
+    std::size_t countChildren();
     bool isFinal(std::size_t index);
     std::variant<Stage *, TensorView *> next(std::size_t index);
+    std::string opType(std::size_t index);
     std::string opDescription(std::size_t index);
-};
-
-class StageStore {
-    DimensionStore dimensionStore;
-    struct Hash {
-        std::size_t operator()(Interface * const interface) const noexcept {
-            return std::hash<std::vector<Dimension>>{}(*interface);
-        }
-    };
-    struct Equal {
-        bool operator()(Interface * const lhs, Interface * const rhs) const noexcept {
-            return *lhs == *rhs;
-        }
-    };
-    std::unordered_set<Interface *, Hash, Equal> interfaces;
-public:
-    DimensionStore& dimStore() { return dimensionStore; }
-    Stage *find(Interface * const interface) const {
-        if (auto it = interfaces.find(interface); it != interfaces.end()) {
-            return reinterpret_cast<Stage *>(*it - offsetof(Stage, interface));
-        } else {
-            return nullptr;
-        }
-    }
-    bool insert(Stage * const stage) {
-        return interfaces.insert(&stage->interface).second;
-    }
 };
 
 } // namespace kas

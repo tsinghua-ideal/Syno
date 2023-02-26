@@ -37,6 +37,11 @@ class Sampler final {
 
 protected:
     std::mt19937 rng;
+    template<typename T>
+    T random(T upper) {
+        std::uniform_int_distribution<T> dist { 0, upper - 1 };
+        return dist(rng);
+    }
 
     BindingContext ctx;
     SampleOptions options;
@@ -52,8 +57,16 @@ protected:
     // Visit a node along a specific path, but DO NOT visit the last node using this API! Because we do not know whether is is a TensorView.
     Node visitFromNode(const Node& node, std::span<const std::size_t> path) const;
 
+    // Same as above, but visits a base first.
+    Node visitFromRoot(const std::vector<std::size_t>& path);
+
     // Visit a node along a specific path, but stops at the last node, so we can verify whether it is a TensorView.
-    std::pair<Node, std::size_t> visitButStopAtLast(const std::vector<std::size_t>& path);
+    std::pair<Node, std::size_t> visitFromNodeButStopAtLast(const Node& node, std::span<const std::size_t> path);
+
+    // Same as above, but visits a base first.
+    std::pair<Node, std::size_t> visitFromRootButStopAtLast(const std::vector<std::size_t>& path);
+
+    std::variant<Stage *, TensorView *> visit(const std::vector<std::size_t>& path);
 
 private:
     Sampler(std::vector<std::string> inputShape, std::vector<std::string> outputShape, std::vector<std::pair<std::string, Parser::PureSpec>> primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>> coefficientSpecs, const SampleOptions& options);
@@ -63,7 +76,12 @@ public:
     // <literal-value> [: <max-occurrencens>]
     // <variable-name> [= <literal-value>] [: <max-occurrencens>]
     Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options);
-    BindingContext& getBindingContext();
+    inline BindingContext& getBindingContext() { return ctx; }
+    inline Shape& getInputShape() { return inputShape; }
+    inline Shape& getOutputShape() { return outputShape; }
+    inline const SampleOptions& getOptions() const { return options; }
+    inline DimensionStore& getDimStore() { return store.dimStore(); }
+    inline StageStore& getStageStore() { return store; }
 
     // The following apis can be provided for Python bindings.
     // The path is intended to visit a TensorView, but it may fail, in which case we rely on the search algorithm to penalize it.

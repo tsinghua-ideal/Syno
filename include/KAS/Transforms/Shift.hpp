@@ -23,7 +23,7 @@ public:
         return output == other.output && shift == other.shift;
     }
 
-    static std::vector<Dimension> Generate(DimensionStore& store, const Interface& outputShape);
+    static std::vector<NextRepeatLike> Generate(DimensionStore& store, const Interface& outputShape);
 };
 
 } // namespace kas

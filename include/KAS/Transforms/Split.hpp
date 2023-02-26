@@ -27,7 +27,7 @@ public:
     struct GenerateOptions {
         std::size_t dimLowerBound;
     };
-    static std::vector<Dimension> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
+    static std::vector<NextSplitLike> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

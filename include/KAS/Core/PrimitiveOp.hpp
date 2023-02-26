@@ -22,6 +22,7 @@ public:
 };
 struct NextRepeatLike {
     Dimension input;
+    Interface applyTo(const Interface& interface) const;
 };
 
 // By split-like, we refer to the primitives that have one input iterator and two output iterators.
@@ -36,6 +37,7 @@ public:
 };
 struct NextSplitLike {
     Dimension input;
+    Interface applyTo(const Interface& interface) const;
 };
 
 enum class Order: bool {
@@ -55,6 +57,7 @@ public:
 };
 struct NextMergeLike {
     Dimension inputLhs, inputRhs;
+    Interface applyTo(const Interface& interface) const;
 };
 
 } // namespace kas

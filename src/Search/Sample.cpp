@@ -1,27 +1,11 @@
-#include <algorithm>
-#include <cstddef>
-#include <iterator>
-#include <map>
-#include <memory>
-#include <numeric>
-#include <optional>
-#include <random>
-#include <set>
-#include <sstream>
-#include <string>
-#include <tuple>
-#include <utility>
-#include <vector>
-
 #include "KAS/Core/BindingContext.hpp"
-#include "KAS/Core/Iterator.hpp"
+#include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/Node.hpp"
-#include "KAS/Transforms.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
@@ -39,15 +23,31 @@ Node Sampler::visitBase(std::size_t index) {
 Node Sampler::visitFromNode(const Node& node, std::span<const std::size_t> path) const {
     Node cur = node;
     for (auto i: path) {
-        cur = std::get<Stage *>(cur.next(i));
+        cur = Node::AssertNotFinal(cur.next(i));
     }
     return cur;
 }
 
-std::pair<Node, std::size_t> Sampler::visitButStopAtLast(const std::vector<std::size_t>& path) {
+Node Sampler::visitFromRoot(const std::vector<std::size_t>& path) {
+    KAS_ASSERT(path.size() >= 1, "The path must have at least one element, for MapReduce.");
+    return visitFromNode(visitBase(path.front()), std::span(path).subspan(1));
+}
+
+std::pair<Node, std::size_t> Sampler::visitFromNodeButStopAtLast(const Node& node, std::span<const std::size_t> path) {
+    KAS_ASSERT(path.size() >= 1, "The path must have at least one elements, for Finalize.");
+    auto span = path.first(path.size() - 1);
+    return { visitFromNode(node, span), path.back() };
+}
+
+std::pair<Node, std::size_t> Sampler::visitFromRootButStopAtLast(const std::vector<std::size_t>& path) {
     KAS_ASSERT(path.size() >= 2, "The path must have at least two elements, for MapReduce and Finalize.");
-    auto span = std::span(path).subspan(1, path.size() - 2);
-    return { visitFromNode(visitBase(path[0]), span), path.back() };
+    return visitFromNodeButStopAtLast(visitBase(path.front()), std::span(path).subspan(1));
+}
+
+std::variant<Stage *, TensorView *> Sampler::visit(const std::vector<std::size_t>& path) {
+    KAS_ASSERT(path.size() >= 1, "The path must have at least one element, for MapReduce.");
+    auto [node, last] = visitFromRootButStopAtLast(path);
+    return node.next(last);
 }
 
 Sampler::Sampler(std::vector<std::string> inputShape, std::vector<std::string> outputShape, std::vector<std::pair<std::string, Parser::PureSpec>> primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>> coefficientSpecs, const SampleOptions& options):
@@ -114,124 +114,115 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     KAS_UNIMPLEMENTED();
 }
 
-BindingContext& Sampler::getBindingContext() {
-    return ctx;
-}
-
 std::vector<std::size_t> Sampler::randomPathWithPrefix(const std::vector<std::size_t>& prefix) {
-    std::vector<std::size_t> path;
-    // Returns true on success.
-    const auto recursion = [this, &path](const auto& self, ShapeNode& current, std::size_t depth) -> bool {
-        if (current.isFinal) {
-            return true;
-        } else {
-            // Randomly iterate.
-            std::vector<std::size_t> childrenIds(current.children.size(), 0);
-            std::iota(childrenIds.begin(), childrenIds.end(), 0);
-            std::shuffle(childrenIds.begin(), childrenIds.end(), rng);
-            for (std::size_t i: childrenIds) {
-                auto& child = current.children[i];
-                if (child.node == nullptr) {
-                    addNode(current.shape, depth + 1, child);
-                }
-                if (self(self, *child.node, depth + 1)) {
-                    path.emplace_back(i);
-                    return true;
-                }
-            }
-        }
-        return false;
-    };
-    if (recursion(recursion, node, depth)) {
-        std::ranges::reverse(path);
+    std::vector<std::size_t> path = prefix;
+    Node cur;
+    if (prefix.size() == 0) {
+        auto first = random(bases.size());
+        path.emplace_back(first);
+        cur = visitBase(first);
+    } else if (prefix.size() == 1) {
+        auto first = prefix[0];
+        cur = visitBase(first);
     } else {
-        throw std::runtime_error("Cannot find a path from the current node.");
+        auto [node, last] = visitFromRootButStopAtLast(prefix);
+        cur = node;
+        if (node.isFinal(last)) {
+            return path;
+        }
     }
+    // Recursively visit children.
+    while (true) {
+        auto cnt = cur.countChildren();
+        if (cnt == 0) {
+            break; // Fail. No child to visit.
+        }
+        auto next = random(cnt);
+        path.emplace_back(next);
+        if (cur.isFinal(next)) {
+            break; // Success. Found final node.
+        }
+        cur = Node::AssertNotFinal(cur.next(next));
+    };
     return path;
 }
 
-std::vector<std::size_t> Sampler::randomPathWithPrefix(std::vector<std::size_t> prefix) {
-    auto& node = visit(prefix);
-    auto suffix = randomSubPathFromNode(node, prefix.size());
-    std::ranges::copy(suffix, std::back_inserter(prefix));
-    return prefix;
-}
-
 bool Sampler::isFinal(const std::vector<std::size_t>& path) {
-    return visit(path).isFinal;
+    if (path.size() < 2) {
+        return false;
+    }
+    auto [node, last] = visitFromRootButStopAtLast(path);
+    return node.isFinal(last);
 }
 
 std::size_t Sampler::childrenCount(const std::vector<std::size_t>& path) {
-    const ShapeNode& node = visit(path);
-    if (node.isFinal) {
-        throw std::runtime_error("A final node has no child.");
+    if (path.size() == 0) {
+        return bases.size();
     }
-    return node.children.size();
+    // If we actually visit a final node, this will crash.
+    return visitFromRoot(path).countChildren();
 }
 
 std::map<std::string, std::size_t> Sampler::childrenTypes(const std::vector<std::size_t>& path) {
-    const ShapeNode& node = visit(path);
-    if (node.isFinal) {
+    if (path.size() == 0) {
+        return { { DimensionTypeDescription(DimensionType::MapReduce), bases.size() } };
+    } else if (path.size() == 1) {
+        return visitBase(path[0]).childrenTypes();
+    }
+    auto [node, last] = visitFromRootButStopAtLast(path);
+    if (node.isFinal(last)) {
         return {};
     }
-    std::map<std::string, std::size_t> result;
-    for (const auto& child: node.children) {
-        result[child.shapeOp->type()]++;
-    }
-    return result;
+    node = Node::AssertNotFinal(node.next(last));
+    return node.childrenTypes();
 }
 
 std::string Sampler::nodeString(const std::vector<std::size_t>& path) {
-    return visit(path).shape.toString(ctx);
+    if (path.size() == 0) {
+        return outputShape.toString(ctx);
+    } else if (path.size() == 1) {
+        return visitBase(path[0]).shapeDescription(ctx);
+    }
+    auto [node, last] = visitFromRootButStopAtLast(path);
+    struct visitor {
+        const BindingContext& ctx;
+        std::string operator()(Stage *s) {
+            return Node(s).shapeDescription(ctx);
+        }
+        std::string operator()(TensorView *t) {
+            return t->getShape().toString(ctx);
+        }
+    };
+    return std::visit(visitor { ctx }, node.next(last));
 }
 
 std::string Sampler::opString(const std::vector<std::size_t>& path) {
-    return visitPointer(path).shapeOp->description();
+    if (path.size() == 0) {
+        return "Root";
+    } else if (path.size() == 1) {
+        return DimensionTypeDescription(DimensionType::MapReduce); // TODO: Add detailed description.
+    }
+    auto [node, last] = visitFromRootButStopAtLast(path);
+    return node.opDescription(last);
 }
 
 std::string Sampler::opType(const std::vector<std::size_t>& path) {
-    return visitPointer(path).shapeOp->type();
-}
-
-std::tuple<TensorView, std::shared_ptr<CodeGenContext>> Sampler::realize(const std::vector<std::size_t>& path) {
-    if (root.node == nullptr) {
-        addNode(outputShape, 0, root);
+    if (path.size() == 0) {
+        return "Root";
     }
-    std::shared_ptr<CodeGenContext> cgCtx;
-    const auto recursion = [this, &path, &cgCtx](const auto& self, ShapeNode& current, std::size_t depth) -> TensorView {
-        if (depth >= path.size()) {
-            if (!current.isFinal) {
-                throw std::runtime_error("When realizing a tensor, the path is not ending at a final node.");
-            }
-            // First divide the shape into input tensor and weight tensor.
-            cgCtx = std::make_shared<CodeGenContext>();
-            // If no parameter is needed, just return the input tensor.
-            if (current.shape.size() == inputShape.size()) {
-                return TensorView { { std::make_shared<PureTensor>(cgCtx->addTensor("input"), current.shape) }, std::move(cgCtx) };
-            }
-            auto [inputS, weightS] = current.shape.cut<2>({ inputShape.size(), current.shape.size() - inputShape.size() });
-            auto input = std::make_shared<PureTensor>(cgCtx->addTensor("input"), inputS);
-            auto weight = std::make_shared<PureTensor>(cgCtx->addTensor("weight"), weightS);
-            // Start to build a view of this tensor.
-            return TensorView { { std::move(input), std::move(weight) }, std::move(cgCtx) };
-        }
-        // Follow the path.
-        auto& child = current.children.at(path[depth]);
-        if (child.node == nullptr) {
-            addNode(current.shape, depth + 1, child);
-        }
-        TensorView result = self(self, *child.node, depth + 1);
-        child.shapeOp->transformTensor(result);
-        return result;
-    };
-    TensorView result = recursion(recursion, *root.node, 0);
-    result.finishConstruction();
-    result.setDefaultInterfaceAccess();
-    result.evaluateTensorAccess();
-    return std::make_tuple(std::move(result), std::move(cgCtx));
+    if (path.size() == 1) {
+        return DimensionTypeDescription(DimensionType::MapReduce);
+    } else {
+        auto [node, last] = visitFromRootButStopAtLast(path);
+        return node.opType(last);
+    }
 }
 
-std::tuple<TensorView, std::shared_ptr<CodeGenContext>> Sampler::randomSample() {
+TensorView *Sampler::realize(const std::vector<std::size_t>& path) {
+    return Node::AssertFinal(visit(path));
+}
+
+TensorView *Sampler::randomSample() {
     return realize(randomPathWithPrefix({}));
 }
 

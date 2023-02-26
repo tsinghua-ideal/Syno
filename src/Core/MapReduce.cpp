@@ -46,7 +46,7 @@ std::string MapReduceOp::whatReduce() const {
 std::string MapReduceOp::what() const {
     return what(mapType) + "+" + what(reduceType);
 }
-
+/*
 std::vector<Interface> MapReduceOp::GenerateLastLevelMapReduces(const Shape& outputShape, GenerateOptions options) {
     const BindingContext& ctx = options.ctx;
     auto primaryMeta = ctx.getPrimaryMetadata();
@@ -85,5 +85,5 @@ std::vector<Interface> MapReduceOp::GenerateLastLevelMapReduces(const Shape& out
     }
     return res;
 }
-
+*/
 } // namespace kas

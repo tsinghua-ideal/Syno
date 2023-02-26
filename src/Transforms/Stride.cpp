@@ -17,8 +17,8 @@ IteratorValue StrideOp::value(const IteratorValue& output) const {
     return stride * output;
 }
 
-std::vector<Dimension> StrideOp::Generate(DimensionStore& store, const Interface& outputShape) {
-    std::vector<Dimension> result;
+std::vector<NextRepeatLike> StrideOp::Generate(DimensionStore& store, const Interface& outputShape) {
+    std::vector<NextRepeatLike> result;
     for (std::size_t i = 0; i < outputShape.size(); ++i) {
         const Size& size = outputShape[i].size();
         auto primary = size.getPrimary();
