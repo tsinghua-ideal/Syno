@@ -68,3 +68,14 @@ struct std::hash<kas::Dimension> {
         return std::hash<kas::Dimension::PointerType>{}(dimension.get());
     }
 };
+
+template<>
+struct std::hash<kas::Interface> {
+    inline std::size_t operator()(const kas::Interface& interface) const noexcept {
+        std::size_t h = interface.size();
+        for (const auto& dim: interface) {
+            kas::HashCombine(h, dim);
+        }
+        return h;
+    }
+};

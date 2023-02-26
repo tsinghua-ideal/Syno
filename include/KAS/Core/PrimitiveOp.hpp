@@ -20,6 +20,9 @@ public:
     {}
     virtual IteratorValue value(const IteratorValue& value) const = 0;
 };
+struct NextRepeatLike {
+    Dimension input;
+};
 
 // By split-like, we refer to the primitives that have one input iterator and two output iterators.
 class SplitLikePrimitiveOp: public DimensionImpl {
@@ -30,6 +33,9 @@ public:
         outputRhs { std::forward<decltype(outputRhs)>(outputRhs) }
     {}
     virtual IteratorValue value(const IteratorValue& leftValue, const IteratorValue& rightValue) const = 0;
+};
+struct NextSplitLike {
+    Dimension input;
 };
 
 enum class Order: bool {
@@ -46,6 +52,9 @@ public:
         order { order }
     {}
     virtual IteratorValue value(const IteratorValue& value) const = 0;
+};
+struct NextMergeLike {
+    Dimension inputLhs, inputRhs;
 };
 
 } // namespace kas

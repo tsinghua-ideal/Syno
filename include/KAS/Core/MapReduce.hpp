@@ -67,6 +67,12 @@ public:
     std::string whatMap() const;
     std::string whatReduce() const;
     std::string what() const;
+
+    struct GenerateOptions {
+        const BindingContext& ctx;
+        std::size_t dimUpperBound;
+    };
+    static std::vector<Interface> GenerateLastLevelMapReduces(const Shape& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

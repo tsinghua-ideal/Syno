@@ -53,7 +53,7 @@ public:
     [[nodiscard]] std::unique_ptr<MapReduceOp> reduce(std::size_t priority, MapReduceOp::MapType mapType, MapReduceOp::ReduceType reduceType);
 };
 
-class Pure: public DimensionImpl {
+class Pure final: public DimensionImpl {
 protected:
     inline void notifyParent() const override {}
 public:
@@ -65,15 +65,15 @@ public:
 class Factory {
     DimensionStore store;
 public:
-    Dimension makeSize(auto&& size) {
+    [[nodiscard]] Dimension makeSize(auto&& size) {
         return Dimension(std::make_shared<Pure>(store, std::forward<decltype(size)>(size)));
     }
     template<typename... Sizes>
-    auto makeSizes(Sizes&&... sizes) -> std::array<Dimension, sizeof...(Sizes)> {
+    [[nodiscard]] auto makeSizes(Sizes&&... sizes) -> std::array<Dimension, sizeof...(Sizes)> {
         return { makeSize(std::forward<decltype(sizes)>(sizes))... };
     }
     template<typename Storage, auto Mapping>
-    std::vector<Dimension> makeShape(const AbstractShape<Storage, Mapping>& shape) {
+    [[nodiscard]] std::vector<Dimension> makeShape(const AbstractShape<Storage, Mapping>& shape) {
         std::vector<Dimension> result;
         for (auto&& size: shape) {
             result.emplace_back(makeSize(size));

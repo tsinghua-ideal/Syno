@@ -84,12 +84,9 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     func.set_estimates({{0, w / k}, {0, h / k}, {0, c}, {0, n}});
     Halide::Pipeline p = func;
     Halide::load_plugin("autoschedule_adams2019");
-    try {
     p.apply_autoscheduler(Halide::get_host_target(), Halide::AutoschedulerParams { "Adams2019" });
+    p.print_loop_nest();
     p.compile_jit();
-    } catch (const Halide::Error& e) {
-        fmt::print("Error: {}\n", e.what());
-    }
     constexpr int x = 10000;
     auto t1 = std::chrono::steady_clock::now();
     for (int i = 0; i < x; ++i) {

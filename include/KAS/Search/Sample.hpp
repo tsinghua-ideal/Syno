@@ -5,6 +5,7 @@
 #include <memory>
 #include <random>
 #include <set>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -15,7 +16,8 @@
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
-#include "KAS/Search/ShapeNode.hpp"
+#include "KAS/Search/Node.hpp"
+#include "KAS/Search/Stage.hpp"
 
 
 namespace kas {
@@ -38,17 +40,20 @@ protected:
 
     BindingContext ctx;
     SampleOptions options;
-    const Shape inputShape;
-    const Shape outputShape;
+    Shape inputShape;
+    Shape outputShape;
 
-    ShapeNode::Next root;
+    StageStore store;
+    std::vector<Stage> bases; // The `MapReduce`s are generated first.
 
-    void addNode(const Shape& base, std::size_t depth, ShapeNode::Next& pointer) const;
+    // Start from a MapReduce.
+    Node visitBase(std::size_t index);
 
-    // Visit a node along a specific path.
-    ShapeNode& visit(const std::vector<std::size_t>& path);
-    // Visit the pointer that is pointing to `visit(path)`.
-    ShapeNode::Next& visitPointer(const std::vector<std::size_t>& path);
+    // Visit a node along a specific path, but DO NOT visit the last node using this API! Because we do not know whether is is a TensorView.
+    Node visitFromNode(const Node& node, std::span<const std::size_t> path) const;
+
+    // Visit a node along a specific path, but stops at the last node, so we can verify whether it is a TensorView.
+    std::pair<Node, std::size_t> visitButStopAtLast(const std::vector<std::size_t>& path);
 
 private:
     Sampler(std::vector<std::string> inputShape, std::vector<std::string> outputShape, std::vector<std::pair<std::string, Parser::PureSpec>> primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>> coefficientSpecs, const SampleOptions& options);
@@ -59,19 +64,18 @@ public:
     // <variable-name> [= <literal-value>] [: <max-occurrencens>]
     Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options);
     BindingContext& getBindingContext();
-    // Returns a random path from the current node to a final node.
-    std::vector<std::size_t> randomSubPathFromNode(ShapeNode& node, std::size_t depth);
 
     // The following apis can be provided for Python bindings.
-    std::vector<std::size_t> randomPathWithPrefix(std::vector<std::size_t> prefix);
+    // The path is intended to visit a TensorView, but it may fail, in which case we rely on the search algorithm to penalize it.
+    std::vector<std::size_t> randomPathWithPrefix(const std::vector<std::size_t>& prefix);
     bool isFinal(const std::vector<std::size_t>& path);
     std::size_t childrenCount(const std::vector<std::size_t>& path);
     std::map<std::string, std::size_t> childrenTypes(const std::vector<std::size_t>& path);
     std::string nodeString(const std::vector<std::size_t>& path);
     std::string opString(const std::vector<std::size_t>& path);
     std::string opType(const std::vector<std::size_t>& path);
-    std::tuple<TensorView, std::shared_ptr<CodeGenContext>> realize(const std::vector<std::size_t>& path);
-    std::tuple<TensorView, std::shared_ptr<CodeGenContext>> randomSample();
+    TensorView *realize(const std::vector<std::size_t>& path);
+    TensorView *randomSample();
 };
 
 } // namespace kas

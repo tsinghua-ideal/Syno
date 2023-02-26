@@ -45,7 +45,6 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
     pybind11::class_<Kernel>(m, "Kernel")
         .def("__repr__", &Kernel::toNestedLoops)
         .def("generate", &Kernel::generate)
-        .def("get_arguments", &Kernel::getArguments)
         .def("get_inputs_shapes", &Kernel::getInputsShapes)
         .def("get_output_shape", &Kernel::getOutputShape);
 

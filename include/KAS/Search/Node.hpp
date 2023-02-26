@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <map>
 
 #include "KAS/Search/Stage.hpp"
@@ -9,22 +10,15 @@ namespace kas {
 
 class StageStore;
 
-class RootNode {
-    
-};
-
 class Node {
-    Stage *data;
-    // We are searching bottom-up, so the children are actually closer to the input.
-    std::optional<std::map<Dimension, std::unique_ptr<Node>>> nexts; // Lazily computed.
-public:
-    inline Node(Stage *data): data { data } {}
+    Stage *stage;
 
-    struct GenerateOptions {
-        const BindingContext& ctx;
-        std::size_t dimUpperBound;
-    };
-    static std::vector<std::unique_ptr<Node>> GenerateMapReduce(StageStore& store, const Shape& outputShape, const BindingContext& ctx, std::size_t dimUpperBound);
+public:
+    inline Node(Stage *stage): stage { stage } {}
+    inline std::size_t size() const { return stage->size(); }
+    inline bool isFinal(std::size_t index) const { return stage->isFinal(index); }
+    inline std::variant<Stage *, TensorView *> next(std::size_t index) const { return stage->next(index); }
+    inline std::string opDescription(std::size_t index) const { return stage->opDescription(index); }
 };
 
 }

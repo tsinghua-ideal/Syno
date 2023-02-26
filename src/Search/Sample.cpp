@@ -20,7 +20,7 @@
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Sample.hpp"
-#include "KAS/Search/ShapeNode.hpp"
+#include "KAS/Search/Node.hpp"
 #include "KAS/Transforms.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -32,76 +32,22 @@ void SampleOptions::check() const {
     KAS_ASSERT(dimUpperBound >= dimLowerBound);
 }
 
-// Here, the depth means the depth of base shape.
-void Sampler::addNode(const Shape& base, std::size_t depth, ShapeNode::Next& pointer) const {
-    bool isFinal = pointer.shapeOp->isFinalizeOp();
-    pointer.node.reset(new ShapeNode { pointer.shapeOp->transformShapeInverse(base), isFinal });
-    if (isFinal) {
-        return;
-    }
-    const Shape& shape = pointer.node->shape;
-    std::vector<ShapeNode::Next> result;
-    for (auto g = FinalizeShapeOp::generate(shape, { .desired = inputShape }); auto& f: g)
-        result.emplace_back(std::move(f));
-    if (depth < options.depth) {
-        // Try increasing dimension, by performing
-        // Share^{-1}
-        for (auto g = ShareShapeOp::generate(shape, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }); auto& s: g)
-            result.emplace_back(std::move(s));
-        // MapReduce^{-1}
-        for (auto g = MapReduceShapeOp::generate(shape, { .ctx = ctx }); auto& m: g)
-            result.emplace_back(std::move(m));
-        // Merge^{-1}
-        for (auto g = MergeShapeOp::generate(shape, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }); auto& m: g)
-            result.emplace_back(std::move(m));
-        // Try decreasing dimension, by performing
-        // Split^{-1}
-        for (auto g = SplitShapeOp::generate(shape, { .dimLowerBound = options.dimLowerBound }); auto& s: g)
-            result.emplace_back(std::move(s));
-        // Unfold^{-1}
-        for (auto g = UnfoldShapeOp::generate(shape, { .ctx = ctx, .dimLowerBound = options.dimLowerBound }); auto& u: g)
-            result.emplace_back(std::move(u));
-        // Try changing dimension size, by performing
-        // Stride^{-1}
-        for (auto g = StrideShapeOp::generate(shape); auto& s: g)
-            result.emplace_back(std::move(s));
-        // Or do not change the shape at all, by performing
-        // Shift^{-1}, TODO
-    }
-    pointer.node->children = std::move(result);
+Node Sampler::visitBase(std::size_t index) {
+    return Node { &bases.at(index) };
 }
 
-ShapeNode& Sampler::visit(const std::vector<std::size_t>& path) {
-    if (root.node == nullptr) {
-        addNode(outputShape, 0, root);
+Node Sampler::visitFromNode(const Node& node, std::span<const std::size_t> path) const {
+    Node cur = node;
+    for (auto i: path) {
+        cur = std::get<Stage *>(cur.next(i));
     }
-    ShapeNode* node = root.node.get();
-    for (std::size_t depth = 0; depth < path.size(); ++depth) {
-        std::size_t offset = path[depth];
-        if (node->isFinal) {
-            throw std::runtime_error("Cannot visit a child of a final node.");
-        }
-        if (offset >= node->children.size()) {
-            throw std::runtime_error("Invalid path.");
-        }
-        ShapeNode::Next& next = node->children[offset];
-        if (next.node == nullptr) {
-            addNode(node->shape, depth + 1, next);
-        }
-        node = next.node.get();
-    }
-    return *node;
+    return cur;
 }
 
-ShapeNode::Next& Sampler::visitPointer(const std::vector<std::size_t>& path) {
-    KAS_ASSERT(path.size() > 0, "Cannot get the op string of the root node.");
-    auto last = path.back();
-    ShapeNode& node = visit(std::vector<std::size_t>(path.begin(), --path.end()));
-    return node.children.at(last);
-}
-
-BindingContext& Sampler::getBindingContext() {
-    return ctx;
+std::pair<Node, std::size_t> Sampler::visitButStopAtLast(const std::vector<std::size_t>& path) {
+    KAS_ASSERT(path.size() >= 2, "The path must have at least two elements, for MapReduce and Finalize.");
+    auto span = std::span(path).subspan(1, path.size() - 2);
+    return { visitFromNode(visitBase(path[0]), span), path.back() };
 }
 
 Sampler::Sampler(std::vector<std::string> inputShape, std::vector<std::string> outputShape, std::vector<std::pair<std::string, Parser::PureSpec>> primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>> coefficientSpecs, const SampleOptions& options):
@@ -112,8 +58,7 @@ Sampler::Sampler(std::vector<std::string> inputShape, std::vector<std::string> o
         ctx.applySpecs(primarySpecs, coefficientSpecs);
         return ctx.getShapeFromNames(inputShape);
     }() },
-    outputShape { ctx.getShapeFromNames(outputShape) },
-    root { std::make_unique<IdentityShapeOp>() }
+    outputShape { ctx.getShapeFromNames(outputShape) }
 {
     this->options.check();
 }
@@ -153,9 +98,9 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         [&]() {
             parseSpecs(primarySpecs, primaryVars, "x_");
             parseSpecs(coefficientSpecs, coefficientVars, "c_");
-            return Shape::parseNames(inputShape, getShapeParsingCallback(primaryVars, coefficientVars));
+            return Size::parseNames(inputShape, getShapeParsingCallback(primaryVars, coefficientVars));
         }(),
-        Shape::parseNames(outputShape, getShapeParsingCallback(primaryVars, coefficientVars)),
+        Size::parseNames(outputShape, getShapeParsingCallback(primaryVars, coefficientVars)),
         contractSpecs(primaryVars),
         contractSpecs(coefficientVars),
         options,
@@ -164,9 +109,16 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
 
 Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options):
     Sampler { inputShape, outputShape, primarySpecs, coefficientSpecs, options, {}, {} }
-{}
+{
+    // TODO: fill the bases.
+    KAS_UNIMPLEMENTED();
+}
 
-std::vector<std::size_t> Sampler::randomSubPathFromNode(ShapeNode& node, std::size_t depth) {
+BindingContext& Sampler::getBindingContext() {
+    return ctx;
+}
+
+std::vector<std::size_t> Sampler::randomPathWithPrefix(const std::vector<std::size_t>& prefix) {
     std::vector<std::size_t> path;
     // Returns true on success.
     const auto recursion = [this, &path](const auto& self, ShapeNode& current, std::size_t depth) -> bool {
