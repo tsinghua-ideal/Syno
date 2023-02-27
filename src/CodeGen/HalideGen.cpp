@@ -18,7 +18,15 @@
 
 namespace kas {
 
-bool HalideGen::AutoSchedulerLoaded = false;
+void HalideGen::GuardAutoSchedulers() {
+    static bool loaded = false;
+    if (!loaded) {
+        Halide::load_plugin("autoschedule_mullapudi2016");
+        Halide::load_plugin("autoschedule_li2018");
+        Halide::load_plugin("autoschedule_adams2019");
+    }
+    loaded = true;
+}
 
 Halide::Target HalideGen::GetHostTarget(bool useGPU) {
     auto t = Halide::get_host_target();
@@ -109,7 +117,7 @@ HalideGen::EvaluatedAccess HalideGen::evaluateAccess(const ConcreteConsts& const
     return { std::move(tensorIndices), std::move(constraintsBounds) };
 }
 
-std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName, bool zeroBoundary) {
+HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName, bool zeroBoundary) {
     std::vector<Halide::ImageParam> inputs;
     Halide::Func func { std::string(funcName) };
 
@@ -166,7 +174,7 @@ std::pair<std::vector<Halide::ImageParam>, Halide::Func> HalideGen::createFunc(c
     return { std::move(inputs), std::move(func) };
 }
 
-std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> HalideGen::createFuncGrad(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName) {
+HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName) {
     auto [input, func] = createFunc(consts, access, funcName, true);
     auto outputShape = tensorView.getShape();
     Halide::Region outputRegion = evaluate(consts, outputShape);
@@ -181,6 +189,34 @@ std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> HalideGen:
     }
     input.emplace_back(std::move(outputGrad));
     return { std::move(input), std::move(gradFuncs) };
+}
+
+HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const std::map<std::string, std::size_t>& mappings, std::string_view funcName) {
+    const auto& tensors = tensorView.getUnderlyingTensors();
+
+    auto consts = realizeConsts(mappings);
+    auto access = evaluateAccess(consts);
+
+    auto [forwardInputs, forwardFunc] = createFunc(consts, access, funcName);
+    auto [backwardInputs, backwardFuncs] = createFuncGrad(consts, access, funcName);
+    KAS_ASSERT(forwardInputs.size() == tensors.size());
+    KAS_ASSERT(backwardInputs.size() == tensors.size() + 1);
+    KAS_ASSERT(backwardFuncs.size() == tensors.size());
+    for (std::size_t i = 0; i < tensors.size(); ++i) {
+        const auto& tensor = tensors[i];
+        auto est = evaluate(consts, tensor.getShape());
+        forwardInputs[i].set_estimates(est);
+        backwardInputs[i].set_estimates(est);
+        backwardFuncs[i].set_estimates(est);
+    }
+    auto outputShapeEst = evaluate(consts, tensorView.getShape());
+    forwardFunc.set_estimates(outputShapeEst);
+    backwardInputs.back().set_estimates(outputShapeEst);
+
+    return {
+        std::move(forwardInputs), std::move(forwardFunc),
+        std::move(backwardInputs), std::move(backwardFuncs),
+    };
 }
 
 HalideGen::HalideGen(const BindingContext& ctx, const TensorView& tensorView):
@@ -202,19 +238,19 @@ HalideGen::HalideGen(const BindingContext& ctx, const TensorView& tensorView):
 }
 
 void HalideGen::generate(std::filesystem::path outputPath, std::string_view funcName, const std::map<std::string, std::size_t>& mappings, Options options) {
-    const auto& tensors = tensorView.getUnderlyingTensors();
+    std::string backwardName = std::string(funcName) + "_grad";
 
-    auto target = GetHostTarget(options.useGPU);
-    auto ext = Halide::Internal::get_output_info(target);
-    if (!AutoSchedulerLoaded) {
-        Halide::load_plugin("autoschedule_mullapudi2016");
-        Halide::load_plugin("autoschedule_li2018");
-        Halide::load_plugin("autoschedule_adams2019");
-        AutoSchedulerLoaded = true;
-    }
-    std::optional<Halide::AutoschedulerParams> params;
+    // Create Halide Functions.
+    auto [forwardInputs, forwardFunc,
+        backwardInputs, backwardFuncs
+    ] = createPipelines(mappings, funcName);
+
+    // Prepare auto schedulers.
     using Scheduler = Options::AutoScheduler;
     const bool computeRoot = options.scheduler == Scheduler::ComputeRoot;
+    auto target = GetHostTarget(options.useGPU);
+    GuardAutoSchedulers();
+    std::optional<Halide::AutoschedulerParams> params;
     if (!computeRoot) {
         std::string scheduler;
         switch (options.scheduler) {
@@ -226,37 +262,40 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
         params = { scheduler };
     }
 
-    auto consts = realizeConsts(mappings);
-    auto access = evaluateAccess(consts);
-
-    auto [forwardInputs, forwardFunc] = createFunc(consts, access, funcName);
-    auto [backwardInputs, backwardFuncs] = createFuncGrad(consts, access, funcName);
-    KAS_ASSERT(forwardInputs.size() == tensors.size());
-    KAS_ASSERT(backwardInputs.size() == tensors.size() + 1);
-    KAS_ASSERT(backwardFuncs.size() == tensors.size());
-    for (std::size_t i = 0; i < tensors.size(); ++i) {
-        const auto& tensor = tensors[i];
-        auto est = evaluate(consts, tensor.getShape());
-        forwardInputs[i].set_estimates(est);
-        backwardInputs[i].set_estimates(est);
-        backwardFuncs[i].set_estimates(est);
-    }
-    auto outputShapeEst = evaluate(consts, tensorView.getShape());
-    forwardFunc.set_estimates(outputShapeEst);
-    backwardInputs.back().set_estimates(outputShapeEst);
-
-    std::vector<Halide::Argument> forwardArgs;
-    std::vector<Halide::Argument> backwardArgs;
-    std::ranges::copy(forwardInputs, std::back_inserter(forwardArgs));
-    std::ranges::copy(backwardInputs, std::back_inserter(backwardArgs));
-
+    // Apply auto schedulers to pipelines.
     if (computeRoot) {
         forwardFunc.compute_root();
         for (auto& func: backwardFuncs) {
             func.compute_root();
         }
     }
+    Halide::Pipeline forwardPipeline { forwardFunc };
+    Halide::Pipeline backwardPipeline { backwardFuncs };
+    if (!computeRoot) {
+        forwardPipeline.apply_autoscheduler(target, params.value());
+        backwardPipeline.apply_autoscheduler(target, params.value());
+    }
 
+    // Compile to Halide modules.
+    std::vector<Halide::Argument> forwardArgs;
+    std::vector<Halide::Argument> backwardArgs;
+    std::ranges::copy(forwardInputs, std::back_inserter(forwardArgs));
+    std::ranges::copy(backwardInputs, std::back_inserter(backwardArgs));
+    auto forwardModule = forwardPipeline.compile_to_module(forwardArgs, std::string(funcName), target);
+    auto backwardModule = backwardPipeline.compile_to_module(backwardArgs, backwardName, target);
+
+    // Mitigate Halide bugs.
+    for (auto& f: forwardModule.functions()) {
+        // This is to solve the pytorch codegen bug, which generates internal functions as c codegen does not.
+        f.linkage = Halide::LinkageType::External;
+    }
+    for (auto& f: backwardModule.functions()) {
+        // Same as above.
+        f.linkage = Halide::LinkageType::External;
+    }
+
+    // Write to output.
+    auto ext = Halide::Internal::get_output_info(target);
     const auto flagsForModule = [&ext](std::filesystem::path filename) -> std::map<Halide::OutputFileType, std::string> {
         using FileType = Halide::OutputFileType;
         return {
@@ -265,28 +304,8 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
             {FileType::pytorch_wrapper, filename.replace_extension(ext.at(FileType::pytorch_wrapper).extension)},
         };
     };
-
-    Halide::Pipeline forwardPipeline { forwardFunc };
-    if (!computeRoot) {
-        forwardPipeline.apply_autoscheduler(target, params.value());
-    }
-    auto forwardModule = forwardPipeline.compile_to_module(forwardArgs, std::string(funcName), target);
-    for (auto& f: forwardModule.functions()) {
-        // This is to solve the pytorch codegen bug, which generates internal functions as c codegen does not.
-        f.linkage = Halide::LinkageType::External;
-    }
     std::filesystem::create_directories(outputPath);
     forwardModule.compile(flagsForModule(outputPath / funcName));
-
-    Halide::Pipeline backwardPipeline(backwardFuncs);
-    if (!computeRoot) {
-        backwardPipeline.apply_autoscheduler(target, params.value());
-    }
-    std::string backwardName = std::string(funcName) + "_grad";
-    auto backwardModule = backwardPipeline.compile_to_module(backwardArgs, backwardName, target);
-    for (auto& f: backwardModule.functions()) {
-        f.linkage = Halide::LinkageType::External;
-    }
     backwardModule.compile(flagsForModule(outputPath / backwardName));
 }
 

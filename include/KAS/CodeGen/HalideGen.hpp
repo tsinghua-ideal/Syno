@@ -25,7 +25,7 @@ class HalideGen {
     FRIEND_TEST(search_tests, sampler);
     friend class transforms_tests;
 
-    static bool AutoSchedulerLoaded;
+    static void GuardAutoSchedulers();
 
 protected:
     const BindingContext& ctx;
@@ -76,10 +76,15 @@ protected:
     ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings) const;
     EvaluatedAccess evaluateAccess(const ConcreteConsts& consts) const;
 
+    using ForwardArgsAndFunc = std::pair<std::vector<Halide::ImageParam>, Halide::Func>;
     // Returns the (input, func) pair.
-    std::pair<std::vector<Halide::ImageParam>, Halide::Func> createFunc(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName, bool zeroBoundary = false);
+    ForwardArgsAndFunc createFunc(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName, bool zeroBoundary = false);
+    using BackwardArgsAndFuncs = std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>>;
     // Returns the (input (including the gradient of output), gradient funcs) pair.
-    std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>> createFuncGrad(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName);
+    BackwardArgsAndFuncs createFuncGrad(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName);
+    using ForwardAndBackwardFuncs = std::tuple<std::vector<Halide::ImageParam>, Halide::Func, std::vector<Halide::ImageParam>, std::vector<Halide::Func>>;
+    // Returns the forward and backward funcs.
+    ForwardAndBackwardFuncs createPipelines(const std::map<std::string, std::size_t>& mappings, std::string_view funcName);
 
     static Halide::Target GetHostTarget(bool useGPU);
 

@@ -37,7 +37,10 @@ public:
         this->value = value.get();
         notifyParent();
     }
-    inline BackwardDimension get() const { return value; }
+    inline BackwardDimension get() const {
+        KAS_ASSERT(evaluated(), "Dimension is not evaluated yet");
+        return value;
+    }
 };
 
 class Dimension {
@@ -49,6 +52,7 @@ public:
     inline bool evaluated() const { return inner->evaluated(); }
     inline void set(const BackwardDimension& value) { inner->set(value); }
     inline BackwardDimension get() const { return inner->get(); }
+    inline operator BackwardDimension() const { return get(); }
     [[nodiscard]] std::unique_ptr<Iterator> input(std::size_t index);
     [[nodiscard]] std::unique_ptr<MapReduceOp> reduce(std::size_t priority, MapReduceOp::MapType mapType, MapReduceOp::ReduceType reduceType);
 };
