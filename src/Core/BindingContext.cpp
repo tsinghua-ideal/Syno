@@ -20,12 +20,21 @@ namespace {
     }
 }
 
-std::map<std::string, std::size_t> BindingContext::getPrimaryLookupTable() const {
+BindingContext::LookUpTable BindingContext::getPrimaryLookupTable() const {
     return GetLookupTable(primaryMetadata);
 }
 
-std::map<std::string, std::size_t> BindingContext::getCoefficientLookupTable() const {
+BindingContext::LookUpTable BindingContext::getCoefficientLookupTable() const {
     return GetLookupTable(coefficientMetadata);
+}
+
+Size BindingContext::lookUp(const std::string& name, const LookUpTable& primaryTable, const LookUpTable& coefficientTable) const {
+    if (auto it = primaryTable.find(name); it != primaryTable.end())
+        return getSinglePrimaryVariableSize(it->second);
+    else if (auto it = coefficientTable.find(name); it != coefficientTable.end())
+        return getSingleCoefficientVariableSize(it->second);
+    else
+        throw std::runtime_error("Unknown variable name: " + name);
 }
 
 BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoefficient):
@@ -82,17 +91,18 @@ Size BindingContext::getSingleCoefficientVariableSize(std::size_t index) const {
     return res;
 }
 
-Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) {
+Size BindingContext::get(const std::string& name) const {
+    auto pNameToIndex = getPrimaryLookupTable();
+    auto cNameToIndex = getCoefficientLookupTable();
+    return lookUp(name, pNameToIndex, cNameToIndex);
+}
+
+Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) const {
     std::map<std::string, std::size_t> pNameToIndex = getPrimaryLookupTable();
     std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();
     std::vector<Size> result;
     for (const auto& name: names) {
-        if (auto it = pNameToIndex.find(name); it != pNameToIndex.end())
-            result.emplace_back(getSinglePrimaryVariableSize(it->second));
-        else if (auto it = cNameToIndex.find(name); it != cNameToIndex.end())
-            result.emplace_back(getSingleCoefficientVariableSize(it->second));
-        else
-            throw std::runtime_error("Unknown variable name: " + name);
+        result.emplace_back(lookUp(name, pNameToIndex, cNameToIndex));
     }
     return Shape { std::move(result) };
 }

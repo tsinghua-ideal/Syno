@@ -25,11 +25,7 @@ TEST(forward_tests, pooling) {
         SizeName { .alias = "C", .estimate = c },
         SizeName { .alias = "K", .estimate = k },
     } };
-    auto sizeN = ctx.getSinglePrimaryVariableSize(0);
-    auto sizeC = ctx.getSingleCoefficientVariableSize(0);
-    auto sizeH = ctx.getSinglePrimaryVariableSize(1);
-    auto sizeW = ctx.getSinglePrimaryVariableSize(2);
-    auto sizeK = ctx.getSingleCoefficientVariableSize(1);
+    auto [sizeN, sizeC, sizeH, sizeW, sizeK] = ctx.getSizes("N", "C", "H", "W", "K");
     Forward::Factory factory;
 
     auto [dimN, dimC, dimH, dimW] = factory.makeSizes(sizeN, sizeC, sizeH, sizeW);

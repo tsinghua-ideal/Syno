@@ -124,6 +124,7 @@ std::variant<Stage *, TensorView *> Stage::next(std::size_t index) {
         case Next::Type::MergeLike:
             return getNext<NextMergeLike>(sampler.getStageStore(), next.index);
     }
+    KAS_UNREACHABLE();
 }
 
 std::string Stage::opType(std::size_t index) {
@@ -139,6 +140,7 @@ std::string Stage::opType(std::size_t index) {
     case Next::Type::MergeLike:
         return DimensionTypeDescription(nextMergeLikes[next.index].first.inputLhs.type());
     }
+    KAS_UNREACHABLE();
 }
 
 std::string Stage::opDescription(std::size_t index) {
@@ -178,6 +180,7 @@ std::string Stage::opDescription(std::size_t index) {
             );
         }
     }
+    KAS_UNREACHABLE();
 }
 
 } // namespace kas

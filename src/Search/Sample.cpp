@@ -1,5 +1,6 @@
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Dimension.hpp"
+#include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
@@ -61,6 +62,12 @@ Sampler::Sampler(std::vector<std::string> inputShape, std::vector<std::string> o
     outputShape { ctx.getShapeFromNames(outputShape) }
 {
     this->options.check();
+    for (std::size_t index = 0; const auto& domain: this->outputShape) {
+        outputIterators.emplace_back(index++, domain);
+    }
+    for (auto& it: outputIterators) {
+        root.emplace_back(&it);
+    }
 }
 
 namespace {
@@ -110,8 +117,11 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
 Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options):
     Sampler { inputShape, outputShape, primarySpecs, coefficientSpecs, options, {}, {} }
 {
-    // TODO: fill the bases.
-    KAS_UNIMPLEMENTED();
+    for (auto g = MapReduceOp::GenerateLastLevelMapReduces(this->outputShape, { this->ctx, this->options.dimUpperBound }); auto& m: g) {
+        Interface temp = root;
+        std::ranges::move(m, std::back_inserter(temp));
+        this->bases.emplace_back(std::move(temp), *this, 0);
+    }
 }
 
 std::vector<std::size_t> Sampler::randomPathWithPrefix(const std::vector<std::size_t>& prefix) {
@@ -219,7 +229,15 @@ std::string Sampler::opType(const std::vector<std::size_t>& path) {
 }
 
 TensorView *Sampler::realize(const std::vector<std::size_t>& path) {
-    return Node::AssertFinal(visit(path));
+    struct visitor {
+        TensorView *operator()(Stage *s) {
+            return nullptr;
+        }
+        TensorView *operator()(TensorView *t) {
+            return t;
+        }
+    };
+    return std::visit(visitor{}, visit(path));
 }
 
 TensorView *Sampler::randomSample() {

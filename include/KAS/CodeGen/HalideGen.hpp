@@ -22,7 +22,7 @@ namespace kas {
 class HalideGen {
     FRIEND_TEST(codegen_tests, func);
     FRIEND_TEST(forward_tests, pooling);
-    FRIEND_TEST(search_tests, sample);
+    FRIEND_TEST(search_tests, sampler);
     friend class transforms_tests;
 
     static bool AutoSchedulerLoaded;

@@ -1,1 +1,1 @@
-add_library(search-lib STATIC Node.cpp Sample.cpp)
+add_library(search-lib STATIC Finalize.cpp Node.cpp Sample.cpp Stage.cpp)

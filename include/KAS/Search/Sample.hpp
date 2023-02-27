@@ -13,6 +13,8 @@
 #include <gtest/gtest_prod.h>
 
 #include "KAS/Core/BindingContext.hpp"
+#include "KAS/Core/Dimension.hpp"
+#include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
@@ -33,7 +35,7 @@ public:
 };
 
 class Sampler final {
-    FRIEND_TEST(search_tests, sample);
+    FRIEND_TEST(search_tests, sampler);
 
 protected:
     std::mt19937 rng;
@@ -47,6 +49,8 @@ protected:
     SampleOptions options;
     Shape inputShape;
     Shape outputShape;
+    std::vector<Iterator> outputIterators;
+    Interface root;
 
     StageStore store;
     std::vector<Stage> bases; // The `MapReduce`s are generated first.
@@ -76,6 +80,8 @@ public:
     // <literal-value> [: <max-occurrencens>]
     // <variable-name> [= <literal-value>] [: <max-occurrencens>]
     Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options);
+    Sampler(const Sampler&) = delete;
+    Sampler(Sampler&&) = delete;
     inline BindingContext& getBindingContext() { return ctx; }
     inline Shape& getInputShape() { return inputShape; }
     inline Shape& getOutputShape() { return outputShape; }

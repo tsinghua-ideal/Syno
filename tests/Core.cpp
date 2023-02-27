@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/MapReduce.hpp"
@@ -16,12 +17,18 @@
 using namespace kas;
 
 TEST(core_tests, size) {
-    std::vector<BindingContext::Metadata> metaPrimary { BindingContext::Metadata("H", 128), BindingContext::Metadata("W", 128) };
-    std::vector<BindingContext::Metadata> metaCoefficient { BindingContext::Metadata("c", 5) };
+    using Metadata = BindingContext::Metadata;
+    std::vector<Metadata> metaPrimary {
+        { .alias = "H", .estimate = 128 },
+        { .alias = "W", .estimate = 128 },
+    };
+    std::vector<Metadata> metaCoefficient {
+        { .alias = "c", .estimate = 5 },
+    };
     auto ctx = BindingContext { std::move(metaPrimary), std::move(metaCoefficient) };
-    auto sizeH = ctx.getSinglePrimaryVariableSize(0);
+    auto sizeH = ctx.get("H");
     ASSERT_EQ(sizeH.toString(ctx), "H");
-    auto sizeW = ctx.getSinglePrimaryVariableSize(1);
+    auto sizeW = ctx.get("W");
     ASSERT_EQ(sizeW.toString(ctx), "W");
     auto sizeC = ctx.getSingleCoefficientVariableSize(0);
     auto sizeHWc = Size(2, 1, Size::ExprType { 1, 1 }, Size::ExprType { -1 });
@@ -40,7 +47,7 @@ TEST(core_tests, size) {
 }
 
 TEST(core_tests, tensor) {
-    auto ctx = BindingContext { static_cast<std::size_t>(3), static_cast<std::size_t>(2) };
+    auto ctx = BindingContext(3, 2);
     auto sizeX0 = ctx.getSinglePrimaryVariableSize(0);
     ASSERT_EQ(sizeX0.toString(ctx), "x_0");
     auto sizeX1 = ctx.getSinglePrimaryVariableSize(1);

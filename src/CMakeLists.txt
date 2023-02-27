@@ -6,7 +6,7 @@ add_subdirectory(Transforms)
 
 # Library property
 set_property(GLOBAL PROPERTY KAS_ALL_LIBS_PROPERTY
-        codegen-lib transforms-lib core-lib
+        codegen-lib search-lib transforms-lib core-lib
         ${Boost_LIBRARIES} -lstdc++ -lm)
 get_property(KAS_ALL_LIBS GLOBAL PROPERTY KAS_ALL_LIBS_PROPERTY)
 

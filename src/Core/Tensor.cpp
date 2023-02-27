@@ -151,6 +151,18 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     eval.fill(interface, manipulations);
 }
 
+std::string TensorView::fusedInputToString(const BindingContext& ctx) const {
+    return VectorToString(tensors
+        | std::views::transform([](const PureTensor& t) {
+            return t.getShape();
+        })
+        | std::views::join
+        | std::views::transform([&](const Size& dim) {
+            return dim.toString(ctx);
+        })
+    );
+}
+
 std::string TensorView::interfaceAccessToString(const BindingContext& ctx) const {
     return VectorToString(interface
         | std::views::transform([](const Iterator *it) {

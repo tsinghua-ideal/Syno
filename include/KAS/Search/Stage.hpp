@@ -8,6 +8,8 @@
 #include <variant>
 #include <vector>
 
+#include <gtest/gtest_prod.h>
+
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
@@ -68,6 +70,7 @@ public:
 
 class Stage {
     friend class StageStore;
+    FRIEND_TEST(search_tests, sampler);
 
     // The interface decides the hash. Other properties are computed.
     std::vector<Dimension> interface;

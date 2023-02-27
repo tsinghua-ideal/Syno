@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <map>
 #include <span>
@@ -45,12 +46,15 @@ protected:
     std::vector<Metadata> primaryMetadata;
     std::vector<Metadata> coefficientMetadata;
 
-    std::map<std::string, std::size_t> getPrimaryLookupTable() const;
-    std::map<std::string, std::size_t> getCoefficientLookupTable() const;
+    using LookUpTable = std::map<std::string, std::size_t>;
+    LookUpTable getPrimaryLookupTable() const;
+    LookUpTable getCoefficientLookupTable() const;
+    Size lookUp(const std::string& name, const LookUpTable& primaryTable, const LookUpTable& coefficientTable) const;
 
 public:
     BindingContext(std::size_t countPrimary, std::size_t countCoefficient);
     template<typename Tp, typename Tc>
+    requires(std::is_same_v<std::remove_cvref_t<Tp>, std::vector<Metadata>> && std::is_same_v<std::remove_cvref_t<Tc>, std::vector<Metadata>>)
     BindingContext(Tp&& primaryMetadata, Tc&& coefficientMetadata):
         primaryMetadata { std::forward<Tp>(primaryMetadata) },
         coefficientMetadata { std::forward<Tc>(coefficientMetadata) }
@@ -67,8 +71,15 @@ public:
 
     Size getSinglePrimaryVariableSize(std::size_t index) const;
     Size getSingleCoefficientVariableSize(std::size_t index) const;
+    Size get(const std::string& name) const;
+    template<typename... Args>
+    auto getSizes(Args&&... args) const -> std::array<Size, sizeof...(Args)> {
+        std::map<std::string, std::size_t> pNameToIndex = getPrimaryLookupTable();
+        std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();
+        return std::array { lookUp(std::forward<Args>(args), pNameToIndex, cNameToIndex)... };
+    }
 
-    Shape getShapeFromNames(const std::vector<std::string>& names);
+    Shape getShapeFromNames(const std::vector<std::string>& names) const;
     // This overwrites the current metadata.
     void applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs);
 

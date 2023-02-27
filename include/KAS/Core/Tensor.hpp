@@ -60,6 +60,9 @@ public:
     // Returns the underlying tensor underneath the view.
     inline const std::vector<PureTensor>& getUnderlyingTensors() const { return tensors; }
 
+    // This blends all the tensors together.
+    std::string fusedInputToString(const BindingContext& ctx) const;
+
     // Returns the interface of the view.
     inline const std::vector<const Iterator *>& getInterfaceIterators() const { return interface; }
 
