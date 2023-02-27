@@ -43,7 +43,7 @@ protected:
     ReduceType reduceType;
 
 public:
-    explicit inline MapReduceOp(std::size_t priority, auto&& domain, MapType mapType, ReduceType reduceType):
+    inline MapReduceOp(std::size_t priority, auto&& domain, MapType mapType, ReduceType reduceType):
         priority { priority },
         domain { std::forward<decltype(domain)>(domain) },
         mapType { mapType },
@@ -72,7 +72,8 @@ public:
         const BindingContext& ctx;
         std::size_t dimUpperBound;
     };
-    static std::vector<Interface> GenerateLastLevelMapReduces(const Shape& outputShape, GenerateOptions options);
+    using Base = std::vector<MapReduceOp>;
+    static std::vector<Base> GenerateLastLevelMapReduces(const Shape& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

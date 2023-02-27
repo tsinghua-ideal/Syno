@@ -14,14 +14,13 @@ namespace kas {
 // This is for convenience. As a python interface, we need easy access to related methods of TensorView.
 class Kernel {
 protected:
-    TensorView tensorView;
+    const TensorView& tensorView;
     BindingContext& ctx;
     HalideGen gen;
 
 public:
-    template<typename T>
-    Kernel(T&& tensorView, BindingContext& ctx):
-        tensorView { std::forward<T>(tensorView) },
+    Kernel(const TensorView& tensorView, BindingContext& ctx):
+        tensorView { tensorView },
         ctx { ctx },
         gen { ctx, this->tensorView }
     {}

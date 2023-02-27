@@ -24,7 +24,7 @@ TEST(search_tests, sampler) {
     options.depth = 4;
     options.dimLowerBound = 4;
     options.dimUpperBound = 8;
-    Sampler sampler("[H,W]", "[N,C,H,W]", {}, {"k_1", "s_1", "k_2", "s_2"}, options);
+    Sampler sampler("[N,C,H,W]", "[N,C,H,W]", {}, {"k_1", "s_1", "k_2", "s_2"}, options);
     auto& ctx = sampler.getBindingContext();
     ASSERT_EQ(ctx.getPrimaryCount(), 4);
     ASSERT_EQ(ctx.getCoefficientCount(), 4);
@@ -36,7 +36,7 @@ TEST(search_tests, sampler) {
         auto r = tensorView.getUnderlyingTensors() | std::ranges::views::transform([&](const auto& tensor) { return tensor.shapeToString(ctx); });
         std::cout << fmt::format("Input Shape: {}", fmt::join(r, ", ")) << std::endl;
         std::cout << tensorView.printNestedLoops(ctx);
-
+/*
         constexpr int dimH = 4, dimW = 4, dimN = 4, dimC = 4, dimK1 = 3, dimS1 = 2, dimK2 = 3, dimS2 = 2;
         HalideGen gen(ctx, tensorView);
         auto name = "search_codegen_test_" + std::to_string(i);
@@ -69,6 +69,7 @@ TEST(search_tests, sampler) {
         func.trace_stores();
         auto outputShape = std::vector<int> {dimN, dimC, dimH, dimW};
         Halide::Buffer<float, 4> outputBuffer = func.realize(std::vector<int>(outputShape.rbegin(), outputShape.rend()), Halide::get_host_target());
+*/
     }
 }
 

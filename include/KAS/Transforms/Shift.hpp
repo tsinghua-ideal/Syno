@@ -6,7 +6,6 @@
 namespace kas {
 
 class ShiftOp final: public RepeatLikePrimitiveOp {
-    // Not very sure how to represent shift. TODO
     int shift;
 public:
     ShiftOp(auto&& output, int shift):

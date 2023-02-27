@@ -3,6 +3,7 @@
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/Shape.hpp"
+#include "KAS/Core/Size.hpp"
 
 
 namespace kas {
@@ -46,12 +47,16 @@ std::string MapReduceOp::whatReduce() const {
 std::string MapReduceOp::what() const {
     return what(mapType) + "+" + what(reduceType);
 }
-/*
-std::vector<Interface> MapReduceOp::GenerateLastLevelMapReduces(const Shape& outputShape, GenerateOptions options) {
+
+std::vector<MapReduceOp::Base> MapReduceOp::GenerateLastLevelMapReduces(const Shape& outputShape, GenerateOptions options) {
+    // TODO
+
     const BindingContext& ctx = options.ctx;
+    Size totalSize = outputShape.totalSize();
+    Allowance allowance = { totalSize, ctx };
+
     auto primaryMeta = ctx.getPrimaryMetadata();
     auto coefficientMeta = ctx.getCoefficientMetadata();
-    Size totalSize = outputShape.totalSize();
     auto primary = totalSize.getPrimary();
     auto coefficient = totalSize.getCoefficient();
     const std::size_t primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
@@ -70,20 +75,19 @@ std::vector<Interface> MapReduceOp::GenerateLastLevelMapReduces(const Shape& out
         }
     }
     // Place at the end.
-    std::size_t pos = outputShape.size();
-    std::vector<Interface> res;
+    std::vector<MapReduceOp::Base> res;
     for (const auto& coefficientId: coefficientAllowance) {
         auto c = ctx.getSingleCoefficientVariableSize(coefficientId);
         // For simplicity, we only use Identity and Sum. TODO: add more.
-        res.emplace_back(std::make_unique<MapReduceShapeOp>(pos, c, Manipulation::MapType::Identity, Manipulation::ReduceType::Sum));
+        res.emplace_back(Base { { 0, c, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum } });
         for (const auto& [primaryId, allowance]: primaryAllowance) {
             auto p = ctx.getSinglePrimaryVariableSize(primaryId);
-            res.emplace_back(std::make_unique<MapReduceShapeOp>(pos, p, Manipulation::MapType::Identity, Manipulation::ReduceType::Sum));
-            res.emplace_back(std::make_unique<MapReduceShapeOp>(pos, *c * *p, Manipulation::MapType::Identity, Manipulation::ReduceType::Sum));
-            res.emplace_back(std::make_unique<MapReduceShapeOp>(pos, *p / *c, Manipulation::MapType::Identity, Manipulation::ReduceType::Sum));
+            res.emplace_back(Base { { 0, p, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum } });
+            res.emplace_back(Base { { 0, c * p, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum } });
+            res.emplace_back(Base { { 0, p / c, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum } });
         }
     }
     return res;
 }
-*/
+
 } // namespace kas

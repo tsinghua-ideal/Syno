@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "KAS/Core/BindingContext.hpp"
@@ -12,10 +13,10 @@ namespace kas {
 
 // Contains multiple finalization options.
 class FinalizeOp {
-    using Tensors = std::vector<Interface>;
-    std::vector<Tensors> options;
+    std::vector<Interface> tensors;
 
 public:
+    FinalizeOp(auto&& tensors): tensors { std::forward<decltype(tensors)>(tensors) } {}
     std::unique_ptr<TensorView> buildTensorView() const;
 
     struct GenerateOptions {

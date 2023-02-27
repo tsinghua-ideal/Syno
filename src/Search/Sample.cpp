@@ -117,9 +117,10 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
 Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options):
     Sampler { inputShape, outputShape, primarySpecs, coefficientSpecs, options, {}, {} }
 {
-    for (auto g = MapReduceOp::GenerateLastLevelMapReduces(this->outputShape, { this->ctx, this->options.dimUpperBound }); auto& m: g) {
+    reduces = MapReduceOp::GenerateLastLevelMapReduces(this->outputShape, { this->ctx, this->options.dimUpperBound });
+    for (auto& r: reduces) {
         Interface temp = root;
-        std::ranges::move(m, std::back_inserter(temp));
+        std::ranges::copy(r | std::views::transform([](MapReduceOp& m) { return &m; }), std::back_inserter(temp));
         this->bases.emplace_back(std::move(temp), *this, 0);
     }
 }

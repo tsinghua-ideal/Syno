@@ -58,8 +58,11 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("op_str", &Sampler::opString)
         .def("op_type", &Sampler::opType)
         .def("realize", [](Sampler& self, const std::vector<std::size_t>& path) -> std::unique_ptr<Kernel> {
-            auto [tensorView, cgCtx] = self.realize(path);
-            return std::make_unique<Kernel>(std::move(tensorView), self.getBindingContext(), std::move(cgCtx));
+            auto kernel = self.realize(path);
+            if (kernel == nullptr) {
+                return nullptr;
+            }
+            return std::make_unique<Kernel>(*kernel, self.getBindingContext());
         });
 
 #ifdef VERSION_INFO

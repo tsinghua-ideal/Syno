@@ -15,6 +15,7 @@
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Iterator.hpp"
+#include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
@@ -49,10 +50,13 @@ protected:
     SampleOptions options;
     Shape inputShape;
     Shape outputShape;
+
     std::vector<Iterator> outputIterators;
     Interface root;
 
     StageStore store;
+
+    std::vector<MapReduceOp::Base> reduces;
     std::vector<Stage> bases; // The `MapReduce`s are generated first.
 
     // Start from a MapReduce.
