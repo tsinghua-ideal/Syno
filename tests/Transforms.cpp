@@ -1,3 +1,5 @@
+#include <map>
+
 #include <fmt/core.h>
 #include <gtest/gtest.h>
 #include <Halide.h>
@@ -25,15 +27,14 @@ protected:
     Iterator itH { 0, sizeH }, itW { 1, sizeW }, itCH { 2, sizeC * sizeH };
     Dimension dimH { &itH }, dimW { &itW }, dimCH { &itCH };
 
-    template<std::size_t OutputDimensions>
+    template<std::size_t InputDimensions, std::size_t OutputDimensions>
     struct HalideEssentials {
-        Halide::ImageParam input;
-        Halide::Func func;
         HalideGen::BufferAdaptor<float, OutputDimensions> outputBuffer;
+        HalideGen::BufferAdaptor<float, InputDimensions> derivativesBuffer;
     };
 
     template<std::size_t InputDimensions, std::size_t OutputDimensions>
-    HalideEssentials<OutputDimensions> realize(
+    HalideEssentials<InputDimensions, OutputDimensions> realize(
         const TensorView& tensorView,
         std::size_t primaryDim, std::size_t coefficientDim,
         const int (&rawInputDimensions)[InputDimensions],
@@ -41,21 +42,52 @@ protected:
         const int (&rawOutputDimensions)[OutputDimensions]
     ) const {
         HalideGen gen(ctx, tensorView, {});
-        auto consts = gen.realizeConsts({{"H", primaryDim}, {"W", primaryDim}, {"c", coefficientDim}});
-        auto access = gen.evaluateAccess(consts);
-        auto [inputs, func] = gen.createFunc(consts, access, "semantic_test");
-        KAS_ASSERT(inputs.size() == 1);
-        auto& input = inputs[0];
+        std::map<std::string, std::size_t> mappings {{"H", primaryDim}, {"W", primaryDim}, {"c", coefficientDim}};
+        auto [forwardInputs, forwardFunc, backwardInputs, backwardFuncs] = gen.createPipelines(mappings, "semantics_test");
+
+        // First realize the forward pipeline.
+
+        KAS_ASSERT(forwardInputs.size() == 1);
+        auto& forwardInput = forwardInputs[0];
+
         // Give special care to the column-major layout.
         std::span inputDimensions { rawInputDimensions };
         auto inputBuffer = Halide::Buffer<float, InputDimensions>(std::vector<int>(inputDimensions.rbegin(), inputDimensions.rend()));
         auto proxy = HalideGen::BufferRefAdaptor<float, InputDimensions> { inputBuffer };
         inputBuffer.for_each_element(ReverseArguments<InputDimensions>(std::bind_front(inputInitializer, std::ref(proxy))));
-        input.set(inputBuffer);
-        func.compute_root();
+        forwardInput.set(inputBuffer);
+
+        forwardFunc.compute_root();
         std::span outputDimensions { rawOutputDimensions };
-        Halide::Buffer<float, OutputDimensions> outputBuffer = func.realize(std::vector<int>(outputDimensions.rbegin(), outputDimensions.rend()), Halide::get_host_target());
-        return { std::move(input), std::move(func), { std::move(outputBuffer) } };
+        Halide::Buffer<float, OutputDimensions> outputBuffer;
+        try {
+            outputBuffer = forwardFunc.realize(std::vector<int>(outputDimensions.rbegin(), outputDimensions.rend()), Halide::get_host_target());
+        } catch (const Halide::Error& e) {
+            fmt::print("Forward Error: {}\n", e.what());
+            throw;
+        }
+
+        // Then realize the backward pipeline.
+
+        KAS_ASSERT(backwardFuncs.size() == 1);
+        auto& backwardFunc = backwardFuncs[0];
+
+        auto backwardOutputBuffer = Halide::Buffer<float, OutputDimensions>(std::vector<int>(outputDimensions.rbegin(), outputDimensions.rend()));
+        backwardOutputBuffer.for_each_value([](float& f) { f = 1.0f; }); // This is equivalent to torch.sum(out).backward()
+        KAS_ASSERT(backwardInputs.size() == 2);
+        backwardInputs[0].set(inputBuffer);
+        backwardInputs[1].set(backwardOutputBuffer);
+
+        backwardFunc.compute_root();
+        Halide::Buffer<float, InputDimensions> backwardInputBuffer;
+        try {
+            backwardInputBuffer = backwardFunc.realize(std::vector<int>(inputDimensions.rbegin(), inputDimensions.rend()), Halide::get_host_target());
+        } catch (const Halide::Error& e) {
+            fmt::print("Backward Error: {}\n", e.what());
+            throw;
+        }
+
+        return { { std::move(outputBuffer) }, { std::move(backwardInputBuffer) } };
     }
 };
 
@@ -76,7 +108,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [input, func, outputBuffer] = realize(
+    auto [outputBuffer, derivatives] = realize(
         tensorView, 4, 2,
         {4, 4, 4, 8},
         [](auto&& buf, int i, int j, int k, int l) {
@@ -84,12 +116,19 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         },
         {4, 4, 8}
     );
-    ASSERT_EQ(input.dimensions(), 4);
-    ASSERT_EQ(func.dimensions(), 3);
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
                 ASSERT_EQ(outputBuffer(i, j, k), 5 * i);
+            }
+        }
+    }
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 4; k++) {
+                for (int l = 0; l < 8; l++) {
+                    ASSERT_EQ(derivatives(i, j, k, l), static_cast<float>(i == j));
+                }
             }
         }
     }
@@ -117,7 +156,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [input, func, outputBuffer] = realize(
+    auto [outputBuffer, derivatives] = realize(
         tensorView, 4, 2,
         {16, 4, 4, 8},
         [](auto&& buf, int i, int j, int k, int l) {
@@ -125,8 +164,6 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         },
         {4, 4, 8}
     );
-    ASSERT_EQ(input.dimensions(), 4);
-    ASSERT_EQ(func.dimensions(), 3);
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
@@ -153,7 +190,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [input, func, outputBuffer] = realize(
+    auto [outputBuffer, derivatives] = realize(
         tensorView, 4, 2,
         {4, 4, 8},
         [](auto&& buf, int i, int j, int k) {
@@ -161,8 +198,6 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         },
         {4, 4, 8}
     );
-    ASSERT_EQ(input.dimensions(), 3);
-    ASSERT_EQ(func.dimensions(), 3);
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
@@ -189,7 +224,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [input, func, outputBuffer] = realize(
+    auto [outputBuffer, derivatives] = realize(
         tensorView, 4, 2,
         {8, 4, 8},
         [](auto&& buf, int i, int j, int k) {
@@ -197,8 +232,6 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         },
         {4, 4, 8}
     );
-    ASSERT_EQ(input.dimensions(), 3);
-    ASSERT_EQ(func.dimensions(), 3);
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
@@ -226,7 +259,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [input, func, outputBuffer] = realize(
+    auto [outputBuffer, derivatives] = realize(
         tensorView, 4, 3,
         {4, 4},
         [](auto&& buf, int i, int j) {
@@ -234,8 +267,6 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         },
         {4, 4, 3}
     );
-    ASSERT_EQ(input.dimensions(), 2);
-    ASSERT_EQ(func.dimensions(), 3);
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 3; k++) {
@@ -265,7 +296,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [input, func, outputBuffer] = realize(
+    auto [outputBuffer, derivatives] = realize(
         tensorView, 4, 2,
         {2, 4, 4, 4},
         [](auto&& buf, int i, int j, int k, int l) {
@@ -273,8 +304,6 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         },
         {4, 4, 8}
     );
-    ASSERT_EQ(input.dimensions(), 4);
-    ASSERT_EQ(func.dimensions(), 3);
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
@@ -301,7 +330,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [input, func, outputBuffer] = realize(
+    auto [outputBuffer, derivatives] = realize(
         tensorView, 4, 2,
         {16, 8},
         [](auto&& buf, int i, int j) {
@@ -309,8 +338,6 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         },
         {4, 4, 8}
     );
-    ASSERT_EQ(input.dimensions(), 2);
-    ASSERT_EQ(func.dimensions(), 3);
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {

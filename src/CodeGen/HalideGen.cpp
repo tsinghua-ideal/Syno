@@ -123,19 +123,19 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
     std::vector<Halide::ImageParam> inputs;
     Halide::Func func { std::string(funcName) };
 
-    const auto& tensors = tensorView.getUnderlyingTensors();
-    for (auto&& tensor: tensors) {
-        inputs.emplace_back(Halide::type_of<float>(), tensor.getShape().size(), tensor.getName());
-    }
     Halide::Expr rhs = 1.0f;
+    const auto& tensors = tensorView.getUnderlyingTensors();
     for (std::size_t inputId = 0; auto&& tensor: tensors) {
+        inputs.emplace_back(Halide::type_of<float>(), tensor.getShape().size(), tensor.getName());
+        auto est = evaluate(consts, tensor.getShape());
+        inputs.back().set_estimates(est);
         // Here for simplicity and to avoid out of bound errors when using auto-diff (still not sure why this happens), use zero padding. Need better solution. TODO
         if (zeroBoundary) {
-            Halide::Func wrappedInput = Halide::BoundaryConditions::constant_exterior(inputs[inputId], 0.0f, evaluate(consts, tensor.getShape()));
+            Halide::Func wrappedInput = Halide::BoundaryConditions::constant_exterior(inputs.back(), 0.0f, est);
             // Add support for other arithmetic operations. TODO
             rhs *= wrappedInput(access.tensorIndices.at(inputId));
         } else {
-            rhs *= inputs[inputId](access.tensorIndices.at(inputId));
+            rhs *= inputs.back()(access.tensorIndices.at(inputId));
         }
         ++inputId;
     }
@@ -155,6 +155,8 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
         guardedRhs = rhs;
     }
 
+    auto concreteOutputShape = evaluate(consts, tensorView.getShape());
+
     if (innerIterators.empty()) {
         func(outerIterators) = guardedRhs;
     } else {
@@ -168,6 +170,10 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
         Halide::Region reduceRegion = evaluate(consts, tensorView.getReduceShape(), false);
         Halide::RDom reduction = reduceRegion;
 
+        auto fullShape = reduceRegion;
+        std::ranges::copy(concreteOutputShape, std::back_inserter(fullShape));
+        full.set_estimates(fullShape);
+
         std::vector<Halide::Expr> reduceAccess;
         for (std::size_t i = 0; i < reduction.dimensions(); ++i) {
             reduceAccess.emplace_back(reduction[i]);
@@ -178,21 +184,33 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
         func(outerIterators) = Halide::sum(full(reduceAccess));
     }
 
+    func.set_estimates(concreteOutputShape);
     return { std::move(inputs), std::move(func) };
 }
 
 HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName) {
-    auto [input, func] = createFunc(consts, access, funcName, false);
+    const bool zeroBoundary = true; // No zero boundary blows up the pipeline. Don't know why. TODO
+
+    auto [input, func] = createFunc(consts, access, funcName, zeroBoundary);
+
     auto outputShape = tensorView.getShape();
     Halide::Region outputRegion = evaluate(consts, outputShape);
     Halide::ImageParam outputGrad(Halide::type_of<float>(), outputShape.size(), "output_grad");
-    Halide::Func wrappedOutputGrad = Halide::BoundaryConditions::constant_exterior(outputGrad, 0.0f, outputRegion);
-    Halide::Derivative d = Halide::propagate_adjoints(func, wrappedOutputGrad, outputRegion);
+    outputGrad.set_estimates(outputRegion);
+
+    Halide::Derivative d = Halide::propagate_adjoints(func, 
+        zeroBoundary ?
+        Halide::BoundaryConditions::constant_exterior(outputGrad, 0.0f, outputRegion) :
+        outputGrad,
+    outputRegion);
+
+    const auto& inputTensors = tensorView.getUnderlyingTensors();
     std::vector<Halide::Func> gradFuncs;
     for (std::size_t i = 0; i < input.size(); ++i) {
         Halide::Func dInput(input[i].name() + "_grad");
         dInput(Halide::_) = d(input[i])(Halide::_);
         gradFuncs.emplace_back(std::move(dInput));
+        gradFuncs.back().set_estimates(evaluate(consts, inputTensors[i].getShape()));
     }
     input.emplace_back(std::move(outputGrad));
     return { std::move(input), std::move(gradFuncs) };
@@ -209,16 +227,6 @@ HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const std::map<std
     KAS_ASSERT(forwardInputs.size() == tensors.size());
     KAS_ASSERT(backwardInputs.size() == tensors.size() + 1);
     KAS_ASSERT(backwardFuncs.size() == tensors.size());
-    for (std::size_t i = 0; i < tensors.size(); ++i) {
-        const auto& tensor = tensors[i];
-        auto est = evaluate(consts, tensor.getShape());
-        forwardInputs[i].set_estimates(est);
-        backwardInputs[i].set_estimates(est);
-        backwardFuncs[i].set_estimates(est);
-    }
-    auto outputShapeEst = evaluate(consts, tensorView.getShape());
-    forwardFunc.set_estimates(outputShapeEst);
-    backwardInputs.back().set_estimates(outputShapeEst);
 
     return {
         std::move(forwardInputs), std::move(forwardFunc),

@@ -3,6 +3,7 @@
 #include <fmt/format.h>
 
 #include "KAS/Core/Dimension.hpp"
+#include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
@@ -18,6 +19,7 @@ std::string DimensionTypeDescription(DimensionType ty) {
     case DimensionType::Iterator:   return "Iterator";
     case DimensionType::MapReduce:  return "MapReduce";
     }
+    KAS_UNREACHABLE();
 }
 
 std::string Dimension::description(const BindingContext& ctx) const {
