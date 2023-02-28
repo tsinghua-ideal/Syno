@@ -64,8 +64,10 @@ void HalideGen::HalideExprEvaluator::visit(IntervalBoundValueNode& value) {
     Halide::Expr input = evaluate(value.input);
     Halide::Expr min = evaluate(value.min), max = evaluate(value.max);
     evaluator = Halide::clamp(input, min, max - 1);
-    // Add this constraint to the constraints list.
-    constraintsBounds.emplace_back(evaluate(value));
+    if (parent.options.zeroPadding) {
+        // Add this constraint to the constraints list.
+        constraintsBounds.emplace_back(evaluate(value));
+    }
 }
 
 Halide::Expr HalideGen::HalideExprEvaluator::evaluate(const IteratorValue& value) {
@@ -138,15 +140,20 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
         ++inputId;
     }
 
-    // To avoid out of bound errors, we need to compute constraints of the region.
-    Halide::Expr guardCond = std::accumulate(
-        access.constraintsBounds.begin(),
-        access.constraintsBounds.end(),
-        Halide::cast<bool>(true),
-        [](auto&& lhs, auto&& rhs) { return lhs && rhs; }
-    );
-    // Enforce zero-padding.
-    Halide::Expr guardedRhs = Halide::select(guardCond, Halide::likely(rhs), 0.0f);
+    Halide::Expr guardedRhs;
+    if (options.zeroPadding) {
+        // To enforce zero padding, we need to compute constraints of the region.
+        Halide::Expr guardCond = std::accumulate(
+            access.constraintsBounds.begin(),
+            access.constraintsBounds.end(),
+            Halide::cast<bool>(true),
+            [](auto&& lhs, auto&& rhs) { return lhs && rhs; }
+        );
+        // Enforce zero-padding.
+        guardedRhs = Halide::select(guardCond, Halide::likely(rhs), 0.0f);
+    } else {
+        guardedRhs = rhs;
+    }
 
     if (innerIterators.empty()) {
         func(outerIterators) = guardedRhs;
@@ -175,7 +182,7 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
 }
 
 HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName) {
-    auto [input, func] = createFunc(consts, access, funcName, true);
+    auto [input, func] = createFunc(consts, access, funcName, false);
     auto outputShape = tensorView.getShape();
     Halide::Region outputRegion = evaluate(consts, outputShape);
     Halide::ImageParam outputGrad(Halide::type_of<float>(), outputShape.size(), "output_grad");
@@ -219,9 +226,10 @@ HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const std::map<std
     };
 }
 
-HalideGen::HalideGen(const BindingContext& ctx, const TensorView& tensorView):
+HalideGen::HalideGen(const BindingContext& ctx, const TensorView& tensorView, Options options):
     ctx { ctx },
-    tensorView { tensorView }
+    tensorView { tensorView },
+    options { std::move(options) }
 {
     for (auto&& it: tensorView.interface) {
         outerIterators.emplace_back(it->getName());
@@ -237,7 +245,7 @@ HalideGen::HalideGen(const BindingContext& ctx, const TensorView& tensorView):
     // Since reduce loops are in order, we should not reverse them.
 }
 
-void HalideGen::generate(std::filesystem::path outputPath, std::string_view funcName, const std::map<std::string, std::size_t>& mappings, Options options) {
+void HalideGen::generate(std::filesystem::path outputPath, std::string_view funcName, const std::map<std::string, std::size_t>& mappings) {
     std::string backwardName = std::string(funcName) + "_grad";
 
     // Create Halide Functions.

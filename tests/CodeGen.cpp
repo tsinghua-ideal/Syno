@@ -26,11 +26,12 @@ TEST_F(codegen_tests, generate) {
     for (int i = 0; i < 3; ++i) {
         auto& sample = *sampler.randomSample();
         std::cout << sample.printNestedLoops(ctx);
-        HalideGen gen { ctx, sample };
-        gen.generate("./kernel_1_" + std::to_string(i), "kernel_1_" + std::to_string(i), {}, {
+        HalideGen gen { ctx, sample, {
             .useGPU = false,
-            .scheduler = HalideGen::Options::AutoScheduler::ComputeRoot
-        });
+            .scheduler = HalideGen::Options::AutoScheduler::ComputeRoot,
+            .zeroPadding = false,
+        } };
+        gen.generate("./kernel_1_" + std::to_string(i), "kernel_1_" + std::to_string(i), {});
     }
 }
 

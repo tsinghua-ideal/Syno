@@ -67,7 +67,11 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
 }
 )");
 
-    auto gen = HalideGen(ctx, tensorView);
+    auto gen = HalideGen(ctx, tensorView, {
+        .useGPU = false,
+        .scheduler = HalideGen::Options::AutoScheduler::Adams2019,
+        .zeroPadding = false,
+    });
     std::map<std::string, std::size_t> mappings {{"N", n}, {"H", h}, {"W", w}, {"C", c}, {"K", k}};
     auto [inputs, func, _0, _1] = gen.createPipelines(mappings, "pooling");
     KAS_ASSERT(inputs.size() == 1);
@@ -84,7 +88,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     p.print_loop_nest();
     p.compile_jit();
 
-    constexpr int x = 10000;
+    constexpr int x = 100;
     auto t1 = std::chrono::steady_clock::now();
     for (int i = 0; i < x; ++i) {
         p.realize(std::vector<int> { w / k, h / k, c, n });
@@ -93,10 +97,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
     fmt::print("Pooling x{}: {} ms.\n", x, duration);
 
-    gen.generate("./kernel_pooling", "pooling", mappings, {
-        .useGPU = false,
-        .scheduler = HalideGen::Options::AutoScheduler::Adams2019,
-    });
+    gen.generate("./kernel_pooling", "pooling", mappings);
 }
 
 TEST(forward_tests, conv2d) {
@@ -166,6 +167,14 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     }
 }
 )");
+
+    HalideGen gen { ctx, tensorView, {
+        .useGPU = false,
+        .scheduler = HalideGen::Options::AutoScheduler::Adams2019,
+        .zeroPadding = false,
+    } };
+    std::map<std::string, std::size_t> mappings {{"N", n}, {"H", h}, {"W", w}, {"C_in", c_in}, {"C_out", c_out}, {"K", k}};
+    gen.generate("./kernel_conv2d", "conv2d", mappings);
 }
 
 } // namespace kas

@@ -57,12 +57,12 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("node_str", &Sampler::nodeString)
         .def("op_str", &Sampler::opString)
         .def("op_type", &Sampler::opType)
-        .def("realize", [](Sampler& self, const std::vector<std::size_t>& path) -> std::unique_ptr<Kernel> {
+        .def("realize", [](Sampler& self, const std::vector<std::size_t>& path, HalideGen::Options options) -> std::unique_ptr<Kernel> {
             auto kernel = self.realize(path);
             if (kernel == nullptr) {
                 return nullptr;
             }
-            return std::make_unique<Kernel>(*kernel, self.getBindingContext());
+            return std::make_unique<Kernel>(*kernel, self.getBindingContext(), std::move(options));
         });
 
 #ifdef VERSION_INFO

@@ -40,7 +40,7 @@ protected:
         auto&& inputInitializer,
         const int (&rawOutputDimensions)[OutputDimensions]
     ) const {
-        HalideGen gen(ctx, tensorView);
+        HalideGen gen(ctx, tensorView, {});
         auto consts = gen.realizeConsts({{"H", primaryDim}, {"W", primaryDim}, {"c", coefficientDim}});
         auto access = gen.evaluateAccess(consts);
         auto [inputs, func] = gen.createFunc(consts, access, "semantic_test");
@@ -239,11 +239,10 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 3; k++) {
-                bool inRange = (i + k) >= 1 && (i + k) < 5;
-                if (inRange)
-                    ASSERT_EQ(outputBuffer(i, j, k), 4 * (i + k - 1) + j);
-                else
-                    ASSERT_EQ(outputBuffer(i, j, k), 0);
+                int access = i + k - 1;
+                // We now use replicate padding.
+                access = std::min(std::max(access, 0), 4 - 1);
+                ASSERT_EQ(outputBuffer(i, j, k), 4 * access + j);
             }
         }
     }

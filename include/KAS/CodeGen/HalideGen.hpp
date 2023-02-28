@@ -24,12 +24,22 @@ class HalideGen {
     FRIEND_TEST(forward_tests, pooling);
     FRIEND_TEST(search_tests, sampler);
     friend class transforms_tests;
+public:
+    struct Options {
+        enum class AutoScheduler {
+            ComputeRoot, Mullapudi2016, Li2018, Adams2019
+        };
+        bool useGPU = true;
+        AutoScheduler scheduler = AutoScheduler::Li2018;
+        bool zeroPadding = false; // If set to false, use replicate padding, which reduces some computation.
+    };
 
-    static void GuardAutoSchedulers();
+private:
+    static void GuardAutoSchedulers(); // Load the Halide auto scheduler plugins.
 
-protected:
     const BindingContext& ctx;
     const TensorView& tensorView;
+    Options options;
 
     std::vector<Halide::Var> vars;
     std::vector<Halide::Var> outerIterators;
@@ -89,17 +99,9 @@ protected:
     static Halide::Target GetHostTarget(bool useGPU);
 
 public:
-    HalideGen(const BindingContext& ctx, const TensorView& tensorView);
+    HalideGen(const BindingContext& ctx, const TensorView& tensorView, Options options);
 
-    struct Options {
-        enum class AutoScheduler {
-            ComputeRoot, Mullapudi2016, Li2018, Adams2019
-        };
-        bool useGPU = true;
-        AutoScheduler scheduler = AutoScheduler::Li2018;
-    };
-
-    void generate(std::filesystem::path outputPath, std::string_view funcName, const std::map<std::string, std::size_t>& mappings, Options options);
+    void generate(std::filesystem::path outputPath, std::string_view funcName, const std::map<std::string, std::size_t>& mappings);
 
     // This is a workaround for reverse indexing caused by Halide's column-major buffers.
     template<typename BufferType>

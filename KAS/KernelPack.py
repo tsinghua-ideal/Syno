@@ -6,7 +6,7 @@ import kas_cpp_bindings
 from kas_cpp_bindings import Kernel
 
 class KernelPack(nn.Module):
-    def __init__(self, identifier: str, directory: str, name: str, size_params: list[int], inputs_shapes: list[list[int]], output_shape: list[int]):
+    def __init__(self, identifier: str, directory: str, name: str, inputs_shapes: list[list[int]], output_shape: list[int]):
         super(KernelPack, self).__init__()
 
         srcs = []
@@ -34,13 +34,13 @@ class KernelPack(nn.Module):
         def kernel_forward(ctx, *args):
             out_forward = torch.empty(output_shape)
             args = tuple(map(lambda x: x.contiguous(), args))
-            getattr(self._module, forward_name)(*size_params, *args, out_forward)
+            getattr(self._module, forward_name)(*args, out_forward)
             ctx.save_for_backward(*args)
             return out_forward
         def kernel_backward(ctx, grad_output):
             grad_inputs = [torch.empty(shape) for shape in inputs_shapes]
             grad_output = grad_output.contiguous()
-            getattr(self._module, backward_name)(*size_params, *ctx.saved_tensors, grad_output, *grad_inputs)
+            getattr(self._module, backward_name)(*ctx.saved_tensors, grad_output, *grad_inputs)
             return tuple(grad_inputs)
         # Create an operator.
         self._Kernel = type(f'KASKernel{identifier}', (torch.autograd.Function,), {

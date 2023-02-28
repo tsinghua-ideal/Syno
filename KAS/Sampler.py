@@ -32,7 +32,7 @@ class Sampler:
         return '\n'.join(layers)
 
     def _realize(self, path: list[int]) -> kas_cpp_bindings.Kernel:
-        return self._sampler.realize(path)
+        return self._sampler.realize(path, self._codegen_options)
 
     # Here we simply replace the placeholders with sampled kernels. TODO: Add support for storing and loading kernels.
     def sample(self, net: nn.Module, prefix: list[int] = []) -> list[int]:
@@ -48,15 +48,13 @@ class Sampler:
             kernel_name = f'kernel_{i}'
             mappings = placeholder.mappings
             logging.debug(f"For kernel_{i} mappings: {mappings}")
-            kernel.generate(save_path, kernel_name, self._codegen_options, mappings)
+            kernel.generate(save_path, kernel_name, mappings)
             identifier = identifier_prefix + "__" + str(i)
-            kernel_args = kernel.get_arguments(mappings)
-            logging.debug(f"Kernel arguments: {kernel_args}")
             inputs_shapes = kernel.get_inputs_shapes(mappings)
             logging.debug(f"Inputs shapes: {inputs_shapes}")
             output_shape = kernel.get_output_shape(mappings)
             logging.debug(f"Output shape: {output_shape}")
-            placeholder.reload(KernelPack(identifier, save_path, kernel_name, kernel_args, inputs_shapes, output_shape))
+            placeholder.reload(KernelPack(identifier, save_path, kernel_name, inputs_shapes, output_shape))
         return path
 
     def is_dead_end(self, path: list[int]) -> bool:

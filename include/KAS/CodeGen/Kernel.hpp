@@ -19,15 +19,15 @@ protected:
     HalideGen gen;
 
 public:
-    Kernel(const TensorView& tensorView, BindingContext& ctx):
+    Kernel(const TensorView& tensorView, BindingContext& ctx, HalideGen::Options options):
         tensorView { tensorView },
         ctx { ctx },
-        gen { ctx, this->tensorView }
+        gen { ctx, this->tensorView, std::move(options) }
     {}
 
     std::string toNestedLoops() const;
 
-    void generate(const std::string& path, const std::string& name, HalideGen::Options options, const std::map<std::string, std::size_t>& mappings = {});
+    void generate(const std::string& path, const std::string& name, const std::map<std::string, std::size_t>& mappings = {});
 
     std::vector<std::vector<std::size_t>> getInputsShapes(const std::map<std::string, std::size_t>& mappings) const;
 

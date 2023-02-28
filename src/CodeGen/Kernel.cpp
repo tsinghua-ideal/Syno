@@ -7,8 +7,8 @@ std::string Kernel::toNestedLoops() const {
     return tensorView.printNestedLoops(ctx);
 }
 
-void Kernel::generate(const std::string& path, const std::string& name, HalideGen::Options options, const std::map<std::string, std::size_t>& mappings) {
-    gen.generate(path, name, mappings, options);
+void Kernel::generate(const std::string& path, const std::string& name, const std::map<std::string, std::size_t>& mappings) {
+    gen.generate(path, name, mappings);
 }
 
 std::vector<std::vector<std::size_t>> Kernel::getInputsShapes(const std::map<std::string, std::size_t>& mappings) const {
