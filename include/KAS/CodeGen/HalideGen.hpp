@@ -53,13 +53,28 @@ private:
         const ConcreteConsts& consts;
         Cache& cache;
         std::vector<Halide::Expr>& constraintsBounds;
-        const std::vector<Halide::RVar>& innerIterators;
+        // When computing gradient, to mitigate Halide bugs, we need to use RVar.
+        const std::vector<Halide::RVar>& outerIteratorsAsRVars; // In reverse order.
+        bool useRVar;
+        inline Halide::RVar getOuterIteratorAsRVar(std::size_t index) const {
+            // Due to the column-major order of Halide, we need to revert the order of indices.
+            return outerIteratorsAsRVars.at(outerIteratorsAsRVars.size() - 1 - index);
+        }
+        const std::vector<Halide::RVar>& innerIterators; // In original order.
         inline Halide::RVar getInnerIterator(std::size_t index) const {
             // Inner iterators are in order, so we don't need to reverse the order of indices.
             return innerIterators.at(index);
         }
         const HalideGen& parent;
-        HalideExprEvaluator(const ConcreteConsts& consts, Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const std::vector<Halide::RVar>& innerIterators, const HalideGen& parent): consts { consts }, cache { cache }, constraintsBounds { constraintsBounds }, innerIterators { innerIterators }, parent { parent } {}
+        inline HalideExprEvaluator(const ConcreteConsts& consts, Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const std::vector<Halide::RVar>& outerIteratorsAsRVars, bool useRVar, const std::vector<Halide::RVar>& innerIterators, const HalideGen& parent):
+            consts { consts },
+            cache { cache },
+            constraintsBounds { constraintsBounds },
+            outerIteratorsAsRVars { outerIteratorsAsRVars },
+            useRVar { useRVar },
+            innerIterators { innerIterators },
+            parent { parent }
+        {}
         void visit(VariableValueNode& value) override;
         void visit(ConstValueNode& value) override;
         void visit(ImmediateValueNode& value) override;
@@ -70,7 +85,7 @@ private:
         // This `evaluate` produces a condition expression.
         Halide::Expr evaluate(const IntervalBoundValueNode& value);
     };
-    Halide::Expr evaluate(const ConcreteConsts& consts, HalideExprEvaluator::Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const std::vector<Halide::RVar>& innerIterators, const IteratorValue& value) const;
+    Halide::Expr evaluate(const ConcreteConsts& consts, HalideExprEvaluator::Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const std::vector<Halide::RVar>& outerIteratorsAsRVars, bool useRVar, const std::vector<Halide::RVar>& innerIterators, const IteratorValue& value) const;
     Halide::Expr evaluate(const ConcreteConsts& consts, const Size& value) const;
     template<typename Storage, auto Mapping>
     Halide::Region evaluate(const ConcreteConsts& consts, const AbstractShape<Storage, Mapping>& shape, bool reverse = true) const {
@@ -86,23 +101,24 @@ private:
     }
 
     struct EvaluatedAccess {
+        std::vector<Halide::RVar> outerIteratorsAsRVars; // Reverse order!
         std::vector<Halide::RVar> innerIterators; // Since reduce loops are in order, we should not reverse them.
         std::vector<std::vector<Halide::Expr>> tensorIndices;
         // The conditions that must be satisfied in order that no out-of-bound error occurs. This is used to enforce zero-padding semantics.
         std::vector<Halide::Expr> constraintsBounds;
     };
     ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings) const;
-    EvaluatedAccess evaluateAccess(const ConcreteConsts& consts) const;
+    EvaluatedAccess evaluateAccess(const ConcreteConsts& consts, bool useRVar) const;
 
     using ForwardArgsAndFunc = std::pair<std::vector<Halide::ImageParam>, Halide::Func>;
     // Returns the (input, func) pair.
-    ForwardArgsAndFunc createFunc(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName, bool zeroBoundary = false);
+    ForwardArgsAndFunc createFunc(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName, bool zeroBoundary = false, bool useRVars = false);
     using BackwardArgsAndFuncs = std::pair<std::vector<Halide::ImageParam>, std::vector<Halide::Func>>;
     // Returns the (input (including the gradient of output), gradient funcs) pair.
     BackwardArgsAndFuncs createFuncGrad(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName);
     using ForwardAndBackwardFuncs = std::tuple<std::vector<Halide::ImageParam>, Halide::Func, std::vector<Halide::ImageParam>, std::vector<Halide::Func>>;
     // Returns the forward and backward funcs.
-    ForwardAndBackwardFuncs createPipelines(const std::map<std::string, std::size_t>& mappings, std::string_view funcName);
+    ForwardAndBackwardFuncs createPipelines(const std::map<std::string, std::size_t>& mappings, std::string_view funcName, bool useRVar = false);
 
     static Halide::Target GetHostTarget(bool useGPU);
 

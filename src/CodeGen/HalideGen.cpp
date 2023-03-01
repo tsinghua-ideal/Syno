@@ -41,7 +41,11 @@ Halide::Target HalideGen::GetHostTarget(bool useGPU) {
 
 void HalideGen::HalideExprEvaluator::visit(VariableValueNode& value) {
     if (!value.isReduce) {
-        evaluator = parent.getOuterIterator(value.index);
+        if (!useRVar) {
+            evaluator = parent.getOuterIterator(value.index);
+        } else {
+            evaluator = getOuterIteratorAsRVar(value.index);
+        }
     } else {
         evaluator = getInnerIterator(value.index);
     }
@@ -92,8 +96,8 @@ Halide::Expr HalideGen::HalideExprEvaluator::evaluate(const IntervalBoundValueNo
     return min <= input && input < max;
 }
 
-Halide::Expr HalideGen::evaluate(const ConcreteConsts& consts, HalideExprEvaluator::Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const std::vector<Halide::RVar>& innerIterators, const IteratorValue& value) const {
-    HalideExprEvaluator evaluator { consts, cache, constraintsBounds, innerIterators, *this };
+Halide::Expr HalideGen::evaluate(const ConcreteConsts& consts, HalideExprEvaluator::Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const std::vector<Halide::RVar>& outerIteratorsAsRVars, bool useRVar, const std::vector<Halide::RVar>& innerIterators, const IteratorValue& value) const {
+    HalideExprEvaluator evaluator { consts, cache, constraintsBounds, outerIteratorsAsRVars, useRVar, innerIterators, *this };
     return evaluator.evaluate(value);
 }
 
@@ -105,10 +109,22 @@ ConcreteConsts HalideGen::realizeConsts(const std::map<std::string, std::size_t>
     return ctx.realizeConsts(mappings);
 }
 
-HalideGen::EvaluatedAccess HalideGen::evaluateAccess(const ConcreteConsts& consts) const {
+HalideGen::EvaluatedAccess HalideGen::evaluateAccess(const ConcreteConsts& consts, bool useRVar) const {
+    auto fusedRegion = evaluate(consts, tensorView.getReduceShape(), false);
+    const std::size_t reduceCnt = fusedRegion.size();
+    if (useRVar) {
+        auto outerRegion = evaluate(consts, tensorView.getShape());
+        std::ranges::move(outerRegion, std::back_inserter(fusedRegion));
+    }
+
+    Halide::RDom rdom(fusedRegion);
+
+    std::vector<Halide::RVar> outerIteratorsAsRVars; // If we do not use RVar, this is empty.
+    for (std::size_t i = reduceCnt; i < fusedRegion.size(); ++i) {
+        outerIteratorsAsRVars.emplace_back(rdom[i]);
+    }
     std::vector<Halide::RVar> innerIterators;
-    Halide::RDom rdom(evaluate(consts, tensorView.getReduceShape(), false));
-    for (std::size_t i = 0; i < rdom.dimensions(); ++i) {
+    for (std::size_t i = 0; i < reduceCnt; ++i) {
         innerIterators.emplace_back(rdom[i]);
     }
 
@@ -119,19 +135,18 @@ HalideGen::EvaluatedAccess HalideGen::evaluateAccess(const ConcreteConsts& const
     for (auto&& tensor: tensorView.getUnderlyingTensors()) {
         std::vector<Halide::Expr> indices;
         for (auto&& access: tensor.getAccess()) {
-            indices.emplace_back(evaluate(consts, cache, constraintsBounds, innerIterators, access));
+            indices.emplace_back(evaluate(consts, cache, constraintsBounds, outerIteratorsAsRVars, useRVar, innerIterators, access));
         }
         // Adapt to column-major layout.
         std::ranges::reverse(indices);
         tensorIndices.emplace_back(std::move(indices));
     }
 
-    return { std::move(innerIterators), std::move(tensorIndices), std::move(constraintsBounds) };
+    return { std::move(outerIteratorsAsRVars), std::move(innerIterators), std::move(tensorIndices), std::move(constraintsBounds) };
 }
 
-HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName, bool zeroBoundary) {
+HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName, bool zeroBoundary, bool useRVars) {
     std::vector<Halide::ImageParam> inputs;
-    Halide::Func func { std::string(funcName) };
 
     Halide::Expr rhs = 1.0f;
     const auto& tensors = tensorView.getUnderlyingTensors();
@@ -139,7 +154,7 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
         inputs.emplace_back(Halide::type_of<float>(), tensor.getShape().size(), tensor.getName());
         auto est = evaluate(consts, tensor.getShape());
         inputs.back().set_estimates(est);
-        // Here for simplicity and to avoid out of bound errors when using auto-diff (still not sure why this happens), use zero padding. Need better solution. TODO
+        // Now that the bug in autodiff is handled, we no longer need zero boundary.
         if (zeroBoundary) {
             Halide::Func wrappedInput = Halide::BoundaryConditions::constant_exterior(inputs.back(), 0.0f, est);
             // Add support for other arithmetic operations. TODO
@@ -165,11 +180,21 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
         guardedRhs = rhs;
     }
 
-    if (access.innerIterators.empty()) {
-        func(outerIterators) = guardedRhs;
+    Halide::Func func { std::string(funcName) };
+    // Here we ignore all the `Map`s and `Reduce`s, and just sum up the entries for simplicity. TODO: Add other operations, and consider fusions of reductions.
+    if (!useRVars) {
+        if (access.innerIterators.empty()) { // If there is no inner loops, do not use sum.
+            func(outerIterators) = guardedRhs;
+        } else {
+            func(outerIterators) = Halide::sum(guardedRhs); // Here the outer loop iterators are Halide::Var.
+        }
     } else {
-        // Here we ignore all the `Map`s and `Reduce`s, and just sum up the entries for simplicity. TODO: Add other operations, and consider fusions of reductions.
-        func(outerIterators) = Halide::sum(guardedRhs);
+        func(outerIterators) = Halide::cast<float>(0);
+        std::vector<Halide::Expr> lhs;
+        for (auto&& rvar: access.outerIteratorsAsRVars) {
+            lhs.emplace_back(rvar);
+        }
+        func(lhs) += guardedRhs; // Here the outer loop iterators are Halide::RVar.
     }
 
     auto concreteOutputShape = evaluate(consts, tensorView.getShape());
@@ -178,9 +203,10 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
 }
 
 HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName) {
-    const bool zeroBoundary = true; // No zero boundary blows up the pipeline. Don't know why. TODO
+    constexpr bool zeroBoundary = false; // Now that bug in autodiff is handled, we no longer need to use zero boundary.
 
-    auto [input, func] = createFunc(consts, access, funcName, zeroBoundary);
+    // We must use RVars, because Halide's autodiff comes with bugs that make ShareOp malfunctions!
+    auto [input, func] = createFunc(consts, access, funcName, zeroBoundary, true);
 
     auto outputShape = tensorView.getShape();
     Halide::Region outputRegion = evaluate(consts, outputShape);
@@ -205,14 +231,22 @@ HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& 
     return { std::move(input), std::move(gradFuncs) };
 }
 
-HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const std::map<std::string, std::size_t>& mappings, std::string_view funcName) {
+HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const std::map<std::string, std::size_t>& mappings, std::string_view funcName, bool useRVar) {
     const auto& tensors = tensorView.getUnderlyingTensors();
 
     auto consts = realizeConsts(mappings);
-    auto access = evaluateAccess(consts);
+    if (tensorView.getReduceShape().size() == 0) { // No need to use RVars. Override.
+        useRVar = false;
+    }
+    auto access = evaluateAccess(consts, useRVar);
     try {
-        auto [forwardInputs, forwardFunc] = createFunc(consts, access, funcName);
-        auto [backwardInputs, backwardFuncs] = createFuncGrad(consts, access, funcName);
+        auto [forwardInputs, forwardFunc] = createFunc(consts, access, funcName, false, useRVar);
+        auto [backwardInputs, backwardFuncs] = createFuncGrad(
+            consts,
+            // We must use RVar, because bugs in Halide's autodiff.
+            useRVar ? access : evaluateAccess(consts, true),
+            funcName
+        );
         KAS_ASSERT(forwardInputs.size() == tensors.size());
         KAS_ASSERT(backwardInputs.size() == tensors.size() + 1);
         KAS_ASSERT(backwardFuncs.size() == tensors.size());
