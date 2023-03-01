@@ -40,7 +40,11 @@ Halide::Target HalideGen::GetHostTarget(bool useGPU) {
 }
 
 void HalideGen::HalideExprEvaluator::visit(VariableValueNode& value) {
-    evaluator = parent.vars[value.variableId];
+    if (!value.isReduce) {
+        evaluator = parent.getOuterIterator(value.index);
+    } else {
+        evaluator = getInnerIterator(value.index);
+    }
 }
 void HalideGen::HalideExprEvaluator::visit(ConstValueNode& value) {
     evaluator = parent.evaluate(consts, value.value);
@@ -88,8 +92,8 @@ Halide::Expr HalideGen::HalideExprEvaluator::evaluate(const IntervalBoundValueNo
     return min <= input && input < max;
 }
 
-Halide::Expr HalideGen::evaluate(const ConcreteConsts& consts, HalideExprEvaluator::Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const IteratorValue& value) const {
-    HalideExprEvaluator evaluator { consts, cache, constraintsBounds, *this };
+Halide::Expr HalideGen::evaluate(const ConcreteConsts& consts, HalideExprEvaluator::Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const std::vector<Halide::RVar>& innerIterators, const IteratorValue& value) const {
+    HalideExprEvaluator evaluator { consts, cache, constraintsBounds, innerIterators, *this };
     return evaluator.evaluate(value);
 }
 
@@ -102,6 +106,12 @@ ConcreteConsts HalideGen::realizeConsts(const std::map<std::string, std::size_t>
 }
 
 HalideGen::EvaluatedAccess HalideGen::evaluateAccess(const ConcreteConsts& consts) const {
+    std::vector<Halide::RVar> innerIterators;
+    Halide::RDom rdom(evaluate(consts, tensorView.getReduceShape(), false));
+    for (std::size_t i = 0; i < rdom.dimensions(); ++i) {
+        innerIterators.emplace_back(rdom[i]);
+    }
+
     HalideExprEvaluator::Cache cache;
     std::vector<Halide::Expr> constraintsBounds;
 
@@ -109,14 +119,14 @@ HalideGen::EvaluatedAccess HalideGen::evaluateAccess(const ConcreteConsts& const
     for (auto&& tensor: tensorView.getUnderlyingTensors()) {
         std::vector<Halide::Expr> indices;
         for (auto&& access: tensor.getAccess()) {
-            indices.emplace_back(evaluate(consts, cache, constraintsBounds, access));
+            indices.emplace_back(evaluate(consts, cache, constraintsBounds, innerIterators, access));
         }
         // Adapt to column-major layout.
         std::ranges::reverse(indices);
         tensorIndices.emplace_back(std::move(indices));
     }
 
-    return { std::move(tensorIndices), std::move(constraintsBounds) };
+    return { std::move(innerIterators), std::move(tensorIndices), std::move(constraintsBounds) };
 }
 
 HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName, bool zeroBoundary) {
@@ -155,35 +165,14 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
         guardedRhs = rhs;
     }
 
-    auto concreteOutputShape = evaluate(consts, tensorView.getShape());
-
-    if (innerIterators.empty()) {
+    if (access.innerIterators.empty()) {
         func(outerIterators) = guardedRhs;
     } else {
-        // tempAccess = [...forward reduce loops, ...reverse outer loops], to adapt to column major Halide.
-        std::vector<Halide::Var> fullAccess(innerIterators);
-        std::ranges::copy(outerIterators, std::back_inserter(fullAccess));
-        Halide::Func full;
-        full(fullAccess) = guardedRhs;
-
-        // Since the reduce iterators are in order, do not revert.
-        Halide::Region reduceRegion = evaluate(consts, tensorView.getReduceShape(), false);
-        Halide::RDom reduction = reduceRegion;
-
-        auto fullShape = reduceRegion;
-        std::ranges::copy(concreteOutputShape, std::back_inserter(fullShape));
-        full.set_estimates(fullShape);
-
-        std::vector<Halide::Expr> reduceAccess;
-        for (std::size_t i = 0; i < reduction.dimensions(); ++i) {
-            reduceAccess.emplace_back(reduction[i]);
-        }
-        std::ranges::copy(outerIterators, std::back_inserter(reduceAccess));
-
         // Here we ignore all the `Map`s and `Reduce`s, and just sum up the entries for simplicity. TODO: Add other operations, and consider fusions of reductions.
-        func(outerIterators) = Halide::sum(full(reduceAccess));
+        func(outerIterators) = Halide::sum(guardedRhs);
     }
 
+    auto concreteOutputShape = evaluate(consts, tensorView.getShape());
     func.set_estimates(concreteOutputShape);
     return { std::move(inputs), std::move(func) };
 }
@@ -221,17 +210,21 @@ HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const std::map<std
 
     auto consts = realizeConsts(mappings);
     auto access = evaluateAccess(consts);
+    try {
+        auto [forwardInputs, forwardFunc] = createFunc(consts, access, funcName);
+        auto [backwardInputs, backwardFuncs] = createFuncGrad(consts, access, funcName);
+        KAS_ASSERT(forwardInputs.size() == tensors.size());
+        KAS_ASSERT(backwardInputs.size() == tensors.size() + 1);
+        KAS_ASSERT(backwardFuncs.size() == tensors.size());
 
-    auto [forwardInputs, forwardFunc] = createFunc(consts, access, funcName);
-    auto [backwardInputs, backwardFuncs] = createFuncGrad(consts, access, funcName);
-    KAS_ASSERT(forwardInputs.size() == tensors.size());
-    KAS_ASSERT(backwardInputs.size() == tensors.size() + 1);
-    KAS_ASSERT(backwardFuncs.size() == tensors.size());
-
-    return {
-        std::move(forwardInputs), std::move(forwardFunc),
-        std::move(backwardInputs), std::move(backwardFuncs),
-    };
+        return {
+            std::move(forwardInputs), std::move(forwardFunc),
+            std::move(backwardInputs), std::move(backwardFuncs),
+        };
+    } catch (const Halide::Error& e) {
+        std::cerr << "Halide Error: " << e.what() << std::endl;
+        throw;
+    }
 }
 
 HalideGen::HalideGen(const BindingContext& ctx, const TensorView& tensorView, Options options):
@@ -241,16 +234,9 @@ HalideGen::HalideGen(const BindingContext& ctx, const TensorView& tensorView, Op
 {
     for (auto&& it: tensorView.interface) {
         outerIterators.emplace_back(it->getName());
-        vars.emplace_back(outerIterators.back());
     }
     // Adapt to column-major layout.
     std::ranges::reverse(outerIterators);
-
-    for (auto&& it: tensorView.manipulations) {
-        innerIterators.emplace_back(it->getName());
-        vars.emplace_back(innerIterators.back());
-    }
-    // Since reduce loops are in order, we should not reverse them.
 }
 
 void HalideGen::generate(std::filesystem::path outputPath, std::string_view funcName, const std::map<std::string, std::size_t>& mappings) {

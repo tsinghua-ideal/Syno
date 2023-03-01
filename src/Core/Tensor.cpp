@@ -101,14 +101,14 @@ namespace {
                 result = it->value(out);
             } else if (auto it = dynamic_cast<const Iterator *>(dim.get()); it) {
                 // Here we have not figured out the order of the iterators. We have to wait until all the iterators are collected.
-                result = VariableValueNode::Create(std::numeric_limits<std::size_t>::max(), it->getName());
+                result = VariableValueNode::Create(false, std::numeric_limits<std::size_t>::max(), it->getName());
                 auto [ptr, inserted] = outer.insert({it, result});
                 if (!inserted) {
                     result = ptr->second;
                 }
             } else if (auto it = dynamic_cast<const MapReduceOp *>(dim.get()); it) {
                 // Same reason.
-                result = VariableValueNode::Create(std::numeric_limits<std::size_t>::max(), it->getName());
+                result = VariableValueNode::Create(true, std::numeric_limits<std::size_t>::max(), it->getName());
                 auto [ptr, inserted] = inner.insert({it, result});
                 if (!inserted) {
                     result = ptr->second;
@@ -128,11 +128,10 @@ namespace {
             std::ranges::sort(manipulations, [](const MapReduceOp *lhs, const MapReduceOp *rhs) {
                 return lhs->getPriority() < rhs->getPriority();
             });
-            std::size_t index = 0;
-            for (auto&& it: interface)
-                outer[it].as<VariableValueNode>().variableId = index++;
-            for (auto&& it: manipulations)
-                inner[it].as<VariableValueNode>().variableId = index++;
+            for (std::size_t index = 0; auto&& it: interface)
+                outer[it].as<VariableValueNode>().index = index++;
+            for (std::size_t index = 0; auto&& it: manipulations)
+                inner[it].as<VariableValueNode>().index = index++;
         }
     };
 }

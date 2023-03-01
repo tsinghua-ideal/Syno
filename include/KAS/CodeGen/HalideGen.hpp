@@ -41,9 +41,11 @@ private:
     const TensorView& tensorView;
     Options options;
 
-    std::vector<Halide::Var> vars;
     std::vector<Halide::Var> outerIterators;
-    std::vector<Halide::Var> innerIterators;
+    inline Halide::Var getOuterIterator(std::size_t index) const {
+        // Due to the column-major order of Halide, we need to reverse the order of indices.
+        return outerIterators.at(outerIterators.size() - 1 - index);
+    }
 
     struct HalideExprEvaluator: public IteratorValueVisitor {
         using Cache = std::map<IteratorValue, Halide::Expr>;
@@ -51,8 +53,13 @@ private:
         const ConcreteConsts& consts;
         Cache& cache;
         std::vector<Halide::Expr>& constraintsBounds;
+        const std::vector<Halide::RVar>& innerIterators;
+        inline Halide::RVar getInnerIterator(std::size_t index) const {
+            // Inner iterators are in order, so we don't need to reverse the order of indices.
+            return innerIterators.at(index);
+        }
         const HalideGen& parent;
-        HalideExprEvaluator(const ConcreteConsts& consts, Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const HalideGen& parent): consts { consts }, cache { cache }, constraintsBounds { constraintsBounds }, parent { parent } {}
+        HalideExprEvaluator(const ConcreteConsts& consts, Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const std::vector<Halide::RVar>& innerIterators, const HalideGen& parent): consts { consts }, cache { cache }, constraintsBounds { constraintsBounds }, innerIterators { innerIterators }, parent { parent } {}
         void visit(VariableValueNode& value) override;
         void visit(ConstValueNode& value) override;
         void visit(ImmediateValueNode& value) override;
@@ -63,7 +70,7 @@ private:
         // This `evaluate` produces a condition expression.
         Halide::Expr evaluate(const IntervalBoundValueNode& value);
     };
-    Halide::Expr evaluate(const ConcreteConsts& consts, HalideExprEvaluator::Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const IteratorValue& value) const;
+    Halide::Expr evaluate(const ConcreteConsts& consts, HalideExprEvaluator::Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const std::vector<Halide::RVar>& innerIterators, const IteratorValue& value) const;
     Halide::Expr evaluate(const ConcreteConsts& consts, const Size& value) const;
     template<typename Storage, auto Mapping>
     Halide::Region evaluate(const ConcreteConsts& consts, const AbstractShape<Storage, Mapping>& shape, bool reverse = true) const {
@@ -79,6 +86,7 @@ private:
     }
 
     struct EvaluatedAccess {
+        std::vector<Halide::RVar> innerIterators; // Since reduce loops are in order, we should not reverse them.
         std::vector<std::vector<Halide::Expr>> tensorIndices;
         // The conditions that must be satisfied in order that no out-of-bound error occurs. This is used to enforce zero-padding semantics.
         std::vector<Halide::Expr> constraintsBounds;

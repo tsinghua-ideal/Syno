@@ -58,11 +58,12 @@ public:
 };
 
 struct VariableValueNode final: public IteratorValueImpl {
-    std::size_t variableId;
+    bool isReduce;
+    std::size_t index;
     std::string name;
-    VariableValueNode(std::size_t variableId, auto&& name): variableId { variableId }, name { std::forward<decltype(name)>(name) } {}
+    VariableValueNode(bool isReduce, std::size_t index, auto&& name): isReduce { isReduce }, index { index }, name { std::forward<decltype(name)>(name) } {}
     inline void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
-    static IteratorValue Create(std::size_t variableId, auto&& name) { return IteratorValue(std::make_shared<VariableValueNode>(variableId, std::forward<decltype(name)>(name))); }
+    static IteratorValue Create(bool isReduce, std::size_t index, auto&& name) { return IteratorValue(std::make_shared<VariableValueNode>(isReduce, index, std::forward<decltype(name)>(name))); }
 };
 
 struct ConstValueNode final: public IteratorValueImpl {
