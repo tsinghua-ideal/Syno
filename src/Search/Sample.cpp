@@ -121,6 +121,7 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     for (auto& r: reduces) {
         Interface temp = root;
         std::ranges::copy(r | std::views::transform([](MapReduceOp& m) { return &m; }), std::back_inserter(temp));
+        std::ranges::sort(temp);
         this->bases.emplace_back(std::move(temp), *this, 0);
     }
 }

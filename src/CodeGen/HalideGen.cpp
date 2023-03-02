@@ -24,6 +24,7 @@ void HalideGen::GuardAutoSchedulers() {
         Halide::load_plugin("autoschedule_mullapudi2016");
         Halide::load_plugin("autoschedule_li2018");
         Halide::load_plugin("autoschedule_adams2019");
+        Halide::load_plugin("autoschedule_anderson2021");
     }
     loaded = true;
 }
@@ -293,6 +294,7 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
         case Scheduler::Mullapudi2016:  scheduler = "Mullapudi2016";    break;
         case Scheduler::Li2018:         scheduler = "Li2018";           break;
         case Scheduler::Adams2019:      scheduler = "Adams2019";        break;
+        case Scheduler::Anderson2021:   scheduler = "Anderson2021";     break;
         case Scheduler::ComputeRoot:    KAS_UNREACHABLE();
         }
         params = { scheduler };
@@ -308,8 +310,10 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
     Halide::Pipeline forwardPipeline { forwardFunc };
     Halide::Pipeline backwardPipeline { backwardFuncs };
     if (!computeRoot) {
-        forwardPipeline.apply_autoscheduler(target, params.value());
-        backwardPipeline.apply_autoscheduler(target, params.value());
+        auto forwardResult = forwardPipeline.apply_autoscheduler(target, params.value());
+        fmt::print(stderr, "Forward pipeline:\n{}\n", forwardResult.schedule_source);
+        auto backwardResult = backwardPipeline.apply_autoscheduler(target, params.value());
+        fmt::print(stderr, "Backward pipeline:\n{}\n", backwardResult.schedule_source);
     }
 
     // Compile to Halide modules.

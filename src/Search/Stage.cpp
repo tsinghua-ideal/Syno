@@ -35,7 +35,8 @@ Stage *StageStore::Convert(Interface *from) {
     return reinterpret_cast<Stage *>(reinterpret_cast<std::size_t>(from) - offsetof(Stage, interface));
 }
 
-Stage *StageStore::find(Interface * const interface) const {
+Stage *StageStore::find(Interface *interface) const {
+    KAS_ASSERT(std::ranges::is_sorted(*interface), "Interface is not sorted.");
     if (auto it = interfaces.find(interface); it != interfaces.end()) {
         return Convert(*it);
     } else {
@@ -43,7 +44,7 @@ Stage *StageStore::find(Interface * const interface) const {
     }
 }
 
-bool StageStore::insert(Stage * const stage) {
+bool StageStore::insert(Stage *stage) {
     return interfaces.insert(&stage->interface).second;
 }
 

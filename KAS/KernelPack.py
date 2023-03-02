@@ -6,7 +6,7 @@ import kas_cpp_bindings
 from kas_cpp_bindings import Kernel
 
 class KernelPack(nn.Module):
-    def __init__(self, identifier: str, directory: str, name: str, inputs_shapes: list[list[int]], output_shape: list[int]):
+    def __init__(self, identifier: str, directory: str, name: str, inputs_shapes: list[list[int]], output_shape: list[int], device: torch.device):
         super(KernelPack, self).__init__()
 
         srcs = []
@@ -32,13 +32,13 @@ class KernelPack(nn.Module):
         )
 
         def kernel_forward(ctx, *args):
-            out_forward = torch.empty(output_shape)
+            out_forward = torch.empty(output_shape, device=device)
             args = tuple(map(lambda x: x.contiguous(), args))
             getattr(self._module, forward_name)(*args, out_forward)
             ctx.save_for_backward(*args)
             return out_forward
         def kernel_backward(ctx, grad_output):
-            grad_inputs = [torch.empty(shape) for shape in inputs_shapes]
+            grad_inputs = [torch.empty(shape, device=device) for shape in inputs_shapes]
             grad_output = grad_output.contiguous()
             getattr(self._module, backward_name)(*ctx.saved_tensors, grad_output, *grad_inputs)
             return tuple(grad_inputs)
@@ -49,7 +49,7 @@ class KernelPack(nn.Module):
         })
 
         # Initialize weights. Note that the first item is the input.
-        self.weights = nn.ParameterList([torch.randn(shape) for shape in inputs_shapes[1:]])
+        self.weights = nn.ParameterList([torch.randn(shape, device=device) for shape in inputs_shapes[1:]])
 
     def forward(self, x):
         return self._Kernel.apply(x, *self.weights)

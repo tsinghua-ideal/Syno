@@ -27,7 +27,7 @@ class HalideGen {
 public:
     struct Options {
         enum class AutoScheduler {
-            ComputeRoot, Mullapudi2016, Li2018, Adams2019
+            ComputeRoot, Mullapudi2016, Li2018, Adams2019, Anderson2021,
         };
         bool useGPU = true;
         AutoScheduler scheduler = AutoScheduler::Li2018;

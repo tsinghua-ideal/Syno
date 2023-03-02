@@ -1,3 +1,4 @@
+#include <array>
 #include <map>
 
 #include <fmt/core.h>
@@ -39,7 +40,8 @@ protected:
         std::size_t primaryDim, std::size_t coefficientDim,
         const int (&rawInputDimensions)[InputDimensions],
         auto&& inputInitializer,
-        const int (&rawOutputDimensions)[OutputDimensions]
+        const int (&rawOutputDimensions)[OutputDimensions],
+        auto&& outputGradInitializer
     ) const {
         HalideGen gen(ctx, tensorView, {});
         std::map<std::string, std::size_t> mappings {{"H", primaryDim}, {"W", primaryDim}, {"c", coefficientDim}};
@@ -73,7 +75,8 @@ protected:
         auto& backwardFunc = backwardFuncs[0];
 
         auto backwardOutputBuffer = Halide::Buffer<float, OutputDimensions>(std::vector<int>(outputDimensions.rbegin(), outputDimensions.rend()));
-        backwardOutputBuffer.for_each_value([](float& f) { f = 1.0f; }); // This is equivalent to torch.sum(out).backward()
+        auto gradProxy = HalideGen::BufferRefAdaptor<float, OutputDimensions> { backwardOutputBuffer };
+        backwardOutputBuffer.for_each_element(ReverseArguments<OutputDimensions>(std::bind_front(outputGradInitializer, std::ref(gradProxy))));
         KAS_ASSERT(backwardInputs.size() == 2);
         backwardInputs[0].set(inputBuffer);
         backwardInputs[1].set(backwardOutputBuffer);
@@ -114,7 +117,10 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         [](auto&& buf, int i, int j, int k, int l) {
             buf(i, j, k, l) = 4 * i + j;
         },
-        {4, 4, 8}
+        {4, 4, 8},
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = 5 * i;
+        }
     );
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
@@ -127,7 +133,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
                 for (int l = 0; l < 8; l++) {
-                    ASSERT_EQ(derivatives(i, j, k, l), static_cast<float>(i == j));
+                    ASSERT_EQ(derivatives(i, j, k, l), static_cast<float>(i == j) * (4 * i + j));
                 }
             }
         }
@@ -162,12 +168,24 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         [](auto&& buf, int i, int j, int k, int l) {
             buf(i, j, k, l) = 32 * j + 8 * k + l + i;
         },
-        {4, 4, 8}
+        {4, 4, 8},
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = 32 * i + 8 * j + k;
+        }
     );
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
                 ASSERT_EQ(outputBuffer(i, j, k), 16 * (32 * i + 8 * j + k) + 120);
+            }
+        }
+    }
+    for (int i = 0; i < 16; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 4; k++) {
+                for (int l = 0; l < 8; l++) {
+                    ASSERT_EQ(derivatives(i, j, k, l), 32 * j + 8 * k + l);
+                }
             }
         }
     }
@@ -196,12 +214,22 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 32 * i + 8 * j + k;
         },
-        {4, 4, 8}
+        {4, 4, 8},
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = 32 * ((i + 1) % 4) + 8 * j + k;
+        }
     );
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
                 ASSERT_EQ(outputBuffer(i, j, k), 32 * ((i + 1) % 4) + 8 * j + k);
+            }
+        }
+    }
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 8; k++) {
+                ASSERT_EQ(derivatives(i, j, k), 32 * i + 8 * j + k);
             }
         }
     }
@@ -230,12 +258,26 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 32 * i + 8 * j + k;
         },
-        {4, 4, 8}
+        {4, 4, 8},
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = 32 * 2 * i + 8 * j + k;
+        }
     );
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
                 ASSERT_EQ(outputBuffer(i, j, k), 32 * 2 * i + 8 * j + k);
+            }
+        }
+    }
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 8; k++) {
+                if (i % 2 == 0) {
+                    ASSERT_EQ(derivatives(i, j, k), 32 * i + 8 * j + k);
+                } else {
+                    ASSERT_EQ(derivatives(i, j, k), 0);
+                }
             }
         }
     }
@@ -265,7 +307,10 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         [](auto&& buf, int i, int j) {
             buf(i, j) = 4 * i + j;
         },
-        {4, 4, 3}
+        {4, 4, 3},
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = 12 * j + 3 * i + k;
+        }
     );
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
@@ -275,6 +320,23 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
                 access = std::min(std::max(access, 0), 4 - 1);
                 ASSERT_EQ(outputBuffer(i, j, k), 4 * access + j);
             }
+        }
+    }
+    // Since we use replicate padding, handle with care. On the boundary, the elements are accumulated for additional times.
+    // We just simulate this to simplify things.
+    std::array<std::array<int, 4>, 4> d {};
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 3; k++) {
+                int access = i + k - 1;
+                access = std::min(std::max(access, 0), 4 - 1);
+                d[access][j] += 12 * j + 3 * i + k;
+            }
+        }
+    }
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            ASSERT_EQ(derivatives(i, j), d[i][j]);
         }
     }
 }
@@ -302,12 +364,24 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         [](auto&& buf, int i, int j, int k, int l) {
             buf(i, j, k, l) = 4 * i + j;
         },
-        {4, 4, 8}
+        {4, 4, 8},
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = 32 * i + 8 * j + k;
+        }
     );
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
                 ASSERT_EQ(outputBuffer(i, j, k), k);
+            }
+        }
+    }
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 4; k++) {
+                for (int l = 0; l < 4; l++) {
+                    ASSERT_EQ(derivatives(i, j, k, l), 32 * k + 8 * l + 4 * i + j);
+                }
             }
         }
     }
@@ -334,15 +408,23 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         tensorView, 4, 2,
         {16, 8},
         [](auto&& buf, int i, int j) {
-            buf(i, j) = i;
+            buf(i, j) = i + 16 * j;
         },
-        {4, 4, 8}
+        {4, 4, 8},
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = 4 * i + j + 16 * k;
+        }
     );
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
-                ASSERT_EQ(outputBuffer(i, j, k), 4 * i + j);
+                ASSERT_EQ(outputBuffer(i, j, k), 4 * i + j + 16 * k);
             }
+        }
+    }
+    for (int i = 0; i < 16; i++) {
+        for (int j = 0; j < 8; j++) {
+            ASSERT_EQ(derivatives(i, j), 16 * j + i);
         }
     }
 }

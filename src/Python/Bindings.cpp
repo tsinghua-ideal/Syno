@@ -39,7 +39,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .value("ComputeRoot", HalideGen::Options::AutoScheduler::ComputeRoot)
         .value("Mullapudi2016", HalideGen::Options::AutoScheduler::Mullapudi2016)
         .value("Li2018", HalideGen::Options::AutoScheduler::Li2018)
-        .value("Adams2019", HalideGen::Options::AutoScheduler::Adams2019);
+        .value("Adams2019", HalideGen::Options::AutoScheduler::Adams2019)
+        .value("Anderson2021", HalideGen::Options::AutoScheduler::Anderson2021);
     cgOpts.def(pybind11::init<bool, HalideGen::Options::AutoScheduler>());
 
     pybind11::class_<Kernel>(m, "Kernel")

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <span>
 #include <string>
@@ -15,8 +16,7 @@ namespace kas {
 
 struct Size;
 template<typename Storage, auto Mapping> class AbstractShape;
-inline const Size& ShapeMapping(const Size& size) { return size; };
-using Shape = AbstractShape<std::vector<Size>, ShapeMapping>;
+using Shape = AbstractShape<std::vector<Size>, std::identity{}>;
 
 struct ConcreteConsts {
     std::vector<int> primary;

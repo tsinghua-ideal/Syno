@@ -63,8 +63,8 @@ class StageStore {
     static Stage *Convert(Interface *from);
 public:
     inline DimensionStore& dimStore() { return dimensionStore; }
-    Stage *find(Interface * const interface) const;
-    bool insert(Stage * const stage);
+    Stage *find(Interface *interface) const;
+    bool insert(Stage *stage);
     ~StageStore();
 };
 

@@ -14,6 +14,12 @@
 
 namespace kas {
 
+constexpr HalideGen::Options options = {
+    .useGPU = true,
+    .scheduler = HalideGen::Options::AutoScheduler::Anderson2021,
+    .zeroPadding = false,
+};
+
 TEST(forward_tests, pooling) {
     constexpr int n = 64, c = 3, h = 128, w = 128, k = 5;
 
@@ -67,11 +73,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
 }
 )");
 
-    auto gen = HalideGen(ctx, tensorView, {
-        .useGPU = false,
-        .scheduler = HalideGen::Options::AutoScheduler::Adams2019,
-        .zeroPadding = false,
-    });
+    auto gen = HalideGen(ctx, tensorView, options);
     std::map<std::string, std::size_t> mappings {{"N", n}, {"H", h}, {"W", w}, {"C", c}, {"K", k}};
     auto [inputs, func, _0, _1] = gen.createPipelines(mappings, "pooling");
     KAS_ASSERT(inputs.size() == 1);
@@ -168,11 +170,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
 }
 )");
 
-    HalideGen gen { ctx, tensorView, {
-        .useGPU = false,
-        .scheduler = HalideGen::Options::AutoScheduler::Adams2019,
-        .zeroPadding = false,
-    } };
+    HalideGen gen { ctx, tensorView, options };
     std::map<std::string, std::size_t> mappings {{"N", n}, {"H", h}, {"W", w}, {"C_in", c_in}, {"C_out", c_out}, {"K", k}};
     gen.generate("./kernel_conv2d", "conv2d", mappings);
 }
