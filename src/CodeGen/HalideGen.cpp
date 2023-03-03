@@ -262,6 +262,48 @@ HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const std::map<std
     }
 }
 
+HalideGen::ScheduledPipelins HalideGen::ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, bool verbose) {
+    // Prepare auto schedulers.
+    using Scheduler = Options::AutoScheduler;
+    const bool computeRoot = scheduler == Scheduler::ComputeRoot;
+    GuardAutoSchedulers();
+    std::optional<Halide::AutoschedulerParams> params;
+    if (!computeRoot) {
+        std::string schedulerName;
+        switch (scheduler) {
+        case Scheduler::Mullapudi2016:  schedulerName = "Mullapudi2016";    break;
+        case Scheduler::Li2018:         schedulerName = "Li2018";           break;
+        case Scheduler::Adams2019:      schedulerName = "Adams2019";        break;
+        case Scheduler::Anderson2021:   schedulerName = "Anderson2021";     break;
+        case Scheduler::ComputeRoot:    KAS_UNREACHABLE();
+        }
+        params = { schedulerName };
+    }
+
+    // Apply auto schedulers to pipelines.
+    if (computeRoot) {
+        forwardFunc.compute_root();
+        for (auto& func: backwardFuncs) {
+            func.compute_root();
+        }
+    }
+    Halide::Pipeline forwardPipeline { forwardFunc };
+    Halide::Pipeline backwardPipeline { backwardFuncs };
+    if (verbose) {
+        if (!computeRoot) {
+            auto forwardResult = forwardPipeline.apply_autoscheduler(target, params.value());
+            fmt::print(stderr, "Forward pipeline:\n{}\n", forwardResult.schedule_source);
+            auto backwardResult = backwardPipeline.apply_autoscheduler(target, params.value());
+            fmt::print(stderr, "Backward pipeline:\n{}\n", backwardResult.schedule_source);
+        } else {
+            fmt::print(stderr, "Forward pipeline:\ncompute_root()\n");
+            fmt::print(stderr, "Backward pipeline:\ncompute_root()\n");
+        }
+    }
+
+    return { std::move(forwardPipeline), std::move(backwardPipeline) };
+}
+
 HalideGen::HalideGen(const BindingContext& ctx, const TensorView& tensorView, Options options):
     ctx { ctx },
     tensorView { tensorView },
@@ -282,39 +324,8 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
         backwardInputs, backwardFuncs
     ] = createPipelines(mappings, funcName);
 
-    // Prepare auto schedulers.
-    using Scheduler = Options::AutoScheduler;
-    const bool computeRoot = options.scheduler == Scheduler::ComputeRoot;
     auto target = GetHostTarget(options.useGPU);
-    GuardAutoSchedulers();
-    std::optional<Halide::AutoschedulerParams> params;
-    if (!computeRoot) {
-        std::string scheduler;
-        switch (options.scheduler) {
-        case Scheduler::Mullapudi2016:  scheduler = "Mullapudi2016";    break;
-        case Scheduler::Li2018:         scheduler = "Li2018";           break;
-        case Scheduler::Adams2019:      scheduler = "Adams2019";        break;
-        case Scheduler::Anderson2021:   scheduler = "Anderson2021";     break;
-        case Scheduler::ComputeRoot:    KAS_UNREACHABLE();
-        }
-        params = { scheduler };
-    }
-
-    // Apply auto schedulers to pipelines.
-    if (computeRoot) {
-        forwardFunc.compute_root();
-        for (auto& func: backwardFuncs) {
-            func.compute_root();
-        }
-    }
-    Halide::Pipeline forwardPipeline { forwardFunc };
-    Halide::Pipeline backwardPipeline { backwardFuncs };
-    if (!computeRoot) {
-        auto forwardResult = forwardPipeline.apply_autoscheduler(target, params.value());
-        fmt::print(stderr, "Forward pipeline:\n{}\n", forwardResult.schedule_source);
-        auto backwardResult = backwardPipeline.apply_autoscheduler(target, params.value());
-        fmt::print(stderr, "Backward pipeline:\n{}\n", backwardResult.schedule_source);
-    }
+    auto [forwardPipeline, backwardPipeline] = ApplyAutoScheduler(forwardFunc, backwardFuncs, target, options.scheduler, false);
 
     // Compile to Halide modules.
     std::vector<Halide::Argument> forwardArgs;
@@ -347,6 +358,26 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
     std::filesystem::create_directories(outputPath);
     forwardModule.compile(flagsForModule(outputPath / funcName));
     backwardModule.compile(flagsForModule(outputPath / backwardName));
+}
+
+std::vector<int> HalideGen::getInputBufferShape(const ConcreteConsts& consts, std::size_t index) const {
+    auto res = tensorView.getUnderlyingTensors().at(index).getShape().eval<int>(consts);
+    std::ranges::reverse(res);
+    return res;
+}
+
+std::vector<std::vector<int>> HalideGen::getInputBuffersShapes(const ConcreteConsts& consts) const {
+    std::vector<std::vector<int>> res;
+    for (std::size_t i = 0; i < tensorView.getUnderlyingTensors().size(); ++i) {
+        res.emplace_back(getInputBufferShape(consts, i));
+    }
+    return res;
+}
+
+std::vector<int> HalideGen::getOutputBufferShape(const ConcreteConsts& consts) const {
+    auto res = tensorView.getShape().eval<int>(consts);
+    std::ranges::reverse(res);
+    return res;
 }
 
 } // namespace kas

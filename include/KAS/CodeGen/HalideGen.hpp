@@ -20,10 +20,7 @@
 namespace kas {
 
 class HalideGen {
-    FRIEND_TEST(codegen_tests, func);
-    FRIEND_TEST(forward_tests, pooling);
-    FRIEND_TEST(search_tests, sampler);
-    friend class transforms_tests;
+    friend class forward_tests;
 public:
     struct Options {
         enum class AutoScheduler {
@@ -35,8 +32,6 @@ public:
     };
 
 private:
-    static void GuardAutoSchedulers(); // Load the Halide auto scheduler plugins.
-
     const BindingContext& ctx;
     const TensorView& tensorView;
     Options options;
@@ -110,6 +105,9 @@ private:
     ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings) const;
     EvaluatedAccess evaluateAccess(const ConcreteConsts& consts, bool useRVar) const;
 
+public:
+    static void GuardAutoSchedulers(); // Load the Halide auto scheduler plugins.
+
     using ForwardArgsAndFunc = std::pair<std::vector<Halide::ImageParam>, Halide::Func>;
     // Returns the (input, func) pair.
     ForwardArgsAndFunc createFunc(const ConcreteConsts& consts, const EvaluatedAccess& access, std::string_view funcName, bool zeroBoundary = false, bool useRVars = false);
@@ -119,13 +117,20 @@ private:
     using ForwardAndBackwardFuncs = std::tuple<std::vector<Halide::ImageParam>, Halide::Func, std::vector<Halide::ImageParam>, std::vector<Halide::Func>>;
     // Returns the forward and backward funcs.
     ForwardAndBackwardFuncs createPipelines(const std::map<std::string, std::size_t>& mappings, std::string_view funcName, bool useRVar = false);
+    // Applys auto-schedulers on the funcs.
+    using ScheduledPipelins = std::pair<Halide::Pipeline, Halide::Pipeline>;
+    static ScheduledPipelins ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, bool verbose);
 
     static Halide::Target GetHostTarget(bool useGPU);
 
-public:
     HalideGen(const BindingContext& ctx, const TensorView& tensorView, Options options);
 
     void generate(std::filesystem::path outputPath, std::string_view funcName, const std::map<std::string, std::size_t>& mappings);
+
+    // Do the reversal for users.
+    std::vector<int> getInputBufferShape(const ConcreteConsts& consts, std::size_t index) const;
+    std::vector<std::vector<int>> getInputBuffersShapes(const ConcreteConsts& consts) const;
+    std::vector<int> getOutputBufferShape(const ConcreteConsts& consts) const;
 
     // This is a workaround for reverse indexing caused by Halide's column-major buffers.
     template<typename BufferType>

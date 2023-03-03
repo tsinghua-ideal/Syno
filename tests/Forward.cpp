@@ -1,4 +1,5 @@
 #include <chrono>
+#include <tuple>
 
 #include <fmt/core.h>
 #include <gtest/gtest.h>
@@ -10,20 +11,55 @@
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Transforms/Forward.hpp"
+#include "KAS/Utils/Functional.hpp"
 
 
 namespace kas {
 
-constexpr HalideGen::Options options = {
-    .useGPU = true,
-    .scheduler = HalideGen::Options::AutoScheduler::Anderson2021,
-    .zeroPadding = false,
+class forward_tests: public ::testing::Test {
+protected:
+    using SizeName = BindingContext::Metadata;
+    using Mappings = std::map<std::string, std::size_t>;
+    const HalideGen::Options options = {
+        .useGPU = false,
+        .scheduler = HalideGen::Options::AutoScheduler::Adams2019,
+        .zeroPadding = false,
+    };
+
+    struct Realization {
+        Halide::Pipeline pipeline;
+        HalideGen::BufferAdaptor<float> trial;
+        std::vector<int> outputBufferShape;
+    };
+
+    template<typename... InputInitializers>
+    Realization getPipeline(HalideGen& gen, const Mappings& mappings, auto&& funcName, InputInitializers&&... inputInitializers) const {
+        auto consts = gen.ctx.realizeConsts(mappings);
+        auto [inputs, func, backwardInputs, backwardFuncs] = gen.createPipelines(mappings, std::forward<decltype(funcName)>(funcName));
+        std::tuple<decltype(inputInitializers)...> initializerTuple = { std::forward<decltype(inputInitializers)>(inputInitializers)... };
+        std::vector<Halide::Buffer<float>> inputBuffers;
+        auto setter = [&]<std::size_t i>() {
+            inputBuffers.emplace_back(gen.getInputBufferShape(consts, i));
+            auto& inputBuffer = inputBuffers.back();
+            auto proxy = HalideGen::BufferRefAdaptor<float>(inputBuffer);
+            inputBuffer.for_each_element(ReverseArguments(std::bind_front(std::get<i>(initializerTuple), std::ref(proxy))));
+            inputs.at(i).set(inputBuffer);
+        };
+        [&]<std::size_t... i>(std::index_sequence<i...>) {
+            (setter.template operator()<i>(), ...);
+        }(std::make_index_sequence<sizeof...(InputInitializers)>());
+        auto target = HalideGen::GetHostTarget(options.useGPU);
+        auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, true);
+        pipeline.compile_jit(target);
+        auto outputBufferShape = gen.getOutputBufferShape(consts);
+        auto trial = HalideGen::BufferAdaptor<float>(pipeline.realize(outputBufferShape));
+        return { std::move(pipeline), std::move(trial), std::move(outputBufferShape) };
+    }
 };
 
-TEST(forward_tests, pooling) {
+TEST_F(forward_tests, pooling) {
     constexpr int n = 64, c = 3, h = 128, w = 128, k = 5;
 
-    using SizeName = BindingContext::Metadata;
     BindingContext ctx { std::vector<SizeName> {
         SizeName { .alias = "N", .estimate = n },
         SizeName { .alias = "H", .estimate = h },
@@ -73,36 +109,40 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
 }
 )");
 
-    auto gen = HalideGen(ctx, tensorView, options);
-    std::map<std::string, std::size_t> mappings {{"N", n}, {"H", h}, {"W", w}, {"C", c}, {"K", k}};
-    auto [inputs, func, _0, _1] = gen.createPipelines(mappings, "pooling");
-    KAS_ASSERT(inputs.size() == 1);
-    auto& input = inputs[0];
-    // Give special care to the column-major layout.
-    auto inputBuffer = Halide::Buffer<float, 4>(std::vector<int> { w, h, c, n});
-    inputBuffer.for_each_element([&](int l, int k, int j, int i) {
-        inputBuffer(l, k, j, i) = static_cast<float>(i + j + k + l);
-    });
-    input.set(inputBuffer);
-    Halide::Pipeline p = func;
-    HalideGen::GuardAutoSchedulers();
-    p.apply_autoscheduler(Halide::get_host_target(), Halide::AutoschedulerParams { "Adams2019" });
-    p.print_loop_nest();
-    p.compile_jit();
+    auto funcName = "pooling";
+    auto gen = HalideGen { ctx, tensorView, options };
+    auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C", c}, {"K", k}};
+    auto [pipeline, trial, outputBufferShape] = getPipeline(gen, mappings, funcName,
+        [](auto&& inputBuffer, int i, int j, int k, int l) {
+            inputBuffer(i, j, k, l) = static_cast<float>(i + j + k + l);
+        }
+    );
 
-    constexpr int x = 100;
+    for (int N = 0; N < n; ++N) {
+        for (int C = 0; C < c; ++C) {
+            for (int H = 0; H < h / k; ++H) {
+                for (int W = 0; W < h / k; ++W) {
+                    auto res = k * k * (N + C + k * H + k * W + 2 * (k - 1) / 2);
+                    ASSERT_EQ(trial(N, C, H, W), res);
+                }
+            }
+        }
+    }
+    fmt::print("{} semantics verified.", funcName);
+
+    constexpr int x = 1000;
     auto t1 = std::chrono::steady_clock::now();
     for (int i = 0; i < x; ++i) {
-        p.realize(std::vector<int> { w / k, h / k, c, n });
+        pipeline.realize(outputBufferShape);
     }
     auto t2 = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
     fmt::print("Pooling x{}: {} ms.\n", x, duration);
 
-    gen.generate("./kernel_pooling", "pooling", mappings);
+    gen.generate("./kernel_pooling", funcName, mappings);
 }
 
-TEST(forward_tests, conv2d) {
+TEST_F(forward_tests, conv2d) {
     constexpr int n = 64, c_in = 3, c_out = 16, h = 128, w = 128, k = 5;
 
     using SizeName = BindingContext::Metadata;
@@ -169,9 +209,39 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     }
 }
 )");
+    
 
-    HalideGen gen { ctx, tensorView, options };
-    std::map<std::string, std::size_t> mappings {{"N", n}, {"H", h}, {"W", w}, {"C_in", c_in}, {"C_out", c_out}, {"K", k}};
+    auto funcName = "conv2d";
+    auto gen = HalideGen { ctx, tensorView, options };
+    auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C_in", c_in}, {"C_out", c_out}, {"K", k}};
+    auto [pipeline, trial, outputBufferShape] = getPipeline(gen, mappings, funcName,
+        [](auto&& inputBuffer, int i, int j, int k, int l) {
+            inputBuffer(i, j, k, l) = 1;
+        },
+        [](auto&& weightBuffer, int i, int j, int k, int l) {
+            weightBuffer(i, j, k, l) = 1;
+        }
+    );
+
+    for (int N = 0; N < n; ++N) {
+        for (int C_out = 0; C_out < c_out; ++C_out) {
+            for (int H = 0; H < h; ++H) {
+                for (int W = 0; W < w; ++W) {
+                    float sum = 0;
+                    for (int C_in = 0; C_in < c_in; ++C_in) {
+                        for (int K1 = 0; K1 < k; ++K1) {
+                            for (int K2 = 0; K2 < k; ++K2) {
+                                sum += 1 * 1;
+                            }
+                        }
+                    }
+                    ASSERT_EQ(trial(N, C_out, H, W), sum);
+                }
+            }
+        }
+    }
+    fmt::print("{} semantics verified.", funcName);
+
     gen.generate("./kernel_conv2d", "conv2d", mappings);
 }
 

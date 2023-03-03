@@ -56,7 +56,7 @@ protected:
         std::span inputDimensions { rawInputDimensions };
         auto inputBuffer = Halide::Buffer<float, InputDimensions>(std::vector<int>(inputDimensions.rbegin(), inputDimensions.rend()));
         auto proxy = HalideGen::BufferRefAdaptor<float, InputDimensions> { inputBuffer };
-        inputBuffer.for_each_element(ReverseArguments<InputDimensions>(std::bind_front(inputInitializer, std::ref(proxy))));
+        inputBuffer.for_each_element(ReverseArguments(std::bind_front(inputInitializer, std::ref(proxy))));
         forwardInput.set(inputBuffer);
 
         forwardFunc.compute_root();
@@ -76,7 +76,7 @@ protected:
 
         auto backwardOutputBuffer = Halide::Buffer<float, OutputDimensions>(std::vector<int>(outputDimensions.rbegin(), outputDimensions.rend()));
         auto gradProxy = HalideGen::BufferRefAdaptor<float, OutputDimensions> { backwardOutputBuffer };
-        backwardOutputBuffer.for_each_element(ReverseArguments<OutputDimensions>(std::bind_front(outputGradInitializer, std::ref(gradProxy))));
+        backwardOutputBuffer.for_each_element(ReverseArguments(std::bind_front(outputGradInitializer, std::ref(gradProxy))));
         KAS_ASSERT(backwardInputs.size() == 2);
         backwardInputs[0].set(inputBuffer);
         backwardInputs[1].set(backwardOutputBuffer);
