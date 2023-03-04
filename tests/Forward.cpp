@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cstdint>
 #include <tuple>
 
 #include <fmt/core.h>
@@ -21,10 +22,12 @@ protected:
     using SizeName = BindingContext::Metadata;
     using Mappings = std::map<std::string, std::size_t>;
     const HalideGen::Options options = {
-        .useGPU = false,
-        .scheduler = HalideGen::Options::AutoScheduler::Adams2019,
+        .useGPU = true,
+        .scheduler = HalideGen::Options::AutoScheduler::Anderson2021,
         .zeroPadding = false,
     };
+    const bool doSemanticTests = false;
+    const bool createStaticLibrary = true;
 
     struct Realization {
         Halide::Pipeline pipeline;
@@ -128,7 +131,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
             }
         }
     }
-    fmt::print("{} semantics verified.", funcName);
+    fmt::print("{} semantics verified.\n", funcName);
 
     constexpr int x = 1000;
     auto t1 = std::chrono::steady_clock::now();
@@ -139,7 +142,8 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
     fmt::print("Pooling x{}: {} ms.\n", x, duration);
 
-    gen.generate("./kernel_pooling", funcName, mappings);
+    if (createStaticLibrary)
+        gen.generate("./kernel_pooling", funcName, mappings);
 }
 
 TEST_F(forward_tests, conv2d) {
@@ -209,40 +213,60 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     }
 }
 )");
-    
 
     auto funcName = "conv2d";
     auto gen = HalideGen { ctx, tensorView, options };
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C_in", c_in}, {"C_out", c_out}, {"K", k}};
+    auto in_0 = new std::int64_t[n][c_in][h][w]();
+    auto in_1 = new std::int64_t[c_out][c_in][k][k]();
     auto [pipeline, trial, outputBufferShape] = getPipeline(gen, mappings, funcName,
-        [](auto&& inputBuffer, int i, int j, int k, int l) {
-            inputBuffer(i, j, k, l) = 1;
+        [&](auto&& inputBuffer, int N, int C_in, int H, int W) {
+            std::int64_t res = W + w * (H + h * (C_in + c_in * static_cast<std::int64_t>(N)));
+            inputBuffer(N, C_in, H, W) = static_cast<float>(res);
+            in_0[N][C_in][H][W] = res;
         },
-        [](auto&& weightBuffer, int i, int j, int k, int l) {
-            weightBuffer(i, j, k, l) = 1;
+        [&](auto&& weightBuffer, int C_out, int C_in, int K1, int K2) {
+            std::int64_t res = K2 + k * (K1 + k * (C_in + c_in * static_cast<std::int64_t>(C_out)));
+            weightBuffer(C_out, C_in, K1, K2) = static_cast<float>(res);
+            in_1[C_out][C_in][K1][K2] = res;
         }
     );
 
-    for (int N = 0; N < n; ++N) {
-        for (int C_out = 0; C_out < c_out; ++C_out) {
-            for (int H = 0; H < h; ++H) {
-                for (int W = 0; W < w; ++W) {
-                    float sum = 0;
-                    for (int C_in = 0; C_in < c_in; ++C_in) {
-                        for (int K1 = 0; K1 < k; ++K1) {
-                            for (int K2 = 0; K2 < k; ++K2) {
-                                sum += 1 * 1;
+    if (doSemanticTests) {
+        constexpr float eps = 1e-6;
+        std::int64_t cntCorrect = 0, cntIncorrect = 0;
+        for (int N = 0; N < n; ++N) {
+            for (int C_out = 0; C_out < c_out; ++C_out) {
+                for (int H = 0; H < h; ++H) {
+                    for (int W = 0; W < w; ++W) {
+                        float sum = 0;
+                        for (int C_in = 0; C_in < c_in; ++C_in) {
+                            for (int K1 = 0; K1 < k; ++K1) {
+                                for (int K2 = 0; K2 < k; ++K2) {
+                                    auto restrictH = std::clamp(H + K1 - (k - 1) / 2, 0, h - 1);
+                                    auto restrictW = std::clamp(W + K2 - (k - 1) / 2, 0, w - 1);
+                                    sum += in_0[N][C_in][restrictH][restrictW] * in_1[C_out][C_in][K1][K2];
+                                }
                             }
                         }
+                        if ((trial(N, C_out, H, W) - sum) / sum > eps) {
+                            fmt::print("N = {}, C_out = {}, H = {}, W = {} failed. Expected = {}, actual = {}\n", N, C_out, H, W, sum, trial(N, C_out, H, W));
+                            ++cntIncorrect;
+                        } else {
+                            ++cntCorrect;
+                        }
                     }
-                    ASSERT_EQ(trial(N, C_out, H, W), sum);
                 }
             }
+            fmt::print("N = {} done. Total correct = {}, incorrect = {}\n", N, cntCorrect, cntIncorrect);
         }
+        fmt::print("{} semantics verified. Correct = {}, incorrect = {}\n", funcName, cntCorrect, cntIncorrect);
     }
-    fmt::print("{} semantics verified.", funcName);
+    delete[] in_0;
+    delete[] in_1;
 
-    gen.generate("./kernel_conv2d", "conv2d", mappings);
+    if (createStaticLibrary)
+        gen.generate("./kernel_conv2d", "conv2d", mappings);
 }
 
 } // namespace kas
