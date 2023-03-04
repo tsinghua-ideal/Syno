@@ -26,7 +26,7 @@ protected:
         .scheduler = HalideGen::Options::AutoScheduler::Anderson2021,
         .zeroPadding = false,
     };
-    const bool doSemanticTests = false;
+    const bool doSemanticTests = true;
     const bool createStaticLibrary = true;
 
     struct Realization {

@@ -289,13 +289,15 @@ HalideGen::ScheduledPipelins HalideGen::ApplyAutoScheduler(Halide::Func& forward
     }
     Halide::Pipeline forwardPipeline { forwardFunc };
     Halide::Pipeline backwardPipeline { backwardFuncs };
-    if (verbose) {
-        if (!computeRoot) {
-            auto forwardResult = forwardPipeline.apply_autoscheduler(target, params.value());
+    if (!computeRoot) {
+        auto forwardResult = forwardPipeline.apply_autoscheduler(target, params.value());
+        if (verbose)
             fmt::print(stderr, "Forward pipeline:\n{}\n", forwardResult.schedule_source);
-            auto backwardResult = backwardPipeline.apply_autoscheduler(target, params.value());
+        auto backwardResult = backwardPipeline.apply_autoscheduler(target, params.value());
+        if (verbose)
             fmt::print(stderr, "Backward pipeline:\n{}\n", backwardResult.schedule_source);
-        } else {
+    } else {
+        if (verbose) {
             fmt::print(stderr, "Forward pipeline:\ncompute_root()\n");
             fmt::print(stderr, "Backward pipeline:\ncompute_root()\n");
         }
