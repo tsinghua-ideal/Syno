@@ -24,7 +24,6 @@ protected:
     const HalideGen::Options options = {
         .useGPU = true,
         .scheduler = HalideGen::Options::AutoScheduler::Anderson2021,
-        .zeroPadding = false,
     };
     const bool doSemanticTests = true;
     const bool createStaticLibrary = true;
@@ -33,30 +32,63 @@ protected:
         Halide::Pipeline pipeline;
         HalideGen::BufferAdaptor<float> trial;
         std::vector<int> outputBufferShape;
+        Halide::Pipeline backwardPipeline;
+        std::vector<HalideGen::BufferAdaptor<float>> backwardTrials;
     };
 
     template<typename... InputInitializers>
-    Realization getPipeline(HalideGen& gen, const Mappings& mappings, auto&& funcName, InputInitializers&&... inputInitializers) const {
+    Realization getPipeline(HalideGen& gen, const Mappings& mappings, auto&& funcName, auto&& outputGradInitializer, InputInitializers&&... inputInitializers) const {
         auto consts = gen.ctx.realizeConsts(mappings);
         auto [inputs, func, backwardInputs, backwardFuncs] = gen.createPipelines(mappings, std::forward<decltype(funcName)>(funcName));
+
+        // Initialize input buffers.
+        KAS_ASSERT(gen.tensorView.getUnderlyingTensors().size() == sizeof...(inputInitializers));
         std::tuple<decltype(inputInitializers)...> initializerTuple = { std::forward<decltype(inputInitializers)>(inputInitializers)... };
         std::vector<Halide::Buffer<float>> inputBuffers;
+        std::vector<Halide::Buffer<float>> inputGradsBuffers;
         auto setter = [&]<std::size_t i>() {
-            inputBuffers.emplace_back(gen.getInputBufferShape(consts, i));
+            auto inputBufferShape = gen.getInputBufferShape(consts, i);
+            inputGradsBuffers.emplace_back(inputBufferShape);
+            inputBuffers.emplace_back(inputBufferShape);
             auto& inputBuffer = inputBuffers.back();
             auto proxy = HalideGen::BufferRefAdaptor<float>(inputBuffer);
             inputBuffer.for_each_element(ReverseArguments(std::bind_front(std::get<i>(initializerTuple), std::ref(proxy))));
             inputs.at(i).set(inputBuffer);
+            backwardInputs.at(i).set(inputBuffer);
         };
         [&]<std::size_t... i>(std::index_sequence<i...>) {
             (setter.template operator()<i>(), ...);
         }(std::make_index_sequence<sizeof...(InputInitializers)>());
+
+        // Compute the forward result.
         auto target = HalideGen::GetHostTarget(options.useGPU);
         auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, true);
-        pipeline.compile_jit(target);
         auto outputBufferShape = gen.getOutputBufferShape(consts);
         auto trial = HalideGen::BufferAdaptor<float>(pipeline.realize(outputBufferShape));
-        return { std::move(pipeline), std::move(trial), std::move(outputBufferShape) };
+
+        // Initialize output grad buffer.
+        auto outputGradBuffer = Halide::Buffer<float>(outputBufferShape);
+        auto outputGradProxy = HalideGen::BufferRefAdaptor<float>(outputGradBuffer);
+        outputGradBuffer.for_each_element(ReverseArguments(std::bind_front(std::forward<decltype(outputGradInitializer)>(outputGradInitializer), std::ref(outputGradProxy))));
+        backwardInputs.back().set(outputGradBuffer);
+
+        // Compute the backward result.
+        backwardPipeline.compile_jit(target);
+        auto realizationArgs = [&]<std::size_t... i>(std::index_sequence<i...>) {
+            return Halide::Pipeline::RealizationArg(inputGradsBuffers.at(i)...);
+        }(std::make_index_sequence<sizeof...(InputInitializers)>());
+        backwardPipeline.realize(std::move(realizationArgs), target);
+        std::vector<HalideGen::BufferAdaptor<float>> backwardTrials;
+        for (auto& inputGradBuffer: inputGradsBuffers) {
+            backwardTrials.emplace_back(std::move(inputGradBuffer));
+            backwardTrials.back().content.copy_to_host();
+        }
+
+        if (createStaticLibrary) {
+            HalideGen::GenerateFromPipelines(inputs, backwardInputs, pipeline, backwardPipeline, "./kernel_" + std::string(funcName), funcName, target);
+        }
+
+        return { std::move(pipeline), std::move(trial), std::move(outputBufferShape), std::move(backwardPipeline), std::move(backwardTrials) };
     }
 };
 
@@ -115,18 +147,36 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     auto funcName = "pooling";
     auto gen = HalideGen { ctx, tensorView, options };
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C", c}, {"K", k}};
-    auto [pipeline, trial, outputBufferShape] = getPipeline(gen, mappings, funcName,
+    auto [pipeline, trial, outputBufferShape, backwardPipeline, backwardTrials] = getPipeline(gen, mappings, funcName,
+        [](auto&& grad, int i, int j, int k, int l) {
+            grad(i, j, k, l) = static_cast<float>(i + j + k + l);
+        },
         [](auto&& inputBuffer, int i, int j, int k, int l) {
             inputBuffer(i, j, k, l) = static_cast<float>(i + j + k + l);
         }
     );
 
+    fmt::print("Running semantic tests for {}...", funcName);
     for (int N = 0; N < n; ++N) {
         for (int C = 0; C < c; ++C) {
             for (int H = 0; H < h / k; ++H) {
                 for (int W = 0; W < h / k; ++W) {
                     auto res = k * k * (N + C + k * H + k * W + 2 * (k - 1) / 2);
                     ASSERT_EQ(trial(N, C, H, W), res);
+                }
+            }
+        }
+    }
+    for (int N = 0; N < n; ++N) {
+        for (int C = 0; C < c; ++C) {
+            for (int H = 0; H < h; ++H) {
+                for (int W = 0; W < w; ++W) {
+                    bool inBound = H < k * (h / k) && W < k * (w / k);
+                    if (inBound) {
+                        ASSERT_EQ(backwardTrials[0](N, C, H, W), N + C + H / k + W / k);
+                    } else {
+                        ASSERT_EQ(backwardTrials[0](N, C, H, W), 0);
+                    }
                 }
             }
         }
@@ -141,9 +191,6 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     auto t2 = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
     fmt::print("Pooling x{}: {} ms.\n", x, duration);
-
-    if (createStaticLibrary)
-        gen.generate("./kernel_pooling", funcName, mappings);
 }
 
 TEST_F(forward_tests, conv2d) {
@@ -219,7 +266,13 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C_in", c_in}, {"C_out", c_out}, {"K", k}};
     auto in_0 = new std::int64_t[n][c_in][h][w]();
     auto in_1 = new std::int64_t[c_out][c_in][k][k]();
-    auto [pipeline, trial, outputBufferShape] = getPipeline(gen, mappings, funcName,
+    auto out_grad = new std::int64_t[n][c_out][h][w]();
+    auto [pipeline, trial, outputBufferShape, backwardPipeline, backwardTrials] = getPipeline(gen, mappings, funcName,
+        [&](auto&& grad, int N, int C_out, int H, int W) {
+            std::int64_t res = W + w * (H + h * (C_out + c_out * static_cast<std::int64_t>(N)));
+            grad(N, C_out, H, W) = static_cast<float>(res);
+            out_grad[N][C_out][H][W] = res;
+        },
         [&](auto&& inputBuffer, int N, int C_in, int H, int W) {
             std::int64_t res = W + w * (H + h * (C_in + c_in * static_cast<std::int64_t>(N)));
             inputBuffer(N, C_in, H, W) = static_cast<float>(res);
@@ -232,8 +285,12 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
         }
     );
 
+    bool success = true;
     if (doSemanticTests) {
-        constexpr float eps = 1e-6;
+        fmt::print("Running semantic tests for {}...", funcName);
+        auto in_0_grad = new float[n][c_in][h][w]();
+        auto in_1_grad = new float[c_out][c_in][k][k]();
+        constexpr float eps = 1e-4;
         std::int64_t cntCorrect = 0, cntIncorrect = 0;
         for (int N = 0; N < n; ++N) {
             for (int C_out = 0; C_out < c_out; ++C_out) {
@@ -246,11 +303,13 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
                                     auto restrictH = std::clamp(H + K1 - (k - 1) / 2, 0, h - 1);
                                     auto restrictW = std::clamp(W + K2 - (k - 1) / 2, 0, w - 1);
                                     sum += in_0[N][C_in][restrictH][restrictW] * in_1[C_out][C_in][K1][K2];
+                                    in_0_grad[N][C_in][restrictH][restrictW] += out_grad[N][C_out][H][W] * in_1[C_out][C_in][K1][K2];
+                                    in_1_grad[C_out][C_in][K1][K2] += out_grad[N][C_out][H][W] * in_0[N][C_in][restrictH][restrictW];
                                 }
                             }
                         }
                         if ((trial(N, C_out, H, W) - sum) / sum > eps) {
-                            fmt::print("N = {}, C_out = {}, H = {}, W = {} failed. Expected = {}, actual = {}\n", N, C_out, H, W, sum, trial(N, C_out, H, W));
+                            fmt::print("Output tensor: N = {}, C_out = {}, H = {}, W = {} failed. Expected = {}, actual = {}\n", N, C_out, H, W, sum, trial(N, C_out, H, W));
                             ++cntIncorrect;
                         } else {
                             ++cntCorrect;
@@ -258,15 +317,58 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
                     }
                 }
             }
-            fmt::print("N = {} done. Total correct = {}, incorrect = {}\n", N, cntCorrect, cntIncorrect);
+            fmt::print("Output tensor: N = {} done. Total correct = {}, incorrect = {}\n", N, cntCorrect, cntIncorrect);
         }
-        fmt::print("{} semantics verified. Correct = {}, incorrect = {}\n", funcName, cntCorrect, cntIncorrect);
+        fmt::print("Output tensor: Total correct = {}, incorrect = {}\n", cntCorrect, cntIncorrect);
+        if (cntIncorrect > 0) {
+            success = false;
+        }
+        cntCorrect = 0;
+        cntIncorrect = 0;
+        for (int N = 0; N < n; ++N) {
+            for (int C_in = 0; C_in < c_in; ++C_in) {
+                for (int H = 0; H < h; ++H) {
+                    for (int W = 0; W < w; ++W) {
+                        if ((backwardTrials[0](N, C_in, H, W) - in_0_grad[N][C_in][H][W]) / in_0_grad[N][C_in][H][W] > eps) {
+                            fmt::print("Input tensor: N = {}, C_in = {}, H = {}, W = {} failed. Expected = {}, actual = {}\n", N, C_in, H, W, in_0_grad[N][C_in][H][W], backwardTrials[0](N, C_in, H, W));
+                            ++cntIncorrect;
+                        } else {
+                            ++cntCorrect;
+                        }
+                    }
+                }
+            }
+            fmt::print("Input tensor: N = {} done. Total correct = {}, incorrect = {}\n", N, cntCorrect, cntIncorrect);
+        }
+        fmt::print("Input tensor: Total correct = {}, incorrect = {}\n", cntCorrect, cntIncorrect);
+        if (cntIncorrect > 0) {
+            success = false;
+        }
+        cntCorrect = 0;
+        cntIncorrect = 0;
+        for (int C_out = 0; C_out < c_out; ++C_out) {
+            for (int C_in = 0; C_in < c_in; ++C_in) {
+                for (int K1 = 0; K1 < k; ++K1) {
+                    for (int K2 = 0; K2 < k; ++K2) {
+                        if ((backwardTrials[1](C_out, C_in, K1, K2) - in_1_grad[C_out][C_in][K1][K2]) / in_1_grad[C_out][C_in][K1][K2] > eps) {
+                            fmt::print("Weight tensor: C_out = {}, C_in = {}, K1 = {}, K2 = {} failed. Expected = {}, actual = {}\n", C_out, C_in, K1, K2, in_1_grad[C_out][C_in][K1][K2], backwardTrials[1](C_out, C_in, K1, K2));
+                            ++cntIncorrect;
+                        } else {
+                            ++cntCorrect;
+                        }
+                    }
+                }
+            }
+        }
+        fmt::print("Weight tensor: Total correct = {}, incorrect = {}\n", cntCorrect, cntIncorrect);
+        if (cntIncorrect > 0) {
+            success = false;
+        }
+        fmt::print("{} semantics verification {}\n", funcName, success ? "passed" : "failed");
     }
     delete[] in_0;
     delete[] in_1;
-
-    if (createStaticLibrary)
-        gen.generate("./kernel_conv2d", "conv2d", mappings);
+    ASSERT_TRUE(success);
 }
 
 } // namespace kas

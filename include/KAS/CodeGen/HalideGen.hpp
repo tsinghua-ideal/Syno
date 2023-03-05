@@ -28,7 +28,8 @@ public:
         };
         bool useGPU = true;
         AutoScheduler scheduler = AutoScheduler::Li2018;
-        bool zeroPadding = false; // If set to false, use replicate padding, which reduces some computation.
+        // bool zeroPadding = false; // If set to false, use replicate padding, which reduces some computation.
+        // Here we use replicate padding. Because zero padding is just so hard a case.
     };
 
 private:
@@ -47,7 +48,6 @@ private:
         Halide::Expr evaluator;
         const ConcreteConsts& consts;
         Cache& cache;
-        std::vector<Halide::Expr>& constraintsBounds;
         // When computing gradient, to mitigate Halide bugs, we need to use RVar.
         const std::vector<Halide::RVar>& outerIteratorsAsRVars; // In reverse order.
         bool useRVar;
@@ -61,10 +61,9 @@ private:
             return innerIterators.at(index);
         }
         const HalideGen& parent;
-        inline HalideExprEvaluator(const ConcreteConsts& consts, Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const std::vector<Halide::RVar>& outerIteratorsAsRVars, bool useRVar, const std::vector<Halide::RVar>& innerIterators, const HalideGen& parent):
+        inline HalideExprEvaluator(const ConcreteConsts& consts, Cache& cache, const std::vector<Halide::RVar>& outerIteratorsAsRVars, bool useRVar, const std::vector<Halide::RVar>& innerIterators, const HalideGen& parent):
             consts { consts },
             cache { cache },
-            constraintsBounds { constraintsBounds },
             outerIteratorsAsRVars { outerIteratorsAsRVars },
             useRVar { useRVar },
             innerIterators { innerIterators },
@@ -77,10 +76,8 @@ private:
         // This `visit` produces a `clamp`.
         void visit(IntervalBoundValueNode& value) override;
         Halide::Expr evaluate(const IteratorValue& value);
-        // This `evaluate` produces a condition expression.
-        Halide::Expr evaluate(const IntervalBoundValueNode& value);
     };
-    Halide::Expr evaluate(const ConcreteConsts& consts, HalideExprEvaluator::Cache& cache, std::vector<Halide::Expr>& constraintsBounds, const std::vector<Halide::RVar>& outerIteratorsAsRVars, bool useRVar, const std::vector<Halide::RVar>& innerIterators, const IteratorValue& value) const;
+    Halide::Expr evaluate(const ConcreteConsts& consts, HalideExprEvaluator::Cache& cache, const std::vector<Halide::RVar>& outerIteratorsAsRVars, bool useRVar, const std::vector<Halide::RVar>& innerIterators, const IteratorValue& value) const;
     Halide::Expr evaluate(const ConcreteConsts& consts, const Size& value) const;
     template<typename Storage, auto Mapping>
     Halide::Region evaluate(const ConcreteConsts& consts, const AbstractShape<Storage, Mapping>& shape, bool reverse = true) const {
@@ -100,12 +97,21 @@ private:
         std::vector<Halide::RVar> innerIterators; // Since reduce loops are in order, we should not reverse them.
         std::vector<std::vector<Halide::Expr>> tensorIndices;
         // The conditions that must be satisfied in order that no out-of-bound error occurs. This is used to enforce zero-padding semantics.
-        std::vector<Halide::Expr> constraintsBounds;
+        // std::vector<Halide::Expr> constraintsBounds;
+        inline std::vector<Halide::Expr> outerIteratorsAsRVarsToExprs() const {
+            std::vector<Halide::Expr> result;
+            for (const auto& rvar: outerIteratorsAsRVars) {
+                result.emplace_back(rvar);
+            }
+            return result;
+        }
     };
     ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings) const;
     EvaluatedAccess evaluateAccess(const ConcreteConsts& consts, bool useRVar) const;
 
 public:
+    static Halide::Target GetHostTarget(bool useGPU);
+
     static void GuardAutoSchedulers(); // Load the Halide auto scheduler plugins.
 
     using ForwardArgsAndFunc = std::pair<std::vector<Halide::ImageParam>, Halide::Func>;
@@ -120,8 +126,7 @@ public:
     // Applys auto-schedulers on the funcs.
     using ScheduledPipelins = std::pair<Halide::Pipeline, Halide::Pipeline>;
     static ScheduledPipelins ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, bool verbose);
-
-    static Halide::Target GetHostTarget(bool useGPU);
+    static void GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardInputs, std::vector<Halide::ImageParam>& backwardInputs, Halide::Pipeline& forwardPipeline, Halide::Pipeline& backwardPipeline, std::filesystem::path outputPath, std::string_view funcName, const Halide::Target& target);
 
     HalideGen(const BindingContext& ctx, const TensorView& tensorView, Options options);
 

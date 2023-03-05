@@ -29,7 +29,6 @@ TEST_F(codegen_tests, generate) {
         HalideGen gen { ctx, sample, {
             .useGPU = false,
             .scheduler = HalideGen::Options::AutoScheduler::ComputeRoot,
-            .zeroPadding = false,
         } };
         gen.generate("./kernel_1_" + std::to_string(i), "kernel_1_" + std::to_string(i), {});
     }
