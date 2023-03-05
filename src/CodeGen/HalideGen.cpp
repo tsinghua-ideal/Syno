@@ -31,6 +31,7 @@ void HalideGen::GuardAutoSchedulers() {
 
 Halide::Target HalideGen::GetHostTarget(bool useGPU) {
     auto t = Halide::get_host_target();
+    t.with_feature(Halide::Target::Debug);
     if (useGPU) {
         t = t
             .with_feature(Halide::Target::CUDA)

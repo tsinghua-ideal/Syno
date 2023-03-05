@@ -1,0 +1,52 @@
+diff --git a/packaging/CMakeLists.txt b/packaging/CMakeLists.txt
+index 2c5b038..baeaba4 100644
+--- a/packaging/CMakeLists.txt
++++ b/packaging/CMakeLists.txt
+@@ -32,7 +32,7 @@ install(TARGETS Halide Halide_Generator Halide_LanguageOptions
+         INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+ 
+ if (TARGET Halide_Adams2019)
+-    install(TARGETS Halide_Adams2019 Halide_Li2018 Halide_Mullapudi2016
++    install(TARGETS Halide_Anderson2021 Halide_Adams2019 Halide_Li2018 Halide_Mullapudi2016
+             EXPORT Halide_Interfaces
+             LIBRARY DESTINATION ${Halide_INSTALL_PLUGINDIR} COMPONENT Halide_Runtime
+             NAMELINK_COMPONENT Halide_Development)
+diff --git a/src/autoschedulers/anderson2021/DefaultCostModel.cpp b/src/autoschedulers/anderson2021/DefaultCostModel.cpp
+index 18c2404..2fca3d2 100644
+--- a/src/autoschedulers/anderson2021/DefaultCostModel.cpp
++++ b/src/autoschedulers/anderson2021/DefaultCostModel.cpp
+@@ -309,7 +309,7 @@ void DefaultCostModel::evaluate_costs() {
+     }
+ 
+     cursor = 0;
+-    cost_per_stage_ptrs.clear();
++    // cost_per_stage_ptrs.clear();
+ }
+ 
+ void DefaultCostModel::load_weights() {
+diff --git a/src/autoschedulers/anderson2021/State.cpp b/src/autoschedulers/anderson2021/State.cpp
+index 9cab832..e235059 100644
+--- a/src/autoschedulers/anderson2021/State.cpp
++++ b/src/autoschedulers/anderson2021/State.cpp
+@@ -219,7 +219,7 @@ void State::FeatureLoopNestMutator::split_compute_root_loops(LoopNest *loop_nest
+ 
+         // Make the vectorized dimension of the inner loop 32 (or as
+         // close as possible)
+-        int64_t inner_extent = std::min(c->size[vectorized_loop_index], (int64_t)32);
++        int64_t inner_extent = vectorized_loop_index != -1 ? std::min(c->size[vectorized_loop_index], (int64_t)32) : (int64_t)32;
+ 
+         if (c->stage->index == 0) {
+             vector<int64_t> tiling(c->node->dimensions, 1);
+diff --git a/src/runtime/HalidePyTorchHelpers.h b/src/runtime/HalidePyTorchHelpers.h
+index 8ad7fee..bcf9c07 100644
+--- a/src/runtime/HalidePyTorchHelpers.h
++++ b/src/runtime/HalidePyTorchHelpers.h
+@@ -16,7 +16,7 @@
+ #include "HalideBuffer.h"
+ 
+ // Forward declare the cuda_device_interface, for tensor wrapper.
+-const halide_device_interface_t *halide_cuda_device_interface();
++extern "C" const halide_device_interface_t *halide_cuda_device_interface();
+ 
+ #define HLPT_CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
+ #define HLPT_CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")

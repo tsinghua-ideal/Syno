@@ -64,7 +64,7 @@ protected:
         auto target = HalideGen::GetHostTarget(options.useGPU);
         auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, true);
         auto outputBufferShape = gen.getOutputBufferShape(consts);
-        auto trial = HalideGen::BufferAdaptor<float>(pipeline.realize(outputBufferShape));
+        auto trial = HalideGen::BufferAdaptor<float>(pipeline.realize(outputBufferShape, target));
 
         // Initialize output grad buffer.
         auto outputGradBuffer = Halide::Buffer<float>(outputBufferShape);
@@ -156,7 +156,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
         }
     );
 
-    fmt::print("Running semantic tests for {}...", funcName);
+    fmt::print("Running semantic tests for {}...\n", funcName);
     for (int N = 0; N < n; ++N) {
         for (int C = 0; C < c; ++C) {
             for (int H = 0; H < h / k; ++H) {
@@ -287,7 +287,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
 
     bool success = true;
     if (doSemanticTests) {
-        fmt::print("Running semantic tests for {}...", funcName);
+        fmt::print("Running semantic tests for {}...\n", funcName);
         auto in_0_grad = new float[n][c_in][h][w]();
         auto in_1_grad = new float[c_out][c_in][k][k]();
         constexpr float eps = 1e-4;

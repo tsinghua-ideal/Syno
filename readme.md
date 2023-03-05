@@ -3,7 +3,7 @@
 ## Build Dependencies
 
 - A C++20-compatible compiler and CMake. Ninja is recommended.
-- Trunk version of [Halide](https://github.com/halide/Halide), due to API changes to auto schedulers.
+- [Halide with GPU Autoscheduler](https://github.com/aekul/Halide/tree/gpu-autoscheduler), with [this patch](./bugfix.patch) applied. For more information, refer to the [pull request](https://github.com/halide/Halide/pull/6856).
 - [PyTorch](https://github.com/pytorch/pytorch).
 - [Boost](https://github.com/boostorg/boost).
 - [fmtlib](https://github.com/fmtlib/fmt).
@@ -29,3 +29,13 @@ pytest
 ```
 
 See all the tests in `tests/`.
+
+## Notes
+
+To run `tests/semantics_test_*.py`, you need to first run `ctest` to generate the kernels. Then you can just
+
+```bash
+cd tests
+python semantics_test_pool2d.py
+python semantics_test_conv2d.py
+```
