@@ -1,10 +1,12 @@
 #pragma once
 
+#include <algorithm>
 #include <compare>
 #include <string>
 #include <vector>
 
 #include "KAS/Core/Size.hpp"
+#include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
@@ -56,6 +58,8 @@ public:
     // Sort the dimensions in an interface to obtain hash for it.
     std::strong_ordering operator<=>(const Dimension& other) const = default;
     std::string description(const BindingContext& ctx) const;
+
+    Interface::const_iterator findIn(const Interface& interface) const;
 };
 
 } // namespace kas

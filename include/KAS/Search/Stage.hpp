@@ -11,10 +11,10 @@
 #include <gtest/gtest_prod.h>
 
 #include "KAS/Core/BindingContext.hpp"
+#include "KAS/Core/Colors.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Tensor.hpp"
-#include "KAS/Search/Colors.hpp"
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Transforms/DimensionStore.hpp"
 
