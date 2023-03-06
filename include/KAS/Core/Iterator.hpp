@@ -15,7 +15,7 @@ public:
         domain { std::forward<decltype(domain)>(domain) }
     {}
     inline const Size& size() const noexcept override { return domain; }
-    inline std::size_t initialHash() const noexcept override {
+    inline std::size_t hash() const noexcept override {
         auto h = index;
         HashCombine(h, DimensionType::Iterator);
         return h;

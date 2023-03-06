@@ -5,38 +5,43 @@
 
 namespace kas {
 
-class MergeOp final: public MergeLikePrimitiveOp {
-    Size block;
-    Size major;
+class MergeOp final: public MergeLikeOp {
 public:
-    MergeOp(auto&& output, Order order, auto&& block):
-        MergeLikePrimitiveOp { std::forward<decltype(output)>(output), order },
-        block { std::forward<decltype(block)>(block) },
-        major { this->output.size() / this->block }
+    class Input final: public MergeLikeOp::Input {
+    public:
+        inline Input(const MergeOp* op, Order order):
+            MergeLikeOp::Input { op, order }
+        {}
+        const Size& size() const noexcept override;
+        std::size_t hash() const noexcept override;
+        constexpr DimensionType type() const noexcept override { return DimensionType::Merge; }
+    };
+
+protected:
+    Size minorSize;
+    Size majorSize;
+    Input inputLhs, inputRhs;
+
+public:
+    MergeOp(auto&& output, auto&& block):
+        MergeLikeOp { std::forward<decltype(output)>(output) },
+        minorSize { std::forward<decltype(block)>(block) },
+        majorSize { this->output.size() / this->minorSize },
+        inputLhs { this, Order::Left },
+        inputRhs { this, Order::Right }
     {}
-
-    inline const Size& size() const noexcept override {
-        switch (order) {
-            case Order::Left:
-                return major;
-            case Order::Right:
-                return block;
-        }
-    }
-    std::size_t initialHash() const noexcept override;
-    constexpr DimensionType type() const noexcept override { return DimensionType::Merge; }
-
-    IteratorValue value(const IteratorValue& output) const override;
+    inline std::pair<Dimension, Dimension> getInputs() const override { return { &inputLhs, &inputRhs }; }
+    std::pair<IteratorValue, IteratorValue> value(const IteratorValue& output) const override;
 
     inline bool operator==(const MergeOp& other) const noexcept {
-        return output == other.output && order == other.order && block == other.block;
+        return output == other.output && minorSize == other.minorSize;
     }
 
     struct GenerateOptions {
         const BindingContext& ctx;
         std::size_t dimUpperBound;
     };
-    static std::vector<NextMergeLike> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
+    static std::vector<std::unique_ptr<MergeOp>> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

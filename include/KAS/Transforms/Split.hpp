@@ -5,19 +5,29 @@
 
 namespace kas {
 
-class SplitOp final: public SplitLikePrimitiveOp {
+class SplitOp final: public SplitLikeOp {
+public:
+    class Input final: public SplitLikeOp::Input {
+    public:
+        inline Input(const SplitOp* op):
+            SplitLikeOp::Input { op }
+        {}
+        inline const Size& size() const noexcept override { return getDerivedOp<SplitOp>()->sz; }
+        std::size_t hash() const noexcept override;
+        constexpr DimensionType type() const noexcept override { return DimensionType::Split; }
+    };
+
+protected:
     Size sz;
+    Input input;
+
 public:
     SplitOp(auto&& outputLhs, auto&& outputRhs):
-        SplitLikePrimitiveOp { std::forward<decltype(outputLhs)>(outputLhs), std::forward<decltype(outputRhs)>(outputRhs) },
-        sz { this->outputLhs.size() * this->outputRhs.size() }
+        SplitLikeOp { std::forward<decltype(outputLhs)>(outputLhs), std::forward<decltype(outputRhs)>(outputRhs) },
+        sz { this->outputLhs.size() * this->outputRhs.size() },
+        input { this }
     {}
-
-    inline const Size& size() const noexcept override { return sz; }
-    // SplitOp keeps no metadata.
-    constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(type()); }
-    constexpr DimensionType type() const noexcept override { return DimensionType::Split; }
-
+    inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const override;
     
     inline bool operator==(const SplitOp& other) const noexcept {
@@ -27,7 +37,7 @@ public:
     struct GenerateOptions {
         std::size_t dimLowerBound;
     };
-    static std::vector<NextSplitLike> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
+    static std::vector<std::unique_ptr<SplitOp>> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

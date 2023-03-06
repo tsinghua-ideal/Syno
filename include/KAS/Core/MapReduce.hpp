@@ -50,7 +50,7 @@ public:
         reduceType { reduceType }
     {}
     inline const Size& size() const noexcept override { return domain; }
-    inline std::size_t initialHash() const noexcept override {
+    inline std::size_t hash() const noexcept override {
         auto h = priority;
         HashCombine(h, DimensionType::MapReduce);
         return h;

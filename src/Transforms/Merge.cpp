@@ -4,26 +4,32 @@
 
 namespace kas {
 
-std::size_t MergeOp::initialHash() const noexcept {
-    std::size_t seed = static_cast<std::size_t>(type());
-    HashCombine(seed, block);
-    return seed;
-}
-
-IteratorValue MergeOp::value(const IteratorValue& output) const {
-    auto block = ConstValueNode::Create(this->block);
+const Size& MergeOp::Input::size() const noexcept {
     switch (order) {
     case Order::Left:
-        return output / block;
+        return getDerivedOp<MergeOp>()->majorSize;
     case Order::Right:
-        return output % block;
+        return getDerivedOp<MergeOp>()->minorSize;
     }
 }
 
-std::vector<NextMergeLike> MergeOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
+std::size_t MergeOp::Input::hash() const noexcept {
+    std::size_t h = static_cast<std::size_t>(type());
+    HashCombine(h, op->output.hash());
+    HashCombine(h, order);
+    HashCombine(h, getDerivedOp<MergeOp>()->minorSize);
+    return h;
+}
+
+std::pair<IteratorValue, IteratorValue> MergeOp::value(const IteratorValue& output) const {
+    auto block = ConstValueNode::Create(this->minorSize);
+    return { output / block, output % block };
+}
+
+std::vector<std::unique_ptr<MergeOp>> MergeOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
     const auto& ctx = options.ctx;
     auto primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
-    std::vector<NextMergeLike> res;
+    std::vector<std::unique_ptr<MergeOp>> res;
     if (outputShape.size() < options.dimUpperBound) {
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
             const auto& size = outputShape[i].size();

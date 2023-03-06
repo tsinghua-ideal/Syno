@@ -5,26 +5,38 @@
 
 namespace kas {
 
-class StrideOp final: public RepeatLikePrimitiveOp {
+class StrideOp final: public RepeatLikeOp {
+public:
+    class Input final: public RepeatLikeOp::Input {
+    public:
+        inline Input(const StrideOp* op):
+            RepeatLikeOp::Input { op }
+        {}
+        inline const Size& size() const noexcept override { return getDerivedOp<StrideOp>()->sz; }
+        std::size_t hash() const noexcept override;
+        constexpr DimensionType type() const noexcept override { return DimensionType::Stride; }
+    };
+
+protected:
     Size stride;
     Size sz;
+    Input input;
+
 public:
     StrideOp(auto&& output, auto&& stride):
-        RepeatLikePrimitiveOp { std::forward<decltype(output)>(output) },
+        RepeatLikeOp { std::forward<decltype(output)>(output) },
         stride { stride },
-        sz { this->output.size() * this->stride }
+        sz { this->output.size() * this->stride },
+        input { this }
     {}
-    inline const Size& size() const noexcept override { return sz; }
-    std::size_t initialHash() const noexcept override;
-    constexpr DimensionType type() const noexcept override { return DimensionType::Stride; }
-
+    inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue& output) const override;
 
     inline bool operator==(const StrideOp& other) const noexcept {
         return output == other.output && stride == other.stride;
     }
 
-    static std::vector<NextRepeatLike> Generate(DimensionStore& store, const Interface& outputShape);
+    static std::vector<std::unique_ptr<StrideOp>> Generate(DimensionStore& store, const Interface& outputShape);
 };
 
 } // namespace kas

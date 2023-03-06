@@ -31,7 +31,7 @@ std::string DimensionTypeDescription(DimensionType ty);
 class DimensionImpl {
 public:
     virtual const Size& size() const noexcept = 0;
-    virtual std::size_t initialHash() const noexcept = 0;
+    virtual std::size_t hash() const noexcept = 0;
     virtual DimensionType type() const noexcept = 0;
     virtual ~DimensionImpl() = default;
 };
@@ -45,8 +45,9 @@ public:
 protected:
     // Require that same `DimensionImpl`s have same address, i.e., uniqued.
     PointerType inner;
+    std::size_t hashValue;
 public:
-    inline Dimension(PointerType inner): inner { inner } {}
+    inline Dimension(PointerType inner): inner { inner }, hashValue { inner->hash() } {}
     inline PointerType get() const noexcept { return inner; }
     inline const Size& size() const noexcept { return inner->size(); }
     inline DimensionType type() const noexcept { return inner->type(); }
@@ -54,9 +55,11 @@ public:
     inline bool is(DimensionType ty) const noexcept { return inner->type() == ty; }
     template<typename T>
     const T& as() const noexcept { return *dynamic_cast<const T *>(inner); }
-    bool operator==(const Dimension& other) const = default;
+    inline bool operator==(const Dimension& other) const {
+        return inner == other.inner; // If the impls are equal, they have equal hash.
+    }
     // Sort the dimensions in an interface to obtain hash for it.
-    std::strong_ordering operator<=>(const Dimension& other) const = default;
+    inline std::size_t hash() const noexcept { return hashValue; }
     std::string description(const BindingContext& ctx) const;
 
     Interface::const_iterator findIn(const Interface& interface) const;

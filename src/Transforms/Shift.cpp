@@ -3,9 +3,10 @@
 
 namespace kas {
 
-std::size_t ShiftOp::initialHash() const noexcept {
+std::size_t ShiftOp::Input::hash() const noexcept {
     auto h = static_cast<std::size_t>(type());
-    HashCombine(h, shift);
+    HashCombine(h, op->output.hash());
+    HashCombine(h, getDerivedOp<ShiftOp>()->shift);
     return h;
 }
 
