@@ -27,6 +27,7 @@ public:
         sz { this->outputLhs.size() * this->outputRhs.size() },
         input { this }
     {}
+    constexpr DimensionType getType() const noexcept override { return Type; }
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
     inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const override;
@@ -38,7 +39,7 @@ public:
     struct GenerateOptions {
         std::size_t dimLowerBound;
     };
-    static std::vector<SplitOp *> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
+    static std::vector<const SplitOp *> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

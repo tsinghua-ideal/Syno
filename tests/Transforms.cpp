@@ -95,8 +95,9 @@ protected:
 };
 
 TEST_F(transforms_tests, share) {
-    ShareOp shareOpL { dimH, Order::Left }, shareOpR { dimH, Order::Right };
-    Interface in { &shareOpL, &shareOpR, dimW, dimCH };
+    ShareOp shareOp { dimH };
+    auto [shareOpL, shareOpR] = shareOp.getInputs();
+    Interface in { shareOpL, shareOpR, dimW, dimCH };
     auto tensorView = TensorView { { in } };
     ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c*H]");
@@ -193,7 +194,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 
 TEST_F(transforms_tests, shift) {
     ShiftOp shiftOp { dimH, 1 };
-    Interface in { &shiftOp, dimW, dimCH };
+    Interface in { shiftOp.getInput(), dimW, dimCH };
     auto tensorView = TensorView { { in } };
     ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c*H]");
@@ -237,7 +238,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 
 TEST_F(transforms_tests, stride) {
     StrideOp strideOp { dimH, sizeC };
-    Interface in { &strideOp, dimW, dimCH };
+    Interface in { strideOp.getInput(), dimW, dimCH };
     auto tensorView = TensorView { { in } };
     ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c*H]");
@@ -286,7 +287,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 TEST_F(transforms_tests, unfold) {
     auto itC = Iterator { 2, sizeC };
     UnfoldOp unfoldOp { dimH, &itC };
-    Interface in { &unfoldOp, dimW };
+    Interface in { unfoldOp.getInput(), dimW };
     auto tensorView = TensorView { { in } };
     ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c]");
@@ -342,8 +343,9 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 }
 
 TEST_F(transforms_tests, merge) {
-    MergeOp mergeOpL { dimCH, Order::Left, sizeH }, mergeOpR { dimCH, Order::Right, sizeH };
-    Interface in { &mergeOpL, &mergeOpR, dimH, dimW };
+    MergeOp mergeOp { dimCH, sizeH };
+    auto [mergeOpL, mergeOpR] = mergeOp.getInputs();
+    Interface in { mergeOpL, mergeOpR, dimH, dimW };
     auto tensorView = TensorView { { in } };
     ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c*H]");
@@ -389,7 +391,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 
 TEST_F(transforms_tests, split) {
     SplitOp splitOp { dimH, dimW };
-    Interface in { &splitOp, dimCH };
+    Interface in { splitOp.getInput(), dimCH };
     auto tensorView = TensorView { { in } };
     ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
     ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c*H]");
@@ -431,11 +433,10 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 
 TEST_F(transforms_tests, dimension_store) {
     DimensionStore store;
-    Dimension s1 = store.get<ShiftOp>(dimH, 1);
-    Dimension s2 = store.get<ShiftOp>(dimH, 1);
+    Dimension s1 = store.get<ShiftOp>(dimH, 1)->getInput();
+    Dimension s2 = store.get<ShiftOp>(dimH, 1)->getInput();
     ASSERT_EQ(s1, s2);
-    Dimension sL = store.get<ShareOp>(dimH, Order::Left);
-    Dimension sR = store.get<ShareOp>(dimH, Order::Right);
+    auto [sL, sR] = store.get<ShareOp>(dimH)->getInputs();
     ASSERT_NE(sL, sR);
     ASSERT_NE(s1, sL);
     ASSERT_NE(s1, sR);

@@ -48,13 +48,18 @@ protected:
     std::size_t hashValue;
 public:
     inline Dimension(PointerType inner): inner { inner }, hashValue { inner->hash() } {}
-    inline PointerType get() const noexcept { return inner; }
+    inline PointerType getInnerPointer() const noexcept { return inner; }
     inline const Size& size() const noexcept { return inner->size(); }
     inline DimensionType type() const noexcept { return inner->type(); }
     // Checks the underlying type of the dimension.
     inline bool is(DimensionType ty) const noexcept { return inner->type() == ty; }
     template<typename T>
     const T& as() const noexcept { return *dynamic_cast<const T *>(inner); }
+    template<typename T>
+    const T *tryAs() const noexcept { return dynamic_cast<const T *>(inner); }
+    std::weak_ordering operator<=>(const Dimension& other) const noexcept {
+        return hashValue <=> other.hashValue; // Use their hashes to sort the interface.
+    }
     inline bool operator==(const Dimension& other) const {
         return inner == other.inner; // If the impls are equal, they have equal hash.
     }
@@ -68,18 +73,11 @@ public:
 } // namespace kas
 
 template<>
-struct std::hash<kas::Dimension> {
-    inline std::size_t operator()(const kas::Dimension& dimension) const noexcept {
-        return std::hash<kas::Dimension::PointerType>{}(dimension.get());
-    }
-};
-
-template<>
 struct std::hash<kas::Interface> {
     inline std::size_t operator()(const kas::Interface& interface) const noexcept {
         std::size_t h = interface.size();
         for (const auto& dim: interface) {
-            kas::HashCombine(h, dim);
+            kas::HashCombine(h, dim.hash());
         }
         return h;
     }

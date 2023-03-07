@@ -29,6 +29,7 @@ public:
         sz { this->output.size() * this->stride },
         input { this }
     {}
+    constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
     inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue& output) const override;
@@ -37,7 +38,7 @@ public:
         return output == other.output && stride == other.stride;
     }
 
-    static std::vector<StrideOp *> Generate(DimensionStore& store, const Interface& outputShape);
+    static std::vector<const StrideOp *> Generate(DimensionStore& store, const Interface& outputShape);
 };
 
 } // namespace kas

@@ -131,7 +131,7 @@ public:
     DimensionStore(const DimensionStore&) = delete;
     DimensionStore(DimensionStore&&) = delete;
     template<typename Op, typename... Args>
-    Op *get(Args&&... args) {
+    const Op *get(Args&&... args) {
         auto& store = getStore<Op>();
         static_assert(std::is_same_v<typename std::remove_reference_t<decltype(store)>::key_type, detail::Pointer<Op>>);
         auto op = std::make_unique<Op>(std::forward<Args>(args)...);

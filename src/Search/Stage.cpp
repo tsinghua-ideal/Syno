@@ -68,7 +68,7 @@ void Stage::guard() {
         // Shift^{-1}, TODO
         // Stride^{-1}
         for (auto g = StrideOp::Generate(store, interface); auto& s: g)
-            nextRepeatLikes.emplace_back(std::move(s.input), nullptr);
+            nextRepeatLikes.emplace_back(std::move(s), nullptr);
 
         // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s.
         // Split^{-1}
@@ -119,11 +119,11 @@ std::variant<Stage *, TensorView *> Stage::next(std::size_t index) {
         case Next::Type::Finalize:
             return getFinalize(next.index);
         case Next::Type::RepeatLike:
-            return getNext<NextRepeatLike>(sampler.getStageStore(), next.index);
+            return getNext<RepeatLikeOp>(sampler.getStageStore(), next.index);
         case Next::Type::SplitLike:
-            return getNext<NextSplitLike>(sampler.getStageStore(), next.index);
+            return getNext<SplitLikeOp>(sampler.getStageStore(), next.index);
         case Next::Type::MergeLike:
-            return getNext<NextMergeLike>(sampler.getStageStore(), next.index);
+            return getNext<MergeLikeOp>(sampler.getStageStore(), next.index);
     }
     KAS_UNREACHABLE();
 }
@@ -135,11 +135,11 @@ std::string Stage::opType(std::size_t index) {
     case Next::Type::Finalize:
         return "Finalize";
     case Next::Type::RepeatLike:
-        return DimensionTypeDescription(nextRepeatLikes[next.index].first.input.type());
+        return DimensionTypeDescription(nextRepeatLikes[next.index].first->getType());
     case Next::Type::SplitLike:
-        return DimensionTypeDescription(nextSplitLikes[next.index].first.input.type());
+        return DimensionTypeDescription(nextSplitLikes[next.index].first->getType());
     case Next::Type::MergeLike:
-        return DimensionTypeDescription(nextMergeLikes[next.index].first.inputLhs.type());
+        return DimensionTypeDescription(nextMergeLikes[next.index].first->getType());
     }
     KAS_UNREACHABLE();
 }
@@ -155,29 +155,30 @@ std::string Stage::opDescription(std::size_t index) {
             const auto& n = nextRepeatLikes[next.index].first;
             return fmt::format(
                 "{} {} -> {}",
-                DimensionTypeDescription(n.input.type()),
-                n.input.description(ctx),
-                n.input.as<RepeatLikePrimitiveOp>().output.description(ctx)
+                DimensionTypeDescription(n->getType()),
+                n->getInput().description(ctx),
+                n->output.description(ctx)
             );
         }
         case Next::Type::SplitLike: {
             const auto& n = nextSplitLikes[next.index].first;
             return fmt::format(
                 "{} {} -> {}, {}",
-                DimensionTypeDescription(n.input.type()),
-                n.input.description(ctx),
-                n.input.as<SplitLikePrimitiveOp>().outputLhs.description(ctx),
-                n.input.as<SplitLikePrimitiveOp>().outputRhs.description(ctx)
+                DimensionTypeDescription(n->getType()),
+                n->getInput().description(ctx),
+                n->outputLhs.description(ctx),
+                n->outputRhs.description(ctx)
             );
         }
         case Next::Type::MergeLike: {
             const auto& n = nextMergeLikes[next.index].first;
+            auto [inputLhs, inputRhs] = n->getInputs();
             return fmt::format(
                 "{} {}, {} -> {}",
-                DimensionTypeDescription(n.inputLhs.type()),
-                n.inputLhs.description(ctx),
-                n.inputRhs.description(ctx),
-                n.inputLhs.as<MergeLikePrimitiveOp>().output.description(ctx)
+                DimensionTypeDescription(n->getType()),
+                inputLhs.description(ctx),
+                inputRhs.description(ctx),
+                n->output.description(ctx)
             );
         }
     }

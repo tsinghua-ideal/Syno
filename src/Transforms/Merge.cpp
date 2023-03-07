@@ -24,10 +24,10 @@ std::pair<IteratorValue, IteratorValue> MergeOp::value(const IteratorValue& outp
     return { output / block, output % block };
 }
 
-std::vector<MergeOp *> MergeOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
+std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
     const auto& ctx = options.ctx;
     auto primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
-    std::vector<MergeOp *> res;
+    std::vector<const MergeOp *> res;
     if (outputShape.size() < options.dimUpperBound) {
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
             const auto& size = outputShape[i].size();

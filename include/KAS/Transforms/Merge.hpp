@@ -30,6 +30,7 @@ public:
         inputLhs { this, Order::Left },
         inputRhs { this, Order::Right }
     {}
+    constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
     inline std::pair<Dimension, Dimension> getInputs() const override { return { &inputLhs, &inputRhs }; }
     std::pair<IteratorValue, IteratorValue> value(const IteratorValue& output) const override;
@@ -42,7 +43,7 @@ public:
         const BindingContext& ctx;
         std::size_t dimUpperBound;
     };
-    static std::vector<MergeOp *> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
+    static std::vector<const MergeOp *> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

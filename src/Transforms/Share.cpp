@@ -9,9 +9,9 @@ std::pair<IteratorValue, IteratorValue> ShareOp::value(const IteratorValue& outp
     return { output, output };
 }
 
-std::vector<ShareOp *> ShareOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
+std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
     Allowance allowance { Size::Product(ShapeView(outputShape)), options.ctx };
-    std::vector<ShareOp *> result;
+    std::vector<const ShareOp *> result;
     if (outputShape.size() < options.dimUpperBound) {
         for (auto&& dim: outputShape) {
             if (allowance.withinAllowance(dim.size())) {

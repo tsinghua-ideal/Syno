@@ -5,7 +5,7 @@ namespace kas {
 
 namespace Forward {
 
-std::unique_ptr<Iterator> Dimension::input(std::size_t index) {
+std::unique_ptr<Iterator> Dimension::output(std::size_t index) {
     auto it = std::make_unique<Iterator>(index, getSize());
     set(it.get());
     return it;

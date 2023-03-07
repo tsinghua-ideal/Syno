@@ -27,6 +27,7 @@ public:
         shift { shift },
         input { this }
     {}
+    constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
     inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue& output) const override;
@@ -35,7 +36,7 @@ public:
         return output == other.output && shift == other.shift;
     }
 
-    static std::vector<ShiftOp *> Generate(DimensionStore& store, const Interface& outputShape);
+    static std::vector<const ShiftOp *> Generate(DimensionStore& store, const Interface& outputShape);
 };
 
 } // namespace kas

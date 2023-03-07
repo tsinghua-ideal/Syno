@@ -19,8 +19,8 @@ public:
         const RepeatLikeOp *op;
         inline Input(const RepeatLikeOp *op): op { op } {}
         template<typename Derived>
-        Derived *getDerivedOp() const noexcept {
-            return static_cast<Derived *>(op);
+        const Derived *getDerivedOp() const noexcept {
+            return static_cast<const Derived *>(op);
         }
     public:
         inline std::size_t hash() const noexcept final override {
@@ -36,6 +36,7 @@ public:
     {}
     RepeatLikeOp(const RepeatLikeOp&) = delete;
     RepeatLikeOp(RepeatLikeOp&&) = delete;
+    virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
     // We would like to store the DimensionImpl inside this class, so we can just return a reference to part of this object.
     virtual Dimension getInput() const = 0;
@@ -53,8 +54,8 @@ public:
         const SplitLikeOp *op;
         inline Input(const SplitLikeOp *op): op { op } {}
         template<typename Derived>
-        Derived *getDerivedOp() const noexcept {
-            return static_cast<Derived *>(op);
+        const Derived *getDerivedOp() const noexcept {
+            return static_cast<const Derived *>(op);
         }
     public:
         inline std::size_t hash() const noexcept final override {
@@ -72,6 +73,7 @@ public:
     {}
     SplitLikeOp(const SplitLikeOp&) = delete;
     SplitLikeOp(SplitLikeOp&&) = delete;
+    virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
     virtual Dimension getInput() const = 0;
     virtual IteratorValue value(const IteratorValue& leftValue, const IteratorValue& rightValue) const = 0;
@@ -93,8 +95,8 @@ public:
         Order order;
         inline Input(const MergeLikeOp *op, Order order): op { op }, order { order } {}
         template<typename Derived>
-        Derived *getDerivedOp() const noexcept {
-            return static_cast<Derived *>(op);
+        const Derived *getDerivedOp() const noexcept {
+            return static_cast<const Derived *>(op);
         }
     public:
         inline std::size_t hash() const noexcept final override {
@@ -112,6 +114,7 @@ public:
     {}
     MergeLikeOp(const MergeLikeOp&) = delete;
     MergeLikeOp(MergeLikeOp&&) = delete;
+    virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
     virtual std::pair<Dimension, Dimension> getInputs() const = 0;
     virtual std::pair<IteratorValue, IteratorValue> value(const IteratorValue& value) const = 0;

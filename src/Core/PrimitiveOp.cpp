@@ -9,8 +9,9 @@
 
 namespace kas {
 
-Interface NextRepeatLike::applyTo(const Interface& interface) const {
-    const auto& replace = input.as<RepeatLikePrimitiveOp>().output;
+Interface RepeatLikeOp::applyTo(const Interface& interface) const {
+    auto input = getInput();
+    const auto& replace = output;
     bool toBeInserted = true;
     auto it = interface.begin();
     Interface result;
@@ -30,9 +31,9 @@ Interface NextRepeatLike::applyTo(const Interface& interface) const {
     return result;
 }
 
-Interface NextSplitLike::applyTo(const Interface &interface) const {
-    const auto& op = input.as<SplitLikePrimitiveOp>();
-    const auto& [replaceLeft, replaceRight] = std::minmax(op.outputLhs, op.outputRhs);
+Interface SplitLikeOp::applyTo(const Interface &interface) const {
+    auto input = getInput();
+    const auto& [replaceLeft, replaceRight] = std::minmax(outputLhs, outputRhs);
     bool toBeInserted = true;
     auto it = interface.begin();
     Interface result;
@@ -52,8 +53,9 @@ Interface NextSplitLike::applyTo(const Interface &interface) const {
     return result;
 }
 
-Interface NextMergeLike::applyTo(const Interface &interface) const {
-    const auto& replace = inputLhs.as<MergeLikePrimitiveOp>().output;
+Interface MergeLikeOp::applyTo(const Interface &interface) const {
+    auto [inputLhs, inputRhs] = getInputs();
+    const auto& replace = output;
     std::array<Dimension, 2> substitutes = { std::min(inputLhs, inputRhs), std::max(inputLhs, inputRhs) };
     auto sub = substitutes.begin();
     auto it = interface.begin();

@@ -121,10 +121,10 @@ TEST_F(forward_tests, pooling) {
     auto ri_0 = dimH_dot_K_and_dimW_dot_K.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
     // [N, C, H/K, W/K], where the K^2 is reduced.
 
-    auto i_0 = dimN.input(0);
-    auto i_1 = dimC.input(1);
-    auto i_2 = dimH_over_K.input(2);
-    auto i_3 = dimW_over_K.input(3);
+    auto i_0 = dimN.output(0);
+    auto i_1 = dimC.output(1);
+    auto i_2 = dimH_over_K.output(2);
+    auto i_3 = dimW_over_K.output(3);
 
     Interface in { dimN, dimC, dimH, dimW };
     auto tensorView = TensorView { { in } };
@@ -226,10 +226,10 @@ TEST_F(forward_tests, conv2d) {
     auto dimK2_shared = Forward::ShareOp::Create(dimK2, dimW_dot_K);
     // [N, C_in, H, W, C_out, K, K], where C_in, K1, and K2 are shared.
 
-    auto i_0 = dimN.input(0);
-    auto i_1 = dimCout.input(1);
-    auto i_2 = dimH_over_K.input(2);
-    auto i_3 = dimW_over_K.input(3);
+    auto i_0 = dimN.output(0);
+    auto i_1 = dimCout.output(1);
+    auto i_2 = dimH_over_K.output(2);
+    auto i_3 = dimW_over_K.output(3);
     auto ri_0 = dimK2_shared.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
     auto ri_1 = dimK1_shared.reduce(1, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
     auto ri_2 = dimCin_shared.reduce(2, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
