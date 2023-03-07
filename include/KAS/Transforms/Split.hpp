@@ -7,14 +7,14 @@ namespace kas {
 
 class SplitOp final: public SplitLikeOp {
 public:
+    static constexpr DimensionType Type = DimensionType::Split;
     class Input final: public SplitLikeOp::Input {
     public:
         inline Input(const SplitOp* op):
             SplitLikeOp::Input { op }
         {}
         inline const Size& size() const noexcept override { return getDerivedOp<SplitOp>()->sz; }
-        std::size_t hash() const noexcept override;
-        constexpr DimensionType type() const noexcept override { return DimensionType::Split; }
+        constexpr DimensionType type() const noexcept override { return Type; }
     };
 
 protected:
@@ -27,6 +27,7 @@ public:
         sz { this->outputLhs.size() * this->outputRhs.size() },
         input { this }
     {}
+    constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
     inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const override;
     
@@ -37,7 +38,7 @@ public:
     struct GenerateOptions {
         std::size_t dimLowerBound;
     };
-    static std::vector<std::unique_ptr<SplitOp>> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
+    static std::vector<SplitOp *> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

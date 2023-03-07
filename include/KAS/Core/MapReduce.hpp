@@ -51,8 +51,11 @@ public:
     {}
     inline const Size& size() const noexcept override { return domain; }
     inline std::size_t hash() const noexcept override {
-        auto h = priority;
-        HashCombine(h, DimensionType::MapReduce);
+        auto h = static_cast<std::size_t>(DimensionType::MapReduce);
+        HashCombine(h, priority);
+        HashCombine(h, domain);
+        HashCombine(h, mapType);
+        HashCombine(h, reduceType);
         return h;
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::MapReduce; }

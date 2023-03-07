@@ -23,12 +23,20 @@ public:
             return static_cast<Derived *>(op);
         }
     public:
+        inline std::size_t hash() const noexcept final override {
+            std::size_t h = op->initialHash();
+            HashCombine(h, op->output.hash());
+            return h;
+        }
         inline const RepeatLikeOp *getOp() const noexcept { return op; }
     };
     Dimension output;
     RepeatLikeOp(auto&& output):
         output { std::forward<decltype(output)>(output) }
     {}
+    RepeatLikeOp(const RepeatLikeOp&) = delete;
+    RepeatLikeOp(RepeatLikeOp&&) = delete;
+    virtual std::size_t initialHash() const noexcept = 0;
     // We would like to store the DimensionImpl inside this class, so we can just return a reference to part of this object.
     virtual Dimension getInput() const = 0;
     virtual IteratorValue value(const IteratorValue& value) const = 0;
@@ -49,6 +57,12 @@ public:
             return static_cast<Derived *>(op);
         }
     public:
+        inline std::size_t hash() const noexcept final override {
+            std::size_t h = op->initialHash();
+            HashCombine(h, op->outputLhs.hash());
+            HashCombine(h, op->outputRhs.hash());
+            return h;
+        }
         inline const SplitLikeOp *getOp() const noexcept { return op; }
     };
     Dimension outputLhs, outputRhs;
@@ -56,6 +70,9 @@ public:
         outputLhs { std::forward<decltype(outputLhs)>(outputLhs) },
         outputRhs { std::forward<decltype(outputRhs)>(outputRhs) }
     {}
+    SplitLikeOp(const SplitLikeOp&) = delete;
+    SplitLikeOp(SplitLikeOp&&) = delete;
+    virtual std::size_t initialHash() const noexcept = 0;
     virtual Dimension getInput() const = 0;
     virtual IteratorValue value(const IteratorValue& leftValue, const IteratorValue& rightValue) const = 0;
     ~SplitLikeOp() = default;
@@ -80,6 +97,12 @@ public:
             return static_cast<Derived *>(op);
         }
     public:
+        inline std::size_t hash() const noexcept final override {
+            std::size_t h = op->initialHash();
+            HashCombine(h, op->output.hash());
+            HashCombine(h, order);
+            return h;
+        }
         inline const MergeLikeOp *getOp() const noexcept { return op; }
         inline Order getOrder() const noexcept { return order; }
     };
@@ -87,6 +110,9 @@ public:
     MergeLikeOp(auto&& output):
         output { std::forward<decltype(output)>(output) }
     {}
+    MergeLikeOp(const MergeLikeOp&) = delete;
+    MergeLikeOp(MergeLikeOp&&) = delete;
+    virtual std::size_t initialHash() const noexcept = 0;
     virtual std::pair<Dimension, Dimension> getInputs() const = 0;
     virtual std::pair<IteratorValue, IteratorValue> value(const IteratorValue& value) const = 0;
     ~MergeLikeOp() = default;

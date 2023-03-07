@@ -16,8 +16,8 @@ public:
     {}
     inline const Size& size() const noexcept override { return domain; }
     inline std::size_t hash() const noexcept override {
-        auto h = index;
-        HashCombine(h, DimensionType::Iterator);
+        auto h = static_cast<std::size_t>(DimensionType::Iterator);
+        HashCombine(h, index);
         return h;
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::Iterator; }

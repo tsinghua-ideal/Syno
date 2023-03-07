@@ -6,10 +6,9 @@
 
 namespace kas {
 
-std::size_t StrideOp::Input::hash() const noexcept {
-    auto h = static_cast<std::size_t>(type());
-    HashCombine(h, op->output.hash());
-    HashCombine(h, getDerivedOp<StrideOp>()->stride);
+std::size_t StrideOp::initialHash() const noexcept {
+    std::size_t h = static_cast<std::size_t>(Type);
+    HashCombine(h, stride);
     return h;
 }
 
@@ -18,8 +17,8 @@ IteratorValue StrideOp::value(const IteratorValue& output) const {
     return stride * output;
 }
 
-std::vector<std::unique_ptr<StrideOp>> StrideOp::Generate(DimensionStore& store, const Interface& outputShape) {
-    std::vector<std::unique_ptr<StrideOp>> result;
+std::vector<StrideOp *> StrideOp::Generate(DimensionStore& store, const Interface& outputShape) {
+    std::vector<StrideOp *> result;
     for (std::size_t i = 0; i < outputShape.size(); ++i) {
         const Size& size = outputShape[i].size();
         auto primary = size.getPrimary();

@@ -7,14 +7,14 @@ namespace kas {
 
 class ShiftOp final: public RepeatLikeOp {
 public:
+    static constexpr DimensionType Type = DimensionType::Shift;
     class Input final: public RepeatLikeOp::Input {
     public:
         inline Input(const ShiftOp* op):
             RepeatLikeOp::Input { op }
         {}
         inline const Size& size() const noexcept override { return op->output.size(); }
-        std::size_t hash() const noexcept override;
-        constexpr DimensionType type() const noexcept override { return DimensionType::Shift; }
+        constexpr DimensionType type() const noexcept override { return Type; }
     };
 
 protected:
@@ -27,6 +27,7 @@ public:
         shift { shift },
         input { this }
     {}
+    std::size_t initialHash() const noexcept override;
     inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue& output) const override;
 
@@ -34,7 +35,7 @@ public:
         return output == other.output && shift == other.shift;
     }
 
-    static std::vector<std::unique_ptr<ShiftOp>> Generate(DimensionStore& store, const Interface& outputShape);
+    static std::vector<ShiftOp *> Generate(DimensionStore& store, const Interface& outputShape);
 };
 
 } // namespace kas

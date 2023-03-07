@@ -13,11 +13,9 @@ const Size& MergeOp::Input::size() const noexcept {
     }
 }
 
-std::size_t MergeOp::Input::hash() const noexcept {
-    std::size_t h = static_cast<std::size_t>(type());
-    HashCombine(h, op->output.hash());
-    HashCombine(h, order);
-    HashCombine(h, getDerivedOp<MergeOp>()->minorSize);
+std::size_t MergeOp::initialHash() const noexcept {
+    std::size_t h = static_cast<std::size_t>(Type);
+    HashCombine(h, minorSize);
     return h;
 }
 
@@ -26,10 +24,10 @@ std::pair<IteratorValue, IteratorValue> MergeOp::value(const IteratorValue& outp
     return { output / block, output % block };
 }
 
-std::vector<std::unique_ptr<MergeOp>> MergeOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
+std::vector<MergeOp *> MergeOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
     const auto& ctx = options.ctx;
     auto primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
-    std::vector<std::unique_ptr<MergeOp>> res;
+    std::vector<MergeOp *> res;
     if (outputShape.size() < options.dimUpperBound) {
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
             const auto& size = outputShape[i].size();
@@ -47,7 +45,7 @@ std::vector<std::unique_ptr<MergeOp>> MergeOp::Generate(DimensionStore& store, c
                     primaryRes.getPrimary()[primaryIndex] = 1;
                     auto canBeDivided = size.canBeDividedBy(primaryRes);
                     if (canBeDivided.has_value() && canBeDivided.value() != Size::Trait::One) {
-                        res.emplace_back(store.get<MergeOp>(outputShape[i], Order::Left, primaryRes), store.get<MergeOp>(outputShape[i], Order::Right, primaryRes));
+                        res.emplace_back(store.get<MergeOp>(outputShape[i], primaryRes));
                     }
                     for (std::size_t coefficientIndex = 0; coefficientIndex < coefficientCount; ++coefficientIndex) {
                         std::size_t coefficientDim = coefficient[coefficientIndex];
@@ -61,7 +59,7 @@ std::vector<std::unique_ptr<MergeOp>> MergeOp::Generate(DimensionStore& store, c
                             }
                             canBeDivided = size.canBeDividedBy(coefRes);
                             if (canBeDivided.has_value() && canBeDivided.value() != Size::Trait::One) {
-                                res.emplace_back(store.get<MergeOp>(outputShape[i], Order::Left, coefRes), store.get<MergeOp>(outputShape[i], Order::Right, coefRes));
+                                res.emplace_back(store.get<MergeOp>(outputShape[i], coefRes));
                             }
                         }
                     }

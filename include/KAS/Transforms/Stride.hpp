@@ -7,14 +7,14 @@ namespace kas {
 
 class StrideOp final: public RepeatLikeOp {
 public:
+    static constexpr DimensionType Type = DimensionType::Stride;
     class Input final: public RepeatLikeOp::Input {
     public:
         inline Input(const StrideOp* op):
             RepeatLikeOp::Input { op }
         {}
         inline const Size& size() const noexcept override { return getDerivedOp<StrideOp>()->sz; }
-        std::size_t hash() const noexcept override;
-        constexpr DimensionType type() const noexcept override { return DimensionType::Stride; }
+        constexpr DimensionType type() const noexcept override { return Type; }
     };
 
 protected:
@@ -29,6 +29,7 @@ public:
         sz { this->output.size() * this->stride },
         input { this }
     {}
+    std::size_t initialHash() const noexcept override;
     inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue& output) const override;
 
@@ -36,7 +37,7 @@ public:
         return output == other.output && stride == other.stride;
     }
 
-    static std::vector<std::unique_ptr<StrideOp>> Generate(DimensionStore& store, const Interface& outputShape);
+    static std::vector<StrideOp *> Generate(DimensionStore& store, const Interface& outputShape);
 };
 
 } // namespace kas

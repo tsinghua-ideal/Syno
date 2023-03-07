@@ -7,14 +7,14 @@ namespace kas {
 
 class ShareOp final: public MergeLikeOp {
 public:
+    static constexpr DimensionType Type = DimensionType::Share;
     class Input final: public MergeLikeOp::Input {
     public:
         inline Input(const ShareOp* op, Order order):
             MergeLikeOp::Input { op, order }
         {}
         inline const Size& size() const noexcept override { return op->output.size(); }
-        std::size_t hash() const noexcept override;
-        constexpr DimensionType type() const noexcept override { return DimensionType::Share; }
+        constexpr DimensionType type() const noexcept override { return Type; }
     };
 
 protected:
@@ -27,6 +27,7 @@ public:
         inputLhs { this, Order::Left },
         inputRhs { this, Order::Right }
     {}
+    constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
     inline std::pair<Dimension, Dimension> getInputs() const override { return { &inputLhs, &inputRhs }; }
     std::pair<IteratorValue, IteratorValue> value(const IteratorValue& output) const override;
 
@@ -38,7 +39,7 @@ public:
         const BindingContext& ctx;
         std::size_t dimUpperBound;
     };
-    static std::vector<std::unique_ptr<ShareOp>> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
+    static std::vector<ShareOp *> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

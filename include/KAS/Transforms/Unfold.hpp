@@ -7,14 +7,14 @@ namespace kas {
 
 class UnfoldOp final: public SplitLikeOp {
 public:
+    static constexpr DimensionType Type = DimensionType::Unfold;
     class Input final: public SplitLikeOp::Input {
     public:
         inline Input(const UnfoldOp* op):
             SplitLikeOp::Input { op }
         {}
         inline const Size& size() const noexcept override { return getDerivedOp<UnfoldOp>()->outputLhs.size(); }
-        std::size_t hash() const noexcept override;
-        constexpr DimensionType type() const noexcept override { return DimensionType::Unfold; }
+        constexpr DimensionType type() const noexcept override { return Type; }
     };
 
 protected:
@@ -25,6 +25,7 @@ public:
         SplitLikeOp { std::forward<decltype(outputLhs)>(outputLhs), std::forward<decltype(outputRhs)>(outputRhs) },
         input { this }
     {}
+    constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
     inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const override;
 
@@ -36,7 +37,7 @@ public:
         const BindingContext& ctx;
         std::size_t dimLowerBound;
     };
-    static std::vector<std::unique_ptr<UnfoldOp>> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
+    static std::vector<UnfoldOp *> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas
