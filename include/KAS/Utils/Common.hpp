@@ -1,7 +1,8 @@
 #pragma once
 
-#include <fmt/core.h>
 #include <iostream>
+
+#include <fmt/core.h>
 
 #define KAS_ASSERT(expr, ...) ((expr) ? ((void)(0)) : ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE_NAME__, __LINE__, "Assertion failed: " #expr __VA_OPT__(,) __VA_ARGS__))
 

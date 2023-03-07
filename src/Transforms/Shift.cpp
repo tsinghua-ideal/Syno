@@ -4,7 +4,7 @@
 namespace kas {
 
 std::size_t ShiftOp::initialHash() const noexcept {
-    auto h = static_cast<std::size_t>(type());
+    std::size_t h = static_cast<std::size_t>(Type);
     HashCombine(h, shift);
     return h;
 }

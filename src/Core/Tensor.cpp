@@ -89,24 +89,34 @@ namespace {
                 return it->second;
             }
             IteratorValue result;
-            if (auto it = dynamic_cast<const RepeatLikePrimitiveOp *>(dim.get()); it) {
-                auto out = dfs(it->output);
-                result = it->value(out);
-            } else if (auto it = dynamic_cast<const SplitLikePrimitiveOp *>(dim.get()); it) {
-                auto outLeft = dfs(it->outputLhs);
-                auto outRight = dfs(it->outputRhs);
-                result = it->value(outLeft, outRight);
-            } else if (auto it = dynamic_cast<const MergeLikePrimitiveOp *>(dim.get()); it) {
-                auto out = dfs(it->output);
-                result = it->value(out);
-            } else if (auto it = dynamic_cast<const Iterator *>(dim.get()); it) {
+            if (auto it = dim.tryAs<RepeatLikeOp::Input>(); it) {
+                auto op = it->getOp();
+                auto out = dfs(op->output);
+                result = op->value(out);
+            } else if (auto it = dim.tryAs<SplitLikeOp::Input>(); it) {
+                auto op = it->getOp();
+                auto outLeft = dfs(op->outputLhs);
+                auto outRight = dfs(op->outputRhs);
+                result = op->value(outLeft, outRight);
+            } else if (auto it = dim.tryAs<MergeLikeOp::Input>(); it) {
+                auto op = it->getOp();
+                auto out = dfs(op->output);
+                auto [resultLhs, resultRhs] = op->value(out);
+                auto [inputLhs, inputRhs] = op->getInputs();
+                memoize.insert({inputLhs, resultLhs});
+                memoize.insert({inputRhs, resultRhs});
+                switch (it->getOrder()) {
+                case Order::Left: return resultLhs;
+                case Order::Right: return resultRhs;
+                }
+            } else if (auto it = dim.tryAs<Iterator>(); it) {
                 // Here we have not figured out the order of the iterators. We have to wait until all the iterators are collected.
                 result = VariableValueNode::Create(false, std::numeric_limits<std::size_t>::max(), it->getName());
                 auto [ptr, inserted] = outer.insert({it, result});
                 if (!inserted) {
                     result = ptr->second;
                 }
-            } else if (auto it = dynamic_cast<const MapReduceOp *>(dim.get()); it) {
+            } else if (auto it = dim.tryAs<MapReduceOp>(); it) {
                 // Same reason.
                 result = VariableValueNode::Create(true, std::numeric_limits<std::size_t>::max(), it->getName());
                 auto [ptr, inserted] = inner.insert({it, result});
@@ -114,7 +124,7 @@ namespace {
                     result = ptr->second;
                 }
             } else {
-                KAS_CRITICAL("When evaluating access, encountered unknown dimension type: {}", typeid(*dim.get()).name());
+                KAS_CRITICAL("When evaluating access, encountered unknown dimension type: {}", typeid(*dim.getInnerPointer()).name());
             }
             memoize.insert({dim, result});
             return result;

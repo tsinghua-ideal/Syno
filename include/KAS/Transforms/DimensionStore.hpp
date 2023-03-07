@@ -21,21 +21,21 @@ template<typename Op>
 using Pointer = const Op *;
 
 template<typename Op>
-struct PointerEqual {
+struct PointeeEqual {
     bool operator()(const Pointer<Op>& lhs, const Pointer<Op>& rhs) const noexcept {
         return *lhs == *rhs;
     }
 };
 
 template<typename Op, typename Hash>
-using Store = std::unordered_set<Pointer<Op>, Hash, PointerEqual<Op>>;
+using Store = std::unordered_set<Pointer<Op>, Hash, PointeeEqual<Op>>;
 
 template<typename Op>
 struct SingleRepeatLikeOpDimensionStore {
     struct Hash {
         std::size_t operator()(Pointer<Op> op) const noexcept {
             auto h = op->initialHash();
-            HashCombine(h, op->output.get());
+            HashCombine(h, op->output.hash());
             return h;
         }
     };
@@ -56,8 +56,8 @@ struct SingleSplitLikeOpDimensionStore {
     struct Hash {
         std::size_t operator()(Pointer<Op> op) const noexcept {
             auto h = op->initialHash();
-            HashCombine(h, op->outputLhs.get());
-            HashCombine(h, op->outputRhs.get());
+            HashCombine(h, op->outputLhs.hash());
+            HashCombine(h, op->outputRhs.hash());
             return h;
         }
     };
@@ -78,8 +78,7 @@ struct SingleMergeLikeOpDimensionStore {
     struct Hash {
         std::size_t operator()(Pointer<Op> op) const noexcept {
             auto h = op->initialHash();
-            HashCombine(h, op->output.get());
-            HashCombine(h, op->order);
+            HashCombine(h, op->output.hash());
             return h;
         }
     };
@@ -128,17 +127,20 @@ class DimensionStore {
         }
     }
 public:
+    DimensionStore() = default;
+    DimensionStore(const DimensionStore&) = delete;
+    DimensionStore(DimensionStore&&) = delete;
     template<typename Op, typename... Args>
-    Dimension get(Args&&... args) {
+    const Op *get(Args&&... args) {
         auto& store = getStore<Op>();
         static_assert(std::is_same_v<typename std::remove_reference_t<decltype(store)>::key_type, detail::Pointer<Op>>);
         auto op = std::make_unique<Op>(std::forward<Args>(args)...);
         auto [it, inserted] = store.insert(op.get());
         if (!inserted) {
             // Newly allocated op is automatically destroyed.
-            return Dimension(*it);
+            return *it;
         }
-        return Dimension(op.release());
+        return op.release();
     }
     inline ~DimensionStore() {
         auto deleteOp = [](auto&& store) {

@@ -5,7 +5,7 @@ namespace kas {
 
 namespace Forward {
 
-std::unique_ptr<Iterator> Dimension::input(std::size_t index) {
+std::unique_ptr<Iterator> Dimension::output(std::size_t index) {
     auto it = std::make_unique<Iterator>(index, getSize());
     set(it.get());
     return it;
@@ -20,8 +20,10 @@ std::unique_ptr<MapReduceOp> Dimension::reduce(std::size_t priority, MapReduceOp
 void MergeOp::onNotification(DimensionStore& store) {
     KAS_ASSERT(output.lock()->evaluated());
     BackwardDimension outputDim = output.lock()->get();
-    inputLhs.set(store.get<::kas::MergeOp>(outputDim, Order::Left, inputRhs.getSize()));
-    inputRhs.set(store.get<::kas::MergeOp>(outputDim, Order::Right, inputRhs.getSize()));
+    auto op = store.get<::kas::MergeOp>(outputDim, inputRhs.getSize());
+    auto [inLhs, inRhs] = op->getInputs();
+    inputLhs.set(inLhs);
+    inputRhs.set(inRhs);
 }
 Dimension MergeOp::Create(const Dimension& lhs, const Dimension& rhs) {
     auto op = std::unique_ptr<MergeOp> { new MergeOp { lhs, rhs } };
@@ -32,8 +34,10 @@ Dimension MergeOp::Create(const Dimension& lhs, const Dimension& rhs) {
 void ShareOp::onNotification(DimensionStore& store) {
     KAS_ASSERT(output.lock()->evaluated());
     BackwardDimension outputDim = output.lock()->get();
-    inputLhs.set(store.get<::kas::ShareOp>(outputDim, Order::Left));
-    inputRhs.set(store.get<::kas::ShareOp>(outputDim, Order::Right));
+    auto op = store.get<::kas::ShareOp>(outputDim);
+    auto [inLhs, inRhs] = op->getInputs();
+    inputLhs.set(inLhs);
+    inputRhs.set(inRhs);
 }
 Dimension ShareOp::Create(const Dimension& lhs, const Dimension& rhs) {
     auto op = std::unique_ptr<ShareOp> { new ShareOp { lhs, rhs } };
@@ -45,7 +49,7 @@ Dimension ShareOp::Create(const Dimension& lhs, const Dimension& rhs) {
 void ShiftOp::onNotification(DimensionStore& store) {
     KAS_ASSERT(output.lock()->evaluated());
     BackwardDimension outputDim = output.lock()->get();
-    input.set(store.get<::kas::ShiftOp>(outputDim, shift));
+    input.set(store.get<::kas::ShiftOp>(outputDim, shift)->getInput());
 }
 Dimension ShiftOp::Create(const Dimension& input, int shift) {
     auto op = std::unique_ptr<ShiftOp> { new ShiftOp { input, shift } };
@@ -57,7 +61,7 @@ void SplitOp::onNotification(DimensionStore& store) {
     if (outputLhs.lock()->evaluated() && outputRhs.lock()->evaluated()) {
         BackwardDimension outputLhsDim = outputLhs.lock()->get();
         BackwardDimension outputRhsDim = outputRhs.lock()->get();
-        input.set(store.get<::kas::SplitOp>(outputLhsDim, outputRhsDim));
+        input.set(store.get<::kas::SplitOp>(outputLhsDim, outputRhsDim)->getInput());
     }
 }
 std::pair<Dimension, Dimension> SplitOp::Create(const Dimension& input, const Size& block) {
@@ -70,7 +74,7 @@ std::pair<Dimension, Dimension> SplitOp::Create(const Dimension& input, const Si
 void StrideOp::onNotification(DimensionStore& store) {
     KAS_ASSERT(output.lock()->evaluated());
     BackwardDimension outputDim = output.lock()->get();
-    input.set(store.get<::kas::StrideOp>(outputDim, stride));
+    input.set(store.get<::kas::StrideOp>(outputDim, stride)->getInput());
 }
 Dimension StrideOp::Create(const Dimension& input, const Size& stride) {
     auto op = std::unique_ptr<StrideOp> { new StrideOp { input, stride } };
@@ -82,7 +86,7 @@ void UnfoldOp::onNotification(DimensionStore& store) {
     if (outputLhs.lock()->evaluated() && outputRhs.lock()->evaluated()) {
         BackwardDimension outputLhsDim = outputLhs.lock()->get();
         BackwardDimension outputRhsDim = outputRhs.lock()->get();
-        input.set(store.get<::kas::UnfoldOp>(outputLhsDim, outputRhsDim));
+        input.set(store.get<::kas::UnfoldOp>(outputLhsDim, outputRhsDim)->getInput());
     }
 }
 std::pair<Dimension, Dimension> UnfoldOp::Create(const Dimension& input, const Size& window) {

@@ -78,9 +78,9 @@ class Stage {
     // Node pointers. The nodes are lazily computed. We are searching bottom-up, so the children are actually closer to the input.
     std::optional<NextBound> nexts; // If `nexts == std::nullopt`, then all children are not evaluated. If `nexts` is evaluated, all children are evaluated, but the `Stage *` may be `nullptr`, i.e., remains to be evaluated.
     std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> finalizes;
-    std::vector<std::pair<const NextRepeatLike, Stage *>> nextRepeatLikes;
-    std::vector<std::pair<const NextSplitLike, Stage *>> nextSplitLikes;
-    std::vector<std::pair<const NextMergeLike, Stage *>> nextMergeLikes;
+    std::vector<std::pair<const RepeatLikeOp * const, Stage *>> nextRepeatLikes;
+    std::vector<std::pair<const SplitLikeOp * const, Stage *>> nextSplitLikes;
+    std::vector<std::pair<const MergeLikeOp * const, Stage *>> nextMergeLikes;
 
     // Metadata.
     Sampler& sampler;
@@ -93,13 +93,13 @@ class Stage {
 
     TensorView *getFinalize(std::size_t index);
     template<typename NextOp>
-    requires (std::same_as<NextOp, NextRepeatLike> || std::same_as<NextOp, NextSplitLike> || std::same_as<NextOp, NextMergeLike>)
+    requires (std::same_as<NextOp, RepeatLikeOp> || std::same_as<NextOp, SplitLikeOp> || std::same_as<NextOp, MergeLikeOp>)
     auto& getNextBuffer() {
-        if constexpr (std::same_as<NextOp, NextRepeatLike>) {
+        if constexpr (std::same_as<NextOp, RepeatLikeOp>) {
             return nextRepeatLikes;
-        } else if constexpr (std::same_as<NextOp, NextSplitLike>) {
+        } else if constexpr (std::same_as<NextOp, SplitLikeOp>) {
             return nextSplitLikes;
-        } else if constexpr (std::same_as<NextOp, NextMergeLike>) {
+        } else if constexpr (std::same_as<NextOp, MergeLikeOp>) {
             return nextMergeLikes;
         }
     }
@@ -107,7 +107,7 @@ class Stage {
     Stage *getNext(StageStore& store, std::size_t index) {
         auto& [op, stage] = getNextBuffer<NextOp>()[index];
         if (!stage) {
-            auto newInterface = op.applyTo(interface);
+            auto newInterface = op->applyTo(interface);
             if (Stage *found = store.find(&newInterface); found) {
                 stage = found;
             } else {

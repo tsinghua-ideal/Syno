@@ -34,7 +34,7 @@ public:
     inline bool evaluated() const { return value != nullptr; }
     // Each time a dimension is evluated, its parent Op gets notified. Once all of the children of the Op are evaluated, the Op can be evaluated, propagating to top-most dimensions.
     inline void set(const BackwardDimension& value) {
-        this->value = value.get();
+        this->value = value.getInnerPointer();
         notifyParent();
     }
     inline BackwardDimension get() const {
@@ -53,7 +53,7 @@ public:
     inline void set(const BackwardDimension& value) { inner->set(value); }
     inline BackwardDimension get() const { return inner->get(); }
     inline operator BackwardDimension() const { return get(); }
-    [[nodiscard]] std::unique_ptr<Iterator> input(std::size_t index);
+    [[nodiscard]] std::unique_ptr<Iterator> output(std::size_t index);
     [[nodiscard]] std::unique_ptr<MapReduceOp> reduce(std::size_t priority, MapReduceOp::MapType mapType, MapReduceOp::ReduceType reduceType);
 };
 
