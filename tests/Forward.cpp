@@ -63,6 +63,11 @@ protected:
         // Compute the forward result.
         auto target = HalideGen::GetHostTarget(options.useGPU);
         auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, true);
+
+        if (createStaticLibrary) {
+            HalideGen::GenerateFromPipelines(inputs, backwardInputs, pipeline, backwardPipeline, "./kernel_" + std::string(funcName), funcName, target);
+        }
+    
         auto outputBufferShape = gen.getOutputBufferShape(consts);
         auto trial = HalideGen::BufferAdaptor<float>(pipeline.realize(outputBufferShape, target));
 
@@ -82,10 +87,6 @@ protected:
         for (auto& inputGradBuffer: inputGradsBuffers) {
             backwardTrials.emplace_back(std::move(inputGradBuffer));
             backwardTrials.back().content.copy_to_host();
-        }
-
-        if (createStaticLibrary) {
-            HalideGen::GenerateFromPipelines(inputs, backwardInputs, pipeline, backwardPipeline, "./kernel_" + std::string(funcName), funcName, target);
         }
 
         return { std::move(pipeline), std::move(trial), std::move(outputBufferShape), std::move(backwardPipeline), std::move(backwardTrials) };
