@@ -31,6 +31,7 @@ public:
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
     inline std::pair<Dimension, Dimension> getInputs() const override { return { &inputLhs, &inputRhs }; }
     std::pair<IteratorValue, IteratorValue> value(const IteratorValue& output) const override;
+    bool transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
 
     inline bool operator==(const ShareOp& other) const noexcept {
         return output == other.output;
@@ -40,7 +41,7 @@ public:
         const BindingContext& ctx;
         std::size_t dimUpperBound;
     };
-    static std::vector<const ShareOp *> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
+    static std::vector<const ShareOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
 };
 
 } // namespace kas

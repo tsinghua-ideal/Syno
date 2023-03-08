@@ -29,6 +29,7 @@ public:
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
     inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const override;
+    bool transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
 
     inline bool operator==(const UnfoldOp& other) const noexcept {
         return outputLhs == other.outputLhs && outputRhs == other.outputRhs;
@@ -38,7 +39,7 @@ public:
         const BindingContext& ctx;
         std::size_t dimLowerBound;
     };
-    static std::vector<const UnfoldOp *> Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options);
+    static std::vector<const UnfoldOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
 };
 
 } // namespace kas

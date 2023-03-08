@@ -17,7 +17,7 @@ IteratorValue StrideOp::value(const IteratorValue& output) const {
     return stride * output;
 }
 
-std::vector<const StrideOp *> StrideOp::Generate(DimensionStore& store, const Interface& outputShape) {
+std::vector<const StrideOp *> StrideOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors) {
     std::vector<const StrideOp *> result;
     for (std::size_t i = 0; i < outputShape.size(); ++i) {
         const Size& size = outputShape[i].size();

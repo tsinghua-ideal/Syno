@@ -81,7 +81,7 @@ std::string TensorView::printInnerLoops(const BindingContext& ctx, std::size_t i
 
 namespace {
     struct DimensionEvaluator {
-        std::map<Dimension, IteratorValue> memoize;
+        std::map<Dimension, IteratorValue, Dimension::LessThan> memoize;
         std::map<const Iterator *, IteratorValue> outer;
         std::map<const MapReduceOp *, IteratorValue> inner;
         IteratorValue dfs(Dimension dim) {

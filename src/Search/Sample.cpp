@@ -119,9 +119,10 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
 {
     reduces = MapReduceOp::GenerateLastLevelMapReduces(this->outputShape, { this->ctx, this->options.dimUpperBound });
     for (auto& r: reduces) {
-        Interface temp = root;
-        std::ranges::copy(r | std::views::transform([](MapReduceOp& m) { return &m; }), std::back_inserter(temp));
-        std::ranges::sort(temp);
+        ColoredInterface temp;
+        std::ranges::copy(root | std::views::transform([](const Dimension& dim) { return ColoredDimension { dim, Colors::Unknown }; }), std::back_inserter(temp.items)); // Maybe we can determine the colors here? TODO.
+        std::ranges::copy(r | std::views::transform([](MapReduceOp& m) { return ColoredDimension{ &m, Colors::Unknown }; }), std::back_inserter(temp.items));
+        std::ranges::sort(temp.items, Dimension::LessThan{}, ColoredDimension::Projection{});
         this->bases.emplace_back(std::move(temp), *this, 0);
     }
 }

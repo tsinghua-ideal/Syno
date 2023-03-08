@@ -24,7 +24,7 @@ std::pair<IteratorValue, IteratorValue> MergeOp::value(const IteratorValue& outp
     return { output / block, output % block };
 }
 
-std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
+std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
     const auto& ctx = options.ctx;
     auto primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
     std::vector<const MergeOp *> res;

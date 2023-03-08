@@ -27,10 +27,4 @@ std::string Dimension::description(const BindingContext& ctx) const {
     return fmt::format("{}@{}", size().toString(ctx), fmt::ptr(inner));
 }
 
-Interface::const_iterator Dimension::findIn(const Interface& interface) const {
-    auto it = std::lower_bound(interface.begin(), interface.end(), *this);
-    // TODO: after switching to computed hash, handle collisions.
-    return it;
-}
-
 } // namespace kas

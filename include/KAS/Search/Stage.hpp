@@ -17,6 +17,7 @@
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Transforms/DimensionStore.hpp"
+#include "KAS/Utils/Hash.hpp"
 
 
 namespace kas {
@@ -48,22 +49,26 @@ class Stage;
 class StageStore {
     DimensionStore dimensionStore;
     struct Hash {
-        std::size_t operator()(Interface * const interface) const noexcept {
-            return std::hash<std::vector<Dimension>>{}(*interface);
+        std::size_t operator()(const ColoredInterface *interface) const noexcept {
+            std::size_t h = interface->items.size();
+            for (const auto& dim: interface->items) {
+                HashCombine(h, dim.dimension.hash());
+            }
+            return h;
         }
     };
     struct Equal {
-        bool operator()(Interface * const lhs, Interface * const rhs) const noexcept {
-            return *lhs == *rhs;
+        bool operator()(const ColoredInterface *lhs, const ColoredInterface *rhs) const noexcept {
+            return std::ranges::equal(lhs->items, rhs->items, std::equal_to<Dimension>{}, ColoredDimension::Projection{}, ColoredDimension::Projection{});
         }
     };
-    std::unordered_set<Interface *, Hash, Equal> interfaces;
+    std::unordered_set<ColoredInterface *, Hash, Equal> interfaces;
 
     // This is just the `container_of()` in Linux kernel.
-    static Stage *Convert(Interface *from);
+    static Stage *Convert(ColoredInterface *from);
 public:
     inline DimensionStore& dimStore() { return dimensionStore; }
-    Stage *find(Interface *interface) const;
+    Stage *find(ColoredInterface *interface) const;
     bool insert(Stage *stage);
     ~StageStore();
 };
@@ -73,7 +78,7 @@ class Stage {
     FRIEND_TEST(search_tests, sampler);
 
     // The interface decides the hash. Other properties are computed.
-    std::vector<Dimension> interface;
+    ColoredInterface interface;
 
     // Node pointers. The nodes are lazily computed. We are searching bottom-up, so the children are actually closer to the input.
     std::optional<NextBound> nexts; // If `nexts == std::nullopt`, then all children are not evaluated. If `nexts` is evaluated, all children are evaluated, but the `Stage *` may be `nullptr`, i.e., remains to be evaluated.
@@ -88,38 +93,36 @@ class Stage {
     Colors colors;
     std::vector<std::reference_wrapper<const Size>> missingSizes;
 
+    StageStore& getStageStore();
+
     // This checks whether the nexts are evaluated. If not, it evaluates them.
     void guard();
 
     TensorView *getFinalize(std::size_t index);
+
+    static constexpr Colors::Options colorsOptions = {
+        .maximumTensors = 2,
+    };
+
     template<typename NextOp>
     requires (std::same_as<NextOp, RepeatLikeOp> || std::same_as<NextOp, SplitLikeOp> || std::same_as<NextOp, MergeLikeOp>)
-    auto& getNextBuffer() {
-        if constexpr (std::same_as<NextOp, RepeatLikeOp>) {
-            return nextRepeatLikes;
-        } else if constexpr (std::same_as<NextOp, SplitLikeOp>) {
-            return nextSplitLikes;
-        } else if constexpr (std::same_as<NextOp, MergeLikeOp>) {
-            return nextMergeLikes;
+    Stage *getNext(const NextOp *op) {
+        StageStore& store = getStageStore();
+        auto newInterface = interface;
+        auto newColors = colors;
+        if (!op->transformColors(newInterface, colors, colorsOptions)) {
+            return nullptr; // This failed.
         }
-    }
-    template<typename NextOp>
-    Stage *getNext(StageStore& store, std::size_t index) {
-        auto& [op, stage] = getNextBuffer<NextOp>()[index];
-        if (!stage) {
-            auto newInterface = op->applyTo(interface);
-            if (Stage *found = store.find(&newInterface); found) {
-                stage = found;
+        if (Stage *found = store.find(&newInterface); found) {
+            return found;
+        } else {
+            auto tempStage = std::unique_ptr<Stage> { new Stage { std::move(newInterface), sampler, depth + 1 } };
+            if(store.insert(tempStage.get())) {
+                return tempStage.release();
             } else {
-                auto tempStage = std::unique_ptr<Stage> { new Stage { std::move(newInterface), sampler, depth + 1 } };
-                if(store.insert(tempStage.get())) {
-                    stage = tempStage.release();
-                } else {
-                    KAS_CRITICAL("StageStore::insert() failed.");
-                }
+                KAS_CRITICAL("StageStore::insert() failed.");
             }
         }
-        return stage;
     }
 
 public:
@@ -130,7 +133,7 @@ public:
     {
         // Compute colors and missing sizes. TODO.
     }
-    inline const std::vector<Dimension>& getInterface() const { return interface; }
+    inline const ColoredInterface& getInterface() const { return interface; }
     std::size_t countChildren();
     bool isFinal(std::size_t index);
     std::variant<Stage *, TensorView *> next(std::size_t index);

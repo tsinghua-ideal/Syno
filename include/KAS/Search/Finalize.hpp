@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "KAS/Core/BindingContext.hpp"
+#include "KAS/Core/Colors.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Tensor.hpp"
 
@@ -23,7 +24,7 @@ public:
         const BindingContext& ctx;
         const Shape& desired;
     };
-    static std::vector<FinalizeOp> Generate(const Interface& outputShape, GenerateOptions options);
+    static std::vector<FinalizeOp> Generate(const ColoredInterface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

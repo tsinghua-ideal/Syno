@@ -13,7 +13,7 @@ IteratorValue UnfoldOp::value(const IteratorValue& outputMajor, const IteratorVa
     return IntervalBoundValueNode::Create(access, ImmediateValueNode::Zero, original);
 }
 
-std::vector<const UnfoldOp *> UnfoldOp::Generate(DimensionStore& store, const Interface& outputShape, GenerateOptions options) {
+std::vector<const UnfoldOp *> UnfoldOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
     std::vector<const UnfoldOp *> result;
     if (outputShape.size() > options.dimLowerBound) {
         std::vector<std::size_t> generals;

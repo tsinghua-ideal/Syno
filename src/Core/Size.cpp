@@ -87,6 +87,10 @@ bool Size::isLegalCoefficient() const {
     return true;
 }
 
+bool Size::isGeneral() const {
+    return getPrimaryPowersSum() > 0;
+}
+
 int Size::getPrimaryPowersSum() const {
     auto primary = getPrimary();
     return std::accumulate(primary.begin(), primary.end(), 0);

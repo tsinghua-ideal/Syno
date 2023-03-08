@@ -91,6 +91,7 @@ public:
     bool is1() const;
     // Returns whether there are no primary variables.
     bool isLegalCoefficient() const;
+    bool isGeneral() const;
 
     int getPrimaryPowersSum() const;
 

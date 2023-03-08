@@ -47,6 +47,7 @@ protected:
     PointerType inner;
     std::size_t hashValue;
 public:
+    inline Dimension(PointerType inner, std::size_t hashValue): inner { inner }, hashValue { hashValue } {}
     inline Dimension(PointerType inner): inner { inner }, hashValue { inner->hash() } {}
     inline PointerType getInnerPointer() const noexcept { return inner; }
     inline const Size& size() const noexcept { return inner->size(); }
@@ -57,17 +58,17 @@ public:
     const T& as() const noexcept { return *dynamic_cast<const T *>(inner); }
     template<typename T>
     const T *tryAs() const noexcept { return dynamic_cast<const T *>(inner); }
-    std::weak_ordering operator<=>(const Dimension& other) const noexcept {
-        return hashValue <=> other.hashValue; // Use their hashes to sort the interface.
-    }
     inline bool operator==(const Dimension& other) const {
         return inner == other.inner; // If the impls are equal, they have equal hash.
     }
     // Sort the dimensions in an interface to obtain hash for it.
     inline std::size_t hash() const noexcept { return hashValue; }
+    struct LessThan {
+        inline bool operator()(const Dimension& lhs, const Dimension& rhs) const noexcept {
+            return lhs.hash() < rhs.hash(); // We use hash to sort them.
+        }
+    };
     std::string description(const BindingContext& ctx) const;
-
-    Interface::const_iterator findIn(const Interface& interface) const;
 };
 
 } // namespace kas

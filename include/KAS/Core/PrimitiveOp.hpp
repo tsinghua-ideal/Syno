@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KAS/Core/CodeGen.hpp"
+#include "KAS/Core/Colors.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Size.hpp"
 
@@ -43,7 +44,7 @@ public:
     virtual IteratorValue value(const IteratorValue& value) const = 0;
     ~RepeatLikeOp() = default;
 
-    Interface applyTo(const Interface& interface) const;
+    virtual bool transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 };
 
 // By split-like, we refer to the primitives that have one input iterator and two output iterators.
@@ -79,7 +80,7 @@ public:
     virtual IteratorValue value(const IteratorValue& leftValue, const IteratorValue& rightValue) const = 0;
     ~SplitLikeOp() = default;
 
-    Interface applyTo(const Interface& interface) const;
+    virtual bool transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 };
 
 enum class Order: bool {
@@ -120,7 +121,7 @@ public:
     virtual std::pair<IteratorValue, IteratorValue> value(const IteratorValue& value) const = 0;
     ~MergeLikeOp() = default;
 
-    Interface applyTo(const Interface& interface) const;
+    virtual bool transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 };
 
 } // namespace kas

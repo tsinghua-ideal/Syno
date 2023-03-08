@@ -22,7 +22,7 @@ public:
     inline std::variant<Stage *, TensorView *> next(std::size_t index) const { return stage->next(index); }
     static inline Node AssertNotFinal(std::variant<Stage *, TensorView *> n) { return std::get<Stage *>(n); }
     static inline TensorView *AssertFinal(std::variant<Stage *, TensorView *> n) { return std::get<TensorView *>(n); }
-    inline std::string shapeDescription(const BindingContext& ctx) const { return ShapeView(stage->getInterface()).toString(ctx); }
+    inline std::string shapeDescription(const BindingContext& ctx) const { return stage->getInterface().getShape().toString(ctx); }
     inline std::string opType(std::size_t index) const { return stage->opType(index); }
     inline std::string opDescription(std::size_t index) const { return stage->opDescription(index); }
 };
