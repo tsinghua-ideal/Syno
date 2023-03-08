@@ -13,6 +13,24 @@ IteratorValue UnfoldOp::value(const IteratorValue& outputMajor, const IteratorVa
     return IntervalBoundValueNode::Create(access, ImmediateValueNode::Zero, original);
 }
 
+bool UnfoldOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+    auto& outLhs = interface[outputLhs];
+    auto& outRhs = interface[outputRhs];
+    // Unfold creates clear dimensions.
+    if (outRhs.isSingle()) { // So we must not violate existing constraints.
+        return false;
+    }
+    if (outputRhs.size().isGeneral()) { // [Single Statement] We know that general dimension cannot be clear.
+        return false;
+    }
+    // The `substitute` removes outputRhs, so actually no need to make it clear.
+    colors.assign(interface, outputRhs, Colors::Clear);
+    // Unfold preserves colors in the major dimension.
+    colors.substitute(interface, outputLhs, outputRhs, { getInput(), outLhs.color });
+    colors.simplify(interface);
+    return true;
+}
+
 std::vector<const UnfoldOp *> UnfoldOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
     std::vector<const UnfoldOp *> result;
     if (outputShape.size() > options.dimLowerBound) {

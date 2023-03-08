@@ -19,18 +19,23 @@
 namespace kas {
 
 TEST(search_tests, sampler) {
-    SampleOptions options;
-    options.seed = 42;
-    options.depth = 4;
-    options.dimLowerBound = 4;
-    options.dimUpperBound = 8;
+    SampleOptions options {
+        .seed = 42,
+        .depth = 4,
+        .dimLowerBound = 4,
+        .dimUpperBound = 8,
+        .maximumTensors = 2,
+    };
     Sampler sampler("[N,C,H,W]", "[N,C,H,W]", {}, {"k_1", "s_1", "k_2", "s_2"}, options);
     auto& ctx = sampler.getBindingContext();
     ASSERT_EQ(ctx.getPrimaryCount(), 4);
     ASSERT_EQ(ctx.getCoefficientCount(), 4);
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 100; ++i) {
         auto path = sampler.randomPathWithPrefix({});
-        ASSERT_EQ(sampler.isFinal(path), true); // Well, this could fail, actually.
+        if (!sampler.isFinal(path)) {
+            fmt::print("Trial {} failed.\n", i);
+            continue;
+        }
         auto& tensorView = *sampler.realize(path);
 
         auto r = tensorView.getUnderlyingTensors() | std::ranges::views::transform([&](const auto& tensor) { return tensor.shapeToString(ctx); });

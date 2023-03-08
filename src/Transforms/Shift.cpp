@@ -15,4 +15,11 @@ IteratorValue ShiftOp::value(const IteratorValue& output) const {
     return (output + imm) % size;
 }
 
+bool ShiftOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+    auto& out = interface[output];
+    colors.substitute(interface, output, { getInput(), out.color });
+    colors.simplify(interface); // Actually not needed.
+    return true;
+}
+
 } // namespace kas

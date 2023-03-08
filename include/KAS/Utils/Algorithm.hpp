@@ -36,8 +36,8 @@ auto WeakOrderedBinarySearch(R&& r, const auto& value, Comp&& comp = {}, Proj&& 
         ++right;
     }
     auto left = mid;
-    while (left > std::ranges::begin(r)) {
-        if (value == proj(*--left)) {
+    while (left > std::ranges::begin(r) && !(comp(proj(*--left), value))) {
+        if (value == proj(*left)) {
             return left;
         }
     }

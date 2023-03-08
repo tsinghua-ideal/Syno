@@ -44,7 +44,7 @@ public:
     virtual IteratorValue value(const IteratorValue& value) const = 0;
     ~RepeatLikeOp() = default;
 
-    virtual bool transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
+    virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 };
 
 // By split-like, we refer to the primitives that have one input iterator and two output iterators.
@@ -80,7 +80,7 @@ public:
     virtual IteratorValue value(const IteratorValue& leftValue, const IteratorValue& rightValue) const = 0;
     ~SplitLikeOp() = default;
 
-    virtual bool transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
+    virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 };
 
 enum class Order: bool {
@@ -121,7 +121,10 @@ public:
     virtual std::pair<IteratorValue, IteratorValue> value(const IteratorValue& value) const = 0;
     ~MergeLikeOp() = default;
 
-    virtual bool transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
+    virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 };
+
+template<typename Op>
+concept PrimitiveOp = std::same_as<Op, RepeatLikeOp> || std::same_as<Op, SplitLikeOp> || std::same_as<Op, MergeLikeOp>;
 
 } // namespace kas

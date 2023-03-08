@@ -17,6 +17,22 @@ IteratorValue StrideOp::value(const IteratorValue& output) const {
     return stride * output;
 }
 
+bool StrideOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+    auto& out = interface[output];
+    // Stride asserts that the IO dimensions are clear.
+    if (out.isSingle()) { // So we must not violate existing constraints.
+        return false;
+    }
+    if (output.size().isGeneral()) { // [Single Statement] We know that general dimension cannot be clear.
+        return false;
+    }
+    // The `substitute` removes output, so actually no need to make it clear.
+    colors.assign(interface, output, Colors::Clear);
+    colors.substitute(interface, output, { getInput(), Colors::Clear });
+    colors.simplify(interface);
+    return true;
+}
+
 std::vector<const StrideOp *> StrideOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors) {
     std::vector<const StrideOp *> result;
     for (std::size_t i = 0; i < outputShape.size(); ++i) {

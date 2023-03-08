@@ -9,21 +9,23 @@ IteratorValue SplitOp::value(const IteratorValue &outputMajor, const IteratorVal
     return outputMajor * block + outputMinor;
 }
 
-bool SplitOp::transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
-    auto outLhs = interface.binarySearch(outputLhs);
-    auto outRhs = interface.binarySearch(outputRhs);
-    if (outLhs->isUnknown() && outRhs->isUnknown()) { // Pass around the Unknown.
+bool SplitOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+    auto& outLhs = interface[outputLhs];
+    auto& outRhs = interface[outputRhs];
+    if (outLhs.isUnknown() && outRhs.isUnknown()) { // Pass around the Unknown.
         colors.substitute(interface, outputLhs, outputRhs, { getInput(), Colors::Unknown });
-    } else if (!outLhs->isUnknown() && !outRhs->isUnknown()) {
-        if (outLhs->color != outRhs->color) {
+    } else if (!outLhs.isUnknown() && !outRhs.isUnknown()) {
+        if (outLhs.color != outRhs.color) {
             return false; // Because Split preserves colors.
         }
-        colors.substitute(interface, outputLhs, outputRhs, { getInput(), outLhs->color });
+        colors.substitute(interface, outputLhs, outputRhs, { getInput(), outLhs.color });
     } else {
-        auto& known = outLhs->isUnknown() ? outRhs : outLhs;
-        auto& unknown = outLhs->isUnknown() ? outLhs : outRhs;
-        colors.assign(interface, unknown->dimension, known->color); // We have solved the unknown color.
-        colors.substitute(interface, outputLhs, outputRhs, { getInput(), known->color });
+        auto& known = outLhs.isUnknown() ? outRhs : outLhs;
+        auto& unknown = outLhs.isUnknown() ? outLhs : outRhs;
+        // We have solved the unknown color.
+        // `substitute` removes unknown, so actually no need to call assign here.
+        colors.assign(interface, unknown.dimension, known.color);
+        colors.substitute(interface, outputLhs, outputRhs, { getInput(), known.color });
     }
     colors.simplify(interface);
     return true;

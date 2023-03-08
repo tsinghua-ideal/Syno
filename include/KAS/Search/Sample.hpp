@@ -32,6 +32,7 @@ public:
     std::size_t depth = 4;
     std::size_t dimLowerBound = 1;
     std::size_t dimUpperBound = 8;
+    std::size_t maximumTensors = 2;
     void check() const;
 };
 
@@ -48,6 +49,7 @@ protected:
 
     BindingContext ctx;
     SampleOptions options;
+    Colors::Options colorOptions;
     Shape inputShape;
     Shape outputShape;
 

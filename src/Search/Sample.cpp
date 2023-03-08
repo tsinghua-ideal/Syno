@@ -15,6 +15,7 @@ namespace kas {
 void SampleOptions::check() const {
     KAS_ASSERT(dimLowerBound >= 1);
     KAS_ASSERT(dimUpperBound >= dimLowerBound);
+    KAS_ASSERT(maximumTensors >= 1);
 }
 
 Node Sampler::visitBase(std::size_t index) {
@@ -55,6 +56,7 @@ Sampler::Sampler(std::vector<std::string> inputShape, std::vector<std::string> o
     rng { options.seed },
     ctx { primarySpecs.size(), coefficientSpecs.size() },
     options { options },
+    colorOptions { .maximumTensors = options.maximumTensors },
     inputShape { [&]() {
         ctx.applySpecs(primarySpecs, coefficientSpecs);
         return ctx.getShapeFromNames(inputShape);
@@ -120,10 +122,10 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     reduces = MapReduceOp::GenerateLastLevelMapReduces(this->outputShape, { this->ctx, this->options.dimUpperBound });
     for (auto& r: reduces) {
         ColoredInterface temp;
-        std::ranges::copy(root | std::views::transform([](const Dimension& dim) { return ColoredDimension { dim, Colors::Unknown }; }), std::back_inserter(temp.items)); // Maybe we can determine the colors here? TODO.
+        std::ranges::copy(root | std::views::transform([](const Dimension& dim) { return ColoredDimension { dim, Colors::Unknown }; }), std::back_inserter(temp.items)); // Maybe we can determine the colors here? TODO. Use it below.
         std::ranges::copy(r | std::views::transform([](MapReduceOp& m) { return ColoredDimension{ &m, Colors::Unknown }; }), std::back_inserter(temp.items));
-        std::ranges::sort(temp.items, Dimension::LessThan{}, ColoredDimension::Projection{});
-        this->bases.emplace_back(std::move(temp), *this, 0);
+        std::ranges::sort(temp.items, Dimension::HashLessThan{}, ColoredDimension::Projection{});
+        this->bases.emplace_back(std::move(temp), Colors(colorOptions), *this, 0);
     }
 }
 

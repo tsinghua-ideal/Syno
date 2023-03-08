@@ -10,42 +10,77 @@
 
 using namespace kas;
 
-TEST(utils_tests, replace_vector) {
-    std::vector<std::size_t> vec { 0, 1, 2, 3, 4, 5 };
-    std::vector<std::size_t> drops { 2, 5 };
-    std::vector<std::pair<std::size_t, std::size_t>> adds { { 1, 10 }, { 2, 20 }, { 4, 40 } };
-    auto newVec = ReplaceVector<std::size_t>(vec, drops, adds);
-    std::vector<std::size_t> expected { 0, 10, 20, 1, 40, 3, 4 };
-    ASSERT_EQ(newVec, expected);
-}
+struct WeakOrderedItem {
+    int key1;
+    int key2;
+    std::weak_ordering operator<=>(const WeakOrderedItem& other) const noexcept {
+        return key1 <=> other.key1;
+    }
+    bool operator==(const WeakOrderedItem& other) const noexcept {
+        return key1 == other.key1 && key2 == other.key2;
+    }
+};
 
 TEST(utils_tests, weak_ordered_binary_search) {
-    struct Item {
-        int key1;
-        int key2;
-        std::weak_ordering operator<=>(const Item& other) const noexcept {
-            return key1 <=> other.key1;
-        }
-        bool operator==(const Item& other) const noexcept {
-            return key1 == other.key1 && key2 == other.key2;
-        }
-    };
-    std::vector<Item> v1 {{1, 1}, {1, 2}, {1, 3}, {2, 1}, {2, 2}, {3, 0}, {4, 0}, {5, 0}};
-    for (std::size_t i = 0; const Item& item: v1) {
+    std::vector<WeakOrderedItem> v1 {{1, 1}, {1, 2}, {1, 3}, {2, 1}, {2, 2}, {3, 0}, {4, 0}, {5, 0}};
+    for (std::size_t i = 0; const WeakOrderedItem& item: v1) {
         auto it = WeakOrderedBinarySearch(v1, item);
         ASSERT_NE(it, v1.end());
         ASSERT_EQ(it - v1.begin(), i);
         ++i;
     }
-    ASSERT_EQ(WeakOrderedBinarySearch(v1, Item {0, 0}), v1.end());
-    ASSERT_EQ(WeakOrderedBinarySearch(v1, Item {6, 0}), v1.end());
-    std::vector<Item> v2 {{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}};
-    for (std::size_t i = 0; const Item& item: v2) {
+    ASSERT_EQ(WeakOrderedBinarySearch(v1, WeakOrderedItem {0, 0}), v1.end());
+    ASSERT_EQ(WeakOrderedBinarySearch(v1, WeakOrderedItem {6, 0}), v1.end());
+    std::vector<WeakOrderedItem> v2 {{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}};
+    for (std::size_t i = 0; const WeakOrderedItem& item: v2) {
         auto it = WeakOrderedBinarySearch(v2, item);
         ASSERT_NE(it, v2.end());
         ASSERT_EQ(it - v2.begin(), i);
         ++i;
     }
-    ASSERT_EQ(WeakOrderedBinarySearch(v2, Item {0, -1}), v2.end());
-    ASSERT_EQ(WeakOrderedBinarySearch(v2, Item {0, 6}), v2.end());
+    ASSERT_EQ(WeakOrderedBinarySearch(v2, WeakOrderedItem {0, -1}), v2.end());
+    ASSERT_EQ(WeakOrderedBinarySearch(v2, WeakOrderedItem {0, 6}), v2.end());
+}
+
+TEST(utils_tests, weak_ordered_substitute_vector) {
+    struct FullItem {
+        WeakOrderedItem key;
+        int metadata;
+        struct Project {
+            const WeakOrderedItem& operator()(const FullItem& item) const noexcept {
+                return item.key;
+            }
+        };
+    };
+    std::vector<FullItem> v1 {{{1, 1}, 10}, {{1, 2}, 10}, {{1, 3}, 10}, {{2, 1}, 10}, {{3, 1}, 10}};
+    constexpr int update = 20;
+    auto consistent = [](const std::vector<FullItem>& v, bool expectUpdate) {
+        bool hasUpdatedMetadata = false;
+        if (v[0].metadata == update) {
+            hasUpdatedMetadata = true;
+        }
+        for (std::size_t i = 1; i < v.size(); ++i) {
+            if (v[i - 1].key > v[i].key) {
+                fmt::print("v[{}] = {{{}, {}}}, v[{}] = {{{}, {}}}\n", i - 1, v[i - 1].key.key1, v[i - 1].key.key2, i, v[i].key.key1, v[i].key.key2);
+                return false;
+            }
+            if (v[i].metadata == update) {
+                hasUpdatedMetadata = true;
+            }
+        }
+        if (expectUpdate != hasUpdatedMetadata) {
+            fmt::print("hasUpdatedMetadata = {}\n", hasUpdatedMetadata);
+            return false;
+        }
+        return true;
+    };
+    for (std::size_t i = 0; i < v1.size(); ++i) {
+        fmt::print("Verification i = {} (key = {{{}, {}}})\n", i, v1[i].key.key1, v1[i].key.key2);
+        auto res = v1;
+        WeakOrderedSubstituteVector1To1IfAny(res, v1[i].key, FullItem { {static_cast<int>(i), static_cast<int>(i)}, update }, {}, FullItem::Project{});
+        ASSERT_TRUE(consistent(res, true));
+        res = v1;
+        WeakOrderedSubstituteVector1To1IfAny(res, WeakOrderedItem { v1[i].key.key1, 100 }, FullItem { {static_cast<int>(i), static_cast<int>(i)}, update }, {}, FullItem::Project{});
+        ASSERT_TRUE(consistent(res, false));
+    }
 }

@@ -34,7 +34,7 @@ public:
     std::size_t initialHash() const noexcept override;
     inline std::pair<Dimension, Dimension> getInputs() const override { return { &inputLhs, &inputRhs }; }
     std::pair<IteratorValue, IteratorValue> value(const IteratorValue& output) const override;
-    bool transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
+    bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
 
     inline bool operator==(const MergeOp& other) const noexcept {
         return output == other.output && minorSize == other.minorSize;

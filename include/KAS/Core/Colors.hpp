@@ -1,8 +1,5 @@
 #pragma once
 
-#include <initializer_list>
-#include <optional>
-
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Utils/Algorithm.hpp"
@@ -19,36 +16,43 @@ public:
         Clear = 0,
         First = 1,
         Second = 2,
-        Unknown = -1
+        // ...
+        Unknown = -1,
     };
     enum class Category {
         Clear,
         Single,
         Unknown,
     };
+    struct Options {
+        std::size_t maximumTensors = 2;
+    };
 
 private:
+    const Options& options;
+
     // The disjoint pairs of set of dimensions, in the sense that they have no common color.
     std::vector<std::pair<std::vector<Dimension>, std::vector<Dimension>>> constraints;
+
     // Some operations do not require immediate simplification. We use dirty to indicate when we need to simplify.
-    bool dirty = false;
+    // bool dirty = false;
+
     // When performing simplification, we may encounter inconsistent state. In that case, do not attempt to go any further.
     bool consistent = true;
 
 public:
-    struct Options {
-        std::size_t maximumTensors = 2;
-    };
+    inline Colors(const Options& options): options { options } {}
 
     void disjoint(const Dimension& lhs, const Dimension& rhs);
 
     void substitute(ColoredInterface& interface, const Dimension& fro, ColoredDimension to);
     void substitute(ColoredInterface& interface, const Dimension& fro, ColoredDimension to1, ColoredDimension to2);
     void substitute(ColoredInterface& interface, const Dimension& fro1, const Dimension& fro2, ColoredDimension to);
-    void assign(ColoredInterface& interface, const Dimension& item, int color);
+    ColoredDimension& assign(ColoredInterface& interface, const Dimension& item, int color);
     void simplify(ColoredInterface& interface);
 
-    bool satisfiable(const ColoredInterface& interface) const;
+    inline bool isConsistent() const { return consistent; }
+    bool checkFinalization(const std::vector<Interface>& tensors) const;
 };
 
 struct ColoredDimension {
@@ -87,12 +91,22 @@ struct ColoredInterface {
     inline std::size_t size() const noexcept { return items.size(); }
     inline ColoredInterfaceShapeView getShape() const { return ColoredInterfaceShapeView(items); }
     inline const Dimension& operator[](std::size_t index) const noexcept { return items[index].dimension; }
+    inline const ColoredDimension& operator[](const Dimension& dim) const {
+        auto it = binarySearch(dim);
+        KAS_ASSERT(it != items.end(), "Dimension not found in interface.");
+        return *it;
+    }
+    inline ColoredDimension& operator[](const Dimension& dim) {
+        auto it = binarySearch(dim);
+        KAS_ASSERT(it != items.end(), "Dimension not found in interface.");
+        return *it;
+    }
     inline Dimension& operator[](std::size_t index) noexcept { return items[index].dimension; }
     inline std::vector<ColoredDimension>::const_iterator binarySearch(const Dimension& value) const {
-        return WeakOrderedBinarySearch(items, value, Dimension::LessThan{}, ColoredDimension::Projection{});
+        return WeakOrderedBinarySearch(items, value, Dimension::HashLessThan{}, ColoredDimension::Projection{});
     }
     inline std::vector<ColoredDimension>::iterator binarySearch(const Dimension& value) {
-        return WeakOrderedBinarySearch(items, value, Dimension::LessThan{}, ColoredDimension::Projection{});
+        return WeakOrderedBinarySearch(items, value, Dimension::HashLessThan{}, ColoredDimension::Projection{});
     }
 };
 

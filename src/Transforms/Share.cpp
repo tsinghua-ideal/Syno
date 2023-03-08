@@ -11,12 +11,12 @@ std::pair<IteratorValue, IteratorValue> ShareOp::value(const IteratorValue& outp
     return { output, output };
 }
 
-bool ShareOp::transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+bool ShareOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
     // [Single Statement] Only dimensions of sizes with no primary variables can be of clear color.
-    auto out = interface.binarySearch(output);
+    auto& out = interface[output];
     auto [inputLhs, inputRhs] = getInputs();
     if (output.size().isGeneral()) { // Test if there are any primary variables.
-        if (!out->isUnknown()) return false; // [Single Statement] This is a dimension of two colors, and must be Unknown.
+        if (!out.isUnknown()) return false; // [Single Statement] This is a dimension of two colors, and must be Unknown.
         if (options.maximumTensors <= 1) {
             return false; // [Single Statement] There must be at least 2 colors.
         } else if (options.maximumTensors == 2) { // Here we can just assign the colors.
@@ -26,7 +26,7 @@ bool ShareOp::transformColors(ColoredInterface& interface, Colors& colors, Color
             colors.disjoint(inputLhs, inputRhs);
         }
     } else {
-        switch (out->category()) {
+        switch (out.category()) {
         case Colors::Category::Clear: // Pass this clear color over.
             colors.substitute(interface, output, { inputLhs, Colors::Clear }, { inputRhs, Colors::Clear });
             break;

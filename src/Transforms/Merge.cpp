@@ -1,5 +1,6 @@
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Merge.hpp"
+#include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
@@ -22,6 +23,14 @@ std::size_t MergeOp::initialHash() const noexcept {
 std::pair<IteratorValue, IteratorValue> MergeOp::value(const IteratorValue& output) const {
     auto block = ConstValueNode::Create(this->minorSize);
     return { output / block, output % block };
+}
+
+bool MergeOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+    auto& out = interface[output];
+    auto [inputLhs, inputRhs] = getInputs();
+    colors.substitute(interface, output, { inputLhs, out.color }, { inputRhs, out.color });
+    colors.simplify(interface); // Actually not needed.
+    return true;
 }
 
 std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {

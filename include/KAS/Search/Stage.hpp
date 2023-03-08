@@ -89,9 +89,9 @@ class Stage {
 
     // Metadata.
     Sampler& sampler;
-    std::size_t depth; // Stages with identical interfaces must be the same depth.
     Colors colors;
     std::vector<std::reference_wrapper<const Size>> missingSizes;
+    std::size_t depth; // Stages with identical interfaces must be the same depth.
 
     StageStore& getStageStore();
 
@@ -104,19 +104,21 @@ class Stage {
         .maximumTensors = 2,
     };
 
-    template<typename NextOp>
-    requires (std::same_as<NextOp, RepeatLikeOp> || std::same_as<NextOp, SplitLikeOp> || std::same_as<NextOp, MergeLikeOp>)
+    template<PrimitiveOp NextOp>
     Stage *getNext(const NextOp *op) {
         StageStore& store = getStageStore();
         auto newInterface = interface;
         auto newColors = colors;
-        if (!op->transformColors(newInterface, colors, colorsOptions)) {
+        if (!op->transformInterface(newInterface, colors, colorsOptions)) {
             return nullptr; // This failed.
+        }
+        if (!newColors.isConsistent()) {
+            return nullptr; // Inconsistent colors. This failed.
         }
         if (Stage *found = store.find(&newInterface); found) {
             return found;
         } else {
-            auto tempStage = std::unique_ptr<Stage> { new Stage { std::move(newInterface), sampler, depth + 1 } };
+            auto tempStage = std::make_unique<Stage>(std::move(newInterface), std::move(newColors), sampler, depth + 1);
             if(store.insert(tempStage.get())) {
                 return tempStage.release();
             } else {
@@ -125,10 +127,17 @@ class Stage {
         }
     }
 
+    // Remove the Op from store, deleting its enclosing dimensions as well.
+    template<PrimitiveOp Op>
+    void removeOp(const Op *op) {
+        // TODO
+    }
+
 public:
-    Stage(auto&& interface, Sampler& sampler, std::size_t depth):
+    Stage(auto&& interface, auto&& colors, Sampler& sampler, std::size_t depth):
         interface { std::forward<decltype(interface)>(interface) },
         sampler { sampler },
+        colors { std::forward<decltype(colors)>(colors) },
         depth { depth }
     {
         // Compute colors and missing sizes. TODO.

@@ -63,7 +63,7 @@ public:
     }
     // Sort the dimensions in an interface to obtain hash for it.
     inline std::size_t hash() const noexcept { return hashValue; }
-    struct LessThan {
+    struct HashLessThan {
         inline bool operator()(const Dimension& lhs, const Dimension& rhs) const noexcept {
             return lhs.hash() < rhs.hash(); // We use hash to sort them.
         }

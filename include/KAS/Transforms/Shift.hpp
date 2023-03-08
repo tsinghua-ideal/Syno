@@ -31,7 +31,7 @@ public:
     std::size_t initialHash() const noexcept override;
     inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue& output) const override;
-    bool transformColors(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
+    bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
 
     inline bool operator==(const ShiftOp& other) const noexcept {
         return output == other.output && shift == other.shift;

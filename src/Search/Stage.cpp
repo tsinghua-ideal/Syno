@@ -36,7 +36,7 @@ Stage *StageStore::Convert(ColoredInterface *from) {
 }
 
 Stage *StageStore::find(ColoredInterface *interface) const {
-    KAS_ASSERT(std::ranges::is_sorted(interface->items, Dimension::LessThan{}, ColoredDimension::Projection{}), "Interface is not sorted.");
+    KAS_ASSERT(std::ranges::is_sorted(interface->items, Dimension::HashLessThan{}, ColoredDimension::Projection{}), "Interface is not sorted.");
     if (auto it = interfaces.find(interface); it != interfaces.end()) {
         return Convert(*it);
     } else {
@@ -66,7 +66,7 @@ void Stage::guard() {
     const SampleOptions& options = sampler.getOptions();
     DimensionStore& store = sampler.getDimStore();
 
-    for (auto g = FinalizeOp::Generate(interface, { .ctx = ctx, .desired = sampler.getInputShape() }); auto& f: g)
+    for (auto g = FinalizeOp::Generate(interface, colors, { .ctx = ctx, .desired = sampler.getInputShape(), .maximumTensors = options.maximumTensors }); auto& f: g)
         finalizes.emplace_back(std::move(f), nullptr);
 
     std::vector<const RepeatLikeOp *> nextRepeatLikes;
@@ -95,14 +95,17 @@ void Stage::guard() {
     for (auto& op: nextRepeatLikes) {
         auto stage = getNext<RepeatLikeOp>(op);
         if (stage) this->nextRepeatLikes.emplace_back(op, stage);
+        else removeOp<RepeatLikeOp>(op);
     }
     for (auto& op: nextSplitLikes) {
         auto stage = getNext<SplitLikeOp>(op);
         if (stage) this->nextSplitLikes.emplace_back(op, stage);
+        else removeOp<SplitLikeOp>(op);
     }
     for (auto& op: nextMergeLikes) {
         auto stage = getNext<MergeLikeOp>(op);
         if (stage) this->nextMergeLikes.emplace_back(op, stage);
+        else removeOp<MergeLikeOp>(op);
     }
 
     nexts = NextBound {
