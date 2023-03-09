@@ -25,11 +25,15 @@ std::pair<IteratorValue, IteratorValue> MergeOp::value(const IteratorValue& outp
     return { output / block, output % block };
 }
 
+std::size_t MergeOp::CountColorTrials = 0;
+std::size_t MergeOp::CountColorSuccesses = 0;
 bool MergeOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+    ++CountColorTrials;
     auto& out = interface[output];
     auto [inputLhs, inputRhs] = getInputs();
     colors.substitute(interface, output, { inputLhs, out.color }, { inputRhs, out.color });
     colors.simplify(interface); // Actually not needed.
+    ++CountColorSuccesses;
     return true;
 }
 

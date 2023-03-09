@@ -84,15 +84,16 @@ bool WeakOrderedSubstituteVector1To2IfAny(std::vector<Elem>& v, const Value& fro
 
 template<typename Elem, typename Value, typename ToElem, typename Comp = std::ranges::less, typename Proj = std::identity>
 requires std::same_as<std::remove_cvref_t<Elem>, std::remove_cvref_t<ToElem>>
-bool WeakOrderedSubstituteVector2To1IfAny(std::vector<Elem>& v, const Value& fro1, const Value& fro2, ToElem&& to, Comp&& comp = {}, Proj&& proj = {}) {
+int WeakOrderedSubstituteVector2To1IfAny(std::vector<Elem>& v, const Value& fro1, const Value& fro2, ToElem&& to, Comp&& comp = {}, Proj&& proj = {}) {
     auto found1 = WeakOrderedBinarySearch(v, fro1, std::forward<Comp>(comp), std::forward<Proj>(proj));
     auto found2 = WeakOrderedBinarySearch(v, fro2, std::forward<Comp>(comp), std::forward<Proj>(proj));
-    if (found1 == v.end() && found2 == v.end()) {
-        return false;
+    int replaceCount = (found1 != v.end()) + (found2 != v.end());
+    if (replaceCount == 0) {
+        return 0;
     }
     std::vector<Elem> dst;
     // If both found in `v`, we do not allow duplicates.
-    dst.reserve(v.size() + 1 - (found1 != v.end()) - (found2 != v.end()));
+    dst.reserve(v.size() + 1 - replaceCount);
     bool toBeInserted = true;
     auto src = v.begin();
     while (src != v.end()) {

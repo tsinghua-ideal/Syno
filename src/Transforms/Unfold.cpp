@@ -13,7 +13,10 @@ IteratorValue UnfoldOp::value(const IteratorValue& outputMajor, const IteratorVa
     return IntervalBoundValueNode::Create(access, ImmediateValueNode::Zero, original);
 }
 
+std::size_t UnfoldOp::CountColorTrials = 0;
+std::size_t UnfoldOp::CountColorSuccesses = 0;
 bool UnfoldOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+    ++CountColorTrials;
     auto& outLhs = interface[outputLhs];
     auto& outRhs = interface[outputRhs];
     // Unfold creates clear dimensions.
@@ -28,6 +31,7 @@ bool UnfoldOp::transformInterface(ColoredInterface& interface, Colors& colors, C
     // Unfold preserves colors in the major dimension.
     colors.substitute(interface, outputLhs, outputRhs, { getInput(), outLhs.color });
     colors.simplify(interface);
+    ++CountColorSuccesses;
     return true;
 }
 

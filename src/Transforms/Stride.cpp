@@ -17,7 +17,10 @@ IteratorValue StrideOp::value(const IteratorValue& output) const {
     return stride * output;
 }
 
+std::size_t StrideOp::CountColorTrials = 0;
+std::size_t StrideOp::CountColorSuccesses = 0;
 bool StrideOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+    ++CountColorTrials;
     auto& out = interface[output];
     // Stride asserts that the IO dimensions are clear.
     if (out.isSingle()) { // So we must not violate existing constraints.
@@ -30,6 +33,7 @@ bool StrideOp::transformInterface(ColoredInterface& interface, Colors& colors, C
     colors.assign(interface, output, Colors::Clear);
     colors.substitute(interface, output, { getInput(), Colors::Clear });
     colors.simplify(interface);
+    ++CountColorSuccesses;
     return true;
 }
 

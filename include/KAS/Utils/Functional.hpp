@@ -1,9 +1,10 @@
 #pragma once
 
-#include "KAS/Utils/Tuple.hpp"
 #include <cstddef>
 #include <tuple>
 #include <type_traits>
+
+#include "KAS/Utils/Tuple.hpp"
 
 
 namespace kas {

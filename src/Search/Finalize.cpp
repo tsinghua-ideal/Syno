@@ -11,6 +11,10 @@ std::unique_ptr<TensorView> FinalizeOp::buildTensorView() const {
     return std::make_unique<TensorView>(tensors);
 }
 
+std::size_t FinalizeOp::CountSuccesses = 0;
+std::size_t FinalizeOp::CountFailures = 0;
+std::size_t FinalizeOp::CountLegalFinalizations = 0;
+std::size_t FinalizeOp::CountConflictingColors = 0;
 std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
     std::vector<FinalizeOp> result;
     const auto& desired = options.desired;
@@ -40,6 +44,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& outputShape
                         if (!used[i]) {
                             auto& cDim = outputShape.items[i];
                             if (!cDim.isUnknown() && cDim.color != Colors::Second) {
+                                ++CountConflictingColors;
                                 return; // Conflicting color!
                             }
                             weightTensor.emplace_back(outputShape[i]);
@@ -50,6 +55,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& outputShape
                 KAS_UNIMPLEMENTED("maximumTensors > 2 not supported.");
             }
             if (!colors.checkFinalization(tensors)) {
+                ++CountConflictingColors;
                 return;
             }
             result.emplace_back(std::move(tensors));
@@ -66,6 +72,12 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& outputShape
         }
     };
     recursion(recursion, 0, {});
+    CountLegalFinalizations += result.size();
+    if (result.empty()) {
+        ++CountFailures;
+    } else {
+        ++CountSuccesses;
+    }
     return result;
 }
 

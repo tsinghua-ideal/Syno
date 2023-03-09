@@ -15,10 +15,14 @@ IteratorValue ShiftOp::value(const IteratorValue& output) const {
     return (output + imm) % size;
 }
 
+std::size_t ShiftOp::CountColorTrials = 0;
+std::size_t ShiftOp::CountColorSuccesses = 0;
 bool ShiftOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+    ++CountColorTrials;
     auto& out = interface[output];
     colors.substitute(interface, output, { getInput(), out.color });
     colors.simplify(interface); // Actually not needed.
+    ++CountColorSuccesses;
     return true;
 }
 

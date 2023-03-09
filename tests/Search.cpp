@@ -13,6 +13,7 @@
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Sample.hpp"
+#include "KAS/Search/Statistics.hpp"
 #include "KAS/Transforms.hpp"
 
 
@@ -26,16 +27,20 @@ TEST(search_tests, sampler) {
         .dimUpperBound = 8,
         .maximumTensors = 2,
     };
-    Sampler sampler("[N,C,H,W]", "[N,C,H,W]", {}, {"k_1", "s_1", "k_2", "s_2"}, options);
+    Sampler sampler("[N,C,H,W]", "[N,C,H,W]", {}, {"k_1=3", "s_1=2", "k_2=5", "s_2=4"}, options);
     auto& ctx = sampler.getBindingContext();
     ASSERT_EQ(ctx.getPrimaryCount(), 4);
     ASSERT_EQ(ctx.getCoefficientCount(), 4);
-    for (int i = 0; i < 100; ++i) {
+
+    constexpr std::size_t trials = 100;
+    std::size_t successes = 0;
+    for (int i = 0; i < trials; ++i) {
         auto path = sampler.randomPathWithPrefix({});
         if (!sampler.isFinal(path)) {
             fmt::print("Trial {} failed.\n", i);
             continue;
         }
+        ++successes;
         auto& tensorView = *sampler.realize(path);
 
         auto r = tensorView.getUnderlyingTensors() | std::ranges::views::transform([&](const auto& tensor) { return tensor.shapeToString(ctx); });
@@ -43,7 +48,7 @@ TEST(search_tests, sampler) {
         std::cout << tensorView.printNestedLoops(ctx);
 /*
         constexpr int dimH = 4, dimW = 4, dimN = 4, dimC = 4, dimK1 = 3, dimS1 = 2, dimK2 = 3, dimS2 = 2;
-        HalideGen gen(ctx, tensorView);
+        HalideGen gen(ctx, tensorView, HalideGen::Options());
         auto name = "search_codegen_test_" + std::to_string(i);
         std::map<std::string, std::size_t> dict { { "H", dimH }, { "W", dimW }, { "N", dimN }, { "C", dimC }, { "k_1", dimK1 }, { "s_1", dimS1 }, { "k_2", dimK2 }, { "s_2", dimS2 } };
         auto consts = ctx.realizeConsts(dict);
@@ -76,6 +81,8 @@ TEST(search_tests, sampler) {
         Halide::Buffer<float, 4> outputBuffer = func.realize(std::vector<int>(outputShape.rbegin(), outputShape.rend()), Halide::get_host_target());
 */
     }
+    StatisticsCollector::PrintSummary(std::cout);
+    fmt::print("Success rate: {:.2f} ({} / {})\n", static_cast<float>(successes) / trials, successes, trials);
 }
 
 } // namespace kas

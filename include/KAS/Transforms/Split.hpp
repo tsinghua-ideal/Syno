@@ -31,6 +31,9 @@ public:
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
     inline Dimension getInput() const override { return &input; }
     IteratorValue value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const override;
+
+    static std::size_t CountColorTrials;
+    static std::size_t CountColorSuccesses;
     bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
     
     inline bool operator==(const SplitOp& other) const noexcept {

@@ -9,7 +9,10 @@ IteratorValue SplitOp::value(const IteratorValue &outputMajor, const IteratorVal
     return outputMajor * block + outputMinor;
 }
 
+std::size_t SplitOp::CountColorTrials = 0;
+std::size_t SplitOp::CountColorSuccesses = 0;
 bool SplitOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+    ++CountColorTrials;
     auto& outLhs = interface[outputLhs];
     auto& outRhs = interface[outputRhs];
     if (outLhs.isUnknown() && outRhs.isUnknown()) { // Pass around the Unknown.
@@ -28,6 +31,7 @@ bool SplitOp::transformInterface(ColoredInterface& interface, Colors& colors, Co
         colors.substitute(interface, outputLhs, outputRhs, { getInput(), known.color });
     }
     colors.simplify(interface);
+    ++CountColorSuccesses;
     return true;
 }
 

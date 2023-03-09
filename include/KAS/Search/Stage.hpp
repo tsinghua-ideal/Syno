@@ -109,7 +109,7 @@ class Stage {
         StageStore& store = getStageStore();
         auto newInterface = interface;
         auto newColors = colors;
-        if (!op->transformInterface(newInterface, colors, colorsOptions)) {
+        if (!op->transformInterface(newInterface, newColors, colorsOptions)) {
             return nullptr; // This failed.
         }
         if (!newColors.isConsistent()) {

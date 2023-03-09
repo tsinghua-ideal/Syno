@@ -39,6 +39,7 @@ private:
 
     // When performing simplification, we may encounter inconsistent state. In that case, do not attempt to go any further.
     bool consistent = true;
+    void setInconsistent();
 
 public:
     inline Colors(const Options& options): options { options } {}
@@ -51,6 +52,7 @@ public:
     ColoredDimension& assign(ColoredInterface& interface, const Dimension& item, int color);
     void simplify(ColoredInterface& interface);
 
+    static std::size_t CountColorInconsistent;
     inline bool isConsistent() const { return consistent; }
     bool checkFinalization(const std::vector<Interface>& tensors) const;
 };

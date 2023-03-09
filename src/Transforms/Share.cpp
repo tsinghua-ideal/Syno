@@ -11,7 +11,10 @@ std::pair<IteratorValue, IteratorValue> ShareOp::value(const IteratorValue& outp
     return { output, output };
 }
 
+std::size_t ShareOp::CountColorTrials = 0;
+std::size_t ShareOp::CountColorSuccesses = 0;
 bool ShareOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
+    ++CountColorTrials;
     // [Single Statement] Only dimensions of sizes with no primary variables can be of clear color.
     auto& out = interface[output];
     auto [inputLhs, inputRhs] = getInputs();
@@ -40,6 +43,7 @@ bool ShareOp::transformInterface(ColoredInterface& interface, Colors& colors, Co
         }
     }
     colors.simplify(interface);
+    ++CountColorSuccesses;
     return true;
 }
 
