@@ -55,7 +55,7 @@ std::vector<MapReduceOp::Base> MapReduceOp::GenerateLastLevelMapReduces(const Sh
     auto primaryMeta = ctx.getPrimaryMetadata();
     auto coefficientMeta = ctx.getCoefficientMetadata();
 
-    constexpr std::size_t maxDepth = 3;
+    constexpr std::size_t maxDepth = 2;
     Size totalOutputSize = outputShape.totalSize();
     using BaseShapeView = AbstractShape<const Base&, [](const MapReduceOp& m) -> const Size& { return m.size(); }>;
     std::vector<MapReduceOp::Base> res;

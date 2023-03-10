@@ -21,24 +21,19 @@ t_in = torch.ones([64, 3, 128, 128], device=device)
 with torch.no_grad():
     k_out = kas_conv(t_in)
     t_out = torch_conv(t_in)
-    torch.cuda.synchronize()
     print("forward_kas:", k_out.view(-1)[1500000:1500010])
     print("forward_torch:", t_out.view(-1)[1500000:1500010])
     print("forward is close:", torch.isclose(k_out, t_out).all())
 
 t_in = torch.randn([64, 3, 128, 128], requires_grad=True, device=device)
-torch.cuda.synchronize()
 torch.sum(kas_conv(t_in)).backward()
 grad_kas = t_in.grad.detach()
-import time
-time.sleep(1)
 pack.zero_grad(True)
 t_in.grad = None
 torch.sum(torch_conv(t_in)).backward()
 grad_torch = t_in.grad.detach()
 torch_conv.zero_grad(True)
 t_in.grad = None
-torch.cuda.synchronize()
 print("grad_kas:", grad_kas.view(-1)[1500000:1500010])
 print("grad_torch:", grad_torch.view(-1)[1500000:1500010])
 print("backward is close:", torch.isclose(grad_kas, grad_torch).all())

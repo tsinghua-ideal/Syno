@@ -23,10 +23,13 @@ class KernelPack(nn.Module):
             cpp_sources=srcs,
             functions=[forward_name, backward_name],
             extra_cflags=['-std=c++17', '-g'],
-            extra_ldflags=[f' -L{os.path.abspath(directory)} ',
-                        ' -lcuda ',
-                        f' -l:{name}.a '
-                        f' -l:{name}_grad.a '],
+            extra_ldflags=[
+                f'-L{os.path.abspath(directory)}',
+                '-lcuda',
+                f'-l:{name}.a',
+                f'-l:{name}_grad.a',
+                '-g'
+            ],
             with_cuda=True,
             verbose=True
         )

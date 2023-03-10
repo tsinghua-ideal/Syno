@@ -24,7 +24,7 @@ std::string DimensionTypeDescription(DimensionType ty) {
 }
 
 std::string Dimension::description(const BindingContext& ctx) const {
-    return fmt::format("{}@{}", size().toString(ctx), fmt::ptr(inner));
+    return fmt::format("{}@{:x}", size().toString(ctx), hash());
 }
 
 } // namespace kas

@@ -298,16 +298,6 @@ void HalideGen::GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardIn
     auto forwardModule = forwardPipeline.compile_to_module(forwardArgs, std::string(funcName), target);
     auto backwardModule = backwardPipeline.compile_to_module(backwardArgs, backwardName, target);
 
-    // Mitigate Halide bugs.
-    for (auto& f: forwardModule.functions()) {
-        // This is to solve the pytorch codegen bug, which generates internal functions as c codegen does not.
-        f.linkage = Halide::LinkageType::External;
-    }
-    for (auto& f: backwardModule.functions()) {
-        // Same as above.
-        f.linkage = Halide::LinkageType::External;
-    }
-
     // Write to output.
     auto ext = Halide::Internal::get_output_info(target);
     const auto flagsForModule = [&ext](std::filesystem::path filename) -> std::map<Halide::OutputFileType, std::string> {

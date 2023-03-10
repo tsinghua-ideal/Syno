@@ -11,6 +11,30 @@ index 2c5b038..baeaba4 100644
              EXPORT Halide_Interfaces
              LIBRARY DESTINATION ${Halide_INSTALL_PLUGINDIR} COMPONENT Halide_Runtime
              NAMELINK_COMPONENT Halide_Development)
+diff --git a/src/CodeGen_PyTorch.cpp b/src/CodeGen_PyTorch.cpp
+index 24b58d3..ad816ff 100644
+--- a/src/CodeGen_PyTorch.cpp
++++ b/src/CodeGen_PyTorch.cpp
+@@ -25,6 +25,7 @@ void CodeGen_PyTorch::compile(const Module &module) {
+                           "Please add \"-user_context\" to the generator's target options.\n";
+         }
+         stream << "#include \"ATen/cuda/CUDAContext.h\"\n";
++        stream << "#include \"HalidePyTorchCudaHelpers.h\"\n";
+     }
+     stream << "#include \"HalideBuffer.h\"\n";
+     stream << "#include \"HalidePyTorchHelpers.h\"\n";
+@@ -43,6 +44,11 @@ void CodeGen_PyTorch::compile(const Module &module) {
+     }
+ 
+     for (const auto &f : module.functions()) {
++        // Don't put non-external function declarations in headers.
++        // We need to be consistent with CodeGen_C::compile.
++        if (f.linkage == LinkageType::Internal) {
++            continue;
++        }
+         if (target.has_feature(Target::CUDA)) {
+             compile(f, true);
+         } else {
 diff --git a/src/autoschedulers/anderson2021/DefaultCostModel.cpp b/src/autoschedulers/anderson2021/DefaultCostModel.cpp
 index 18c2404..2fca3d2 100644
 --- a/src/autoschedulers/anderson2021/DefaultCostModel.cpp
