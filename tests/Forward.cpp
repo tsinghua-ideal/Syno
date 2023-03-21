@@ -25,6 +25,7 @@ protected:
         .useGPU = true,
         .scheduler = HalideGen::Options::AutoScheduler::Anderson2021,
     };
+    const bool useRVars = false;
     const bool doSemanticTests = true;
     const bool createStaticLibrary = true;
 
@@ -39,7 +40,7 @@ protected:
     template<typename... InputInitializers>
     Realization getPipeline(HalideGen& gen, const Mappings& mappings, auto&& funcName, auto&& outputGradInitializer, InputInitializers&&... inputInitializers) const {
         auto consts = gen.ctx.realizeConsts(mappings);
-        auto [inputs, func, backwardInputs, backwardFuncs] = gen.createPipelines(mappings, std::forward<decltype(funcName)>(funcName));
+        auto [inputs, func, backwardInputs, backwardFuncs] = gen.createPipelines(mappings, std::forward<decltype(funcName)>(funcName), useRVars);
 
         // Initialize input buffers.
         KAS_ASSERT(gen.tensorView.getUnderlyingTensors().size() == sizeof...(inputInitializers));
