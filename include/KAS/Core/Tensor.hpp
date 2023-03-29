@@ -14,6 +14,7 @@
 namespace kas {
 
 class PureTensor {
+    friend class GraphvizGen;
 protected:
     std::string name;
     std::vector<Dimension> dims;

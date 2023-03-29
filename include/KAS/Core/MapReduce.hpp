@@ -59,6 +59,7 @@ public:
         return h;
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::MapReduce; }
+    void accept(DimVisitor& visitor) const final override;
 
     inline MapType getMap() const { return mapType; }
     inline ReduceType getReduce() const { return reduceType; }

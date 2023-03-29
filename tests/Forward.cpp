@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include <Halide.h>
 
+#include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/MapReduce.hpp"
@@ -147,6 +148,8 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
 )");
 
     auto funcName = "pooling";
+    auto gvGen = GraphvizGen { tensorView, ctx };
+    gvGen.generate("./kernel_" + std::string(funcName), funcName);
     auto gen = HalideGen { ctx, tensorView, options };
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C", c}, {"K", k}};
     auto [pipeline, trial, outputBufferShape, backwardPipeline, backwardTrials] = getPipeline(gen, mappings, funcName,
@@ -264,6 +267,8 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
 )");
 
     auto funcName = "conv2d";
+    auto gvGen = GraphvizGen { tensorView, ctx };
+    gvGen.generate("./kernel_" + std::string(funcName), funcName);
     auto gen = HalideGen { ctx, tensorView, options };
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C_in", c_in}, {"C_out", c_out}, {"K", k}};
     auto in_0 = new std::int64_t[n][c_in][h][w]();

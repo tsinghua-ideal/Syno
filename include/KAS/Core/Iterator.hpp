@@ -21,6 +21,7 @@ public:
         return h;
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::Iterator; }
+    void accept(DimVisitor& visitor) const final override;
 
     inline std::size_t getIndex() const { return index; }
     inline std::string getName() const {

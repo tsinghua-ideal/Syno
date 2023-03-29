@@ -28,11 +28,14 @@ enum class DimensionType {
 };
 std::string DimensionTypeDescription(DimensionType ty);
 
+class DimVisitor;
+
 class DimensionImpl {
 public:
     virtual const Size& size() const noexcept = 0;
     virtual std::size_t hash() const noexcept = 0;
     virtual DimensionType type() const noexcept = 0;
+    virtual void accept(DimVisitor& visitor) const = 0;
     virtual ~DimensionImpl() = default;
 };
 
@@ -66,6 +69,12 @@ public:
     struct HashLessThan {
         inline bool operator()(const Dimension& lhs, const Dimension& rhs) const noexcept {
             return lhs.hash() < rhs.hash(); // We use hash to sort them.
+        }
+    };
+    // This can be used to store temporary maps, which need not be preserved.
+    struct AddressLessThan {
+        inline bool operator()(const Dimension& lhs, const Dimension& rhs) const noexcept {
+            return lhs.getInnerPointer() < rhs.getInnerPointer();
         }
     };
     std::string description(const BindingContext& ctx) const;

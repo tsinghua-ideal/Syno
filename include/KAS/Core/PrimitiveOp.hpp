@@ -29,6 +29,7 @@ public:
             HashCombine(h, op->output.hash());
             return h;
         }
+        void accept(DimVisitor& visitor) const final override;
         inline const RepeatLikeOp *getOp() const noexcept { return op; }
     };
     Dimension output;
@@ -65,6 +66,7 @@ public:
             HashCombine(h, op->outputRhs.hash());
             return h;
         }
+        void accept(DimVisitor& visitor) const final override;
         inline const SplitLikeOp *getOp() const noexcept { return op; }
     };
     Dimension outputLhs, outputRhs;
@@ -106,6 +108,7 @@ public:
             HashCombine(h, order);
             return h;
         }
+        void accept(DimVisitor& visitor) const final override;
         inline const MergeLikeOp *getOp() const noexcept { return op; }
         inline Order getOrder() const noexcept { return order; }
     };

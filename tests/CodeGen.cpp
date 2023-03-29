@@ -23,14 +23,20 @@ protected:
 };
 
 TEST_F(codegen_tests, generate) {
-    for (int i = 0; i < 3; ++i) {
-        auto& sample = *sampler.randomSample();
-        std::cout << sample.printNestedLoops(ctx);
-        HalideGen gen { ctx, sample, {
+    std::size_t i = 0;
+    while (true) {
+        auto sample = sampler.randomSample();
+        if (!sample) {
+            ++i;
+            continue;
+        }
+        std::cout << sample->printNestedLoops(ctx);
+        HalideGen gen { ctx, *sample, {
             .useGPU = false,
             .scheduler = HalideGen::Options::AutoScheduler::ComputeRoot,
         } };
         gen.generate("./kernel_1_" + std::to_string(i), "kernel_1_" + std::to_string(i), {});
+        break;
     }
 }
 
