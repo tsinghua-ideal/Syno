@@ -36,16 +36,17 @@ public:
     RepeatLikeOp(auto&& output):
         output { std::forward<decltype(output)>(output) }
     {}
-    RepeatLikeOp(const RepeatLikeOp&) = delete;
-    RepeatLikeOp(RepeatLikeOp&&) = delete;
+    RepeatLikeOp(const RepeatLikeOp&) = delete; // Do not copy! We want to store inputs in this class.
+    RepeatLikeOp(RepeatLikeOp&&) = delete; // Do not move! Same reason.
     virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
     // We would like to store the DimensionImpl inside this class, so we can just return a reference to part of this object.
     virtual Dimension getInput() const = 0;
     virtual IteratorValue value(const IteratorValue& value) const = 0;
-    ~RepeatLikeOp() = default;
 
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
+
+    ~RepeatLikeOp() = default;
 };
 
 // By split-like, we refer to the primitives that have one input iterator and two output iterators.
@@ -80,9 +81,10 @@ public:
     virtual std::size_t initialHash() const noexcept = 0;
     virtual Dimension getInput() const = 0;
     virtual IteratorValue value(const IteratorValue& leftValue, const IteratorValue& rightValue) const = 0;
-    ~SplitLikeOp() = default;
 
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
+
+    ~SplitLikeOp() = default;
 };
 
 enum class Order: bool {
@@ -122,9 +124,10 @@ public:
     virtual std::size_t initialHash() const noexcept = 0;
     virtual std::pair<Dimension, Dimension> getInputs() const = 0;
     virtual std::pair<IteratorValue, IteratorValue> value(const IteratorValue& value) const = 0;
-    ~MergeLikeOp() = default;
 
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
+
+    ~MergeLikeOp() = default;
 };
 
 template<typename Op>

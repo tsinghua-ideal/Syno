@@ -9,6 +9,7 @@
 #include <fmt/core.h>
 
 #include "KAS/Core/CodeGen.hpp"
+#include "KAS/Core/DimVisitor.hpp"
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Tensor.hpp"
@@ -80,55 +81,67 @@ std::string TensorView::printInnerLoops(const BindingContext& ctx, std::size_t i
 }
 
 namespace {
-    struct DimensionEvaluator {
+    struct DimensionEvaluator final: public DimVisitor {
         std::map<Dimension, IteratorValue, Dimension::HashLessThan> memoize;
         std::map<const Iterator *, IteratorValue> outer;
         std::map<const MapReduceOp *, IteratorValue> inner;
+
+        IteratorValue result;
+        void visit(const Iterator& dim) override {
+            // Here we have not figured out the order of the iterators. We have to wait until all the iterators are collected.
+            result = VariableValueNode::Create(false, std::numeric_limits<std::size_t>::max(), dim.getName());
+            auto [ptr, inserted] = outer.insert({&dim, result});
+            if (!inserted) {
+                result = ptr->second;
+            }
+            memoize.insert({&dim, result});
+        }
+        void visit(const MapReduceOp& dim) override {
+            // Same reason.
+            result = VariableValueNode::Create(true, std::numeric_limits<std::size_t>::max(), dim.getName());
+            auto [ptr, inserted] = inner.insert({&dim, result});
+            if (!inserted) {
+                result = ptr->second;
+            }
+        }
+        void visit(const RepeatLikeOp::Input& dim) override {
+            auto op = dim.getOp();
+            auto out = dfs(op->output);
+            result = op->value(out);
+        }
+        void visit(const SplitLikeOp::Input& dim) override {
+            auto op = dim.getOp();
+            auto outLeft = dfs(op->outputLhs);
+            auto outRight = dfs(op->outputRhs);
+            result = op->value(outLeft, outRight);
+        }
+        void visit(const MergeLikeOp::Input& dim) override {
+            auto op = dim.getOp();
+            auto out = dfs(op->output);
+            auto [resultLhs, resultRhs] = op->value(out);
+            auto [inputLhs, inputRhs] = op->getInputs();
+            switch (dim.getOrder()) {
+            case Order::Left:
+                result = resultLhs;
+                memoize.insert({inputRhs, resultRhs}); // Memoize for the other side.
+                break;
+            case Order::Right:
+                result = resultRhs;
+                memoize.insert({inputLhs, resultLhs});
+                break;
+            }
+        }
+        using DimVisitor::visit;
+
         IteratorValue dfs(Dimension dim) {
             if (auto it = memoize.find(dim); it != memoize.end()) {
                 return it->second;
             }
-            IteratorValue result;
-            if (auto it = dim.tryAs<RepeatLikeOp::Input>(); it) {
-                auto op = it->getOp();
-                auto out = dfs(op->output);
-                result = op->value(out);
-            } else if (auto it = dim.tryAs<SplitLikeOp::Input>(); it) {
-                auto op = it->getOp();
-                auto outLeft = dfs(op->outputLhs);
-                auto outRight = dfs(op->outputRhs);
-                result = op->value(outLeft, outRight);
-            } else if (auto it = dim.tryAs<MergeLikeOp::Input>(); it) {
-                auto op = it->getOp();
-                auto out = dfs(op->output);
-                auto [resultLhs, resultRhs] = op->value(out);
-                auto [inputLhs, inputRhs] = op->getInputs();
-                memoize.insert({inputLhs, resultLhs});
-                memoize.insert({inputRhs, resultRhs});
-                switch (it->getOrder()) {
-                case Order::Left: return resultLhs;
-                case Order::Right: return resultRhs;
-                }
-            } else if (auto it = dim.tryAs<Iterator>(); it) {
-                // Here we have not figured out the order of the iterators. We have to wait until all the iterators are collected.
-                result = VariableValueNode::Create(false, std::numeric_limits<std::size_t>::max(), it->getName());
-                auto [ptr, inserted] = outer.insert({it, result});
-                if (!inserted) {
-                    result = ptr->second;
-                }
-            } else if (auto it = dim.tryAs<MapReduceOp>(); it) {
-                // Same reason.
-                result = VariableValueNode::Create(true, std::numeric_limits<std::size_t>::max(), it->getName());
-                auto [ptr, inserted] = inner.insert({it, result});
-                if (!inserted) {
-                    result = ptr->second;
-                }
-            } else {
-                KAS_CRITICAL("When evaluating access, encountered unknown dimension type: {}", typeid(*dim.getInnerPointer()).name());
-            }
+            visit(dim);
             memoize.insert({dim, result});
-            return result;
+            return std::move(result); // Clear the stored result.
         }
+
         void fill(std::vector<const Iterator *>& interface, std::vector<const MapReduceOp *>& manipulations) {
             std::ranges::copy(outer | std::views::transform([](auto&& pair) { return pair.first; }), std::back_inserter(interface));
             std::ranges::copy(inner | std::views::transform([](auto&& pair) { return pair.first; }), std::back_inserter(manipulations));
@@ -138,6 +151,7 @@ namespace {
             std::ranges::sort(manipulations, [](const MapReduceOp *lhs, const MapReduceOp *rhs) {
                 return lhs->getPriority() < rhs->getPriority();
             });
+            // After sorting, we have determined the order of the iterators.
             for (std::size_t index = 0; auto&& it: interface)
                 outer[it].as<VariableValueNode>().index = index++;
             for (std::size_t index = 0; auto&& it: manipulations)
@@ -150,7 +164,7 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     auto eval = DimensionEvaluator();
     for (std::size_t tId = 0; auto&& tensor: tensors) {
         auto access = std::vector<IteratorValue>();
-        std::ranges::copy(tensor | std::views::transform([&](const auto& dim) {
+        std::ranges::move(tensor | std::views::transform([&](const auto& dim) {
             return eval.dfs(dim);
         }), std::back_inserter(access));
         auto name = "in_" + std::to_string(tId);

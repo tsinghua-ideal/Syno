@@ -15,7 +15,7 @@ namespace kas {
 
 namespace {
     // DFS the dimensions.
-    class DFS: public DimVisitor {
+    class DFS final: public DimVisitor {
         const BindingContext& ctx;
         std::stringstream& ss;
         std::vector<const Iterator *>& outputs;
@@ -69,10 +69,11 @@ namespace {
             from = std::move(to);
             operator()(dim.getOp()->output);
         }
+        using DimVisitor::visit;
         void operator()(const Dimension& edge) {
             auto [_, toDraw] = drawn.insert(edge);
             if (toDraw) {
-                DimVisitor::visit(edge);
+                visit(edge);
             }
         }
     public:
