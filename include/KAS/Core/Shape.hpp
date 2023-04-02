@@ -54,6 +54,7 @@ class AbstractShape {
     };
 
 public:
+    AbstractShape() requires(std::is_default_constructible_v<Storage>) = default;
     AbstractShape(auto&& sizes): sizes { std::forward<decltype(sizes)>(sizes) } {}
 
     inline std::size_t size() const { return sizes.size(); }

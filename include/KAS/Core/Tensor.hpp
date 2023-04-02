@@ -18,18 +18,24 @@ class PureTensor {
 protected:
     std::string name;
     std::vector<Dimension> dims;
-    std::vector<IteratorValue> access;
 public:
-    PureTensor(auto&& name, auto&& dims, auto&& access):
+    PureTensor(auto&& name, auto&& dims):
         name { std::forward<decltype(name)>(name) },
-        dims { std::forward<decltype(dims)>(dims) },
-        access { std::forward<decltype(access)>(access) }
+        dims { std::forward<decltype(dims)>(dims) }
     {}
     inline const std::string& getName() const { return name; }
+    inline const std::vector<Dimension>& getDimensions() const { return dims; }
     inline ShapeView getShape() const { return ShapeView(dims); }
-    inline const std::vector<IteratorValue>& getAccess() const { return access; }
     std::string shapeToString(const BindingContext& ctx) const;
-    std::string accessToString(const BindingContext& ctx) const;
+};
+
+struct AbstractAccess {
+    // -1 for output tensor, otherwise index of input tensors.
+    int position;
+    std::size_t outerLoopsCount;
+    Shape innerLoopsShape;
+    std::vector<std::vector<IteratorValue>> inputs;
+    std::vector<IteratorValue> output;
 };
 
 class TensorView {
@@ -42,8 +48,11 @@ protected:
     // The map-reduce iterators.
     std::vector<const MapReduceOp *> manipulations;
     using ReduceIteratorShapeView = AbstractShape<const std::vector<const MapReduceOp *>&, [](const MapReduceOp * const& ptr) -> const Size& { return ptr->size(); }>;
+
     // How to blend the tensors? TODO
     std::vector<PureTensor> tensors;
+    AbstractAccess forwardAccess; // Iterators evaluated for the forward pipeline.
+    std::vector<AbstractAccess> backwardAccesses; // Iterators evaluated for the backward pipeline.
 
     // Returns the outer loop initializers and depth of the loops.
     std::string printInnerLoops(const BindingContext& ctx, std::size_t indent, std::string_view outputName) const;
@@ -51,9 +60,6 @@ protected:
 public:
     // Build the tensor from iterator DAG.
     TensorView(const std::vector<std::vector<Dimension>>& tensors);
-
-    inline std::size_t size() const { return interface.size(); }
-    inline const Iterator *operator[](std::size_t index) const { return interface[index]; }
 
     inline IteratorShapeView getShape() const { return IteratorShapeView(interface); }
     inline ReduceIteratorShapeView getReduceShape() const { return ReduceIteratorShapeView(manipulations); }

@@ -42,7 +42,23 @@ public:
     virtual std::size_t initialHash() const noexcept = 0;
     // We would like to store the DimensionImpl inside this class, so we can just return a reference to part of this object.
     virtual Dimension getInput() const = 0;
-    virtual IteratorValue value(const IteratorValue& value) const = 0;
+
+    template<typename Value>
+    struct Values {
+        Value input = {};
+        Value output = {};
+    };
+    struct IteratorValues: public Values<IteratorValue> {
+        bool known() const { return input && output; }
+    };
+    // Compute the iterators based on given iterators.
+    // Only return the newly computed IteratorValue.
+    virtual IteratorValues value(const IteratorValues& known) const = 0;
+    // When evaluating dimensions, there are certain orderings of evaluations. For example, in a MergeOp, the iterators are i, j -> k. If we know j, then i must be evaluated before k.
+    // Ordering is represented by integers. -1 means excluded from ordering. The difference between values represents the relative priority of the two dimensions. The greater the value, the earlier it should be evaluated.
+    // Only return constraints for unevaluated dimensions.
+    using OrderingValues = Values<int>;
+    virtual OrderingValues ordering(const IteratorValues& known) const = 0;
 
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 
@@ -80,7 +96,21 @@ public:
     virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
     virtual Dimension getInput() const = 0;
-    virtual IteratorValue value(const IteratorValue& leftValue, const IteratorValue& rightValue) const = 0;
+
+    template<typename Value>
+    struct Values {
+        Value input = {};
+        Value outputLhs = {};
+        Value outputRhs = {};
+    };
+    struct IteratorValues: public Values<IteratorValue> {
+        bool known() const { return input && outputLhs && outputRhs; }
+    };
+    // Only return the newly computed IteratorValue.
+    virtual IteratorValues value(const IteratorValues& known) const = 0;
+    // Only return constraints for unevaluated dimensions.
+    using OrderingValues = Values<int>;
+    virtual OrderingValues ordering(const IteratorValues& known) const = 0;
 
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 
@@ -123,7 +153,21 @@ public:
     virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
     virtual std::pair<Dimension, Dimension> getInputs() const = 0;
-    virtual std::pair<IteratorValue, IteratorValue> value(const IteratorValue& value) const = 0;
+
+    template<typename Value>
+    struct Values {
+        Value inputLhs = {};
+        Value inputRhs = {};
+        Value output = {};
+    };
+    struct IteratorValues: public Values<IteratorValue> {
+        bool known() const { return inputLhs && inputRhs && output; }
+    };
+    // Only return the newly computed IteratorValue.
+    virtual IteratorValues value(const IteratorValues& known) const = 0;
+    // Only return constraints for unevaluated dimensions.
+    using OrderingValues = Values<int>;
+    virtual OrderingValues ordering(const IteratorValues& known) const = 0;
 
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 

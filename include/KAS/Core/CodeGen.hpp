@@ -43,6 +43,7 @@ public:
     inline explicit IteratorValue(std::shared_ptr<IteratorValueImpl> value): value { std::move(value) } {}
     inline const std::shared_ptr<IteratorValueImpl>& get() const { return value; }
     inline bool hasValue() const { return value != nullptr; }
+    inline explicit operator bool() const { return hasValue(); }
     inline void accept(IteratorValueVisitor& visitor) const { value->accept(visitor); }
     IteratorValue operator+(const IteratorValue& other) const;
     IteratorValue operator-(const IteratorValue& other) const;
