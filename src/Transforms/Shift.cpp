@@ -9,10 +9,21 @@ std::size_t ShiftOp::initialHash() const noexcept {
     return h;
 }
 
-IteratorValue ShiftOp::value(const IteratorValue& output) const {
+ShiftOp::IteratorValues ShiftOp::value(const IteratorValues& known) const {
+    auto& [input, output] = known;
     auto imm = ImmediateValueNode::Create(shift);
     auto size = ConstValueNode::Create(this->output.size());
-    return (output + imm) % size;
+    if (!input && output) {
+        return {{ .input = (output + imm) % size }};
+    } else if (input && !output) {
+        return {{ .output = (input - imm) % size }};
+    } else {
+        return {};
+    }
+}
+
+ShiftOp::OrderingValues ShiftOp::ordering(const IteratorValues& known) const {
+    return { .input = -1, .output = -1 };
 }
 
 std::size_t ShiftOp::CountColorTrials = 0;

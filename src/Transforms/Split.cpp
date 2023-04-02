@@ -4,9 +4,29 @@
 
 namespace kas {
 
-IteratorValue SplitOp::value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const {
-    auto block = ConstValueNode::Create(outputRhs.size());
-    return outputMajor * block + outputMinor;
+SplitOp::IteratorValues SplitOp::value(const IteratorValues &known) const {
+    auto& [input, outputLhs, outputRhs] = known;
+    auto block = ConstValueNode::Create(this->outputRhs.size());
+    if (!input && outputLhs && outputRhs) { // Output to input.
+        return {{ .input = outputLhs * block + outputRhs }};
+    } else if (input && !outputLhs && !outputRhs) { // Input to output.
+        return {{ .outputLhs = input / block, .outputRhs = input % block }};
+    } else if (input && outputLhs.hasValue() != outputRhs.hasValue()) { // Hard fail.
+        KAS_CRITICAL("Conflicting values for SplitOp: input = {}, outputLhs = {}, outputRhs = {}", input.hasValue(), outputLhs.hasValue(), outputRhs.hasValue());
+    } else { // Soft fail.
+        return {};
+    }
+}
+
+SplitOp::OrderingValues SplitOp::ordering(const IteratorValues &known) const {
+    auto& [input, outputLhs, outputRhs] = known;
+    if (!input && outputLhs && !outputRhs) {
+        return { .input = 0, .outputLhs = -1, .outputRhs = 1 };
+    } else if (!input && !outputLhs && outputRhs) {
+        return { .input = 0, .outputLhs = 1, .outputRhs = -1 };
+    } else {
+        return { .input = -1, .outputLhs = -1, .outputRhs = -1 };
+    }
 }
 
 std::size_t SplitOp::CountColorTrials = 0;

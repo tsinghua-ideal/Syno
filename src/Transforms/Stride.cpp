@@ -12,9 +12,20 @@ std::size_t StrideOp::initialHash() const noexcept {
     return h;
 }
 
-IteratorValue StrideOp::value(const IteratorValue& output) const {
+StrideOp::IteratorValues StrideOp::value(const IteratorValues& known) const {
+    auto& [input, output] = known;
     auto stride = ConstValueNode::Create(this->stride);
-    return stride * output;
+    if (!input && output) {
+        return {{ .input = output * stride }};
+    } else { // Hard fail.
+        KAS_CRITICAL("Conflicting values for StrideOp: input = {}, output = {}", input.hasValue(), output.hasValue());
+    }
+}
+
+StrideOp::OrderingValues StrideOp::ordering(const IteratorValues& known) const {
+    auto& [input, output] = known;
+    KAS_ASSERT(!input && !output);
+    return { .input = 0, .output = 1 };
 }
 
 std::size_t StrideOp::CountColorTrials = 0;

@@ -32,14 +32,29 @@ public:
 struct AbstractAccess {
     // -1 for output tensor, otherwise index of input tensors.
     int position;
-    std::size_t outerLoopsCount;
+    std::vector<IteratorValue> outerLoops;
+    std::vector<IteratorValue> innerLoops;
     Shape innerLoopsShape;
     std::vector<std::vector<IteratorValue>> inputs;
     std::vector<IteratorValue> output;
+
+    // The standard interface, i.e., the outer loops.
+    std::string outerLoopsIteratorsToString() const;
+
+    // The inner reduction loops.
+    std::string innerLoopsIteratorsToString() const;
+
+    // The access of the tensor at `pos`.
+    std::string accessToString(const BindingContext& ctx, int pos) const;
+
+    // The innermost statement.
+    std::string statementToString(const BindingContext& ctx) const;
+
+    // The result tensor.
+    std::string targetEntryToString() const;
 };
 
 class TensorView {
-    friend class HalideGen;
 protected:
     // The interface iterators.
     std::vector<const Iterator *> interface;
@@ -54,21 +69,18 @@ protected:
     AbstractAccess forwardAccess; // Iterators evaluated for the forward pipeline.
     std::vector<AbstractAccess> backwardAccesses; // Iterators evaluated for the backward pipeline.
 
-    // Returns the outer loop initializers and depth of the loops.
-    std::string printInnerLoops(const BindingContext& ctx, std::size_t indent, std::string_view outputName) const;
-
 public:
     // Build the tensor from iterator DAG.
     TensorView(const std::vector<std::vector<Dimension>>& tensors);
 
-    inline IteratorShapeView getShape() const { return IteratorShapeView(interface); }
-    inline ReduceIteratorShapeView getReduceShape() const { return ReduceIteratorShapeView(manipulations); }
+    inline IteratorShapeView getInterfaceShape() const { return IteratorShapeView(interface); }
 
     // Returns the underlying tensor underneath the view.
     inline const std::vector<PureTensor>& getUnderlyingTensors() const { return tensors; }
 
-    // This blends all the tensors together.
-    std::string fusedInputToString(const BindingContext& ctx) const;
+    inline const AbstractAccess& getForwardAccess() const { return forwardAccess; }
+
+    inline const std::vector<AbstractAccess>& getBackwardAccesses() const { return backwardAccesses; }
 
     // Returns the interface of the view.
     inline const std::vector<const Iterator *>& getInterfaceIterators() const { return interface; }
@@ -76,16 +88,8 @@ public:
     // Returns the map-reduce manipulations.
     inline const std::vector<const MapReduceOp *>& getManipulations() const { return manipulations; }
 
-    // The standard interface, i.e., the outer loops.
-    std::string interfaceAccessToString(const BindingContext& ctx) const;
-
-    // The inner reduction loops.
-    std::string reduceAccessToString(const BindingContext& ctx) const;
-
-    // Returns something like "[i_0,i_1,ri_0] with ri_0 Sum reduced". This is just the combined above two.
-    std::string actualAccessToString(const BindingContext &ctx) const;
-
-    std::string printNestedLoops(const BindingContext& ctx, std::string_view outputName = std::string_view("out")) const;
+    // Evaluate the full loops.
+    std::string printNestedLoops(const BindingContext& ctx, int pos) const;
 };
 
 } // namespace kas

@@ -25,11 +25,50 @@ namespace kas {
 std::string PureTensor::shapeToString(const BindingContext& ctx) const {
     return getShape().toString(ctx);
 }
-/*
-std::string PureTensor::accessToString(const BindingContext& ctx) const {
-    return VectorToString(access | std::views::transform([&](const IteratorValue& value) {
-        return value.toString(ctx);
-    }));
+
+std::string AbstractAccess::outerLoopsIteratorsToString() const {
+    return VectorToString(outerLoops
+        | std::views::transform([](const IteratorValue& it) {
+            return it.as<VariableValueNode>().name;
+        })
+    );
+}
+
+std::string AbstractAccess::innerLoopsIteratorsToString() const {
+    return VectorToString(innerLoops
+        | std::views::transform([](const IteratorValue& it) {
+            return it.as<VariableValueNode>().name;
+        })
+    );
+}
+
+std::string AbstractAccess::accessToString(const BindingContext& ctx, int pos) const {
+    return VectorToString((pos == -1 ? output : inputs.at(pos))
+        | std::views::transform([&](const IteratorValue& it) {
+            return it.toString(ctx);
+        })
+    );
+}
+
+std::string AbstractAccess::statementToString(const BindingContext& ctx) const {
+    return fmt::format("{}", fmt::join(
+        std::views::iota(std::size_t{0}, inputs.size())
+        | std::views::transform([&](std::size_t pos) {
+            if (pos == position) {
+                return fmt::format("grad_out{}", accessToString(ctx, -1));
+            } else {
+                return fmt::format("in_{}{}", pos, accessToString(ctx, pos));
+            }
+        }),
+    " * "));
+}
+
+std::string AbstractAccess::targetEntryToString() const {
+    if (position == -1) {
+        return fmt::format("out{}", outerLoopsIteratorsToString());
+    } else {
+        return fmt::format("grad_in_{}{}", position, outerLoopsIteratorsToString());
+    }
 }
 
 namespace {
@@ -41,19 +80,30 @@ namespace {
     }
 }
 
-std::string TensorView::printInnerLoops(const BindingContext& ctx, std::size_t indent, std::string_view outputName) const {
+std::string TensorView::printNestedLoops(const BindingContext& ctx, int pos) const {
     std::stringstream ss;
-    const auto recursion = [this, &ctx, &ss](const auto& self, std::size_t manipId, std::size_t depth) -> std::string {
-        if (manipId-- == 0) {
-            auto r = tensors | std::views::transform([&](const auto& tensor) {
-                return tensor.getName() + tensor.accessToString(ctx);
-            });
-            // TODO: other blending schemes other than multiplication
-            return fmt::format("{}", fmt::join(r, " * "));
+    std::size_t depth = 0;
+
+    auto& access = pos == -1 ? forwardAccess : backwardAccesses.at(pos);
+
+    for (auto it: access.outerLoops) {
+        const auto& var = it.as<VariableValueNode>();
+        IndentSpaces(ss, depth);
+        fmt::format_to(SSIt(ss),
+            "for (int {0} = 0; {0} < {1}; {0}++) {{\n",
+            var.name,
+            (pos == -1 ? interface.at(depth)->size() : tensors.at(pos).getShape()[depth]).toString(ctx)
+        );
+        ++depth;
+    }
+
+    const auto recursion = [&ctx, &ss, &access](const auto& self, std::size_t innerIndex, std::size_t depth) -> std::string {
+        if (innerIndex-- == 0) {
+            return access.statementToString(ctx);
         }
 
-        auto& m = manipulations[manipId];
-        std::string tempName = "temp_" + m->getName();
+        auto& m = access.innerLoops.at(innerIndex).as<VariableValueNode>();
+        std::string tempName = "temp_" + m.name;
 
         // float temp_ri_idx = 0;
         IndentSpaces(ss, depth);
@@ -61,30 +111,30 @@ std::string TensorView::printInnerLoops(const BindingContext& ctx, std::size_t i
 
         // for (int ri_idx = 0; ri_idx < size_ri_idx; ri_idx++) {
         IndentSpaces(ss, depth);
-        fmt::format_to(SSIt(ss), "for (int {0} = 0; {0} < {1}; {0}++) {{\n", m->getName(), m->size().toString(ctx));
+        fmt::format_to(SSIt(ss), "for (int {0} = 0; {0} < {1}; {0}++) {{\n", m.name, access.innerLoopsShape[innerIndex].toString(ctx));
 
         // Generate inner loops, and obtain the temporary variable.
-        std::string inner = self(self, manipId, depth + 1);
+        std::string inner = self(self, innerIndex, depth + 1);
 
         IndentSpaces(ss, depth + 1);
-        // Can be other reduce than sum. TODO.
-        if (m->getMap() == MapReduceOp::MapType::Identity) {
-            fmt::format_to(SSIt(ss), "{} += {};\n", tempName, inner);
-        } else {
-            fmt::format_to(SSIt(ss), "{} += {}({});\n", tempName, m->whatMap(), inner);
-        }
+        fmt::format_to(SSIt(ss), "{} += {};\n", tempName, inner);
 
         IndentSpaces(ss, depth);
         ss << "}\n";
 
         return tempName;
     };
-    std::string lastTemp = recursion(recursion, manipulations.size(), indent);
-    IndentSpaces(ss, indent);
-    fmt::format_to(SSIt(ss), "{}{} = {};\n", outputName, interfaceAccessToString(ctx), lastTemp);
+    std::string lastTemp = recursion(recursion, access.innerLoops.size(), depth);
+    IndentSpaces(ss, depth);
+    fmt::format_to(SSIt(ss), "{} = {};\n", access.targetEntryToString(), lastTemp);
+
+    while (depth --> 0) {
+        IndentSpaces(ss, depth);
+        ss << "}\n";
+    }
     return ss.str();
 }
-*/
+
 namespace {
     struct OpAbove {
         std::variant<std::monostate, const RepeatLikeOp *, std::pair<const SplitLikeOp *, Order>, const MergeLikeOp *> op;
@@ -96,7 +146,7 @@ namespace {
     // In the original graph, each Dimension serves as an edge. It provides easy access for the Op below it (which has the Dimension as input), but cannot access the Op above it. This struct stores the Op above each Dimension.
     // And the output/reduce iterators as well.
     struct AdditionalMetadata {
-        std::map<Dimension, OpAbove> theOtherEndOfEdge;
+        std::map<Dimension, OpAbove, Dimension::AddressLessThan> theOtherEndOfEdge;
         std::vector<const Iterator *> outputIterators;
         std::vector<const MapReduceOp *> mapReduceIterators;
     };
@@ -153,10 +203,11 @@ namespace {
     };
 
     class DimensionEvaluator {
-        const std::map<Dimension, OpAbove>& theOtherEndOfEdge;
+        const std::map<Dimension, OpAbove, Dimension::AddressLessThan>& theOtherEndOfEdge;
         std::map<Dimension, IteratorValue, Dimension::AddressLessThan> values;
-        std::size_t outerLoopsCount = 0;
-        std::vector<Size> reductions;
+        std::vector<IteratorValue> outerLoops;
+        std::vector<IteratorValue> innerLoops;
+        std::vector<Size> innerLoopsShape;
         std::set<Dimension, Dimension::AddressLessThan> remaining;
 
         enum class Direction: bool {
@@ -346,16 +397,15 @@ namespace {
             walkUp<true>(dim);
         }
     public:
-        DimensionEvaluator(const std::map<Dimension, OpAbove>& theOtherEndOfEdge):
+        DimensionEvaluator(const std::map<Dimension, OpAbove, Dimension::AddressLessThan>& theOtherEndOfEdge):
             theOtherEndOfEdge { theOtherEndOfEdge }
         {
             // Initialize the remaining set.
             std::ranges::copy(theOtherEndOfEdge | std::views::transform([](auto&& kv) { return kv.first; }), std::inserter(remaining, remaining.end()));
         }
         void makeVar(const Dimension& dim) {
-            auto it = VariableValueNode::Create(false, outerLoopsCount, "i_" + std::to_string(outerLoopsCount));
-            ++outerLoopsCount;
-            assign(dim, it);
+            outerLoops.emplace_back(VariableValueNode::Create(false, outerLoops.size(), "i_" + std::to_string(outerLoops.size())));
+            assign(dim, outerLoops.back());
         }
         void makeVars(const std::vector<Dimension>& dims) {
             for (const auto& dim: dims) {
@@ -363,10 +413,9 @@ namespace {
             }
         }
         void reduceAt(const Dimension& dim) {
-            auto innerLoopsCount = reductions.size();
-            reductions.emplace_back(dim.size());
-            auto it = VariableValueNode::Create(true, innerLoopsCount, "ri_" + std::to_string(innerLoopsCount));
-            assign(dim, it);
+            innerLoopsShape.emplace_back(dim.size());
+            innerLoops.emplace_back(VariableValueNode::Create(true, innerLoops.size(), "ri_" + std::to_string(innerLoops.size())));
+            assign(dim, innerLoops.back());
         }
         void fillWithReductions() {
             while (!remaining.empty()) {
@@ -410,8 +459,9 @@ namespace {
             std::ranges::move(inputs | std::views::transform([&](const auto& tensor) { return extractValues(tensor.getDimensions()); }), std::back_inserter(inputsAccesses));
             return AbstractAccess {
                 .position = -1,
-                .outerLoopsCount = outerLoopsCount,
-                .innerLoopsShape = std::move(reductions),
+                .outerLoops = std::move(outerLoops),
+                .innerLoops = std::move(innerLoops),
+                .innerLoopsShape = std::move(innerLoopsShape),
                 .inputs = std::move(inputsAccesses),
                 .output = extractValues(output),
             };
@@ -439,7 +489,9 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
 
     auto forwardEval = DimensionEvaluator(theOtherEndOfEdge);
     forwardEval.makeVars(interfaceDimensions);
-    forwardEval.fillWithReductions();
+    for (auto r: manipulations) {
+        forwardEval.reduceAt(r);
+    }
     forwardAccess = forwardEval.toAccess(-1, this->tensors, interfaceDimensions);
     for (std::size_t tId = 0; auto&& tensor: this->tensors) {
         auto backwardEval = DimensionEvaluator(theOtherEndOfEdge);
@@ -449,76 +501,5 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
         ++tId;
     }
 }
-/*
-std::string TensorView::fusedInputToString(const BindingContext& ctx) const {
-    return VectorToString(tensors
-        | std::views::transform([](const PureTensor& t) {
-            return t.getShape();
-        })
-        | std::views::join
-        | std::views::transform([&](const Size& dim) {
-            return dim.toString(ctx);
-        })
-    );
-}
 
-std::string TensorView::interfaceAccessToString(const BindingContext& ctx) const {
-    return VectorToString(interface
-        | std::views::transform([](const Iterator *it) {
-            return it->getName();
-        })
-    );
-}
-
-std::string TensorView::reduceAccessToString(const BindingContext& ctx) const {
-    return VectorToString(manipulations
-        | std::views::transform([](const MapReduceOp *m) {
-            return m->getName();
-        })
-    );
-}
-
-std::string TensorView::actualAccessToString(const BindingContext& ctx) const {
-    if (manipulations.empty()) {
-        return interfaceAccessToString(ctx);
-    }
-    return fmt::format(
-        "[{},{}]{}",
-        fmt::join(interface
-        | std::views::transform([](const Iterator *it) -> std::string {
-            return it->getName();
-        }), ","),
-        fmt::join(manipulations
-        | std::views::transform([](const MapReduceOp *m) -> std::string {
-            return m->getName();
-        }), ","),
-        fmt::join(manipulations
-        | std::views::transform([](const MapReduceOp *m) -> std::string {
-            if (m->getMap() == MapReduceOp::MapType::Identity) {
-                return fmt::format(" with {} {} reduced", m->getName(), m->whatReduce());
-            }
-            return fmt::format(" with {} mapped with {} {} reduced", m->whatMap(), m->getName(), m->whatReduce());
-        }), "")
-    );
-}
-
-std::string TensorView::printNestedLoops(const BindingContext& ctx, std::string_view outputName) const {
-    std::stringstream ss;
-    std::size_t depth = 0;
-
-    for (auto it: interface) {
-        IndentSpaces(ss, depth);
-        fmt::format_to(SSIt(ss), "for (int {0} = 0; {0} < {1}; {0}++) {{\n", it->getName(), it->size().toString(ctx));
-        ++depth;
-    }
-
-    ss << printInnerLoops(ctx, depth, outputName);
-
-    while (depth --> 0) {
-        IndentSpaces(ss, depth);
-        ss << "}\n";
-    }
-    return ss.str();
-}
-*/
 } // namespace kas

@@ -6,11 +6,31 @@
 
 namespace kas {
 
-IteratorValue UnfoldOp::value(const IteratorValue& outputMajor, const IteratorValue& outputMinor) const {
-    auto original = ConstValueNode::Create(outputLhs.size());
-    auto kernel = ConstValueNode::Create(outputRhs.size());
-    auto access = outputMajor + outputMinor - (kernel - ImmediateValueNode::One) / ImmediateValueNode::Two;
-    return IntervalBoundValueNode::Create(access, ImmediateValueNode::Zero, original);
+UnfoldOp::IteratorValues UnfoldOp::value(const IteratorValues& known) const {
+    auto& [input, outputLhs, outputRhs] = known;
+    auto original = ConstValueNode::Create(this->outputLhs.size());
+    auto kernel = ConstValueNode::Create(this->outputRhs.size());
+    auto halfKernel = (kernel - ImmediateValueNode::One) / ImmediateValueNode::Two;
+    if (!input && outputLhs && outputRhs) {
+        return {{ .input = IntervalBoundValueNode::Create(outputLhs + outputRhs - halfKernel, ImmediateValueNode::Zero, original) }};
+    } else if (input && !outputLhs && outputRhs) {
+        return {{ .input = IntervalBoundValueNode::Create(input - outputRhs + halfKernel, ImmediateValueNode::Zero, original) }};
+    } else if (input && outputLhs && !outputRhs) { // Hard fail.
+        KAS_CRITICAL("Conflicting values for UnfoldOp: input = {}, outputLhs = {}, outputRhs = {}", input.hasValue(), outputLhs.hasValue(), outputRhs.hasValue());
+    } else { // Soft fail.
+        return {};
+    }
+}
+
+UnfoldOp::OrderingValues UnfoldOp::ordering(const IteratorValues& known) const {
+    auto& [input, outputLhs, outputRhs] = known;
+    if (!input && outputLhs && !outputRhs) {
+        return { .input = 0, .outputLhs = -1, .outputRhs = 1 };
+    } else if (input && !outputLhs && !outputRhs) {
+        return { .input = -1, .outputLhs = 0, .outputRhs = 1 };
+    } else {
+        return { .input = -1, .outputLhs = -1, .outputRhs = -1 };
+    }
 }
 
 std::size_t UnfoldOp::CountColorTrials = 0;

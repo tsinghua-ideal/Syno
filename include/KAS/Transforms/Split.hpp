@@ -30,7 +30,8 @@ public:
     constexpr DimensionType getType() const noexcept override { return Type; }
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
     inline Dimension getInput() const override { return &input; }
-    IteratorValue value(const IteratorValue &outputMajor, const IteratorValue &outputMinor) const override;
+    IteratorValues value(const IteratorValues& known) const override;
+    OrderingValues ordering(const IteratorValues& known) const override;
 
     static std::size_t CountColorTrials;
     static std::size_t CountColorSuccesses;

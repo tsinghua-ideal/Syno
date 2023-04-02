@@ -20,9 +20,29 @@ std::size_t MergeOp::initialHash() const noexcept {
     return h;
 }
 
-std::pair<IteratorValue, IteratorValue> MergeOp::value(const IteratorValue& output) const {
+MergeOp::IteratorValues MergeOp::value(const IteratorValues& known) const {
+    auto& [inputLhs, inputRhs, output] = known;
     auto block = ConstValueNode::Create(this->minorSize);
-    return { output / block, output % block };
+    if (inputLhs && inputRhs && !output) { // Input to output.
+        return {{ .output = inputLhs * block + inputRhs }};
+    } else if (!inputLhs && !inputRhs && output) { // Output to input.
+        return {{ .inputLhs = output / block, .inputRhs = output % block }};
+    } else if (inputLhs.hasValue() != inputRhs.hasValue() && output) { // Hard fail.
+        KAS_CRITICAL("Conflicting values for MergeOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs.hasValue(), inputRhs.hasValue(), output.hasValue());
+    } else { // Soft fail.
+        return {};
+    }
+}
+
+MergeOp::OrderingValues MergeOp::ordering(const IteratorValues& known) const {
+    auto& [inputLhs, inputRhs, output] = known;
+    if (inputLhs && !inputRhs && !output) {
+        return { .inputLhs = -1, .inputRhs = 1, .output = 0 };
+    } else if (!inputLhs && inputRhs && !output) {
+        return { .inputLhs = 1, .inputRhs = -1, .output = 0 };
+    } else {
+        return { .inputLhs = -1, .inputRhs = -1, .output = -1 };
+    }
 }
 
 std::size_t MergeOp::CountColorTrials = 0;

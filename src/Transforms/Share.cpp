@@ -7,8 +7,30 @@
 
 namespace kas {
 
-std::pair<IteratorValue, IteratorValue> ShareOp::value(const IteratorValue& output) const {
-    return { output, output };
+ShareOp::IteratorValues ShareOp::value(const IteratorValues& known) const {
+    auto& [inputLhs, inputRhs, output] = known;
+    if (inputLhs && !inputRhs && !output) {
+        return {{ .inputRhs = inputLhs, .output = inputLhs }};
+    } else if (!inputLhs && inputRhs && !output) {
+        return {{ .inputLhs = inputRhs, .output = inputRhs }};
+    } else if (!inputLhs && !inputRhs && output) {
+        return {{ .inputLhs = output, .inputRhs = output }};
+    } else { // Hard fail.
+        KAS_CRITICAL("Conflicting values for ShareOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs.hasValue(), inputRhs.hasValue(), output.hasValue());
+    }
+}
+
+ShareOp::OrderingValues ShareOp::ordering(const IteratorValues& known) const {
+    auto& [inputLhs, inputRhs, output] = known;
+    if (inputLhs && !inputRhs && !output) {
+        return { .inputLhs = -1, .inputRhs = 0, .output = 0 };
+    } else if (!inputLhs && inputRhs && !output) {
+        return { .inputLhs = 0, .inputRhs = -1, .output = 0 };
+    } else if (!inputLhs && !inputRhs && output) {
+        return { .inputLhs = 0, .inputRhs = 0, .output = -1 };
+    } else {
+        return { .inputLhs = -1, .inputRhs = -1, .output = -1 };
+    }
 }
 
 std::size_t ShareOp::CountColorTrials = 0;

@@ -39,8 +39,8 @@ struct IteratorValue {
 protected:
     std::shared_ptr<IteratorValueImpl> value;
 public:
-    explicit IteratorValue() = default;
-    inline explicit IteratorValue(std::shared_ptr<IteratorValueImpl> value): value { std::move(value) } {}
+    IteratorValue() = default;
+    inline IteratorValue(std::shared_ptr<IteratorValueImpl> value): value { std::move(value) } {}
     inline const std::shared_ptr<IteratorValueImpl>& get() const { return value; }
     inline bool hasValue() const { return value != nullptr; }
     inline explicit operator bool() const { return hasValue(); }
@@ -55,6 +55,9 @@ public:
     template<typename T>
     requires std::is_base_of_v<IteratorValueImpl, T>
     T& as() { return *std::dynamic_pointer_cast<T>(value); }
+    template<typename T>
+    requires std::is_base_of_v<IteratorValueImpl, T>
+    const T& as() const { return *std::dynamic_pointer_cast<const T>(value); }
     std::string toString(const BindingContext& ctx) const;
 };
 
