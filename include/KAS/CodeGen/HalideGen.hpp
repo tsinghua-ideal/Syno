@@ -75,6 +75,13 @@ public:
     struct ConcreteShapes {
         std::vector<Halide::Region> inputShapes;
         Halide::Region outputShape;
+        static inline std::vector<int> RegionToVector(const Halide::Region& region) {
+            std::vector<int> result;
+            for (const auto& r: region) {
+                result.push_back(*Halide::Internal::as_const_int(r.extent));
+            }
+            return result;
+        }
     };
     ConcreteShapes concretizeShapes(const ConcreteConsts& consts) const;
 
@@ -127,6 +134,82 @@ public:
 
     template<typename T = void, int Dims = Halide::AnyDims>
     using BufferRefAdaptor = ReverseAdaptor<Halide::Buffer<T, Dims>&>;
+
+    // For test use only.
+    struct Realization {
+        Halide::Pipeline pipeline;
+        HalideGen::BufferAdaptor<float> trial;
+        Halide::Pipeline backwardPipeline;
+        std::vector<HalideGen::BufferAdaptor<float>> backwardTrials;
+    };
+    template<typename... InputInitializers>
+    Realization performTrial(const std::map<std::string, std::size_t>& mappings, auto&& funcName, bool createStaticLibrary, auto&& outputGradInitializer, InputInitializers&&... inputInitializers) {
+        auto consts = ctx.realizeConsts(mappings);
+        auto shapes = concretizeShapes(consts);
+        auto [inputs, func, backwardInputs, backwardFuncs] = createPipelines(mappings, std::forward<decltype(funcName)>(funcName));
+
+        // Initialize input buffers.
+        KAS_ASSERT(tensorView.getUnderlyingTensors().size() == sizeof...(inputInitializers));
+        std::tuple<decltype(inputInitializers)...> initializerTuple = { std::forward<decltype(inputInitializers)>(inputInitializers)... };
+        std::vector<Halide::Buffer<float>> inputBuffers;
+        std::vector<Halide::Buffer<float>> inputGradsBuffers;
+        auto setter = [&]<std::size_t i>() {
+            std::vector<int> inputBufferShape = ConcreteShapes::RegionToVector(shapes.inputShapes.at(i));
+            inputGradsBuffers.emplace_back(inputBufferShape);
+            inputBuffers.emplace_back(inputBufferShape);
+            auto& inputBuffer = inputBuffers.back();
+            auto proxy = HalideGen::BufferRefAdaptor<float>(inputBuffer);
+            inputBuffer.for_each_element(ReverseArguments(std::bind_front(std::get<i>(initializerTuple), std::ref(proxy))));
+            inputs.at(i).set(inputBuffer);
+            backwardInputs.at(i).set(inputBuffer);
+        };
+        [&]<std::size_t... i>(std::index_sequence<i...>) {
+            (setter.template operator()<i>(), ...);
+        }(std::make_index_sequence<sizeof...(InputInitializers)>());
+
+        // Compute the forward result.
+        auto target = HalideGen::GetHostTarget(options.useGPU);
+        auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, true);
+
+        if (createStaticLibrary) {
+            HalideGen::GenerateFromPipelines(inputs, backwardInputs, pipeline, backwardPipeline, "./kernel_" + std::string(funcName), funcName, target);
+        }
+
+        auto outputBufferShape = ConcreteShapes::RegionToVector(shapes.outputShape);
+        Halide::Buffer<float> forwardTrialResult;
+        try {
+            forwardTrialResult = pipeline.realize(outputBufferShape, target);
+        } catch (const Halide::Error& e) {
+            fmt::print("Encountered Halide error in forward pipeline of {}:\n{}\n", funcName, e.what());
+            throw;
+        }
+        auto trial = HalideGen::BufferAdaptor<float>(forwardTrialResult);
+
+        // Initialize output grad buffer.
+        auto outputGradBuffer = Halide::Buffer<float>(outputBufferShape);
+        auto outputGradProxy = HalideGen::BufferRefAdaptor<float>(outputGradBuffer);
+        outputGradBuffer.for_each_element(ReverseArguments(std::bind_front(std::forward<decltype(outputGradInitializer)>(outputGradInitializer), std::ref(outputGradProxy))));
+        backwardInputs.back().set(outputGradBuffer);
+
+        // Compute the backward result.
+        backwardPipeline.compile_jit(target);
+        auto realizationArgs = [&]<std::size_t... i>(std::index_sequence<i...>) {
+            return Halide::Pipeline::RealizationArg(inputGradsBuffers.at(i)...);
+        }(std::make_index_sequence<sizeof...(InputInitializers)>());
+        try {
+            backwardPipeline.realize(std::move(realizationArgs), target);
+        } catch (const Halide::Error& e) {
+            fmt::print("Encountered Halide error in backward pipeline of {}:\n{}\n", funcName, e.what());
+            throw;
+        }
+        std::vector<HalideGen::BufferAdaptor<float>> backwardTrials;
+        for (auto& inputGradBuffer: inputGradsBuffers) {
+            backwardTrials.emplace_back(std::move(inputGradBuffer));
+            backwardTrials.back().content.copy_to_host();
+        }
+
+        return { std::move(pipeline), std::move(trial), std::move(backwardPipeline), std::move(backwardTrials) };
+    }
 
 };
 

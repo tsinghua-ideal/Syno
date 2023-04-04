@@ -14,7 +14,7 @@ UnfoldOp::IteratorValues UnfoldOp::value(const IteratorValues& known) const {
     if (!input && outputLhs && outputRhs) {
         return {{ .input = IntervalBoundValueNode::Create(outputLhs + outputRhs - halfKernel, ImmediateValueNode::Zero, original) }};
     } else if (input && !outputLhs && outputRhs) {
-        return {{ .input = IntervalBoundValueNode::Create(input - outputRhs + halfKernel, ImmediateValueNode::Zero, original) }};
+        return {{ .outputLhs = IntervalBoundValueNode::Create(input - outputRhs + halfKernel, ImmediateValueNode::Zero, original) }};
     } else if (input && outputLhs && !outputRhs) { // Hard fail.
         KAS_CRITICAL("Conflicting values for UnfoldOp: input = {}, outputLhs = {}, outputRhs = {}", input.hasValue(), outputLhs.hasValue(), outputRhs.hasValue());
     } else { // Soft fail.

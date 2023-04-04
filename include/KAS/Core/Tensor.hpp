@@ -31,6 +31,8 @@ public:
 
 struct AbstractAccess {
     constexpr static int Output = -1;
+    template<int Index>
+    constexpr static int Input = Index;
     // -1 for output tensor, otherwise index of input tensors.
     int position;
     std::vector<IteratorValue> outerLoops;

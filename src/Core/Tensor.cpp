@@ -390,8 +390,9 @@ namespace {
         }
 
         void assign(const Dimension& dim, IteratorValue value) {
-            auto [_, inserted] = values.emplace(dim, value);
-            KAS_ASSERT(inserted);
+            auto [it, _] = values.insert_or_assign(dim, IteratorValue{});
+            KAS_ASSERT(!it->second);
+            it->second = value;
             remaining.erase(dim);
             walkDown<true>(dim);
             walkUp<true>(dim);
@@ -420,7 +421,7 @@ namespace {
         void fillWithReductions() {
             while (!remaining.empty()) {
                 Dimension remainder = *remaining.begin();
-                KAS_ASSERT(!values.contains(remainder));
+                KAS_ASSERT(!values[remainder]);
                 bfsQueue.emplace(remainder, Direction::Down);
                 bfsQueue.emplace(remainder, Direction::Up);
                 bfsVisited.emplace(remainder, 0);
