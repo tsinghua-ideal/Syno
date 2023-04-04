@@ -60,12 +60,10 @@ TEST(core_tests, tensor) {
     MapReduceOp i_3 { 0, sizeC1, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum };
     Interface interface { &i_0, &i_1, &i_2, &i_3 };
     auto tensorView = TensorView { { interface } };
-    ASSERT_EQ(tensorView.getShape().toString(ctx), "[x_0,x_1,c_0]");
-    ASSERT_EQ(tensorView.getReduceShape().toString(ctx), "[c_1]");
-    ASSERT_EQ(tensorView.interfaceAccessToString(ctx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.reduceAccessToString(ctx), "[ri_0]");
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2,ri_0] with ri_0 Sum reduced");
-    ASSERT_EQ(tensorView.printNestedLoops(ctx, "out"),
+    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[x_0,x_1,c_0]");
+    ASSERT_EQ(tensorView.getForwardAccess().outerLoopsIteratorsToString(), "[i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.getForwardAccess().innerLoopsIteratorsToString(), "[ri_0]");
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, -1),
 R"(for (int i_0 = 0; i_0 < x_0; i_0++) {
     for (int i_1 = 0; i_1 < x_1; i_1++) {
         for (int i_2 = 0; i_2 < c_0; i_2++) {
@@ -81,7 +79,6 @@ R"(for (int i_0 = 0; i_0 < x_0; i_0++) {
     const auto& tensors = tensorView.getUnderlyingTensors();
     ASSERT_EQ(tensors.size(), 1);
     const auto& tensor = tensors[0];
-    ASSERT_EQ(tensor.accessToString(ctx), "[i_0,i_1,i_2,ri_0]");
     ASSERT_EQ(tensor.shapeToString(ctx), "[x_0,x_1,c_0,c_1]");
 }
 

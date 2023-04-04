@@ -205,7 +205,7 @@ std::string Sampler::nodeString(const std::vector<std::size_t>& path) {
             return Node(s).shapeDescription(ctx);
         }
         std::string operator()(TensorView *t) {
-            return t->getShape().toString(ctx);
+            return t->getInterfaceShape().toString(ctx);
         }
     };
     return std::visit(visitor { ctx }, node.next(last));

@@ -122,6 +122,7 @@ GraphvizGen::GraphvizGen(const Interface& inputs, const BindingContext& ctx) {
     ss << "}\n";
     for (std::size_t i = 0; auto&& inputDim: inputs) {
         dfs(fmt::format("in_{}", i), inputDim);
+        ++i;
     }
     dfs.done();
     code = ss.str();

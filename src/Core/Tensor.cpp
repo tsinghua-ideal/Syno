@@ -43,7 +43,7 @@ std::string AbstractAccess::innerLoopsIteratorsToString() const {
 }
 
 std::string AbstractAccess::accessToString(const BindingContext& ctx, int pos) const {
-    return VectorToString((pos == -1 ? output : inputs.at(pos))
+    return VectorToString((pos == Output ? output : inputs.at(pos))
         | std::views::transform([&](const IteratorValue& it) {
             return it.toString(ctx);
         })
@@ -55,7 +55,7 @@ std::string AbstractAccess::statementToString(const BindingContext& ctx) const {
         std::views::iota(std::size_t{0}, inputs.size())
         | std::views::transform([&](std::size_t pos) {
             if (pos == position) {
-                return fmt::format("grad_out{}", accessToString(ctx, -1));
+                return fmt::format("grad_out{}", accessToString(ctx, Output));
             } else {
                 return fmt::format("in_{}{}", pos, accessToString(ctx, pos));
             }
@@ -64,7 +64,7 @@ std::string AbstractAccess::statementToString(const BindingContext& ctx) const {
 }
 
 std::string AbstractAccess::targetEntryToString() const {
-    if (position == -1) {
+    if (position == Output) {
         return fmt::format("out{}", outerLoopsIteratorsToString());
     } else {
         return fmt::format("grad_in_{}{}", position, outerLoopsIteratorsToString());
@@ -84,7 +84,7 @@ std::string TensorView::printNestedLoops(const BindingContext& ctx, int pos) con
     std::stringstream ss;
     std::size_t depth = 0;
 
-    auto& access = pos == -1 ? forwardAccess : backwardAccesses.at(pos);
+    auto& access = pos == AbstractAccess::Output ? forwardAccess : backwardAccesses.at(pos);
 
     for (auto it: access.outerLoops) {
         const auto& var = it.as<VariableValueNode>();
@@ -92,7 +92,7 @@ std::string TensorView::printNestedLoops(const BindingContext& ctx, int pos) con
         fmt::format_to(SSIt(ss),
             "for (int {0} = 0; {0} < {1}; {0}++) {{\n",
             var.name,
-            (pos == -1 ? interface.at(depth)->size() : tensors.at(pos).getShape()[depth]).toString(ctx)
+            (pos == AbstractAccess::Output ? interface.at(depth)->size() : tensors.at(pos).getShape()[depth]).toString(ctx)
         );
         ++depth;
     }
@@ -458,7 +458,7 @@ namespace {
             std::vector<std::vector<IteratorValue>> inputsAccesses;
             std::ranges::move(inputs | std::views::transform([&](const auto& tensor) { return extractValues(tensor.getDimensions()); }), std::back_inserter(inputsAccesses));
             return AbstractAccess {
-                .position = -1,
+                .position = position,
                 .outerLoops = std::move(outerLoops),
                 .innerLoops = std::move(innerLoops),
                 .innerLoopsShape = std::move(innerLoopsShape),
@@ -492,7 +492,7 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     for (auto r: manipulations) {
         forwardEval.reduceAt(r);
     }
-    forwardAccess = forwardEval.toAccess(-1, this->tensors, interfaceDimensions);
+    forwardAccess = forwardEval.toAccess(AbstractAccess::Output, this->tensors, interfaceDimensions);
     for (std::size_t tId = 0; auto&& tensor: this->tensors) {
         auto backwardEval = DimensionEvaluator(theOtherEndOfEdge);
         backwardEval.makeVars(tensor.getDimensions());
