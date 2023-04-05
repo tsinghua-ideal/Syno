@@ -45,7 +45,7 @@ TEST(search_tests, sampler) {
 
         auto r = tensorView.getUnderlyingTensors() | std::ranges::views::transform([&](const auto& tensor) { return tensor.shapeToString(ctx); });
         std::cout << fmt::format("Input Shape: {}", fmt::join(r, ", ")) << std::endl;
-        std::cout << tensorView.printNestedLoops(ctx);
+        std::cout << tensorView.printNestedLoops(ctx, AbstractAccess::Output);
 /*
         constexpr int dimH = 4, dimW = 4, dimN = 4, dimC = 4, dimK1 = 3, dimS1 = 2, dimK2 = 3, dimS2 = 2;
         HalideGen gen(ctx, tensorView, HalideGen::Options());

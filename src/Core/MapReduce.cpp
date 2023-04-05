@@ -90,7 +90,7 @@ std::vector<MapReduceOp::Base> MapReduceOp::GenerateLastLevelMapReduces(const Sh
 
             // For simplicity, we only use Identity and Sum. TODO: add more.
             auto base1 = base;
-            base1.emplace_back(0, c, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+            base1.emplace_back(base1.size(), c, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
             self(self, depth + 1, base1);
             res.emplace_back(std::move(base1));
 
@@ -98,17 +98,17 @@ std::vector<MapReduceOp::Base> MapReduceOp::GenerateLastLevelMapReduces(const Sh
                 auto p = ctx.getSinglePrimaryVariableSize(primaryId);
 
                 auto base2 = base;
-                base2.emplace_back(0, p, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+                base2.emplace_back(base2.size(), p, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
                 self(self, depth + 1, base2);
                 res.emplace_back(std::move(base2));
 
                 auto base3 = base;
-                base3.emplace_back(0, c * p, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+                base3.emplace_back(base3.size(), c * p, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
                 self(self, depth + 1, base3);
                 res.emplace_back(std::move(base3));
 
                 auto base4 = base;
-                base4.emplace_back(0, p / c, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+                base4.emplace_back(base4.size(), p / c, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
                 self(self, depth + 1, base4);
                 res.emplace_back(std::move(base4));
             }

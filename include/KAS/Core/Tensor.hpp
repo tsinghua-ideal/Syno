@@ -74,7 +74,7 @@ protected:
 
 public:
     // Build the tensor from iterator DAG.
-    TensorView(const std::vector<std::vector<Dimension>>& tensors);
+    explicit TensorView(const std::vector<std::vector<Dimension>>& tensors);
 
     inline IteratorShapeView getInterfaceShape() const { return IteratorShapeView(interface); }
 

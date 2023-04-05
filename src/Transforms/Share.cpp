@@ -22,12 +22,8 @@ ShareOp::IteratorValues ShareOp::value(const IteratorValues& known) const {
 
 ShareOp::OrderingValues ShareOp::ordering(const IteratorValues& known) const {
     auto& [inputLhs, inputRhs, output] = known;
-    if (inputLhs && !inputRhs && !output) {
-        return { .inputLhs = -1, .inputRhs = 0, .output = 0 };
-    } else if (!inputLhs && inputRhs && !output) {
-        return { .inputLhs = 0, .inputRhs = -1, .output = 0 };
-    } else if (!inputLhs && !inputRhs && output) {
-        return { .inputLhs = 0, .inputRhs = 0, .output = -1 };
+    if (!inputLhs && !inputRhs && !output) {
+        return { .inputLhs = 0, .inputRhs = 0, .output = 0 };
     } else {
         return { .inputLhs = -1, .inputRhs = -1, .output = -1 };
     }

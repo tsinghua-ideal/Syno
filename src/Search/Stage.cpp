@@ -1,4 +1,5 @@
 #include "KAS/Search/Stage.hpp"
+#include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Search/Sample.hpp"
@@ -119,6 +120,7 @@ void Stage::guard() {
 TensorView *Stage::getFinalize(std::size_t index) {
     auto& [op, tensorView] = finalizes.at(index);
     if (!tensorView) {
+        KAS_DEBUG("Building TensorView from Finalization. Iterator graph:\n{}\n", GraphvizGen(op.tensors, sampler.getBindingContext()).print("kernel"));
         tensorView = op.buildTensorView();
     }
     return tensorView.get();

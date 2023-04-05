@@ -14,6 +14,7 @@ namespace kas {
 
 // Contains multiple finalization options.
 class FinalizeOp {
+    friend class Stage;
     std::vector<Interface> tensors;
 
 public:
