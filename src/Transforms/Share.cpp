@@ -24,9 +24,14 @@ ShareOp::OrderingValues ShareOp::ordering(const IteratorValues& known) const {
     auto& [inputLhs, inputRhs, output] = known;
     if (!inputLhs && !inputRhs && !output) {
         return { .inputLhs = 0, .inputRhs = 0, .output = 0 };
-    } else {
-        return { .inputLhs = -1, .inputRhs = -1, .output = -1 };
+    } else { // Actually this cannot happen.
+        KAS_UNREACHABLE("Not possible to call ordering() on ShareOp with known values.");
     }
+}
+
+std::pair<bool, CompactColorType> ShareOp::transformColor(CompactColorType fro1, CompactColorType fro2) const {
+    // Require empty intersection.
+    return { !(fro1 & fro2), fro1 | fro2 };
 }
 
 std::size_t ShareOp::CountColorTrials = 0;

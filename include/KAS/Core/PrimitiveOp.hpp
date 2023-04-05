@@ -60,6 +60,7 @@ public:
     using OrderingValues = Values<int>;
     virtual OrderingValues ordering(const IteratorValues& known) const = 0;
 
+    virtual inline std::pair<bool, CompactColorType> transformColor(CompactColorType fro) const { return { true, fro }; }
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 
     ~RepeatLikeOp() = default;
@@ -112,6 +113,7 @@ public:
     using OrderingValues = Values<int>;
     virtual OrderingValues ordering(const IteratorValues& known) const = 0;
 
+    virtual inline std::tuple<bool, CompactColorType, CompactColorType> transformColor(CompactColorType fro) const { return { true, fro, fro }; }
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 
     ~SplitLikeOp() = default;
@@ -143,6 +145,10 @@ public:
         void accept(DimVisitor& visitor) const final override;
         inline const MergeLikeOp *getOp() const noexcept { return op; }
         inline Order getOrder() const noexcept { return order; }
+        inline Dimension getOther() const noexcept {
+            auto [lhs, rhs] = op->getInputs();
+            return order == Order::Left ? rhs : lhs;
+        }
     };
     Dimension output;
     MergeLikeOp(auto&& output):
@@ -169,6 +175,7 @@ public:
     using OrderingValues = Values<int>;
     virtual OrderingValues ordering(const IteratorValues& known) const = 0;
 
+    virtual inline std::pair<bool, CompactColorType> transformColor(CompactColorType fro1, CompactColorType fro2) const { return { true, fro1 | fro2 }; }
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 
     ~MergeLikeOp() = default;

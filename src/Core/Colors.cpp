@@ -1,4 +1,5 @@
 #include "KAS/Core/Colors.hpp"
+#include "KAS/Core/DimVisitor.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Vector.hpp"
 
@@ -109,9 +110,61 @@ void Colors::simplify(ColoredInterface& interface) {
     });
 }
 
-bool Colors::checkFinalization(const std::vector<Interface>& tensors) const {
-    // TODO!!!
-    return true;
+bool Colors::CheckFinalization(const std::vector<Interface>& tensors) {
+    struct Visitor: public DimVisitor {
+        std::map<Dimension, CompactColorType, Dimension::HashLessThan>& colorMap;
+        Visitor(std::map<Dimension, CompactColorType, Dimension::HashLessThan>& colorMap): colorMap(colorMap) {}
+        bool fail = false;
+        void visit(const RepeatLikeOp::Input& dim) override {
+            auto [accept, newColor] = dim.getOp()->transformColor(colorMap.at(&dim));
+            if (!accept) {
+                fail = true;
+            }
+            colorMap.emplace(dim.getOp()->output, newColor);
+            visit(dim.getOp()->output);
+        }
+        void visit(const SplitLikeOp::Input& dim) override {
+            auto [accept, newColorL, newColorR] = dim.getOp()->transformColor(colorMap.at(&dim));
+            if (!accept) {
+                fail = true;
+            }
+            colorMap.emplace(dim.getOp()->outputLhs, newColorL);
+            colorMap.emplace(dim.getOp()->outputRhs, newColorR);
+            visit(dim.getOp()->outputLhs);
+            visit(dim.getOp()->outputRhs);
+        }
+        void visit(const MergeLikeOp::Input& dim) override {
+            auto otherDim = dim.getOther();
+            if (auto it = colorMap.find(otherDim); it != colorMap.end()) {
+                auto lhs = colorMap.at(&dim);
+                auto rhs = it->second;
+                if (dim.getOrder() == Order::Right) {
+                    std::swap(lhs, rhs);
+                }
+                auto [accept, newColor] = dim.getOp()->transformColor(lhs, rhs);
+                if (!accept) {
+                    fail = true;
+                }
+                colorMap.emplace(dim.getOp()->output, newColor);
+                visit(dim.getOp()->output);
+            }
+        }
+        using DimVisitor::visit;
+        bool pass() {
+            return !fail;
+        }
+    };
+    std::map<Dimension, CompactColorType, Dimension::HashLessThan> colorMap;
+    Visitor visitor { colorMap };
+    for (int color = Colors::First; auto&& tensor: tensors) {
+        for (auto&& dim: tensor) {
+            auto [_, inserted] = colorMap.emplace(dim, color);
+            KAS_ASSERT(inserted, "Duplicate dimensions in tensors! Or even worse, hash collision.");
+            visitor.visit(dim);
+        }
+        ++color;
+    }
+    return visitor.pass();
 }
 
 } // namespace kas

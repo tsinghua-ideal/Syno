@@ -1,5 +1,6 @@
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Split.hpp"
+#include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
@@ -20,12 +21,14 @@ SplitOp::IteratorValues SplitOp::value(const IteratorValues &known) const {
 
 SplitOp::OrderingValues SplitOp::ordering(const IteratorValues &known) const {
     auto& [input, outputLhs, outputRhs] = known;
-    if (!input && outputLhs && !outputRhs) {
+    if (!input && !outputLhs && !outputRhs) {
+        return { .input = 0, .outputLhs = 0, .outputRhs = 0 };
+    } else if (!input && outputLhs && !outputRhs) {
         return { .input = 0, .outputLhs = -1, .outputRhs = 1 };
     } else if (!input && !outputLhs && outputRhs) {
         return { .input = 0, .outputLhs = 1, .outputRhs = -1 };
     } else {
-        return { .input = -1, .outputLhs = -1, .outputRhs = -1 };
+        KAS_UNREACHABLE("Not possible to call ordering() on SplitOp with input = {}, outputLhs = {}, outputRhs = {}", input.hasValue(), outputLhs.hasValue(), outputRhs.hasValue());
     }
 }
 

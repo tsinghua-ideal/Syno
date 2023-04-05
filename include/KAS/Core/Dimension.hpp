@@ -78,6 +78,15 @@ public:
         }
     };
     std::string description(const BindingContext& ctx) const;
+
+    // FOR DEBUG USAGE ONLY!
+    inline std::string toString() const {
+        if (BindingContext::PublicCtx) {
+            return description(*BindingContext::PublicCtx);
+        } else {
+            return "NO_PUBLIC_CONTEXT";
+        }
+    }
 };
 
 } // namespace kas

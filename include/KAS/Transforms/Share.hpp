@@ -33,6 +33,7 @@ public:
     IteratorValues value(const IteratorValues& known) const override;
     OrderingValues ordering(const IteratorValues& known) const override;
 
+    std::pair<bool, CompactColorType> transformColor(CompactColorType fro1, CompactColorType fro2) const override;
     static std::size_t CountColorTrials;
     static std::size_t CountColorSuccesses;
     bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;

@@ -59,6 +59,15 @@ public:
     requires std::is_base_of_v<IteratorValueImpl, T>
     const T& as() const { return *std::dynamic_pointer_cast<const T>(value); }
     std::string toString(const BindingContext& ctx) const;
+
+    // FOR DEBUG USAGE ONLY!
+    inline std::string toString() const {
+        if (BindingContext::PublicCtx) {
+            return toString(*BindingContext::PublicCtx);
+        } else {
+            return "NO_PUBLIC_CONTEXT";
+        }
+    }
 };
 
 struct VariableValueNode final: public IteratorValueImpl {

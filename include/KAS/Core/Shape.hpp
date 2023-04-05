@@ -88,6 +88,15 @@ public:
             return size.toString(ctx);
         }));
     }
+
+    // FOR DEBUG USAGE ONLY!
+    inline std::string toString() const {
+        if (BindingContext::PublicCtx) {
+            return toString(*BindingContext::PublicCtx);
+        } else {
+            return "NO_PUBLIC_CONTEXT";
+        }
+    }
 };
 
 // We have forward-defined Shape in BindingContext.hpp.

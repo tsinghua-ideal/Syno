@@ -128,6 +128,15 @@ public:
 
     std::string toString(const BindingContext& ctx) const;
 
+    // FOR DEBUG USAGE ONLY!
+    inline std::string toString() const {
+        if (BindingContext::PublicCtx) {
+            return toString(*BindingContext::PublicCtx);
+        } else {
+            return "NO_PUBLIC_CONTEXT";
+        }
+    }
+
     template<typename C = decltype([](const std::string&){})>
     static std::vector<std::string> parseNames(std::string_view shape, C&& onNewName = C()) {
         auto parsedShape = Parser(shape).parseShape();

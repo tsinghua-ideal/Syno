@@ -54,7 +54,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& outputShape
             } else {
                 KAS_UNIMPLEMENTED("maximumTensors > 2 not supported.");
             }
-            if (!colors.checkFinalization(tensors)) {
+            if (!colors.isConsistent() || !Colors::CheckFinalization(tensors)) {
                 ++CountConflictingColors;
                 return;
             }

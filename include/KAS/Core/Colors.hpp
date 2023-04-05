@@ -54,7 +54,22 @@ public:
 
     static std::size_t CountColorInconsistent;
     inline bool isConsistent() const { return consistent; }
-    bool checkFinalization(const std::vector<Interface>& tensors) const;
+    static bool CheckFinalization(const std::vector<Interface>& tensors);
+};
+
+// Use bits to represent colors.
+class CompactColorType {
+    std::size_t value;
+public:
+    inline explicit CompactColorType(std::size_t value): value { value } {}
+    inline explicit CompactColorType(int single): value { std::size_t{1} << single } {
+        KAS_ASSERT(single >= 0 && single < sizeof(std::size_t) * 8);
+    }
+    // Intersection.
+    inline CompactColorType operator&(const CompactColorType& rhs) const noexcept { return CompactColorType { value & rhs.value }; }
+    // Union.
+    inline CompactColorType operator|(const CompactColorType& rhs) const noexcept { return CompactColorType { value | rhs.value }; }
+    inline explicit operator bool() const noexcept { return value != 0; }
 };
 
 struct ColoredDimension {

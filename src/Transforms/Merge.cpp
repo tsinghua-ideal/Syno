@@ -36,12 +36,14 @@ MergeOp::IteratorValues MergeOp::value(const IteratorValues& known) const {
 
 MergeOp::OrderingValues MergeOp::ordering(const IteratorValues& known) const {
     auto& [inputLhs, inputRhs, output] = known;
-    if (inputLhs && !inputRhs && !output) {
+    if (!inputLhs && !inputRhs && !output) {
+        return { .inputLhs = 0, .inputRhs = 0, .output = 0 };
+    } else if (inputLhs && !inputRhs && !output) {
         return { .inputLhs = -1, .inputRhs = 1, .output = 0 };
     } else if (!inputLhs && inputRhs && !output) {
         return { .inputLhs = 1, .inputRhs = -1, .output = 0 };
     } else {
-        return { .inputLhs = -1, .inputRhs = -1, .output = -1 };
+        KAS_UNREACHABLE("Not possible to call ordering() on MergeOp with inputLhs = {}, inputRhs = {}, output = {}", inputLhs.hasValue(), inputRhs.hasValue(), output.hasValue());
     }
 }
 

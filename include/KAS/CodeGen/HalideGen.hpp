@@ -142,7 +142,7 @@ public:
         Halide::Pipeline backwardPipeline;
         std::vector<HalideGen::BufferAdaptor<float>> backwardTrials;
     };
-    template<typename... InputInitializers>
+    template<bool DoInitialization = true, typename... InputInitializers>
     Realization performTrial(const std::map<std::string, std::size_t>& mappings, auto&& funcName, bool createStaticLibrary, auto&& outputGradInitializer, InputInitializers&&... inputInitializers) {
         auto consts = ctx.realizeConsts(mappings);
         auto shapes = concretizeShapes(consts);
@@ -158,8 +158,10 @@ public:
             inputGradsBuffers.emplace_back(inputBufferShape);
             inputBuffers.emplace_back(inputBufferShape);
             auto& inputBuffer = inputBuffers.back();
-            auto proxy = HalideGen::BufferRefAdaptor<float>(inputBuffer);
-            inputBuffer.for_each_element(ReverseArguments(std::bind_front(std::get<i>(initializerTuple), std::ref(proxy))));
+            if constexpr (DoInitialization) {
+                auto proxy = HalideGen::BufferRefAdaptor<float>(inputBuffer);
+                inputBuffer.for_each_element(ReverseArguments(std::bind_front(std::get<i>(initializerTuple), std::ref(proxy))));
+            }
             inputs.at(i).set(inputBuffer);
             backwardInputs.at(i).set(inputBuffer);
         };
@@ -187,8 +189,10 @@ public:
 
         // Initialize output grad buffer.
         auto outputGradBuffer = Halide::Buffer<float>(outputBufferShape);
-        auto outputGradProxy = HalideGen::BufferRefAdaptor<float>(outputGradBuffer);
-        outputGradBuffer.for_each_element(ReverseArguments(std::bind_front(std::forward<decltype(outputGradInitializer)>(outputGradInitializer), std::ref(outputGradProxy))));
+        if constexpr (DoInitialization) {
+            auto outputGradProxy = HalideGen::BufferRefAdaptor<float>(outputGradBuffer);
+            outputGradBuffer.for_each_element(ReverseArguments(std::bind_front(std::forward<decltype(outputGradInitializer)>(outputGradInitializer), std::ref(outputGradProxy))));
+        }
         backwardInputs.back().set(outputGradBuffer);
 
         // Compute the backward result.

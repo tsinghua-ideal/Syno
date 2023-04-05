@@ -102,86 +102,79 @@ namespace {
                 ++i;
             }
             ss << "}\n";
+
+            ss << "{ rank = same;\n";
+            for (std::size_t i = 0; i < reductions.size(); ++i) {
+                fmt::format_to(SSIt(), "reduce_{};\n", i);
+            }
+            for (std::size_t i = 0; i < outputs.size(); ++i) {
+                fmt::format_to(SSIt(), "out_{};\n", i);
+            }
+            ss << "}\n";
         }
     };
 }
 
-GraphvizGen::GraphvizGen(const Interface& inputs, const BindingContext& ctx) {
-    std::stringstream ss;
-    auto SSIt = [&]() { return std::ostreambuf_iterator<char>(ss); };
-    std::vector<const Iterator *> outputs;
-    std::vector<const MapReduceOp *> reductions;
-    auto dfs = DFS { ctx, ss, outputs, reductions };
+namespace {
+    template<std::ranges::input_range TensorRange>
+    requires (
+        std::ranges::input_range<std::ranges::range_value_t<TensorRange>> &&
+        std::convertible_to<std::ranges::range_value_t<std::ranges::range_value_t<TensorRange>>, Dimension>
+    )
+    std::string draw(const BindingContext& ctx, TensorRange&& tensors) {
+        std::stringstream ss;
+        auto SSIt = [&]() { return std::ostreambuf_iterator<char>(ss); };
+        std::vector<const Iterator *> outputs;
+        std::vector<const MapReduceOp *> reductions;
+        auto dfs = DFS { ctx, ss, outputs, reductions };
 
-    ss << "subgraph cluster_in {\n";
-    ss << "label = \"Input\";\n";
-    for (std::size_t i = 0; auto&& inputDim: inputs) {
-        fmt::format_to(SSIt(), "in_{} [label=\"{}\", shape=none];\n", i, inputDim.size().toString(ctx));
-        ++i;
+        ss << "newrank = true;\n"; // To allow alignment for subgraphs.
+
+        for (std::size_t j = 0; auto&& tensor: tensors) {
+            fmt::format_to(SSIt(), "subgraph cluster_in_{} {{\n", j);
+            fmt::format_to(SSIt(), "label = \"Input {}\";\n", j);
+            for (std::size_t i = 0; auto&& dim: tensor) {
+                fmt::format_to(SSIt(), "in_{}_{} [label=\"{}\", shape=none];\n", j, i, dim.size().toString(ctx));
+                ++i;
+            }
+            ss << "}\n";
+            ++j;
+        }
+
+        ss << "{ rank = same;\n";
+        for (std::size_t j = 0; auto&& tensor: tensors) {
+            for (std::size_t i = 0; i < std::ranges::size(tensor); ++i) {
+                fmt::format_to(SSIt(), "in_{}_{};\n", j, i);
+            }
+            ++j;
+        }
+        ss << "}\n";
+
+        for (std::size_t j = 0; auto&& tensor: tensors) {
+            for (std::size_t i = 0; auto&& dim: tensor) {
+                dfs(fmt::format("in_{}_{}", j, i), dim);
+                ++i;
+            }
+            ++j;
+        }
+        dfs.done();
+        return ss.str();
     }
-    ss << "}\n";
-    for (std::size_t i = 0; auto&& inputDim: inputs) {
-        dfs(fmt::format("in_{}", i), inputDim);
-        ++i;
-    }
-    dfs.done();
-    code = ss.str();
+}
+
+GraphvizGen::GraphvizGen(const Interface& inputs, const BindingContext& ctx) {
+    auto oneTensor = { inputs };
+    code = draw(ctx, oneTensor);
 }
 
 GraphvizGen::GraphvizGen(const std::vector<Interface>& tensors, const BindingContext& ctx) {
-    std::stringstream ss;
-    auto SSIt = [&]() { return std::ostreambuf_iterator<char>(ss); };
-    std::vector<const Iterator *> outputs;
-    std::vector<const MapReduceOp *> reductions;
-    auto dfs = DFS { ctx, ss, outputs, reductions };
-
-    for (std::size_t j = 0; auto&& tensor: tensors) {
-        fmt::format_to(SSIt(), "subgraph cluster_in_{} {{\n", j);
-        fmt::format_to(SSIt(), "label = \"Input {}\";\n", j);
-        for (std::size_t i = 0; auto&& dim: tensor) {
-            fmt::format_to(SSIt(), "in_{}_{} [label=\"{}\", shape=none];\n", j, i, dim.size().toString(ctx));
-            ++i;
-        }
-        ss << "}\n";
-        ++j;
-    }
-    for (std::size_t j = 0; auto&& tensor: tensors) {
-        for (std::size_t i = 0; auto&& dim: tensor) {
-            dfs(fmt::format("in_{}_{}", j, i), dim);
-            ++i;
-        }
-        ++j;
-    }
-    dfs.done();
-    code = ss.str();
+    code = draw(ctx, tensors);
 }
 
 GraphvizGen::GraphvizGen(const TensorView& tensorView, const BindingContext& ctx) {
-    std::stringstream ss;
-    auto SSIt = [&]() { return std::ostreambuf_iterator<char>(ss); };
-    std::vector<const Iterator *> outputs;
-    std::vector<const MapReduceOp *> reductions;
-    auto dfs = DFS { ctx, ss, outputs, reductions };
-
-    for (std::size_t j = 0; auto&& tensor: tensorView.getUnderlyingTensors()) {
-        fmt::format_to(SSIt(), "subgraph cluster_in_{} {{\n", j);
-        fmt::format_to(SSIt(), "label = \"Input {}\";\n", j);
-        for (std::size_t i = 0; auto&& dim: tensor.dims) {
-            fmt::format_to(SSIt(), "in_{}_{} [label=\"{}\", shape=none];\n", j, i, dim.size().toString(ctx));
-            ++i;
-        }
-        ss << "}\n";
-        ++j;
-    }
-    for (std::size_t j = 0; auto&& tensor: tensorView.getUnderlyingTensors()) {
-        for (std::size_t i = 0; auto&& dim: tensor.dims) {
-            dfs(fmt::format("in_{}_{}", j, i), dim);
-            ++i;
-        }
-        ++j;
-    }
-    dfs.done();
-    code = ss.str();
+    code = draw(ctx, tensorView.getUnderlyingTensors() | std::views::transform([](const PureTensor& tensor) -> const Interface& {
+        return tensor.getDimensions();
+    }));
 }
 
 void GraphvizGen::generate(std::filesystem::path outputDirectory, std::string_view funcName) const {

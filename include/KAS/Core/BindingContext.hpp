@@ -83,6 +83,9 @@ public:
     void applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs);
 
     ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings) const;
+
+    // FOR DEBUG USAGE ONLY!
+    static inline const BindingContext *PublicCtx = nullptr;
 };
 
 } // namespace kas
