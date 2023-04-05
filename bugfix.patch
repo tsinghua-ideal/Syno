@@ -11,35 +11,11 @@ index 2c5b038..baeaba4 100644
              EXPORT Halide_Interfaces
              LIBRARY DESTINATION ${Halide_INSTALL_PLUGINDIR} COMPONENT Halide_Runtime
              NAMELINK_COMPONENT Halide_Development)
-diff --git a/src/CodeGen_PyTorch.cpp b/src/CodeGen_PyTorch.cpp
-index 24b58d3..ad816ff 100644
---- a/src/CodeGen_PyTorch.cpp
-+++ b/src/CodeGen_PyTorch.cpp
-@@ -25,6 +25,7 @@ void CodeGen_PyTorch::compile(const Module &module) {
-                           "Please add \"-user_context\" to the generator's target options.\n";
-         }
-         stream << "#include \"ATen/cuda/CUDAContext.h\"\n";
-+        stream << "#include \"HalidePyTorchCudaHelpers.h\"\n";
-     }
-     stream << "#include \"HalideBuffer.h\"\n";
-     stream << "#include \"HalidePyTorchHelpers.h\"\n";
-@@ -43,6 +44,11 @@ void CodeGen_PyTorch::compile(const Module &module) {
-     }
- 
-     for (const auto &f : module.functions()) {
-+        // Don't put non-external function declarations in headers.
-+        // We need to be consistent with CodeGen_C::compile.
-+        if (f.linkage == LinkageType::Internal) {
-+            continue;
-+        }
-         if (target.has_feature(Target::CUDA)) {
-             compile(f, true);
-         } else {
 diff --git a/src/autoschedulers/anderson2021/DefaultCostModel.cpp b/src/autoschedulers/anderson2021/DefaultCostModel.cpp
-index 18c2404..2fca3d2 100644
+index 3eede59..75c0723 100644
 --- a/src/autoschedulers/anderson2021/DefaultCostModel.cpp
 +++ b/src/autoschedulers/anderson2021/DefaultCostModel.cpp
-@@ -309,7 +309,7 @@ void DefaultCostModel::evaluate_costs() {
+@@ -321,7 +321,7 @@ void DefaultCostModel::evaluate_costs() {
      }
  
      cursor = 0;
@@ -48,29 +24,3 @@ index 18c2404..2fca3d2 100644
  }
  
  void DefaultCostModel::load_weights() {
-diff --git a/src/autoschedulers/anderson2021/State.cpp b/src/autoschedulers/anderson2021/State.cpp
-index 9cab832..e235059 100644
---- a/src/autoschedulers/anderson2021/State.cpp
-+++ b/src/autoschedulers/anderson2021/State.cpp
-@@ -219,7 +219,7 @@ void State::FeatureLoopNestMutator::split_compute_root_loops(LoopNest *loop_nest
- 
-         // Make the vectorized dimension of the inner loop 32 (or as
-         // close as possible)
--        int64_t inner_extent = std::min(c->size[vectorized_loop_index], (int64_t)32);
-+        int64_t inner_extent = vectorized_loop_index != -1 ? std::min(c->size[vectorized_loop_index], (int64_t)32) : (int64_t)32;
- 
-         if (c->stage->index == 0) {
-             vector<int64_t> tiling(c->node->dimensions, 1);
-diff --git a/src/runtime/HalidePyTorchHelpers.h b/src/runtime/HalidePyTorchHelpers.h
-index 8ad7fee..bcf9c07 100644
---- a/src/runtime/HalidePyTorchHelpers.h
-+++ b/src/runtime/HalidePyTorchHelpers.h
-@@ -16,7 +16,7 @@
- #include "HalideBuffer.h"
- 
- // Forward declare the cuda_device_interface, for tensor wrapper.
--const halide_device_interface_t *halide_cuda_device_interface();
-+extern "C" const halide_device_interface_t *halide_cuda_device_interface();
- 
- #define HLPT_CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
- #define HLPT_CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
