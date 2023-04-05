@@ -21,6 +21,7 @@ class Sampler:
         self._save_path = save_path
         self._sampler = kas_cpp_bindings.Sampler(input_shape, output_shape, primary_specs, coefficient_specs, options)
         self._codegen_options = kas_cpp_bindings.CodeGenOptions(cuda, autoscheduler)
+        self._device = torch.device('cuda' if cuda else 'cpu')
 
     def _path_str(self, path: list[int]) -> str:
         prefixes = [path[:l] for l in range(1, len(path) + 1)]
@@ -37,6 +38,7 @@ class Sampler:
     # Here we simply replace the placeholders with sampled kernels. TODO: Add support for storing and loading kernels.
     def sample(self, net: nn.Module, prefix: list[int] = []) -> list[int]:
         path = self._sampler.random_path_with_prefix(prefix)
+        # TODO: what if the sample fails?
         kernel = self._realize(path)
         logging.debug(f"Sampled kernel: {kernel}")
         logging.debug(f"Path: {self._path_str(path)}")
@@ -54,7 +56,7 @@ class Sampler:
             logging.debug(f"Inputs shapes: {inputs_shapes}")
             output_shape = kernel.get_output_shape(mappings)
             logging.debug(f"Output shape: {output_shape}")
-            placeholder.reload(KernelPack(identifier, save_path, kernel_name, inputs_shapes, output_shape))
+            placeholder.reload(KernelPack(identifier, save_path, kernel_name, inputs_shapes, output_shape, self._device))
         return path
 
     def is_dead_end(self, path: list[int]) -> bool:

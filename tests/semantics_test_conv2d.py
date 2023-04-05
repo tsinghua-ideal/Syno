@@ -91,5 +91,5 @@ t_torch_backward = benchmark.Timer(
     setup='from __main__ import torch_conv, torch',
     globals={'t_in': t_in})
 
-print(t_kas_backward.timeit(1))
+print(t_kas_backward.timeit(10))
 print(t_torch_backward.timeit(100))

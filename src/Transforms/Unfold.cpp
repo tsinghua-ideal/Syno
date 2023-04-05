@@ -30,6 +30,8 @@ UnfoldOp::OrderingValues UnfoldOp::ordering(const IteratorValues& known) const {
         return { .input = 0, .outputLhs = -1, .outputRhs = 1 };
     } else if (input && !outputLhs && !outputRhs) {
         return { .input = -1, .outputLhs = 0, .outputRhs = 1 };
+    } else if (!input && !outputLhs && outputRhs) {
+        return { .input = 0, .outputLhs = 0, .outputRhs = -1 };
     } else {
         KAS_UNREACHABLE("Not possible to call ordering() on UnfoldOp with input = {}, outputLhs = {}, outputRhs = {}", input.hasValue(), outputLhs.hasValue(), outputRhs.hasValue());
     }

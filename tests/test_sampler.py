@@ -18,7 +18,7 @@ class Model(nn.Module):
         return x
 
 def test_sampler():
-    sampler = Sampler("[H,W]", "[N,C,H,W]", [], ["s_1=2", "s_2=2"], depth=2, autoscheduler=CodeGenOptions.AutoScheduler.ComputeRoot)
+    sampler = Sampler("[H,W]", "[N,C,H,W]", [], ["s_1=2", "s_2=2"], depth=2, cuda=False, autoscheduler=CodeGenOptions.AutoScheduler.ComputeRoot)
 
     net = Model()
     path = sampler.sample(net)
@@ -33,7 +33,7 @@ def test_sampler():
     # descent
     with torch.no_grad():
         for param in net.parameters():
-            param -= param.grad * 0.01
+            param -= param.grad * 1.0e-5
             param.grad.zero_()
     out_tensor = net(in_tensor)
     print("Second output:", out_tensor)

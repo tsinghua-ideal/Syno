@@ -30,7 +30,7 @@ TEST_F(codegen_tests, generate) {
             ++i;
             continue;
         }
-        std::cout << sample->printNestedLoops(ctx);
+        std::cout << sample->printNestedLoops(ctx, AbstractAccess::Output);
         HalideGen gen { ctx, *sample, {
             .useGPU = false,
             .scheduler = HalideGen::Options::AutoScheduler::ComputeRoot,

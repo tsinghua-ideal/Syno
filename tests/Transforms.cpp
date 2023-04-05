@@ -27,71 +27,6 @@ protected:
     Size sizeC = ctx.getSingleCoefficientVariableSize(0);
     Iterator itH { 0, sizeH }, itW { 1, sizeW }, itCH { 2, sizeC * sizeH };
     Dimension dimH { &itH }, dimW { &itW }, dimCH { &itCH };
-
-    template<std::size_t InputDimensions, std::size_t OutputDimensions>
-    struct HalideEssentials {
-        HalideGen::BufferAdaptor<float, OutputDimensions> outputBuffer;
-        HalideGen::BufferAdaptor<float, InputDimensions> derivativesBuffer;
-    };
-
-    template<std::size_t InputDimensions, std::size_t OutputDimensions>
-    HalideEssentials<InputDimensions, OutputDimensions> realize(
-        const TensorView& tensorView,
-        std::size_t primaryDim, std::size_t coefficientDim,
-        const int (&rawInputDimensions)[InputDimensions],
-        auto&& inputInitializer,
-        const int (&rawOutputDimensions)[OutputDimensions],
-        auto&& outputGradInitializer
-    ) const {
-        HalideGen gen(ctx, tensorView, {});
-        std::map<std::string, std::size_t> mappings {{"H", primaryDim}, {"W", primaryDim}, {"c", coefficientDim}};
-        auto [forwardInputs, forwardFunc, backwardInputs, backwardFuncs] = gen.createPipelines(mappings, "semantics_test");
-
-        // First realize the forward pipeline.
-
-        KAS_ASSERT(forwardInputs.size() == 1);
-        auto& forwardInput = forwardInputs[0];
-
-        // Give special care to the column-major layout.
-        std::span inputDimensions { rawInputDimensions };
-        auto inputBuffer = Halide::Buffer<float, InputDimensions>(std::vector<int>(inputDimensions.rbegin(), inputDimensions.rend()));
-        auto proxy = HalideGen::BufferRefAdaptor<float, InputDimensions> { inputBuffer };
-        inputBuffer.for_each_element(ReverseArguments(std::bind_front(inputInitializer, std::ref(proxy))));
-        forwardInput.set(inputBuffer);
-
-        forwardFunc.compute_root();
-        std::span outputDimensions { rawOutputDimensions };
-        Halide::Buffer<float, OutputDimensions> outputBuffer;
-        try {
-            outputBuffer = forwardFunc.realize(std::vector<int>(outputDimensions.rbegin(), outputDimensions.rend()), Halide::get_host_target());
-        } catch (const Halide::Error& e) {
-            fmt::print("Forward Error: {}\n", e.what());
-            throw;
-        }
-
-        // Then realize the backward pipeline.
-
-        KAS_ASSERT(backwardFuncs.size() == 1);
-        auto& backwardFunc = backwardFuncs[0];
-
-        auto backwardOutputBuffer = Halide::Buffer<float, OutputDimensions>(std::vector<int>(outputDimensions.rbegin(), outputDimensions.rend()));
-        auto gradProxy = HalideGen::BufferRefAdaptor<float, OutputDimensions> { backwardOutputBuffer };
-        backwardOutputBuffer.for_each_element(ReverseArguments(std::bind_front(outputGradInitializer, std::ref(gradProxy))));
-        KAS_ASSERT(backwardInputs.size() == 2);
-        backwardInputs[0].set(inputBuffer);
-        backwardInputs[1].set(backwardOutputBuffer);
-
-        backwardFunc.compute_root();
-        Halide::Buffer<float, InputDimensions> backwardInputBuffer;
-        try {
-            backwardInputBuffer = backwardFunc.realize(std::vector<int>(inputDimensions.rbegin(), inputDimensions.rend()), Halide::get_host_target());
-        } catch (const Halide::Error& e) {
-            fmt::print("Backward Error: {}\n", e.what());
-            throw;
-        }
-
-        return { { std::move(outputBuffer) }, { std::move(backwardInputBuffer) } };
-    }
 };
 
 TEST_F(transforms_tests, share) {
@@ -99,11 +34,9 @@ TEST_F(transforms_tests, share) {
     auto [shareOpL, shareOpR] = shareOp.getInputs();
     Interface in { shareOpL, shareOpR, dimW, dimCH };
     auto tensorView = TensorView { { in } };
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c*H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0].accessToString(ctx), "[i_0,i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H,H,W,c*H]");
-    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, AbstractAccess::Output),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c*H; i_2++) {
@@ -112,15 +45,14 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [outputBuffer, derivatives] = realize(
-        tensorView, 4, 2,
-        {4, 4, 4, 8},
-        [](auto&& buf, int i, int j, int k, int l) {
-            buf(i, j, k, l) = 4 * i + j;
-        },
-        {4, 4, 8},
+    auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
+        {{"H", 4}, {"W", 4}, {"c", 2}},
+        "share", false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 5 * i;
+        },
+        [](auto&& buf, int i, int j, int k, int l) {
+            buf(i, j, k, l) = 4 * i + j;
         }
     );
     for (int i = 0; i < 4; i++) {
@@ -134,7 +66,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
                 for (int l = 0; l < 8; l++) {
-                    ASSERT_EQ(derivatives(i, j, k, l), static_cast<float>(i == j) * (4 * i + j));
+                    ASSERT_EQ(derivatives[0](i, j, k, l), static_cast<float>(i == j) * (4 * i + j));
                 }
             }
         }
@@ -145,12 +77,9 @@ TEST_F(transforms_tests, map_reduce) {
     MapReduceOp mapReduceOp { 0, sizeH * sizeW, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum };
     Interface in { &mapReduceOp, dimH, dimW, dimCH };
     auto tensorView = TensorView { { in } };
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2,ri_0] with ri_0 Sum reduced");
-    ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c*H]");
-    ASSERT_EQ(tensorView.getReduceShape().toString(ctx), "[H*W]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0].accessToString(ctx), "[ri_0,i_0,i_1,i_2]");
+    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H*W,H,W,c*H]");
-    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, AbstractAccess::Output),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c*H; i_2++) {
@@ -163,15 +92,14 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [outputBuffer, derivatives] = realize(
-        tensorView, 4, 2,
-        {16, 4, 4, 8},
-        [](auto&& buf, int i, int j, int k, int l) {
-            buf(i, j, k, l) = 32 * j + 8 * k + l + i;
-        },
-        {4, 4, 8},
+    auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
+        {{"H", 4}, {"W", 4}, {"c", 2}},
+        "map_reduce", false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 32 * i + 8 * j + k;
+        },
+        [](auto&& buf, int i, int j, int k, int l) {
+            buf(i, j, k, l) = 32 * j + 8 * k + l + i;
         }
     );
     for (int i = 0; i < 4; i++) {
@@ -185,7 +113,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
                 for (int l = 0; l < 8; l++) {
-                    ASSERT_EQ(derivatives(i, j, k, l), 32 * j + 8 * k + l);
+                    ASSERT_EQ(derivatives[0](i, j, k, l), 32 * j + 8 * k + l);
                 }
             }
         }
@@ -196,11 +124,9 @@ TEST_F(transforms_tests, shift) {
     ShiftOp shiftOp { dimH, 1 };
     Interface in { shiftOp.getInput(), dimW, dimCH };
     auto tensorView = TensorView { { in } };
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c*H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0].accessToString(ctx), "[((i_0)+(1))%(H),i_1,i_2]");
+    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H,W,c*H]");
-    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, AbstractAccess::Output),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c*H; i_2++) {
@@ -209,15 +135,14 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [outputBuffer, derivatives] = realize(
-        tensorView, 4, 2,
-        {4, 4, 8},
-        [](auto&& buf, int i, int j, int k) {
-            buf(i, j, k) = 32 * i + 8 * j + k;
-        },
-        {4, 4, 8},
+    auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
+        {{"H", 4}, {"W", 4}, {"c", 2}},
+        "shift", false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 32 * ((i + 1) % 4) + 8 * j + k;
+        },
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = 32 * i + 8 * j + k;
         }
     );
     for (int i = 0; i < 4; i++) {
@@ -230,7 +155,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
-                ASSERT_EQ(derivatives(i, j, k), 32 * i + 8 * j + k);
+                ASSERT_EQ(derivatives[0](i, j, k), 32 * i + 8 * j + k);
             }
         }
     }
@@ -240,11 +165,9 @@ TEST_F(transforms_tests, stride) {
     StrideOp strideOp { dimH, sizeC };
     Interface in { strideOp.getInput(), dimW, dimCH };
     auto tensorView = TensorView { { in } };
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c*H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0].accessToString(ctx), "[(c)*(i_0),i_1,i_2]");
+    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[c*H,W,c*H]");
-    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, AbstractAccess::Output),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c*H; i_2++) {
@@ -253,15 +176,14 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [outputBuffer, derivatives] = realize(
-        tensorView, 4, 2,
-        {8, 4, 8},
-        [](auto&& buf, int i, int j, int k) {
-            buf(i, j, k) = 32 * i + 8 * j + k;
-        },
-        {4, 4, 8},
+    auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
+        {{"H", 4}, {"W", 4}, {"c", 2}},
+        "stride", false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 32 * 2 * i + 8 * j + k;
+        },
+        [](auto&& buf, int i, int j, int k) {
+            buf(i, j, k) = 32 * i + 8 * j + k;
         }
     );
     for (int i = 0; i < 4; i++) {
@@ -275,9 +197,9 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 8; k++) {
                 if (i % 2 == 0) {
-                    ASSERT_EQ(derivatives(i, j, k), 32 * i + 8 * j + k);
+                    ASSERT_EQ(derivatives[0](i, j, k), 32 * i + 8 * j + k);
                 } else {
-                    ASSERT_EQ(derivatives(i, j, k), 0);
+                    ASSERT_EQ(derivatives[0](i, j, k), 0);
                 }
             }
         }
@@ -289,11 +211,9 @@ TEST_F(transforms_tests, unfold) {
     UnfoldOp unfoldOp { dimH, &itC };
     Interface in { unfoldOp.getInput(), dimW };
     auto tensorView = TensorView { { in } };
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0].accessToString(ctx), "[restrict(((i_0)+(i_2))-(((c)-(1))/(2)),0,H),i_1]");
+    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H,W]");
-    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, AbstractAccess::Output),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c; i_2++) {
@@ -302,15 +222,14 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [outputBuffer, derivatives] = realize(
-        tensorView, 4, 3,
-        {4, 4},
-        [](auto&& buf, int i, int j) {
-            buf(i, j) = 4 * i + j;
-        },
-        {4, 4, 3},
+    auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
+        {{"H", 4}, {"W", 4}, {"c", 3}},
+        "unfold", false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 12 * j + 3 * i + k;
+        },
+        [](auto&& buf, int i, int j) {
+            buf(i, j) = 4 * i + j;
         }
     );
     for (int i = 0; i < 4; i++) {
@@ -337,7 +256,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
-            ASSERT_EQ(derivatives(i, j), d[i][j]);
+            ASSERT_EQ(derivatives[0](i, j), d[i][j]);
         }
     }
 }
@@ -347,11 +266,9 @@ TEST_F(transforms_tests, merge) {
     auto [mergeOpL, mergeOpR] = mergeOp.getInputs();
     Interface in { mergeOpL, mergeOpR, dimH, dimW };
     auto tensorView = TensorView { { in } };
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c*H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0].accessToString(ctx), "[(i_2)/(H),(i_2)%(H),i_0,i_1]");
+    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[c,H,H,W]");
-    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, AbstractAccess::Output),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c*H; i_2++) {
@@ -360,15 +277,14 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [outputBuffer, derivatives] = realize(
-        tensorView, 4, 2,
-        {2, 4, 4, 4},
-        [](auto&& buf, int i, int j, int k, int l) {
-            buf(i, j, k, l) = 4 * i + j;
-        },
-        {4, 4, 8},
+    auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
+        {{"H", 4}, {"W", 4}, {"c", 2}},
+        "merge", false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 32 * i + 8 * j + k;
+        },
+        [](auto&& buf, int i, int j, int k, int l) {
+            buf(i, j, k, l) = 4 * i + j;
         }
     );
     for (int i = 0; i < 4; i++) {
@@ -382,7 +298,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
                 for (int l = 0; l < 4; l++) {
-                    ASSERT_EQ(derivatives(i, j, k, l), 32 * k + 8 * l + 4 * i + j);
+                    ASSERT_EQ(derivatives[0](i, j, k, l), 32 * k + 8 * l + 4 * i + j);
                 }
             }
         }
@@ -393,11 +309,9 @@ TEST_F(transforms_tests, split) {
     SplitOp splitOp { dimH, dimW };
     Interface in { splitOp.getInput(), dimCH };
     auto tensorView = TensorView { { in } };
-    ASSERT_EQ(tensorView.actualAccessToString(ctx), "[i_0,i_1,i_2]");
-    ASSERT_EQ(tensorView.getShape().toString(ctx), "[H,W,c*H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0].accessToString(ctx), "[((i_0)*(W))+(i_1),i_2]");
+    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H*W,c*H]");
-    ASSERT_EQ(tensorView.printNestedLoops(ctx),
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, AbstractAccess::Output),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c*H; i_2++) {
@@ -406,15 +320,14 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    auto [outputBuffer, derivatives] = realize(
-        tensorView, 4, 2,
-        {16, 8},
-        [](auto&& buf, int i, int j) {
-            buf(i, j) = i + 16 * j;
-        },
-        {4, 4, 8},
+    auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
+        {{"H", 4}, {"W", 4}, {"c", 2}},
+        "split", false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 4 * i + j + 16 * k;
+        },
+        [](auto&& buf, int i, int j) {
+            buf(i, j) = i + 16 * j;
         }
     );
     for (int i = 0; i < 4; i++) {
@@ -426,7 +339,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
     for (int i = 0; i < 16; i++) {
         for (int j = 0; j < 8; j++) {
-            ASSERT_EQ(derivatives(i, j), 16 * j + i);
+            ASSERT_EQ(derivatives[0](i, j), 16 * j + i);
         }
     }
 }

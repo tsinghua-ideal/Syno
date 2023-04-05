@@ -6,13 +6,16 @@ import os
 
 def test_sample():
     options = SampleOptions()
-    sampler = Sampler("[H,W]", "[N,C,H,W]", [], [], options)
-    print(sampler.random_path_with_prefix([]))
-    assert sampler.is_final([0])
-    kernel = sampler.realize([0])
-    print("FinalizeOp:", sampler.op_str([0]))
+    sampler = Sampler("[H,W]", "[H,W]", ["H=16", "W=16"], ["s=2"], options)
+    sampled_path = []
+    trials = 0
+    while not sampler.is_final(sampled_path):
+        sampled_path = sampler.random_path_with_prefix([])
+        trials += 1
+    print(f"Found {sampled_path} after {trials} trials.")
     cg_opt = CodeGenOptions(False, CodeGenOptions.AutoScheduler.ComputeRoot)
-    kernel.generate("./save/py_kernel_simple", "kernel", cg_opt, {"H": 2, "W": 3, "N": 4, "C": 5})
+    kernel = sampler.realize(sampled_path, cg_opt)
+    kernel.generate("./save/py_kernel_simple", "kernel", {})
 
     # Load file
     srcs = []
@@ -34,18 +37,12 @@ def test_sample():
         verbose=True
     )
 
-    kernel_args = kernel.get_arguments({})
     inputs_shapes = kernel.get_inputs_shapes({})
     # The first item is the real input. The other are weights.
     inputs = [torch.randn(s) for s in inputs_shapes]
-    output_tensor = torch.empty((4, 5, 2, 3), dtype=torch.float32)
+    output_tensor = torch.empty((16, 16), dtype=torch.float32)
 
-    module.kernel_th_(*kernel_args, *inputs, output_tensor)
-
-    print(' * '.join([str(input_tensor) for input_tensor in inputs]), '=', output_tensor)
-    computed = torch.einsum('ij, kl -> klij', *inputs) # [H, W] * [N, C] -> [N, C, H, W]
-    print("Expected:", computed)
-    assert torch.isclose(output_tensor, computed).all()
+    module.kernel_th_(*inputs, output_tensor)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

@@ -35,7 +35,7 @@ protected:
 };
 
 TEST_F(forward_tests, pooling) {
-    constexpr int n = 64, c = 3, h = 128, w = 128, k = 5;
+    constexpr int n = 64, c = 3, h = 125, w = 125, k = 5;
 
     BindingContext ctx { std::vector<SizeName> {
         SizeName { .alias = "N", .estimate = n },
