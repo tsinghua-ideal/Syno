@@ -40,19 +40,21 @@ TEST(search_tests, sampler) {
         if (!sampler.isFinal(path)) {
             fmt::print("Trial {} failed.\n", i);
             continue;
+        } else {
+            fmt::print("Trial {} succeeded.\n", i);
         }
         ++successes;
         auto& tensorView = *sampler.realize(path);
 
         auto r = tensorView.getUnderlyingTensors() | std::ranges::views::transform([&](const auto& tensor) { return tensor.shapeToString(ctx); });
         std::cout << fmt::format("Input Shape: {}", fmt::join(r, ", ")) << std::endl;
-        std::cout << tensorView.printNestedLoops(ctx, AbstractAccess::Output);
+        std::cout << tensorView.printNestedLoopsForAll(ctx);
 
         constexpr int dimH = 64, dimW = 64, dimK1 = 3, dimS1 = 2, dimK2 = 5, dimS2 = 4;
         HalideGen gen(ctx, tensorView, HalideGen::Options());
         auto name = "search_codegen_test_" + std::to_string(i);
         std::map<std::string, std::size_t> dict { { "H", dimH }, { "W", dimW }, { "k_1", dimK1 }, { "s_1", dimS1 }, { "k_2", dimK2 }, { "s_2", dimS2 } };
-        gen.performTrial<false>(dict, name, false,
+        gen.performTrial<false>(dict, name, true,
             [](){}, [](){}, [](){}
         );
     }

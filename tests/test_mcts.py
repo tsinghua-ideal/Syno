@@ -6,7 +6,7 @@ from KAS import Sampler, MCTS
 def test_mcts():
     sampler = Sampler("[H,W]", "[H,W]", ["H = 128: 1", "W: 3"], ["s_1=2: 2", "k_1=3", "4"], depth=5)
     mcts = MCTS(sampler)
-    for idx in range(3):
+    for idx in range(10):
         path = mcts.do_rollout([])
         sampler._realize(path)
         print(f"Iteration {idx}. Sampled {path}:")

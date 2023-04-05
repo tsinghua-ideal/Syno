@@ -92,6 +92,7 @@ public:
 
     // Evaluate the full loops.
     std::string printNestedLoops(const BindingContext& ctx, int pos) const;
+    std::string printNestedLoopsForAll(const BindingContext& ctx) const;
 };
 
 } // namespace kas

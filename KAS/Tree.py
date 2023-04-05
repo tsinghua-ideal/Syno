@@ -23,7 +23,7 @@ class MCTS:
                 logging.debug(f"Successful rollout: {path}. Evaluation to be done.")
                 return path
             else:
-                logging.warning(f"During rollout, dead end {leaf} encountered. Retrying...")
+                logging.warning(f"During rollout, dead end {path} encountered. Retrying...")
                 self.back_propagate(path, 0.0)
 
     def _may_fail_rollout(self, node: list[int]) -> (list[int], bool):

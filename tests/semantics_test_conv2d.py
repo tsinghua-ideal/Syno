@@ -9,7 +9,7 @@ device = torch.device("cuda:0")
 pack = KAS.KernelPack("conv2d", os.path.join(os.path.dirname(os.path.realpath(__file__)), "../build/tests/kernel_conv2d"), "conv2d", [[64, 3, 128, 128], [16, 3, 5, 5]], [64, 16, 128, 128], device=device)
 kas_conv = KAS.Placeholder({})
 kas_conv.reload(pack)
-torch_conv = nn.Conv2d(3, 16, (5, 5), bias=False, padding="same", padding_mode='replicate', device=device)
+torch_conv = nn.Conv2d(3, 16, (5, 5), bias=False, padding="same", padding_mode='zeros', device=device)
 
 pack.weights = nn.ParameterList([torch.ones([16, 3, 5, 5], device=device)])
 torch_conv.weight = nn.Parameter(torch.ones_like(torch_conv.weight, device=device))

@@ -135,6 +135,15 @@ std::string TensorView::printNestedLoops(const BindingContext& ctx, int pos) con
     return ss.str();
 }
 
+std::string TensorView::printNestedLoopsForAll(const BindingContext& ctx) const {
+    std::stringstream ss;
+    for (int i = AbstractAccess::Output; i < static_cast<int>(tensors.size()); ++i) {
+        fmt::format_to(std::ostreambuf_iterator<char>(ss), "/* Loops {}: {} */\n", i, i == AbstractAccess::Output ? "Forward Kernel" : fmt::format("Backward Kernel for Input {}", i));
+        ss << printNestedLoops(ctx, i);
+    }
+    return ss.str();
+}
+
 namespace {
     struct OpAbove {
         std::variant<std::monostate, const RepeatLikeOp *, std::pair<const SplitLikeOp *, Order>, const MergeLikeOp *> op;

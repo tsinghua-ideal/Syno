@@ -4,7 +4,7 @@
 namespace kas {
 
 std::string Kernel::toNestedLoops() const {
-    return tensorView.printNestedLoops(ctx, -1);
+    return tensorView.printNestedLoopsForAll(ctx);
 }
 
 void Kernel::generate(const std::string& path, const std::string& name, const std::map<std::string, std::size_t>& mappings) {
