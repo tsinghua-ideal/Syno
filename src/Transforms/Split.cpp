@@ -60,12 +60,21 @@ bool SplitOp::transformInterface(ColoredInterface& interface, Colors& colors, Co
 
 std::vector<const SplitOp *> SplitOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
     std::vector<const SplitOp *> result;
+    auto checkNotMergeThenAdd = [&store, &result](const Dimension& dimL, const Dimension& dimR) {
+        if (auto l = dimL.tryAs<MergeOp::Input>(); l) {
+            if (auto r = dimR.tryAs<MergeOp::Input>(); r) {
+                if (l->getOp() == r->getOp()) {
+                    return; // They are just the same merge!
+                }
+            }
+        }
+        result.emplace_back(store.get<SplitOp>(dimL, dimR));
+    };
     if (outputShape.size() > options.dimLowerBound) {
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
             for (std::size_t j = 0; j < outputShape.size(); ++j) {
                 if (i == j) continue;
-                // Merged to the dimension at front.
-                result.emplace_back(store.get<SplitOp>(outputShape[i], outputShape[j]));
+                checkNotMergeThenAdd(outputShape[i], outputShape[j]);
             }
         }
     }

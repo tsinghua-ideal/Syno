@@ -7,6 +7,7 @@
 #include <fmt/ranges.h>
 #include <gtest/gtest.h>
 
+#include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Iterator.hpp"
@@ -50,13 +51,19 @@ TEST(search_tests, sampler) {
         std::cout << fmt::format("Input Shape: {}", fmt::join(r, ", ")) << std::endl;
         std::cout << tensorView.printNestedLoopsForAll(ctx);
 
+        GraphvizGen(tensorView, ctx).generate("./search_viz", "trial_" + std::to_string(i));
+
         constexpr int dimH = 64, dimW = 64, dimK1 = 3, dimS1 = 2, dimK2 = 5, dimS2 = 4;
         HalideGen gen(ctx, tensorView, HalideGen::Options());
         auto name = "search_codegen_test_" + std::to_string(i);
         std::map<std::string, std::size_t> dict { { "H", dimH }, { "W", dimW }, { "k_1", dimK1 }, { "s_1", dimS1 }, { "k_2", dimK2 }, { "s_2", dimS2 } };
-        gen.performTrial<false>(dict, name, true,
-            [](){}, [](){}, [](){}
-        );
+        try {
+            gen.performTrial<false>(dict, name, true, false,
+                [](){}, [](){}, [](){}
+            );
+        } catch (const Halide::Error& e) {
+            fmt::print("Trial {} failed at runtime: {}\n", i, e.what());
+        }
     }
     StatisticsCollector::PrintSummary(std::cout);
     fmt::print("Success rate: {:.2f} ({} / {})\n", static_cast<float>(successes) / trials, successes, trials);

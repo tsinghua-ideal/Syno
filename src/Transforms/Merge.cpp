@@ -62,7 +62,18 @@ bool MergeOp::transformInterface(ColoredInterface& interface, Colors& colors, Co
 std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
     const auto& ctx = options.ctx;
     auto primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
+
     std::vector<const MergeOp *> res;
+    auto checkNotSplitThenAdd = [&store, &res](const Dimension& dim, auto&& block) {
+        if (auto split = dim.tryAs<SplitOp::Input>(); split) {
+            if (split->getOp()->outputRhs.size() == block) {
+                return; // This is pointless!
+            } else if (split->getOp()->outputLhs.size() == block) {
+                return; // Maybe this is not pointless (view it in different shape?), but ban it for now.
+            }
+        }
+        res.emplace_back(store.get<MergeOp>(dim, std::forward<decltype(block)>(block)));
+    };
     if (outputShape.size() < options.dimUpperBound) {
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
             const auto& size = outputShape[i].size();
@@ -80,7 +91,7 @@ std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Colo
                     primaryRes.getPrimary()[primaryIndex] = 1;
                     auto canBeDivided = size.canBeDividedBy(primaryRes);
                     if (canBeDivided.has_value() && canBeDivided.value() != Size::Trait::One) {
-                        res.emplace_back(store.get<MergeOp>(outputShape[i], primaryRes));
+                        checkNotSplitThenAdd(outputShape[i], primaryRes);
                     }
                     for (std::size_t coefficientIndex = 0; coefficientIndex < coefficientCount; ++coefficientIndex) {
                         std::size_t coefficientDim = coefficient[coefficientIndex];
@@ -94,7 +105,7 @@ std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Colo
                             }
                             canBeDivided = size.canBeDividedBy(coefRes);
                             if (canBeDivided.has_value() && canBeDivided.value() != Size::Trait::One) {
-                                res.emplace_back(store.get<MergeOp>(outputShape[i], coefRes));
+                                checkNotSplitThenAdd(outputShape[i], coefRes);
                             }
                         }
                     }

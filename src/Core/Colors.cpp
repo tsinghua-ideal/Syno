@@ -159,7 +159,7 @@ bool Colors::CheckFinalization(const std::vector<Interface>& tensors) {
     for (int color = Colors::First; auto&& tensor: tensors) {
         for (auto&& dim: tensor) {
             auto [_, inserted] = colorMap.emplace(dim, color);
-            KAS_ASSERT(inserted, "Duplicate dimensions in tensors! Or even worse, hash collision.");
+            KAS_ASSERT(inserted, "Duplicate dimensions in tensors! Or even worse, hash collision.{}", BindingContext::PublicCtx != nullptr ? fmt::format(" Maybe helpful: {} vs {}.", _->first.description(*BindingContext::PublicCtx), dim.description(*BindingContext::PublicCtx)) : "");
             visitor.visit(dim);
         }
         ++color;

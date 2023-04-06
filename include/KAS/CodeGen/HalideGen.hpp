@@ -143,7 +143,7 @@ public:
         std::vector<HalideGen::BufferAdaptor<float>> backwardTrials;
     };
     template<bool DoInitialization = true, typename... InputInitializers>
-    Realization performTrial(const std::map<std::string, std::size_t>& mappings, auto&& funcName, bool createStaticLibrary, auto&& outputGradInitializer, InputInitializers&&... inputInitializers) {
+    Realization performTrial(const std::map<std::string, std::size_t>& mappings, auto&& funcName, bool createStaticLibrary, bool verbose, auto&& outputGradInitializer, InputInitializers&&... inputInitializers) {
         auto consts = ctx.realizeConsts(mappings);
         auto shapes = concretizeShapes(consts);
         auto [inputs, func, backwardInputs, backwardFuncs] = createPipelines(mappings, std::forward<decltype(funcName)>(funcName));
@@ -171,7 +171,7 @@ public:
 
         // Compute the forward result.
         auto target = HalideGen::GetHostTarget(options.useGPU);
-        auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, true);
+        auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, verbose);
 
         if (createStaticLibrary) {
             HalideGen::GenerateFromPipelines(inputs, backwardInputs, pipeline, backwardPipeline, "./kernel_" + std::string(funcName), funcName, target);

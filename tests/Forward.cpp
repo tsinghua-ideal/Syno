@@ -102,7 +102,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     gvGen.generate("./kernel_" + std::string(funcName), funcName);
     auto gen = HalideGen { ctx, tensorView, options };
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C", c}, {"K", k}};
-    auto [pipeline, trial, backwardPipeline, backwardTrials] = gen.performTrial(mappings, funcName, createStaticLibrary,
+    auto [pipeline, trial, backwardPipeline, backwardTrials] = gen.performTrial(mappings, funcName, createStaticLibrary, true,
         [](auto&& grad, int i, int j, int k, int l) {
             grad(i, j, k, l) = static_cast<float>(i + j + k + l);
         },
@@ -226,7 +226,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     auto in_0 = new float[n][c_in][h][w]();
     auto in_1 = new float[c_out][c_in][k][k]();
     auto out_grad = new float[n][c_out][h][w]();
-    auto [pipeline, trial, backwardPipeline, backwardTrials] = gen.performTrial(mappings, funcName, createStaticLibrary,
+    auto [pipeline, trial, backwardPipeline, backwardTrials] = gen.performTrial(mappings, funcName, createStaticLibrary, true,
         [&](auto&& grad, int N, int C_out, int H, int W) {
             float res = random();
             grad(N, C_out, H, W) = res;

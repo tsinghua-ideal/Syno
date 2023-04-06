@@ -47,7 +47,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 )");
     auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
         {{"H", 4}, {"W", 4}, {"c", 2}},
-        "share", false,
+        "share", false, false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 5 * i;
         },
@@ -94,7 +94,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 )");
     auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
         {{"H", 4}, {"W", 4}, {"c", 2}},
-        "map_reduce", false,
+        "map_reduce", false, false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 32 * i + 8 * j + k;
         },
@@ -137,7 +137,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 )");
     auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
         {{"H", 4}, {"W", 4}, {"c", 2}},
-        "shift", false,
+        "shift", false, false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 32 * ((i + 1) % 4) + 8 * j + k;
         },
@@ -178,7 +178,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 )");
     auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
         {{"H", 4}, {"W", 4}, {"c", 2}},
-        "stride", false,
+        "stride", false, false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 32 * 2 * i + 8 * j + k;
         },
@@ -224,7 +224,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 )");
     auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
         {{"H", 4}, {"W", 4}, {"c", 3}},
-        "unfold", false,
+        "unfold", false, false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 12 * j + 3 * i + k;
         },
@@ -279,7 +279,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 )");
     auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
         {{"H", 4}, {"W", 4}, {"c", 2}},
-        "merge", false,
+        "merge", false, false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 32 * i + 8 * j + k;
         },
@@ -322,7 +322,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 )");
     auto [_1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
         {{"H", 4}, {"W", 4}, {"c", 2}},
-        "split", false,
+        "split", false, false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 4 * i + j + 16 * k;
         },
