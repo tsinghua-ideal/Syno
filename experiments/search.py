@@ -5,8 +5,7 @@ from torch import nn
 import ptflops
 import numpy as np
 
-import KAS
-from KAS import Sampler, Placeholder, CodeGenOptions, MCTS, Modifier, KernelPack
+from KAS import Sampler, CodeGenOptions, MCTS, Modifier, KernelPack
 import random
 
 from copy import deepcopy
@@ -26,6 +25,7 @@ class model_backup():
             assert isinstance(pack, KernelPack), "pack is not valid!"
             Modifier.replace(model, pack.module, args.device)
         return model
+
 
 if __name__ == '__main__':
     # Get arguments.
@@ -56,7 +56,7 @@ if __name__ == '__main__':
     kas_sampler = Sampler(
         input_shape="[N,C,H,W]",
         output_shape="[N,C,H,W]",
-        primary_specs=["H = 128: 1", "W: 3"],
+        primary_specs=["H = 224", "W = 224", "C = 3"],
         coefficient_specs=["s_1=2: 2", "k_1=3", "4"],
         seed=random.SystemRandom().randint(
             0, 0x7fffffff) if args.kas_seed == 'pure' else args.seed,

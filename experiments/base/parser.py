@@ -239,7 +239,7 @@ def arg_parse():
                         default=6, help='Maximum model size')
     parser.add_argument('--kas-selector-dir', default='',
                         help='Selector working directory')
-    parser.add_argument('--kas-selector-save-dir', default='',
+    parser.add_argument('--kas-selector-save-dir', default='./kas_save',
                         help='Selector saving directory')
 
     # Parse program arguments, add timestamp information, and checks.

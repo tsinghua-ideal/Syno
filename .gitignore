@@ -232,5 +232,5 @@ cython_debug/
 /save/
 
 # Debugger
-.clangd
+/.clangd
 commands.txt
