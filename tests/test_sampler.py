@@ -3,7 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import KAS
-from KAS import Sampler, Placeholder, CodeGenOptions
+from KAS import Sampler, Placeholder, CodeGenOptions, Modifier
+
 
 class Model(nn.Module):
     def __init__(self):
@@ -17,11 +18,15 @@ class Model(nn.Module):
         x = self.kernel_2(x)
         return x
 
+
 def test_sampler():
-    sampler = Sampler("[H,W]", "[N,C,H,W]", [], ["s_1=2", "s_2=2"], depth=2, cuda=False, autoscheduler=CodeGenOptions.AutoScheduler.ComputeRoot)
+    sampler = Sampler("[H,W]", "[N,C,H,W]", [], ["s_1=2", "s_2=2"], depth=2,
+                      cuda=False, autoscheduler=CodeGenOptions.AutoScheduler.ComputeRoot)
 
     net = Model()
-    path = sampler.sample(net)
+    # path = sampler.sample(net)
+    kernelPacks = sampler.SampleKernel(net)
+    Modifier.KernelReplace(net, kernelPacks)
     in_tensor = torch.randn((16, 16))
     out_tensor = net(in_tensor)
     print("First output:", out_tensor)
@@ -40,6 +45,7 @@ def test_sampler():
     new_loss = F.mse_loss(out_tensor, target)
     print("Second loss:", new_loss)
     assert new_loss < loss
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

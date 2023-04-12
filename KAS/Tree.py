@@ -1,16 +1,17 @@
+from .Sampler import Sampler
+import random
+import math
 import logging
 from collections import defaultdict
-import math
-import random
-
-from .Sampler import Sampler
+from typing import List, Tuple, Dict, Optional, Union, Callable, Any
 
 
 class MCTS:
     def __init__(self, sampler: Sampler, exploration_weight: float = math.sqrt(2)):
         self._Q = defaultdict(float)  # Total reward of each node.
         self._N = defaultdict(int)  # Total visit count for each node.
-        self._children_count = dict()  # Number of children of each node. Only explored nodes are in this dict.
+        # Number of children of each node. Only explored nodes are in this dict.
+        self._children_count = dict()
         self._sampler = sampler
         self._exploration_weight = exploration_weight
         random.seed(sampler._seed)
@@ -20,13 +21,15 @@ class MCTS:
         while True:
             path, success = self._may_fail_rollout(node)
             if success:
-                logging.debug(f"Successful rollout: {path}. Evaluation to be done.")
+                logging.debug(
+                    f"Successful rollout: {path}. Evaluation to be done.")
                 return path
             else:
-                logging.warning(f"During rollout, dead end {path} encountered. Retrying...")
+                logging.warning(
+                    f"During rollout, dead end {path} encountered. Retrying...")
                 self.back_propagate(path, 0.0)
 
-    def _may_fail_rollout(self, node: list[int]) -> (list[int], bool):
+    def _may_fail_rollout(self, node: list[int]) -> Tuple[List[int], bool]:
         "The trial may encounter a dead end. In this case, False is returned."
         leaf = self._select(node)
         if self._sampler.is_dead_end(leaf):
@@ -36,7 +39,7 @@ class MCTS:
 
     def _is_terminal(self, node: list[int]) -> bool:
         return self._sampler.is_terminal(node)
-    
+
     def _is_dead_end(self, node: list[int]) -> bool:
         return self._sampler.is_dead_end(node)
 
@@ -62,16 +65,18 @@ class MCTS:
         "Update the `children` dict with the children of `node`"
         tuple_node = tuple(node)
         if tuple_node in self._children_count:
-            return # already expanded
+            return  # already expanded
         # Terminal nodes have no children. Actually an arbitrary value is fine for terminals.
-        self._children_count[tuple_node] = 0 if self._is_terminal(node) else self._compute_children_count(node)
+        self._children_count[tuple_node] = 0 if self._is_terminal(
+            node) else self._compute_children_count(node)
 
-    def _random_path(self, node: list[int]) -> (list[int], bool):
+    def _random_path(self, node: List[int]) -> Tuple[List[int], bool]:
         "Returns a random simulation (to completion) of `node`"
         while True:
             if self._is_terminal(node):
                 return node, not self._is_dead_end(node)
-            node = node + [random.randrange(0, self._compute_children_count(node))]
+            node = node + \
+                [random.randrange(0, self._compute_children_count(node))]
 
     # Move increment of `_N` to `do_rollout` for parallel search. TODO
     def back_propagate(self, node: list[int], reward: float):
@@ -82,12 +87,13 @@ class MCTS:
             self._N[tuple_node] += 1
             self._Q[tuple_node] += reward
 
-    def _uct_select(self, node: list[int]) -> list[int]:
+    def _uct_select(self, node: List[int]) -> List[int]:
         "Select a child of node, balancing exploration & exploitation"
 
         tuple_node = tuple(node)
         # All children of node should already be expanded:
-        assert all(tuple(node + [n]) in self._children_count for n in range(self._children_count[tuple_node]))
+        assert all(tuple(
+            node + [n]) in self._children_count for n in range(self._children_count[tuple_node]))
 
         log_N_vertex = math.log(self._N[tuple_node])
 
