@@ -54,8 +54,8 @@ if __name__ == '__main__':
     # Set up KAS randomness seed.
     logger.info(f'Configuring KAS Sampler ...')
     kas_sampler = Sampler(
-        input_shape="[N,C1,H1,W1]",
-        output_shape="[N,C2,H2,W2]",
+        input_shape="[N,C_in,H,W]",
+        output_shape="[N,C_out,H,W]",
         primary_specs=[],
         coefficient_specs=["s_1=2: 2", "k_1=3", "4"],
         seed=random.SystemRandom().randint(
@@ -68,13 +68,6 @@ if __name__ == '__main__':
         autoscheduler=CodeGenOptions.AutoScheduler.ComputeRoot
     )
     # mcts = MCTS(kas_sampler)
-
-    # Set up place holders
-    input_tensor = torch.randn((args.batch_size, *args.input_size))
-    with torch.no_grad():
-        out_tensor = model(input_tensor)
-    logger.info(f'output shape: {out_tensor.shape}')
-    gc.collect()
 
     # Initialization of search.
     backup_model = model_backup(model)
@@ -91,6 +84,8 @@ if __name__ == '__main__':
         g_macs, m_flops = 0, 0
         try:
             kernelPacks = kas_sampler.SampleKernel(model)
+            backup_model.restore_model_params_and_replace(
+                model, deepcopy(kernelPacks))
             g_macs, m_params = ptflops.get_model_complexity_info(model, args.input_size,
                                                                  as_strings=False, print_per_layer_stat=False)
             g_macs, m_params = g_macs / 1e9, m_params / 1e6
@@ -129,7 +124,8 @@ if __name__ == '__main__':
                         best_epoch = e
                 proxy_score = proxy_eval_metrics[best_epoch]['top1']
                 kernel_scales = proxy_eval_metrics[best_epoch]['kernel_scales']
-                backup_model.restore_model_params_and_replace(model, deepcopy(kernelPacks))
+                backup_model.restore_model_params_and_replace(
+                    model, deepcopy(kernelPacks))
                 gc.collect()
                 logger.info(f'Proxy dataset score: {proxy_score}')
                 if proxy_score < args.kas_proxy_threshold:

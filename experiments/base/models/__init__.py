@@ -6,6 +6,7 @@ from timm import data
 
 from ..log import get_logger
 from . import kas_resnet, kas_van
+from KAS import KernelPack, Modifier
 
 
 def get_model(args, search_mode: bool = False):
@@ -37,20 +38,21 @@ def get_model(args, search_mode: bool = False):
     setattr(args, 'crop_pct', data_config['crop_pct'])
 
     # Initialize placeholders.
-    example_input = torch.zeros((1, ) + args.input_size).to(args.device)
-    KAS.get_placeholders(model, example_input)
+    example_input = torch.zeros(
+        (args.batch_size, ) + args.input_size).to(args.device)
+    out = model(example_input)
 
-    # Replace kernel.
-    if not search_mode and args.kas_kernel:
-        if args.local_rank == 0:
-            logger.info(f'Replacing kernel from {args.kas_kernel}')
-        pack = KAS.KernelPack.load(args.kas_kernel)
-        model = KAS.replace(model, pack.module, args.device)
+    # # Replace kernel.
+    # if not search_mode and args.kas_kernel:
+    #     if args.local_rank == 0:
+    #         logger.info(f'Replacing kernel from {args.kas_kernel}')
+    #     pack = KernelPack.load(args.kas_kernel)
+    #     model = Modifier.KernelReplace(model, pack.module)
 
-    # Count FLOPs and params.
-    if args.local_rank == 0:
-        macs, params = ptflops.get_model_complexity_info(model, args.input_size, as_strings=True,
-                                                         print_per_layer_stat=False, verbose=False)
-        logger.info(f'MACs: {macs}, params: {params}')
+    # # Count FLOPs and params.
+    # if args.local_rank == 0:
+    #     macs, params = ptflops.get_model_complexity_info(model, args.input_size, as_strings=True,
+    #                                                      print_per_layer_stat=False, verbose=False)
+    #     logger.info(f'MACs: {macs}, params: {params}')
 
     return model

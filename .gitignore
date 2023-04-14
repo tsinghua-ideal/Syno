@@ -230,7 +230,7 @@ cython_debug/
 
 # Generated kernels
 /save/
+/experiments/save
 
-# Debugger
-/.clangd
+# Commands buffer
 commands.txt

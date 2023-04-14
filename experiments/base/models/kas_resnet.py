@@ -40,32 +40,31 @@ class KASBottleneck(nn.Module):
         self.stride = stride
         self._bootstrap = False
 
-    def replacePlaceHolder(self, x):
+    def replacePlaceHolder(self, x: Tensor):
         assert(not self._bootstrap, "the module has been replaced")
 
         # record the shape
-        N, C1, H1, W1 = x.shape
+        N, C1, H, W = x.size()
         out = self.block1(x)
-        _, C2, H2, W2 = out.shape
+        C2 = out.size(1)
         out = self.block2(out)
-        _, C3, H3, W3 = out.shape
+        C3 = out.size(1)
         out = self.block3(out)
-        _, C4, H4, W4 = out.shape
+        C4 = out.size(1)
 
-        self.block1 = Placeholder({
-            "N": N, "C1": C1, "H1": H1, "W1": W1, "C2": C2, "H2": H2, "W2": W2, 
-        })
-        self.block2 = Placeholder({
-            "N": N, "C1": C2, "H1": H2, "W1": W2, "C2": C3, "H2": H3, "W2": W3,
-        })
-        self.block3 = Placeholder({
-            "N": N, "C1": C3, "H1": H3, "W1": W3, "C2": C4, "H2": H4, "W2": W4,
-        })
+        self.block1 = Placeholder(
+            {"N": N, "C_in": C1, "C_out": C2, "H": H, "W": W})
+        self.block2 = Placeholder(
+            {"N": N, "C_in": C2, "C_out": C3, "H": H, "W": W})
+        self.block3 = Placeholder(
+            {"N": N, "C_in": C3, "C_out": C4, "H": H, "W": W})
+        self._bootstrap = True
+        return out
 
     def forward(self, x: Tensor) -> Tensor:
         if not self._bootstrap:
-            self.replacePlaceHolder(x)
-            
+            return self.replacePlaceHolder(x)
+
         identity = x.clone()
 
         out = self.block1(x)
