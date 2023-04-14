@@ -5,6 +5,7 @@ import timm
 from timm import data
 
 from ..log import get_logger
+from . import kas_resnet, kas_van
 
 
 def get_model(args, search_mode: bool = False):

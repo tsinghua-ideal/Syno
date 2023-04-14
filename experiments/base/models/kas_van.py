@@ -197,7 +197,7 @@ def _conv_filter(state_dict, patch_size=16):
 
 # noinspection PyUnusedLocal
 @register_model
-def kas_van_tiny(pretrained=False, pretrained_cfg=None, **kwargs):
+def kas_van(pretrained=False, pretrained_cfg=None, **kwargs):
     # noinspection PyTypeChecker
     model = VAN(
         embed_dims=[32, 64, 160, 256], mlp_ratios=[8, 8, 4, 4],
