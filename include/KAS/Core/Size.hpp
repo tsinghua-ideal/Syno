@@ -123,6 +123,7 @@ public:
     Size operator/(const Size& other) const;
     std::optional<Trait> testDividedBy(const Size& other);
     std::optional<Trait> canBeDividedBy(const Size& other) const;
+    bool quotientIsLegal(const Size& other) const;
 
     bool operator==(const Size& other) const;
 

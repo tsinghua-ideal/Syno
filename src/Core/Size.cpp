@@ -164,6 +164,11 @@ std::optional<Size::Trait> Size::canBeDividedBy(const Size& other) const {
     return temp.testDividedBy(other);
 }
 
+bool Size::quotientIsLegal(const Size& other) const {
+    auto res = canBeDividedBy(other);
+    return res.has_value() && res.value() != Trait::IllegalCoefficient && res.value() != Trait::One;
+}
+
 bool Size::operator==(const Size& other) const {
     return std::ranges::equal(primary, other.primary) && std::ranges::equal(coefficient, other.coefficient);
 }

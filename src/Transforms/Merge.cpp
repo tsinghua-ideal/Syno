@@ -89,8 +89,8 @@ std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Colo
                     auto primaryRes = Size(primaryCount, coefficientCount);
                     // Splitting out power of one is enough. For more, use more MergeOp's.
                     primaryRes.getPrimary()[primaryIndex] = 1;
-                    auto canBeDivided = size.canBeDividedBy(primaryRes);
-                    if (canBeDivided.has_value() && canBeDivided.value() != Size::Trait::One) {
+                    bool canBeDividedByPrimary = size.quotientIsLegal(primaryRes);
+                    if (canBeDividedByPrimary) {
                         checkNotSplitThenAdd(outputShape[i], primaryRes);
                     }
                     for (std::size_t coefficientIndex = 0; coefficientIndex < coefficientCount; ++coefficientIndex) {
@@ -98,13 +98,12 @@ std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Colo
                         if (coefficientDim != 0) {
                             auto coefRes = Size(primaryRes);
                             // Here we simply split out the coefficient in half. TODO: better sampling.
-                            if (canBeDivided.has_value()) {
+                            if (canBeDividedByPrimary) {
                                 coefRes.getCoefficient()[coefficientIndex] = coefficientDim > 0 ? ((coefficientDim + 1) / 2) : ((coefficientDim - 1) / 2);
                             } else {
                                 coefRes.getCoefficient()[coefficientIndex] = coefficientDim > 0 ? ((coefficientDim + 1) / 2) : coefficientDim;
                             }
-                            canBeDivided = size.canBeDividedBy(coefRes);
-                            if (canBeDivided.has_value() && canBeDivided.value() != Size::Trait::One) {
+                            if (size.quotientIsLegal(coefRes)) {
                                 checkNotSplitThenAdd(outputShape[i], coefRes);
                             }
                         }
