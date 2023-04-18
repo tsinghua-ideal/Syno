@@ -269,13 +269,18 @@ namespace {
                 if (relation.*self != -1) { // Make sure self is in relation.
                     auto checker = [&](Direction dir, const Dimension& dim, auto member) {
                         if (int priority = relation.*member - relation.*self; priority >= 0) { // Observe that only unevaluated dimensions will satisfy this condition.
-                            eval.bfsQueue.emplace(dim, dir);
                             int newPriority = priority + currentPriority;
-                            auto [_, inserted] = eval.bfsVisited.emplace(dim, newPriority);
-                            KAS_ASSERT(inserted, "We should not have visited the dimension before. Check for loops.");
                             eval.highestPriority = std::max(eval.highestPriority, newPriority);
-                            if (newPriority == eval.highestPriority) {
-                                eval.bestCandidate = dim;
+                            if (newPriority == eval.highestPriority) { // Only if the next dimension is superior, add it.
+                                auto [it, inserted] = eval.bfsVisited.emplace(dim, newPriority);
+                                if (!inserted) { // Maybe we have encountered a cycle. But as long as it has the same priority, there is no cycle.
+                                    if (it->second != newPriority) {
+                                        KAS_CRITICAL("We should not have visited the dimension before. Check for loops.");
+                                    }
+                                } else { // We can now add it to queue.
+                                    eval.bfsQueue.emplace(dim, dir);
+                                    eval.bestCandidate = dim;
+                                }
                             }
                         }
                     };
@@ -439,7 +444,6 @@ namespace {
                 while (!bfsQueue.empty()) {
                     auto [dim, direction] = bfsQueue.front();
                     bfsQueue.pop();
-                    if (bfsVisited.at(dim) < highestPriority) continue;
                     switch (direction) {
                     case Direction::Down:
                         walkDown<false>(dim);
@@ -504,6 +508,7 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     }
     forwardAccess = forwardEval.toAccess(AbstractAccess::Output, this->tensors, interfaceDimensions);
     for (std::size_t tId = 0; auto&& tensor: this->tensors) {
+        KAS_DEBUG("Differentiating input {}...", tId);
         auto backwardEval = DimensionEvaluator(theOtherEndOfEdge);
         backwardEval.makeVars(tensor.getDimensions());
         backwardEval.fillWithReductions();
