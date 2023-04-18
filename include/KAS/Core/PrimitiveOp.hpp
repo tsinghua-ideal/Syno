@@ -8,6 +8,12 @@
 
 namespace kas {
 
+// A dimension connects two Op's. So there is a certain direction when we are traversing the graph.
+enum class Direction: bool {
+    Down = false,
+    Up = true,
+};
+
 class DimensionStore;
 
 // There are 3 kinds of `PrimitiveOp`'s, listed below. Those classes can transform `Dimension`s, from those that index the output tensor, to forms that index the original tensors. So this is also kind of bottom-up.
