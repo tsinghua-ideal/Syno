@@ -232,5 +232,8 @@ cython_debug/
 /save/
 /experiments/save
 
+# Files for debug purpose.
+/scaffolding/
+
 # Commands buffer
 commands.txt
