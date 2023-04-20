@@ -39,7 +39,7 @@ namespace {
             auto to = fmt::format("repeat_like_{}", fmt::ptr(op));
             auto [_, toDraw] = drawnRepeatLikes.insert(op);
             if (toDraw) {
-                fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", to, DimensionTypeDescription(op->getType()));
+                fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", to, op->getType());
             }
             fmt::format_to(SSIt(), "{} -> {} [label=\"{}\"];\n", from, to, dim.size().toString(ctx));
             from = std::move(to);
@@ -50,7 +50,7 @@ namespace {
             auto to = fmt::format("split_like_{}", fmt::ptr(op));
             auto [_, toDraw] = drawnSplitLikes.insert(op);
             if (toDraw) {
-                fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", to, DimensionTypeDescription(op->getType()));
+                fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", to, op->getType());
             }
             fmt::format_to(SSIt(), "{} -> {} [label=\"{}\"];\n", from, to, dim.size().toString(ctx));
             from = to;
@@ -63,7 +63,7 @@ namespace {
             auto to = fmt::format("merge_like_{}", fmt::ptr(op));
             auto [_, toDraw] = drawnMergeLikes.insert(op);
             if (toDraw) {
-                fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", to, DimensionTypeDescription(op->getType()));
+                fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", to, op->getType());
             }
             fmt::format_to(SSIt(), "{} -> {} [label=\"{}\"];\n", from, to, dim.size().toString(ctx));
             from = std::move(to);

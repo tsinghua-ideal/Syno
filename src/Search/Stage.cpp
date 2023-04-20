@@ -159,11 +159,11 @@ std::string Stage::opType(std::size_t index) {
     case Next::Type::Finalize:
         return "Finalize";
     case Next::Type::RepeatLike:
-        return DimensionTypeDescription(nextRepeatLikes[next.index].first->getType());
+        return fmt::format("{}", nextRepeatLikes[next.index].first->getType());
     case Next::Type::SplitLike:
-        return DimensionTypeDescription(nextSplitLikes[next.index].first->getType());
+        return fmt::format("{}", nextSplitLikes[next.index].first->getType());
     case Next::Type::MergeLike:
-        return DimensionTypeDescription(nextMergeLikes[next.index].first->getType());
+        return fmt::format("{}", nextMergeLikes[next.index].first->getType());
     }
     KAS_UNREACHABLE();
 }
@@ -179,7 +179,7 @@ std::string Stage::opDescription(std::size_t index) {
             const auto& n = nextRepeatLikes[next.index].first;
             return fmt::format(
                 "{} {} -> {}",
-                DimensionTypeDescription(n->getType()),
+                n->getType(),
                 n->getInput().description(ctx),
                 n->output.description(ctx)
             );
@@ -188,7 +188,7 @@ std::string Stage::opDescription(std::size_t index) {
             const auto& n = nextSplitLikes[next.index].first;
             return fmt::format(
                 "{} {} -> {}, {}",
-                DimensionTypeDescription(n->getType()),
+                n->getType(),
                 n->getInput().description(ctx),
                 n->outputLhs.description(ctx),
                 n->outputRhs.description(ctx)
@@ -199,7 +199,7 @@ std::string Stage::opDescription(std::size_t index) {
             auto [inputLhs, inputRhs] = n->getInputs();
             return fmt::format(
                 "{} {}, {} -> {}",
-                DimensionTypeDescription(n->getType()),
+                n->getType(),
                 inputLhs.description(ctx),
                 inputRhs.description(ctx),
                 n->output.description(ctx)

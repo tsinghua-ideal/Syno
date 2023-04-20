@@ -180,7 +180,7 @@ std::size_t Sampler::childrenCount(const std::vector<std::size_t>& path) {
 
 std::map<std::string, std::size_t> Sampler::childrenTypes(const std::vector<std::size_t>& path) {
     if (path.size() == 0) {
-        return { { DimensionTypeDescription(DimensionType::MapReduce), bases.size() } };
+        return { { fmt::format("{}", DimensionType::MapReduce), bases.size() } };
     } else if (path.size() == 1) {
         return visitBase(path[0]).childrenTypes();
     }
@@ -215,7 +215,7 @@ std::string Sampler::opString(const std::vector<std::size_t>& path) {
     if (path.size() == 0) {
         return "Root";
     } else if (path.size() == 1) {
-        return DimensionTypeDescription(DimensionType::MapReduce); // TODO: Add detailed description.
+        return fmt::format("{}", DimensionType::MapReduce); // TODO: Add detailed description.
     }
     auto [node, last] = visitFromRootButStopAtLast(path);
     return node.opDescription(last);
@@ -226,7 +226,7 @@ std::string Sampler::opType(const std::vector<std::size_t>& path) {
         return "Root";
     }
     if (path.size() == 1) {
-        return DimensionTypeDescription(DimensionType::MapReduce);
+        return fmt::format("{}", DimensionType::MapReduce);
     } else {
         auto [node, last] = visitFromRootButStopAtLast(path);
         return node.opType(last);
