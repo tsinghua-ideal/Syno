@@ -29,6 +29,18 @@ enum class DimensionType {
     MapReduce,
 };
 
+// A dimension connects two Op's. So there is a certain direction when we are traversing the graph.
+enum class Direction: bool {
+    Down = false,
+    Up = true,
+};
+
+// Used to differentiate LHS from RHS.
+enum class Order: bool {
+    Left = false,
+    Right = true,
+};
+
 class DimVisitor;
 
 class DimensionImpl {
@@ -123,5 +135,36 @@ struct fmt::formatter<kas::DimensionType>: formatter<string_view> {
         return formatter<string_view>::format(name, ctx);
     }
 };
+std::ostream& operator<<(std::ostream& os, kas::DimensionType t);
 
-std::ostream& operator<<(std::ostream& os, const kas::DimensionType& t);
+template<>
+struct fmt::formatter<kas::Direction>: formatter<string_view> {
+    template<typename FormatContext>
+    auto format(kas::Direction d, FormatContext& ctx) const {
+        string_view name = "Unknown";
+        switch (d) {
+        using enum kas::DimensionType;
+        using namespace std::literals;
+        case kas::Direction::Down: name = "Down"sv; break;
+        case kas::Direction::Up: name = "Up"sv; break;
+        }
+        return formatter<string_view>::format(name, ctx);
+    }
+};
+std::ostream& operator<<(std::ostream& os, kas::Direction d);
+
+template<>
+struct fmt::formatter<kas::Order>: formatter<string_view> {
+    template<typename FormatContext>
+    auto format(kas::Order o, FormatContext& ctx) const {
+        string_view name = "Unknown";
+        switch (o) {
+        using enum kas::DimensionType;
+        using namespace std::literals;
+        case kas::Order::Left: name = "Left"sv; break;
+        case kas::Order::Right: name = "Right"sv; break;
+        }
+        return formatter<string_view>::format(name, ctx);
+    }
+};
+std::ostream& operator<<(std::ostream& os, kas::Order o);
