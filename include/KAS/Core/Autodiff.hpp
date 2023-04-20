@@ -162,7 +162,7 @@ class DimensionEvaluator {
         }
         void visit(const MergeLikeOp::Input& dim) override {
             auto op = dim.getOp();
-            auto [inputLhs, inputRhs] = op->getInputs();
+            Dimension inputLhs = op->getInputL(), inputRhs = op->getInputR();
             auto order = dim.getOrder();
             auto knownValues = MergeLikeOp::IteratorValues {
                 eval.values[inputLhs],
@@ -219,7 +219,7 @@ class DimensionEvaluator {
             );
         }
         void operator()(const MergeLikeOp *op) {
-            auto [inputLhs, inputRhs] = op->getInputs();
+            Dimension inputLhs = op->getInputL(), inputRhs = op->getInputR();
             auto knownValues = MergeLikeOp::IteratorValues {
                 eval.values[inputLhs],
                 eval.values[inputRhs],

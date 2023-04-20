@@ -29,7 +29,8 @@ public:
     {}
     constexpr DimensionType getType() const noexcept override { return Type; }
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
-    inline std::pair<Dimension, Dimension> getInputs() const override { return { &inputLhs, &inputRhs }; }
+    inline Dimension getInputL() const override { return &inputLhs; }
+    inline Dimension getInputR() const override { return &inputRhs; }
     IteratorValues value(const IteratorValues& known) const override;
     OrderingValues ordering(const IteratorValues& known) const override;
 

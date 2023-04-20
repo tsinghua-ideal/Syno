@@ -40,7 +40,7 @@ bool ShareOp::transformInterface(ColoredInterface& interface, Colors& colors, Co
     ++CountColorTrials;
     // [Single Statement] Only dimensions of sizes with no primary variables can be of clear color.
     auto& out = interface[output];
-    auto [inputLhs, inputRhs] = getInputs();
+    Dimension inputLhs = getInputL(), inputRhs = getInputR();
     if (output.size().isGeneral()) { // Test if there are any primary variables.
         if (!out.isUnknown()) return false; // [Single Statement] This is a dimension of two colors, and must be Unknown.
         if (options.maximumTensors <= 1) {

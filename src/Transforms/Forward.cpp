@@ -21,9 +21,8 @@ void MergeOp::onNotification(DimensionStore& store) {
     KAS_ASSERT(output.lock()->evaluated());
     BackwardDimension outputDim = output.lock()->get();
     auto op = store.get<::kas::MergeOp>(outputDim, inputRhs.getSize());
-    auto [inLhs, inRhs] = op->getInputs();
-    inputLhs.set(inLhs);
-    inputRhs.set(inRhs);
+    inputLhs.set(op->getInputL());
+    inputRhs.set(op->getInputR());
 }
 Dimension MergeOp::Create(const Dimension& lhs, const Dimension& rhs) {
     auto op = std::unique_ptr<MergeOp> { new MergeOp { lhs, rhs } };
@@ -35,9 +34,8 @@ void ShareOp::onNotification(DimensionStore& store) {
     KAS_ASSERT(output.lock()->evaluated());
     BackwardDimension outputDim = output.lock()->get();
     auto op = store.get<::kas::ShareOp>(outputDim);
-    auto [inLhs, inRhs] = op->getInputs();
-    inputLhs.set(inLhs);
-    inputRhs.set(inRhs);
+    inputLhs.set(op->getInputL());
+    inputRhs.set(op->getInputR());
 }
 Dimension ShareOp::Create(const Dimension& lhs, const Dimension& rhs) {
     auto op = std::unique_ptr<ShareOp> { new ShareOp { lhs, rhs } };

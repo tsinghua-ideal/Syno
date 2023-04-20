@@ -31,8 +31,7 @@ protected:
 
 TEST_F(transforms_tests, share) {
     ShareOp shareOp { dimH };
-    auto [shareOpL, shareOpR] = shareOp.getInputs();
-    Interface in { shareOpL, shareOpR, dimW, dimCH };
+    Interface in { shareOp.getInputL(), shareOp.getInputR(), dimW, dimCH };
     auto tensorView = TensorView { { in } };
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H,H,W,c*H]");
@@ -263,8 +262,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 
 TEST_F(transforms_tests, merge) {
     MergeOp mergeOp { dimCH, sizeH };
-    auto [mergeOpL, mergeOpR] = mergeOp.getInputs();
-    Interface in { mergeOpL, mergeOpR, dimH, dimW };
+    Interface in { mergeOp.getInputL(), mergeOp.getInputR(), dimH, dimW };
     auto tensorView = TensorView { { in } };
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[c,H,H,W]");
@@ -349,7 +347,9 @@ TEST_F(transforms_tests, dimension_store) {
     Dimension s1 = store.get<ShiftOp>(dimH, 1)->getInput();
     Dimension s2 = store.get<ShiftOp>(dimH, 1)->getInput();
     ASSERT_EQ(s1, s2);
-    auto [sL, sR] = store.get<ShareOp>(dimH)->getInputs();
+    Dimension
+        sL = store.get<ShareOp>(dimH)->getInputL(),
+        sR = store.get<ShareOp>(dimH)->getInputR();
     ASSERT_NE(sL, sR);
     ASSERT_NE(s1, sL);
     ASSERT_NE(s1, sR);

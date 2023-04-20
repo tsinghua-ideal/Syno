@@ -196,12 +196,11 @@ std::string Stage::opDescription(std::size_t index) {
         }
         case Next::Type::MergeLike: {
             const auto& n = nextMergeLikes[next.index].first;
-            auto [inputLhs, inputRhs] = n->getInputs();
             return fmt::format(
                 "{} {}, {} -> {}",
                 n->getType(),
-                inputLhs.description(ctx),
-                inputRhs.description(ctx),
+                n->getInputL().description(ctx),
+                n->getInputR().description(ctx),
                 n->output.description(ctx)
             );
         }

@@ -152,8 +152,7 @@ public:
         inline const MergeLikeOp *getOp() const noexcept { return op; }
         inline Order getOrder() const noexcept { return order; }
         inline Dimension getOther() const noexcept {
-            auto [lhs, rhs] = op->getInputs();
-            return order == Order::Left ? rhs : lhs;
+            return order == Order::Left ? op->getInputR() : op->getInputL();
         }
     };
     Dimension output;
@@ -164,7 +163,8 @@ public:
     MergeLikeOp(MergeLikeOp&&) = delete;
     virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
-    virtual std::pair<Dimension, Dimension> getInputs() const = 0;
+    virtual Dimension getInputL() const = 0;
+    virtual Dimension getInputR() const = 0;
 
     template<typename Value>
     struct Values {

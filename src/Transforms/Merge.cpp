@@ -52,8 +52,7 @@ std::size_t MergeOp::CountColorSuccesses = 0;
 bool MergeOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
     ++CountColorTrials;
     auto& out = interface[output];
-    auto [inputLhs, inputRhs] = getInputs();
-    colors.substitute(interface, output, { inputLhs, out.color }, { inputRhs, out.color });
+    colors.substitute(interface, output, { getInputL(), out.color }, { getInputR(), out.color });
     colors.simplify(interface); // Actually not needed.
     ++CountColorSuccesses;
     return true;
