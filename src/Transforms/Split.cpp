@@ -5,31 +5,36 @@
 
 namespace kas {
 
-SplitOp::IteratorValues SplitOp::value(const IteratorValues &known) const {
-    auto& [input, outputLhs, outputRhs] = known;
+SplitOp::Values SplitOp::value(const Values &known) const {
+    if (known.canSkipDeduction()) return known;
+    auto& [input, outputLhs, outputRhs] = known.values;
     auto block = ConstValueNode::Create(this->outputRhs.size());
-    if (!input && outputLhs && outputRhs) { // Output to input.
-        return {{ .input = outputLhs * block + outputRhs }};
-    } else if (input && !outputLhs && !outputRhs) { // Input to output.
-        return {{ .outputLhs = input / block, .outputRhs = input % block }};
-    } else if (input && outputLhs.hasValue() != outputRhs.hasValue()) { // Hard fail.
-        KAS_CRITICAL("Conflicting values for SplitOp: input = {}, outputLhs = {}, outputRhs = {}", input.hasValue(), outputLhs.hasValue(), outputRhs.hasValue());
-    } else { // Soft fail.
-        return {};
+    if (auto outputLV = outputLhs.tryValue(), outputRV = outputRhs.tryValue(); outputLV && outputRV) {
+        // Value propagation pattern #1.
+        if (outputLV && outputRV && input.isUnorientedOrOrientedUp()) { // Check.
+            // Output iterators determine the input iterator. Typical in forward pipeline.
+            return {{ outputLV * block + outputRV, outputLV, outputRV }};
+        }
+    } else if (auto inputV = input.tryValue(); inputV) {
+        // Value propagation pattern #2.
+        if (outputLhs.isUnorientedOrOrientedDown() && outputRhs.isUnorientedOrOrientedDown()) { // Check.
+            // Input iterator determines the two output iterators. Typical in backward pipeline.
+            return {{ inputV, inputV / block, inputV % block }};
+        }
+    } else if (outputLhs.isValuedOrOrientedUp() || outputRhs.isValuedOrOrientedUp()) { // Note that the two cannot be both valued.
+        // Orientation propagation pattern #1.
+        if (input.isUnorientedOrOrientedUp()) { // Check.
+            // Propagate orientation to the other side, because input will be determined by outputs.
+            return {{ Direction::Up, outputLhs, outputRhs }};
+        }
+    } else if (input.isOrientedDown()) {
+        // Orientation propagation pattern #2.
+        if (outputLhs.isUnorientedOrOrientedDown() && outputRhs.isUnorientedOrOrientedDown()) { // Check.
+            // Input iterator will determine the two output iterators.
+            return {{ Direction::Down, Direction::Down, Direction::Down }};
+        }
     }
-}
-
-SplitOp::OrderingValues SplitOp::ordering(const IteratorValues &known) const {
-    auto& [input, outputLhs, outputRhs] = known;
-    if (!input && !outputLhs && !outputRhs) {
-        return { .input = 0, .outputLhs = 0, .outputRhs = 0 };
-    } else if (!input && outputLhs && !outputRhs) {
-        return { .input = 0, .outputLhs = -1, .outputRhs = 1 };
-    } else if (!input && !outputLhs && outputRhs) {
-        return { .input = 0, .outputLhs = 1, .outputRhs = -1 };
-    } else {
-        KAS_UNREACHABLE("Not possible to call ordering() on SplitOp with input = {}, outputLhs = {}, outputRhs = {}", input.hasValue(), outputLhs.hasValue(), outputRhs.hasValue());
-    }
+    KAS_CRITICAL("Conflicting values for SplitOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
 std::size_t SplitOp::CountColorTrials = 0;

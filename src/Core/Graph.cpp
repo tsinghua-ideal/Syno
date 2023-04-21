@@ -1,4 +1,5 @@
 #include "KAS/Core/Graph.hpp"
+#include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
@@ -8,12 +9,14 @@ Dimension RepeatLikeVertex::operator[](RepeatLikeOp::Branch branch) const {
     case RepeatLikeOp::Branch::Input: return op.getInput();
     case RepeatLikeOp::Branch::Output: return op.output;
     }
+    KAS_UNREACHABLE();
 }
 Direction RepeatLikeVertex::outgoingDirection(RepeatLikeOp::Branch branch) const {
     switch (branch) {
     case RepeatLikeOp::Branch::Input: return Direction::Up;
     case RepeatLikeOp::Branch::Output: return Direction::Down;
     }
+    KAS_UNREACHABLE();
 }
 VisitedVertex RepeatLikeVertex::visitAdjacent(RepeatLikeOp::Branch branch) const {
     return graph.visitAlong(operator[](branch), outgoingDirection(branch));
@@ -25,6 +28,7 @@ Dimension SplitLikeVertex::operator[](SplitLikeOp::Branch branch) const {
     case SplitLikeOp::Branch::OutputLhs: return op.outputLhs;
     case SplitLikeOp::Branch::OutputRhs: return op.outputRhs;
     }
+    KAS_UNREACHABLE();
 }
 Direction SplitLikeVertex::outgoingDirection(SplitLikeOp::Branch branch) const {
     switch (branch) {
@@ -32,6 +36,7 @@ Direction SplitLikeVertex::outgoingDirection(SplitLikeOp::Branch branch) const {
     case SplitLikeOp::Branch::OutputLhs: return Direction::Down;
     case SplitLikeOp::Branch::OutputRhs: return Direction::Down;
     }
+    KAS_UNREACHABLE();
 }
 VisitedVertex SplitLikeVertex::visitAdjacent(SplitLikeOp::Branch branch) const {
     return graph.visitAlong(operator[](branch), outgoingDirection(branch));
@@ -43,6 +48,7 @@ Dimension MergeLikeVertex::operator[](MergeLikeOp::Branch branch) const {
     case MergeLikeOp::Branch::InputRhs: return op.getInputR();
     case MergeLikeOp::Branch::Output: return op.output;
     }
+    KAS_UNREACHABLE();
 }
 Direction MergeLikeVertex::outgoingDirection(MergeLikeOp::Branch branch) const {
     switch (branch) {
@@ -50,6 +56,7 @@ Direction MergeLikeVertex::outgoingDirection(MergeLikeOp::Branch branch) const {
     case MergeLikeOp::Branch::InputRhs: return Direction::Up;
     case MergeLikeOp::Branch::Output: return Direction::Down;
     }
+    KAS_UNREACHABLE();
 }
 VisitedVertex MergeLikeVertex::visitAdjacent(MergeLikeOp::Branch branch) const {
     return graph.visitAlong(operator[](branch), outgoingDirection(branch));

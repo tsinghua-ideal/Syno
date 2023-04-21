@@ -123,14 +123,14 @@ struct fmt::formatter<kas::DimensionType>: formatter<string_view> {
         switch (t) {
         using enum kas::DimensionType;
         using namespace std::literals;
-        case Shift:     name = "Shift"sv;
-        case Stride:    name = "Stride"sv;
-        case Split:     name = "Split"sv;
-        case Unfold:    name = "Unfold"sv;
-        case Merge:     name = "Merge"sv;
-        case Share:     name = "Share"sv;
-        case Iterator:  name = "Iterator"sv;
-        case MapReduce: name = "MapReduce"sv;
+        case Shift:     name = "Shift"sv; break;
+        case Stride:    name = "Stride"sv; break;
+        case Split:     name = "Split"sv; break;
+        case Unfold:    name = "Unfold"sv; break;
+        case Merge:     name = "Merge"sv; break;
+        case Share:     name = "Share"sv; break;
+        case Iterator:  name = "Iterator"sv; break;
+        case MapReduce: name = "MapReduce"sv; break;
         }
         return formatter<string_view>::format(name, ctx);
     }

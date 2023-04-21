@@ -24,11 +24,11 @@ class DimensionEvaluator {
 
     // Extract the values of branches of this Op.
     template<Vertex V>
-    decltype(auto) getBranches(const V& v) const {
+    decltype(auto) getBranches(const V& v) {
         using Values = typename V::OpType::Values;
         return Values::FillBy([&](std::size_t branch) {
             // We have to make sure branches are in order!
-            return values[v[branch]];
+            return values[v[static_cast<V::BranchType>(branch)]];
         });
     }
 
@@ -36,15 +36,15 @@ class DimensionEvaluator {
     template<Vertex V>
     void setBranches(const V& v, const typename V::OpType::Values& newValues) {
         for (std::uint8_t branch = 0; branch < V::OpType::BranchCount; ++branch) {
-            Dimension d = v[branch];
-            values[d] = newValues[branch];
+            Dimension d = v[static_cast<V::BranchType>(branch)];
+            values[d] = newValues[static_cast<V::BranchType>(branch)];
         }
     }
 
     // Propagate values.
     struct Propagator {
-        const DimensionEvaluator& eval;
-        Propagator(const DimensionEvaluator& eval): eval { eval } {}
+        DimensionEvaluator& eval;
+        Propagator(DimensionEvaluator& eval): eval { eval } {}
         Propagator(const Propagator&) = delete;
         Propagator(Propagator&&) = delete;
         template<Vertex V>
@@ -56,23 +56,25 @@ class DimensionEvaluator {
                 auto& knownValue = knownValues[branch];
                 auto& newValue = newValues[branch];
                 newValue.assertCanBeConvertedFrom(knownValue);
+                Dimension which = v[static_cast<V::BranchType>(branch)];
                 if (newValue.isRefined(knownValue)) {
                     if (newValue.type() == Valuation::Valued) {
                         // We have assigned this Dimension.
-                        eval.unknownDimensions.erase(v[branch]);
+                        eval.unknownDimensions.erase(which);
                     }
                     if (knownValue.type() == Valuation::Unoriented) {
                         // This Dimension can no longer be free.
-                        eval.freeCandidates.erase(v[branch]);
+                        eval.freeCandidates.erase(which);
                     }
                 }
+                eval.values[which] = newValue;
             }
             for (std::uint8_t branch = 0; branch < cnt; ++branch) {
                 auto& knownValue = knownValues[branch];
                 auto& newValue = newValues[branch];
                 if (newValue.isRefined(knownValue)) {
                     // DFS.
-                    v.visitAdjacent(branch).match(*this, *this, *this);
+                    v.visitAdjacent(static_cast<V::BranchType>(branch)).match(*this, *this, *this);
                 }
             }
         }

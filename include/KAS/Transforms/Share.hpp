@@ -31,8 +31,7 @@ public:
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
     inline Dimension getInputL() const override { return &inputLhs; }
     inline Dimension getInputR() const override { return &inputRhs; }
-    IteratorValues value(const IteratorValues& known) const override;
-    OrderingValues ordering(const IteratorValues& known) const override;
+    Values value(const Values& known) const override;
 
     std::pair<bool, CompactColorType> transformColor(CompactColorType fro1, CompactColorType fro2) const override;
     static std::size_t CountColorTrials;

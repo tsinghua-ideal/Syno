@@ -6,35 +6,40 @@
 
 namespace kas {
 
-UnfoldOp::IteratorValues UnfoldOp::value(const IteratorValues& known) const {
-    auto& [input, outputLhs, outputRhs] = known;
+UnfoldOp::Values UnfoldOp::value(const Values& known) const {
+    if (known.canSkipDeduction()) return known;
+    auto& [input, outputLhs, outputRhs] = known.values;
     auto original = ConstValueNode::Create(this->outputLhs.size());
     auto kernel = ConstValueNode::Create(this->outputRhs.size());
     auto halfKernel = (kernel - ImmediateValueNode::One) / ImmediateValueNode::Two;
-    if (!input && outputLhs && outputRhs) {
-        return {{ .input = IntervalBoundValueNode::Create(outputLhs + outputRhs - halfKernel, ImmediateValueNode::Zero, original) }};
-    } else if (input && !outputLhs && outputRhs) {
-        return {{ .outputLhs = IntervalBoundValueNode::Create(input - outputRhs + halfKernel, ImmediateValueNode::Zero, original) }};
-    } else if (input && outputLhs && !outputRhs) { // Hard fail.
-        KAS_CRITICAL("Conflicting values for UnfoldOp: input = {}, outputLhs = {}, outputRhs = {}", input.hasValue(), outputLhs.hasValue(), outputRhs.hasValue());
-    } else { // Soft fail.
-        return {};
+    if (auto outputLV = outputLhs.tryValue(), outputRV = outputRhs.tryValue(); outputLV && outputRV) {
+        // Major output and minor output determine input. Typical in forward pipeline.
+        if (input.isUnorientedOrOrientedUp()) { // Check.
+            return {{ IntervalBoundValueNode::Create(outputLV + outputRV - halfKernel, ImmediateValueNode::Zero, original), outputLV, outputRV }};
+        }
+    } else if (auto inputV = input.tryValue(), outputRV = outputRhs.tryValue(); inputV && outputRV) {
+        // Input and minor output determine major output. This can convert scatter patttern to gather pattern. Typical in backward pipeline.
+        if (outputLhs.isUnorientedOrOrientedDown()) { // Check.
+            return {{ inputV, IntervalBoundValueNode::Create(inputV - outputRV + halfKernel, ImmediateValueNode::Zero, original), outputRV }};
+        }
+    } else if (!outputRhs.isOrientedDown()) { // Only Direction::Down is illegal!
+        if (input.isValuedOrOrientedDown()) {
+            // input -> outputLhs.
+            if (outputLhs.isUnorientedOrOrientedDown()) {
+                return {{ input, Direction::Down, outputRhs }};
+            }
+        } else if (outputLhs.isValuedOrOrientedUp()) {
+            // outputLhs -> input.
+            if (input.isUnorientedOrOrientedUp()) {
+                return {{ Direction::Up, outputLhs, outputRhs }};
+            }
+        } else if (outputLhs.isUnoriented() && input.isUnoriented()) {
+            // Nothing to deduce.
+            return {{ std::monostate{}, std::monostate{}, outputRhs }};
+        }
     }
-}
-
-UnfoldOp::OrderingValues UnfoldOp::ordering(const IteratorValues& known) const {
-    auto& [input, outputLhs, outputRhs] = known;
-    if (!input && !outputLhs && !outputRhs) {
-        return { .input = 0, .outputLhs = 0, .outputRhs = 0 };
-    } else if (!input && outputLhs && !outputRhs) {
-        return { .input = 0, .outputLhs = -1, .outputRhs = 1 };
-    } else if (input && !outputLhs && !outputRhs) {
-        return { .input = -1, .outputLhs = 0, .outputRhs = 1 };
-    } else if (!input && !outputLhs && outputRhs) {
-        return { .input = 0, .outputLhs = 0, .outputRhs = -1 };
-    } else {
-        KAS_UNREACHABLE("Not possible to call ordering() on UnfoldOp with input = {}, outputLhs = {}, outputRhs = {}", input.hasValue(), outputLhs.hasValue(), outputRhs.hasValue());
-    }
+    // Otherwise, conflict.
+    KAS_CRITICAL("Conflicting values for UnfoldOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
 std::size_t UnfoldOp::CountColorTrials = 0;

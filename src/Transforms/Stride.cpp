@@ -12,20 +12,24 @@ std::size_t StrideOp::initialHash() const noexcept {
     return h;
 }
 
-StrideOp::IteratorValues StrideOp::value(const IteratorValues& known) const {
-    auto& [input, output] = known;
-    auto stride = ConstValueNode::Create(this->stride);
-    if (!input && output) {
-        return {{ .input = output * stride }};
-    } else { // Hard fail.
-        KAS_CRITICAL("Conflicting values for StrideOp: input = {}, output = {}", input.hasValue(), output.hasValue());
+StrideOp::Values StrideOp::value(const Values& known) const {
+    // This is different from other Op's. Because we need to set the initial orientation if allUnoriented.
+    if (known.allValued()) return known;
+    if (known.allUnoriented()) {
+        return {{ Direction::Up, std::monostate{} }};
     }
-}
-
-StrideOp::OrderingValues StrideOp::ordering(const IteratorValues& known) const {
-    auto& [input, output] = known;
-    KAS_ASSERT(!input && !output);
-    return { .input = 0, .output = 1 };
+    auto& [input, output] = known.values;
+    auto stride = ConstValueNode::Create(this->stride);
+    if (input.isOrientedUp()) { // Note that we must have set this to Up. This is sanity check. If input is valued, output must have been set beforehand.
+        if (auto outputV = output.tryValue(); outputV) {
+            // Out value -> in value.
+            return {{ outputV * stride, outputV }};
+        } else if (output.isUnorientedOrOrientedUp()) {
+            // OK, but nothing to do.
+            return {{ Direction::Up, output }};
+        }
+    }
+    KAS_CRITICAL("Conflicting values for StrideOp: input = {}, output = {}", input, output);
 }
 
 std::size_t StrideOp::CountColorTrials = 0;

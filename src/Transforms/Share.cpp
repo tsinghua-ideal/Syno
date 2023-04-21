@@ -7,26 +7,39 @@
 
 namespace kas {
 
-ShareOp::IteratorValues ShareOp::value(const IteratorValues& known) const {
-    auto& [inputLhs, inputRhs, output] = known;
-    if (inputLhs && !inputRhs && !output) {
-        return {{ .inputRhs = inputLhs, .output = inputLhs }};
-    } else if (!inputLhs && inputRhs && !output) {
-        return {{ .inputLhs = inputRhs, .output = inputRhs }};
-    } else if (!inputLhs && !inputRhs && output) {
-        return {{ .inputLhs = output, .inputRhs = output }};
-    } else { // Hard fail.
-        KAS_CRITICAL("Conflicting values for ShareOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs.hasValue(), inputRhs.hasValue(), output.hasValue());
+ShareOp::Values ShareOp::value(const Values& known) const {
+    if (known.canSkipDeduction()) return known;
+    auto& [inputLhs, inputRhs, output] = known.values;
+    // In the following 3 cases, value propagates from one branch to the others.
+    if (auto v = output.tryValue(); v) {
+        if (inputLhs.isUnorientedOrOrientedUp() && inputRhs.isUnorientedOrOrientedUp()) { // Check.
+            return {{ v, v, v }};
+        }
+    } else if (auto v = inputLhs.tryValue(); v) {
+        if (inputRhs.isUnorientedOrOrientedUp() && output.isUnorientedOrOrientedDown()) { // Check.
+            return {{ v, v, v }};
+        }
+    } else if (auto v = inputRhs.tryValue(); v) {
+        if (inputLhs.isUnorientedOrOrientedUp() && output.isUnorientedOrOrientedDown()) { // Check.
+            return {{ v, v, v }};
+        }
     }
-}
-
-ShareOp::OrderingValues ShareOp::ordering(const IteratorValues& known) const {
-    auto& [inputLhs, inputRhs, output] = known;
-    if (!inputLhs && !inputRhs && !output) {
-        return { .inputLhs = 0, .inputRhs = 0, .output = 0 };
-    } else { // Actually this cannot happen.
-        KAS_UNREACHABLE("Not possible to call ordering() on ShareOp with known values.");
+    // In the following 3 cases, orientation propagates from one branch to the others.
+    else if (output.isOrientedUp()) {
+        if (inputLhs.isUnorientedOrOrientedUp() && inputRhs.isUnorientedOrOrientedUp()) { // Check.
+            return {{ Direction::Up, Direction::Up, Direction::Up }};
+        }
+    } else if (inputLhs.isOrientedDown()) {
+        if (inputRhs.isUnorientedOrOrientedUp() && output.isUnorientedOrOrientedDown()) { // Check.
+            return {{ Direction::Down, Direction::Up, Direction::Down }};
+        }
+    } else if (inputRhs.isOrientedDown()) {
+        if (inputLhs.isUnorientedOrOrientedUp() && output.isUnorientedOrOrientedDown()) { // Check.
+            return {{ Direction::Up, Direction::Down, Direction::Down }};
+        }
     }
+    // Otherwise, conficts.
+    KAS_CRITICAL("Conflicting values for ShareOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs, inputRhs, output);
 }
 
 std::pair<bool, CompactColorType> ShareOp::transformColor(CompactColorType fro1, CompactColorType fro2) const {

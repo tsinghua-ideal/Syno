@@ -29,12 +29,22 @@ private:
 
 public:
     inline Valuation() {}
+    inline Valuation(std::monostate) {}
     inline Valuation(Direction dir): value { dir } {}
     inline Valuation(const IteratorValue& val): value { val } {}
 
     inline Type type() const noexcept {
         return static_cast<Type>(value.index());
     }
+    inline bool isUnoriented() const noexcept { return type() == Unoriented; }
+    inline bool isOriented() const noexcept { return type() == Oriented; }
+    inline bool isOrientedUp() const { return isOriented() && std::get<Direction>(value) == Direction::Up; }
+    inline bool isOrientedDown() const { return isOriented() && std::get<Direction>(value) == Direction::Down; }
+    inline bool isUnorientedOrOrientedUp() const { return isUnoriented() || isOrientedUp(); }
+    inline bool isUnorientedOrOrientedDown() const { return isUnoriented() || isOrientedDown(); }
+    inline bool isValued() const noexcept { return type() == Valued; }
+    inline bool isValuedOrOrientedUp() const { return isValued() || isOrientedUp(); }
+    inline bool isValuedOrOrientedDown() const { return isValued() || isOrientedDown(); }
     inline void assertCanBeConvertedFrom(const Valuation& other) const {
         KAS_ASSERT(type() >= other.type(), "Valuation of a dimension is decaying from {} to {}!", static_cast<int>(other.type()), static_cast<int>(type()));
         if (type() == Oriented && other.type() == Oriented) {
@@ -46,9 +56,52 @@ public:
     inline bool isRefined(const Valuation& other) const noexcept {
         return type() > other.type();
     }
-    const IteratorValue& extract() const {
+    inline Direction extractOrientation() const {
+        KAS_ASSERT(type() == Oriented, "Extracting a direction from a dimension which is not oriented!");
+        return std::get<Direction>(value);
+    }
+    inline std::optional<Direction> tryOrientation() const {
+        if (type() == Oriented) {
+            return std::get<Direction>(value);
+        } else {
+            return std::nullopt;
+        }
+    }
+    inline const IteratorValue& extractValue() const {
         KAS_ASSERT(type() == Valued, "Extracting a dimension which is not yet valued!");
         return std::get<IteratorValue>(value);
+    }
+    inline IteratorValue tryValue() const {
+        if (type() == Valued) {
+            return std::get<IteratorValue>(value);
+        } else {
+            return {};
+        }
+    }
+    // Pattern match.
+    template<typename CaseUnoriented, typename CaseOriented, typename CaseValued, typename Result = std::invoke_result_t<CaseUnoriented>>
+    requires(
+        std::invocable<CaseUnoriented> &&
+        std::invocable<CaseOriented, Direction> &&
+        std::invocable<CaseValued, const IteratorValue&> &&
+        std::same_as<Result, std::invoke_result_t<CaseUnoriented>> &&
+        std::same_as<Result, std::invoke_result_t<CaseOriented, Direction>> &&
+        std::same_as<Result, std::invoke_result_t<CaseValued, const IteratorValue&>>
+    )
+    Result match(CaseUnoriented&& caseUnoriented, CaseOriented&& caseOriented, CaseValued&& caseValued) const {
+        if constexpr (std::is_void_v<Result>) {
+            switch (type()) {
+                case Unoriented: caseUnoriented(); break;
+                case Oriented: caseOriented(std::get<Direction>(value)); break;
+                case Valued: caseValued(std::get<IteratorValue>(value)); break;
+            }
+        } else {
+            switch (type()) {
+                case Unoriented: return caseUnoriented();
+                case Oriented: return caseOriented(std::get<Direction>(value));
+                case Valued: return caseValued(std::get<IteratorValue>(value));
+            }
+        }
     }
 };
 
@@ -56,6 +109,18 @@ template<std::size_t Count>
 requires(Count <= 3)
 struct Valuations {
     std::array<Valuation, Count> values;
+    // All Dimensions are valued.
+    inline bool allValued() const noexcept {
+        return std::all_of(values.begin(), values.end(), [](const Valuation& val) { return val.isValued(); });
+    }
+    // We know nothing about these Dimensions.
+    inline bool allUnoriented() const noexcept {
+        return std::all_of(values.begin(), values.end(), [](const Valuation& val) { return val.isUnoriented(); });
+    }
+    // Nothing to deduce if and only if all known or all unknown.
+    inline bool canSkipDeduction() const noexcept {
+        return allValued() || allUnoriented();
+    }
     inline Valuation& operator[](std::uint8_t branch) noexcept { return values[static_cast<std::size_t>(branch)]; }
     inline const Valuation& operator[](std::uint8_t branch) const noexcept { return values[static_cast<std::size_t>(branch)]; }
     template<typename Fill>
@@ -234,3 +299,38 @@ template<typename Op>
 concept PrimitiveOp = std::same_as<Op, RepeatLikeOp> || std::same_as<Op, SplitLikeOp> || std::same_as<Op, MergeLikeOp>;
 
 } // namespace kas
+
+template<>
+struct fmt::formatter<kas::Valuation::Type>: formatter<string_view> {
+    template<typename FormatContext>
+    auto format(kas::Valuation::Type v, FormatContext& ctx) const {
+        string_view name = "Unknown";
+        switch (v) {
+        using namespace std::literals;
+        case kas::Valuation::Unoriented: name = "Unoriented"sv; break;
+        case kas::Valuation::Oriented: name = "Oriented"sv; break;
+        case kas::Valuation::Valued: name = "Valued"sv; break;
+        }
+        return formatter<string_view>::format(name, ctx);
+    }
+};
+
+template<>
+struct fmt::formatter<kas::Valuation>: formatter<string_view> {
+    template<typename FormatContext>
+    auto format(kas::Valuation v, FormatContext& ctx) const {
+        string_view name = "Unknown";
+        switch (v.type()) {
+        using namespace std::literals;
+        case kas::Valuation::Unoriented: name = "Unoriented"sv; break;
+        case kas::Valuation::Oriented:
+            switch (v.extractOrientation()) {
+            case kas::Direction::Up: name = "Oriented Up"sv; break;
+            case kas::Direction::Down: name = "Oriented Down"sv; break;
+            }
+            break;
+        case kas::Valuation::Valued: name = "Valued"sv; break;
+        }
+        return formatter<string_view>::format(name, ctx);
+    }
+};

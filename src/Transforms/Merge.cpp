@@ -1,3 +1,4 @@
+#include "KAS/Core/Dimension.hpp"
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Merge.hpp"
 #include "KAS/Utils/Common.hpp"
@@ -20,31 +21,37 @@ std::size_t MergeOp::initialHash() const noexcept {
     return h;
 }
 
-MergeOp::IteratorValues MergeOp::value(const IteratorValues& known) const {
-    auto& [inputLhs, inputRhs, output] = known;
+MergeOp::Values MergeOp::value(const Values& known) const {
+    if (known.canSkipDeduction()) return known;
+    auto& [inputLhs, inputRhs, output] = known.values;
     auto block = ConstValueNode::Create(this->minorSize);
-    if (inputLhs && inputRhs && !output) { // Input to output.
-        return {{ .output = inputLhs * block + inputRhs }};
-    } else if (!inputLhs && !inputRhs && output) { // Output to input.
-        return {{ .inputLhs = output / block, .inputRhs = output % block }};
-    } else if (inputLhs.hasValue() != inputRhs.hasValue() && output) { // Hard fail.
-        KAS_CRITICAL("Conflicting values for MergeOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs.hasValue(), inputRhs.hasValue(), output.hasValue());
-    } else { // Soft fail.
-        return {};
+    if (auto outputV = output.tryValue(); outputV) {
+        // Value propagation pattern #1.
+        if (inputLhs.isUnorientedOrOrientedUp() && inputRhs.isUnorientedOrOrientedUp()) { // Check.
+            // Output iterator determines the two input iterators. Typical in forward pipeline.
+            return {{ outputV / block, outputV % block, outputV }};
+        }
+    } else if (auto inputLV = inputLhs.tryValue(), inputRV = inputRhs.tryValue(); inputLV && inputRV) {
+        // Value propagation pattern #2.
+        if (inputLV && inputRV && output.isUnorientedOrOrientedDown()) { // Check.
+            // Input iterators determine the output iterator. Typical in backward pipeline.
+            return {{ inputLV, inputRV, inputLV * block + inputRV }};
+        }
+    } else if (output.isOrientedUp()) {
+        // Orientation propagation pattern #1.
+        if (inputLhs.isUnorientedOrOrientedUp() && inputRhs.isUnorientedOrOrientedUp()) { // Check.
+            // Output iterator will determine the two input iterators.
+            return {{ Direction::Up, Direction::Up, Direction::Up }};
+        }
+    } else if (inputLhs.isValuedOrOrientedDown() || inputRhs.isValuedOrOrientedDown()) { // Note that the two cannot be both valued.
+        // Orientation propagation pattern #2.
+        if (output.isUnorientedOrOrientedDown()) { // Check.
+            // Propagate orientation to the other side, because output will be determined by inputs.
+            return {{ inputLhs, inputRhs, Direction::Down }};
+        }
     }
-}
-
-MergeOp::OrderingValues MergeOp::ordering(const IteratorValues& known) const {
-    auto& [inputLhs, inputRhs, output] = known;
-    if (!inputLhs && !inputRhs && !output) {
-        return { .inputLhs = 0, .inputRhs = 0, .output = 0 };
-    } else if (inputLhs && !inputRhs && !output) {
-        return { .inputLhs = -1, .inputRhs = 1, .output = 0 };
-    } else if (!inputLhs && inputRhs && !output) {
-        return { .inputLhs = 1, .inputRhs = -1, .output = 0 };
-    } else {
-        KAS_UNREACHABLE("Not possible to call ordering() on MergeOp with inputLhs = {}, inputRhs = {}, output = {}", inputLhs.hasValue(), inputRhs.hasValue(), output.hasValue());
-    }
+    // Otherwise, there must have been conflicts.
+    KAS_CRITICAL("Conflicting values for MergeOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs, inputRhs, output);
 }
 
 std::size_t MergeOp::CountColorTrials = 0;

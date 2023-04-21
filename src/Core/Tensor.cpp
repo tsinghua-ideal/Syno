@@ -9,10 +9,11 @@
 
 #include <fmt/core.h>
 
-#include "KAS/Core/Autodiff.hpp"
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/DimVisitor.hpp"
 #include "KAS/Core/Dimension.hpp"
+#include "KAS/Core/Graph.hpp"
+#include "KAS/Core/Lower.hpp"
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Tensor.hpp"
@@ -149,31 +150,34 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
         ++tId;
     }
 
-    Derivative::DimensionGraphBuilder builder;
+    Graph::Builder builder;
     for (auto&& dim: tensors | std::views::join) {
         builder.add(dim);
     }
-    auto [theOtherEndOfEdge, outputIterators, mapReduceIterators] = builder.build();
-    interface = std::move(outputIterators);
-    manipulations = std::move(mapReduceIterators);
+    Graph graph = builder.build();
+    auto& outputIterators = graph.getOutputIterators();
+    auto& mapReduceIterators = graph.getMapReduceIterators();
 
     std::vector<Dimension> interfaceDimensions;
-    std::ranges::copy(interface | std::views::transform([](const Iterator *it) { return it; }), std::back_inserter(interfaceDimensions));
+    std::ranges::copy(outputIterators, std::back_inserter(interfaceDimensions));
 
-    auto forwardEval = Derivative::DimensionEvaluator(theOtherEndOfEdge);
+    auto forwardEval = DimensionEvaluator(graph);
     forwardEval.makeVars(interfaceDimensions);
-    for (auto r: manipulations) {
+    for (auto r: mapReduceIterators) {
         forwardEval.reduceAt(r);
     }
     forwardAccess = forwardEval.toAccess(AbstractAccess::Output, this->tensors, interfaceDimensions);
     for (std::size_t tId = 0; auto&& tensor: this->tensors) {
         KAS_DEBUG("Differentiating input {}...", tId);
-        auto backwardEval = Derivative::DimensionEvaluator(theOtherEndOfEdge);
+        auto backwardEval = DimensionEvaluator(graph);
         backwardEval.makeVars(tensor.getDimensions());
         backwardEval.fillWithReductions();
         backwardAccesses.emplace_back(backwardEval.toAccess(tId, this->tensors, interfaceDimensions));
         ++tId;
     }
+
+    interface = std::move(outputIterators);
+    manipulations = std::move(mapReduceIterators);
 }
 
 } // namespace kas

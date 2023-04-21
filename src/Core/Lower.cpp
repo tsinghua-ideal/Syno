@@ -14,6 +14,20 @@ void DimensionEvaluator::assign(const Dimension& dim, IteratorValue value) {
     graph.visitAlong(dim, Direction::Down).match(p, p, p);
 }
 
+DimensionEvaluator::DimensionEvaluator(const Graph& graph):
+    graph { graph }
+{
+    // Initialize the unknown and free set.
+    std::ranges::copy(graph.getDimensions(), std::inserter(unknownDimensions, unknownDimensions.end()));
+    std::ranges::copy(graph.getDimensions(), std::inserter(freeCandidates, freeCandidates.end()));
+
+    // Perform initial visit to each Op. This is needed to handle StrideOp, which comes with an initial Orientation.
+    Propagator p { *this };
+    for (auto&& dim: graph.getDimensions()) {
+        graph.visitAlong(dim, Direction::Down).match(p, p, p);
+    }
+}
+
 void DimensionEvaluator::makeVar(const Dimension& dim) {
     outerLoops.emplace_back(VariableValueNode::Create(false, outerLoops.size(), "i_" + std::to_string(outerLoops.size())));
     assign(dim, outerLoops.back());
@@ -42,7 +56,7 @@ void DimensionEvaluator::fillWithReductions() {
 std::vector<IteratorValue> DimensionEvaluator::extractValues(const std::vector<Dimension>& dims) const {
     KAS_ASSERT(unknownDimensions.empty());
     std::vector<IteratorValue> result;
-    std::ranges::move(dims | std::views::transform([&](const auto& dim) { return values.at(dim).extract(); }), std::back_inserter(result));
+    std::ranges::move(dims | std::views::transform([&](const auto& dim) { return values.at(dim).extractValue(); }), std::back_inserter(result));
     return result;
 }
 

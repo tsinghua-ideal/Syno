@@ -9,21 +9,34 @@ std::size_t ShiftOp::initialHash() const noexcept {
     return h;
 }
 
-ShiftOp::IteratorValues ShiftOp::value(const IteratorValues& known) const {
-    auto& [input, output] = known;
+ShiftOp::Values ShiftOp::value(const Values& known) const {
+    if (known.canSkipDeduction()) return known;
+    auto& [input, output] = known.values;
     auto imm = ImmediateValueNode::Create(shift);
     auto size = ConstValueNode::Create(this->output.size());
-    if (!input && output) {
-        return {{ .input = (output + imm) % size }};
-    } else if (input && !output) {
-        return {{ .output = (input - imm) % size }};
-    } else {
-        return {};
+    if (auto outputV = output.tryValue(); outputV) {
+        // Out value -> in value.
+        if (input.isUnorientedOrOrientedUp()) { // Check.
+            return {{ (outputV + imm) % size, outputV }};
+        }
+    } else if (auto inputV = input.tryValue(); inputV) {
+        // In value -> out value.
+        if (output.isUnorientedOrOrientedDown()) { // Check.
+            return {{ inputV, (inputV - imm) % size }};
+        }
+    } else if (output.isOrientedUp()) {
+        // Out orientation -> in orientation.
+        if (input.isUnorientedOrOrientedUp()) {
+            return {{ Direction::Up, Direction::Up }};
+        }
+    } else if (input.isOrientedDown()) {
+        // In orientation -> out orientation.
+        if (output.isUnorientedOrOrientedDown()) {
+            return {{ Direction::Down, Direction::Down }};
+        }
     }
-}
-
-ShiftOp::OrderingValues ShiftOp::ordering(const IteratorValues& known) const {
-    return { .input = -1, .output = -1 };
+    // Otherwise, conflict.
+    KAS_CRITICAL("Conflicting values for ShiftOp: input = {}, output = {}", input, output);
 }
 
 std::size_t ShiftOp::CountColorTrials = 0;

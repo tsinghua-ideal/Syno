@@ -20,9 +20,10 @@ template<typename V>
 concept Vertex = requires(V v, V::OpType::Branch b) {
     typename V::OpType;
     typename V::OpType::Branch;
+    typename V::BranchType;
     typename V::OpType::Values;
     { V::OpType::BranchCount } -> std::convertible_to<std::size_t>;
-    std::same_as<typename V::OpType::Values, Valuations<V::OpType::BranchCount>>;
+    requires std::same_as<typename V::OpType::Values, Valuations<V::OpType::BranchCount>>;
     { v.op } -> std::same_as<const typename V::OpType&>;
     { v[b] } -> std::convertible_to<Dimension>;
     { v.outgoingDirection(b) } -> std::convertible_to<Direction>;
@@ -34,6 +35,7 @@ class RepeatLikeVertex {
 
 public:
     using OpType = RepeatLikeOp;
+    using BranchType = OpType::Branch;
     const OpType& op;
 
     inline RepeatLikeVertex(const Graph& graph, const OpType& op):
@@ -52,6 +54,7 @@ class SplitLikeVertex {
 
 public:
     using OpType = SplitLikeOp;
+    using BranchType = OpType::Branch;
     const OpType& op;
 
     inline SplitLikeVertex(const Graph& graph, const OpType& op):
@@ -70,6 +73,7 @@ class MergeLikeVertex {
 
 public:
     using OpType = MergeLikeOp;
+    using BranchType = OpType::Branch;
     const OpType& op;
 
     inline MergeLikeVertex(const Graph& graph, const OpType& op):
@@ -131,7 +135,7 @@ public:
                 return {};
             }
         }
-        return std::visit(Visitor {
+        return std::visit(Visitor<CaseRepeatLike, CaseSplitLike, CaseMergeLike> {
             std::forward<CaseRepeatLike>(caseRepeatLike),
             std::forward<CaseSplitLike>(caseSplitLike),
             std::forward<CaseMergeLike>(caseMergeLike)
@@ -213,6 +217,14 @@ private:
 public:
     // Walk along a dimension in a direction to find a vertex.
     VisitedVertex visitAlong(const Dimension& dim, Direction dir) const;
+
+    inline decltype(auto) getDimensions() const {
+        return theOtherEndOfEdge | std::views::transform([](auto&& pair) { return pair.first; });
+    }
+    inline std::vector<const Iterator *>& getOutputIterators() { return outputIterators; }
+    inline const std::vector<const Iterator *>& getOutputIterators() const { return outputIterators; }
+    inline std::vector<const MapReduceOp *>& getMapReduceIterators() { return mapReduceIterators; }
+    inline const std::vector<const MapReduceOp *>& getMapReduceIterators() const { return mapReduceIterators; }
 };
 
 } // namespace kas
