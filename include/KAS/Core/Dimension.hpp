@@ -90,12 +90,22 @@ public:
             return lhs.getInnerPointer() < rhs.getInnerPointer();
         }
     };
+    // [<size>]@<type><hash>
     std::string description(const BindingContext& ctx) const;
+    // All descendants.
+    std::string descendantsDescription(const BindingContext& ctx) const;
 
     // FOR DEBUG USAGE ONLY!
     inline std::string toString() const {
         if (BindingContext::PublicCtx) {
             return description(*BindingContext::PublicCtx);
+        } else {
+            return "NO_PUBLIC_CONTEXT";
+        }
+    }
+    inline std::string descendantsToString() const {
+        if (BindingContext::PublicCtx) {
+            return descendantsDescription(*BindingContext::PublicCtx);
         } else {
             return "NO_PUBLIC_CONTEXT";
         }
@@ -143,7 +153,6 @@ struct fmt::formatter<kas::Direction>: formatter<string_view> {
     auto format(kas::Direction d, FormatContext& ctx) const {
         string_view name = "Unknown";
         switch (d) {
-        using enum kas::DimensionType;
         using namespace std::literals;
         case kas::Direction::Down: name = "Down"sv; break;
         case kas::Direction::Up: name = "Up"sv; break;
@@ -159,7 +168,6 @@ struct fmt::formatter<kas::Order>: formatter<string_view> {
     auto format(kas::Order o, FormatContext& ctx) const {
         string_view name = "Unknown";
         switch (o) {
-        using enum kas::DimensionType;
         using namespace std::literals;
         case kas::Order::Left: name = "Left"sv; break;
         case kas::Order::Right: name = "Right"sv; break;

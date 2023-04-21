@@ -21,7 +21,6 @@ protected:
     Input inputLhs, inputRhs;
 
 public:
-    // Only std::make_unique allowed!
     ShareOp(auto&& output):
         MergeLikeOp { std::forward<decltype(output)>(output) },
         inputLhs { this, Order::Left },

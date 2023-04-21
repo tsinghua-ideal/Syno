@@ -4,7 +4,7 @@
 
 ### Autodiff
 
-- [ ] Fix propagation of iterator values by adding orientation to dimensions.
+- [x] Fix propagation of iterator values by adding orientation to dimensions.
 - [ ] Add heuristics for choosing inner loop iterators in backward pipeline to enable loop fusions.
 
 ### Colors
@@ -13,7 +13,7 @@
 
 ### Hash
 
-- [ ] Fix hash collision. (If not possible, try finding data structures that tolerate collisions.)
+- [x] Fix hash collision. (If not possible, try finding data structures that tolerate collisions.) (Temporarily this seems fixed?)
 
 ## CodeGen
 
