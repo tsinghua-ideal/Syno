@@ -1,3 +1,4 @@
+#include "KAS/Core/MapReduce.hpp"
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Split.hpp"
 #include "KAS/Utils/Common.hpp"
@@ -65,12 +66,17 @@ bool SplitOp::transformInterface(ColoredInterface& interface, Colors& colors, Co
 
 std::vector<const SplitOp *> SplitOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
     std::vector<const SplitOp *> result;
-    auto checkNotMergeThenAdd = [&store, &result](const Dimension& dimL, const Dimension& dimR) {
+    auto checkThenAdd = [&store, &result](const Dimension& dimL, const Dimension& dimR) {
         if (auto l = dimL.tryAs<MergeOp::Input>(); l) {
             if (auto r = dimR.tryAs<MergeOp::Input>(); r) {
                 if (l->getOp() == r->getOp()) {
                     return; // They are just the same merge!
                 }
+            }
+        }
+        if (auto l = dimL.tryAs<MapReduceOp>(); l) {
+            if (auto r = dimR.tryAs<MapReduceOp>(); r) {
+                return; // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
             }
         }
         result.emplace_back(store.get<SplitOp>(dimL, dimR));
@@ -79,7 +85,7 @@ std::vector<const SplitOp *> SplitOp::Generate(DimensionStore& store, const Colo
         for (std::size_t i = 0; i < outputShape.size(); ++i) {
             for (std::size_t j = 0; j < outputShape.size(); ++j) {
                 if (i == j) continue;
-                checkNotMergeThenAdd(outputShape[i], outputShape[j]);
+                checkThenAdd(outputShape[i], outputShape[j]);
             }
         }
     }

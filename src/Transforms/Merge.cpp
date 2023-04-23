@@ -1,4 +1,5 @@
 #include "KAS/Core/Dimension.hpp"
+#include "KAS/Core/MapReduce.hpp"
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Merge.hpp"
 #include "KAS/Utils/Common.hpp"
@@ -70,13 +71,16 @@ std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Colo
     auto primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
 
     std::vector<const MergeOp *> res;
-    auto checkNotSplitThenAdd = [&store, &res](const Dimension& dim, auto&& block) {
+    auto checkThenAdd = [&store, &res](const Dimension& dim, auto&& block) {
         if (auto split = dim.tryAs<SplitOp::Input>(); split) {
             if (split->getOp()->outputRhs.size() == block) {
                 return; // This is pointless!
             } else if (split->getOp()->outputLhs.size() == block) {
                 return; // Maybe this is not pointless (view it in different shape?), but ban it for now.
             }
+        }
+        if (auto r = dim.tryAs<MapReduceOp>(); r) {
+            return; // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
         }
         res.emplace_back(store.get<MergeOp>(dim, std::forward<decltype(block)>(block)));
     };
@@ -97,7 +101,7 @@ std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Colo
                     primaryRes.getPrimary()[primaryIndex] = 1;
                     bool canBeDividedByPrimary = size.quotientIsLegal(primaryRes);
                     if (canBeDividedByPrimary) {
-                        checkNotSplitThenAdd(outputShape[i], primaryRes);
+                        checkThenAdd(outputShape[i], primaryRes);
                     }
                     for (std::size_t coefficientIndex = 0; coefficientIndex < coefficientCount; ++coefficientIndex) {
                         std::size_t coefficientDim = coefficient[coefficientIndex];
@@ -110,7 +114,7 @@ std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Colo
                                 coefRes.getCoefficient()[coefficientIndex] = coefficientDim > 0 ? ((coefficientDim + 1) / 2) : coefficientDim;
                             }
                             if (size.quotientIsLegal(coefRes)) {
-                                checkNotSplitThenAdd(outputShape[i], coefRes);
+                                checkThenAdd(outputShape[i], coefRes);
                             }
                         }
                     }
