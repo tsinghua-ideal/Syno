@@ -45,8 +45,9 @@ bool StrideOp::transformInterface(ColoredInterface& interface, Colors& colors, C
         return false;
     }
     // The `substitute` removes output, so actually no need to make it clear.
-    colors.assign(interface, output, Colors::Clear);
-    colors.substitute(interface, output, { getInput(), Colors::Clear });
+    // colors.assign(interface, output, Colors::Clear);
+    // colors.substitute(interface, output, { getInput(), Colors::Clear });
+    colors.substitute(interface, output, { getInput(), Colors::Unknown });
     colors.simplify(interface);
     ++CountColorSuccesses;
     return true;

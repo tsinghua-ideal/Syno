@@ -56,9 +56,10 @@ bool UnfoldOp::transformInterface(ColoredInterface& interface, Colors& colors, C
         return false;
     }
     // The `substitute` removes outputRhs, so actually no need to make it clear.
-    colors.assign(interface, outputRhs, Colors::Clear);
+    // colors.assign(interface, outputRhs, Colors::Clear);
     // Unfold preserves colors in the major dimension.
-    colors.substitute(interface, outputLhs, outputRhs, { getInput(), outLhs.color });
+    // colors.substitute(interface, outputLhs, outputRhs, { getInput(), outLhs.color });
+    colors.substitute(interface, outputLhs, outputRhs, { getInput(), Colors::Unknown });
     colors.simplify(interface);
     ++CountColorSuccesses;
     return true;

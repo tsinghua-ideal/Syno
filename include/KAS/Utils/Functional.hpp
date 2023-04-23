@@ -61,9 +61,13 @@ auto ReverseNArguments(auto&& f) -> decltype(auto) {
 
 auto ReverseArguments(auto&& f) -> decltype(auto) {
     constexpr std::size_t N = GetArgumentCount<decltype(f)>();
-    return [&]<typename... Args>(Args&&... args) requires(sizeof...(Args) == N) {
-        return std::apply(f, ReverseTuple(std::forward_as_tuple(std::forward<Args>(args)...)));
-    };
+    if constexpr (N <= 1) {
+        return std::forward<decltype(f)>(f);
+    } else {
+        return [&]<typename... Args>(Args&&... args) requires(sizeof...(Args) == N) {
+            return std::apply(f, ReverseTuple(std::forward_as_tuple(std::forward<Args>(args)...)));
+        };
+    }
 }
 
 } // namespace kas
