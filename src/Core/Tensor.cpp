@@ -151,9 +151,7 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     }
 
     Graph::Builder builder;
-    for (auto&& dim: tensors | std::views::join) {
-        builder.add(dim);
-    }
+    builder.addTopmost(tensors | std::views::join);
     Graph graph = builder.build();
     auto& outputIterators = graph.getOutputIterators();
     auto& mapReduceIterators = graph.getMapReduceIterators();

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <limits>
+
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Utils/Algorithm.hpp"
@@ -63,7 +65,7 @@ class CompactColorType {
 public:
     inline explicit CompactColorType(std::size_t value): value { value } {}
     inline explicit CompactColorType(int single): value { std::size_t{1} << single } {
-        KAS_ASSERT(single >= 0 && single < sizeof(std::size_t) * 8);
+        KAS_ASSERT(single >= 0 && single < std::numeric_limits<std::size_t>::digits);
     }
     // Intersection.
     inline CompactColorType operator&(const CompactColorType& rhs) const noexcept { return CompactColorType { value & rhs.value }; }

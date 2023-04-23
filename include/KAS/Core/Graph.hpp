@@ -1,6 +1,9 @@
 #pragma once
 
+#include <bit>
+#include <concepts>
 #include <optional>
+#include <set>
 #include <variant>
 
 #include "KAS/Core/DimVisitor.hpp"
@@ -159,13 +162,61 @@ public:
         }
     };
 
+    // Use bits to record the Dimensions of which this Dimension is a descendant.
+    class CompactIndices {
+        std::size_t content;
+        inline CompactIndices(std::size_t raw): content { raw } {}
+    public:
+        [[nodiscard]] static inline CompactIndices None() { return {0}; }
+        [[nodiscard]] static inline CompactIndices Single(std::size_t index) {
+            return { static_cast<std::size_t>(1) << index };
+        }
+        [[nodiscard]] static inline CompactIndices All(std::size_t count) {
+            return { (static_cast<std::size_t>(1) << count) - 1 };
+        }
+        [[nodiscard]] inline CompactIndices merged(CompactIndices other) const {
+            return { content | other.content };
+        }
+        inline CompactIndices& merges(CompactIndices other) {
+            content |= other.content;
+            return *this;
+        }
+        [[nodiscard]] inline bool contains(std::size_t index) const {
+            return Single(index).content & content;
+        }
+        [[nodiscard]] inline CompactIndices excluded(CompactIndices other) const {
+            return { content & ~other.content };
+        }
+        inline CompactIndices& excludes(CompactIndices other) {
+            content &= ~other.content;
+            return *this;
+        }
+        template<typename F>
+        requires std::invocable<F, std::size_t>
+        void foreach(F&& f) const {
+            std::size_t tries = std::numeric_limits<std::size_t>::digits - std::countl_zero(content);
+            for (std::size_t i = 0; i < tries; ++i) {
+                if (content & (static_cast<std::size_t>(1) << i)) {
+                    std::invoke(std::forward<F>(f), i);
+                }
+            }
+        }
+    };
+
+    struct DimensionMetadata {
+        OpAbove opAbove; // Op above each dimension.
+        CompactIndices ancestors; // Dimensions of which this Dimension is a descendant.
+    };
+
     // Use Builder to construct a Graph.
     class Builder final: public DimVisitor {
-        std::map<Dimension, OpAbove, Dimension::AddressLessThan> theOtherEndOfEdge;
-        std::vector<const Iterator *> outputIterators;
-        std::vector<const MapReduceOp *> mapReduceIterators;
+        std::vector<Dimension> topmost;
+        std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
+        std::set<const Iterator *> outputIterators;
+        std::set<const MapReduceOp *> mapReduceIterators;
 
         OpAbove parent;
+        CompactIndices ancestor = CompactIndices::None();
         void visit(const Iterator& dim) override;
         void visit(const MapReduceOp& dim) override;
         void visit(const RepeatLikeOp::Input& dim) override;
@@ -174,18 +225,27 @@ public:
         void visit(const Dimension& dim);
 
     public:
-        void add(const Dimension& dim);
+        void addTopmost(const Dimension& dim);
+        template<DimensionRange R>
+        void addTopmost(R&& dims) {
+            for (const Dimension& dim: dims) {
+                addTopmost(dim);
+            }
+        }
         Graph build();
     };
 private:
+    // The input dimensions;
+    std::vector<Dimension> topmost;
     // The Op's above the Dimensions.
-    std::map<Dimension, OpAbove, Dimension::AddressLessThan> theOtherEndOfEdge;
+    std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
     // And the output/reduce iterators as well.
     std::vector<const Iterator *> outputIterators;
     std::vector<const MapReduceOp *> mapReduceIterators;
 
-    Graph(auto&& theOtherEndOfEdge, auto&& outputIterators, auto&& mapReduceIterators):
-        theOtherEndOfEdge { std::forward<decltype(theOtherEndOfEdge)>(theOtherEndOfEdge) },
+    Graph(auto&& topmost, auto&& dimMeta, auto&& outputIterators, auto&& mapReduceIterators):
+        topmost { std::forward<decltype(topmost)>(topmost) },
+        dimMeta { std::forward<decltype(dimMeta)>(dimMeta) },
         outputIterators { std::forward<decltype(outputIterators)>(outputIterators) },
         mapReduceIterators { std::forward<decltype(mapReduceIterators)>(mapReduceIterators) }
     {}
@@ -218,13 +278,20 @@ public:
     // Walk along a dimension in a direction to find a vertex.
     VisitedVertex visitAlong(const Dimension& dim, Direction dir) const;
 
+    inline const std::vector<Dimension>& getTopmost() const { return topmost; }
     inline decltype(auto) getDimensions() const {
-        return theOtherEndOfEdge | std::views::transform([](auto&& pair) { return pair.first; });
+        return dimMeta | std::views::transform([](auto&& pair) { return pair.first; });
     }
     inline std::vector<const Iterator *>& getOutputIterators() { return outputIterators; }
     inline const std::vector<const Iterator *>& getOutputIterators() const { return outputIterators; }
     inline std::vector<const MapReduceOp *>& getMapReduceIterators() { return mapReduceIterators; }
     inline const std::vector<const MapReduceOp *>& getMapReduceIterators() const { return mapReduceIterators; }
+
+    struct ConnectedComponent {
+        std::vector<Dimension> inputs;
+        std::vector<Dimension> outputs; // Iterator's and MapReduceOp's
+    };
+    std::vector<ConnectedComponent> computeConnectedComponents() const;
 };
 
 } // namespace kas

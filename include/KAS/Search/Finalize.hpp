@@ -7,6 +7,7 @@
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Colors.hpp"
 #include "KAS/Core/Dimension.hpp"
+#include "KAS/Core/Graph.hpp"
 #include "KAS/Core/Tensor.hpp"
 
 
@@ -21,7 +22,7 @@ public:
     FinalizeOp(auto&& tensors): tensors { std::forward<decltype(tensors)>(tensors) } {}
     std::unique_ptr<TensorView> buildTensorView() const;
 
-    static bool Prune(const std::vector<Interface>& trial);
+    static bool Prune(const std::vector<Graph::ConnectedComponent>& components, const std::vector<Interface>& trial);
 
     static std::size_t CountSuccesses;
     static std::size_t CountFailures;

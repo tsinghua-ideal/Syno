@@ -112,6 +112,11 @@ public:
     }
 };
 
+template<typename R>
+concept DimensionRange =
+    std::ranges::input_range<R> &&
+    std::convertible_to<std::ranges::range_value_t<R>, Dimension>;
+
 } // namespace kas
 
 template<>

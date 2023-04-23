@@ -1,3 +1,5 @@
+#include <limits>
+
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -63,10 +65,10 @@ VisitedVertex MergeLikeVertex::visitAdjacent(MergeLikeOp::Branch branch) const {
 }
 
 void Graph::Builder::visit(const Iterator& dim) {
-    outputIterators.push_back(&dim);
+    outputIterators.insert(&dim);
 }
 void Graph::Builder::visit(const MapReduceOp& dim) {
-    mapReduceIterators.push_back(&dim);
+    mapReduceIterators.insert(&dim);
 }
 void Graph::Builder::visit(const RepeatLikeOp::Input& dim) {
     auto op = dim.getOp();
@@ -86,18 +88,26 @@ void Graph::Builder::visit(const MergeLikeOp::Input& dim) {
     visit(op->output);
 }
 void Graph::Builder::visit(const Dimension& dim) {
-    auto [it, inserted] = theOtherEndOfEdge.insert({dim, parent});
-    if (inserted) {
-        DimVisitor::visit(dim);
+    auto [it, inserted] = dimMeta.try_emplace(dim, parent, ancestor);
+    if (!inserted) {
+        // Visited before. Now propagate ancestor.
+        it->second.ancestors.merges(ancestor);
     }
+    // Since we need to propagate the ancestor all the way down, we always need to visit, no matter inserted or not.
+    DimVisitor::visit(dim);
 }
 
-void Graph::Builder::add(const Dimension& dim) {
+void Graph::Builder::addTopmost(const Dimension& dim) {
+    auto index = CompactIndices::Single(topmost.size());
+    topmost.emplace_back(dim);
     parent = { std::monostate{} };
+    ancestor = index;
     visit(dim);
 }
 
 Graph Graph::Builder::build() {
+    auto outputIterators = std::vector<const Iterator *>(this->outputIterators.begin(), this->outputIterators.end());
+    auto mapReduceIterators = std::vector<const MapReduceOp *>(this->mapReduceIterators.begin(), this->mapReduceIterators.end());
     std::ranges::sort(outputIterators, [](const Iterator *lhs, const Iterator *rhs) {
         return lhs->getIndex() < rhs->getIndex();
     });
@@ -105,7 +115,8 @@ Graph Graph::Builder::build() {
         return lhs->getPriority() < rhs->getPriority();
     });
     return {
-        std::move(theOtherEndOfEdge),
+        std::move(topmost),
+        std::move(dimMeta),
         std::move(outputIterators),
         std::move(mapReduceIterators)
     };
@@ -145,10 +156,73 @@ VisitedVertex Graph::visitAlong(const Dimension& dim, Direction dir) const {
         }
         case Direction::Up: {
             WalkUpVisitor visitor { *this };
-            theOtherEndOfEdge.at(dim).visit(visitor);
+            dimMeta.at(dim).opAbove.visit(visitor);
             return std::move(visitor.result);
         }
     }
+}
+
+std::vector<Graph::ConnectedComponent> Graph::computeConnectedComponents() const {
+    // First collect the bottom dimensions.
+    std::vector<Dimension> outputDims;
+    std::ranges::copy(outputIterators, std::back_inserter(outputDims));
+    std::ranges::copy(mapReduceIterators, std::back_inserter(outputDims));
+
+    // Build the edges.
+    auto bottom2top = std::vector<CompactIndices>(); // The ancestors of each output Dimension.
+    auto top2bottom = std::vector<CompactIndices>(topmost.size(), CompactIndices::None()); // The descendants of each input Dimension.
+    for (std::size_t bottomId = 0; bottomId < outputDims.size(); ++bottomId) {
+        const auto& bottom = outputDims[bottomId];
+        const auto& ancestors =  dimMeta.at(bottom).ancestors;
+        bottom2top.emplace_back(ancestors);
+        ancestors.foreach([&](std::size_t topId) {
+            top2bottom[topId].merges(CompactIndices::Single(bottomId));
+        });
+    }
+
+    // Initialize labels.
+    constexpr std::size_t Unvisited = std::numeric_limits<std::size_t>::max();
+    auto bottom2component = std::vector<std::size_t>(outputDims.size(), Unvisited);
+    auto top2component = std::vector<std::size_t>(topmost.size(), Unvisited);
+
+    // Define DFS.
+    auto dfsFromTop = [&](const auto& self, const auto& dfsFromBottom, std::size_t topId, std::size_t current) {
+        if (top2component[topId] != Unvisited) {
+            return;
+        }
+        top2component[topId] = current;
+        top2bottom[topId].foreach([&](std::size_t bottomId) {
+            dfsFromBottom(dfsFromBottom, self, bottomId, current);
+        });
+    };
+    auto dfsFromBottom = [&](const auto& self, const auto& dfsFromTop, std::size_t bottomId, std::size_t current) {
+        if (bottom2component[bottomId] != Unvisited) {
+            return;
+        }
+        bottom2component[bottomId] = current;
+        bottom2top[bottomId].foreach([&](std::size_t topId) {
+            dfsFromTop(dfsFromTop, self, topId, current);
+        });
+    };
+
+    // Do DFS.
+    std::size_t componentId = 0;
+    for (std::size_t topId = 0; topId < topmost.size(); ++topId) {
+        if (top2component[topId] == Unvisited) {
+            dfsFromTop(dfsFromTop, dfsFromBottom, topId, componentId++);
+        }
+    }
+
+    // Collect components.
+    auto components = std::vector<ConnectedComponent>(componentId);
+    for (std::size_t bottomId = 0; bottomId < outputDims.size(); ++bottomId) {
+        components[bottom2component[bottomId]].outputs.emplace_back(outputDims[bottomId]);
+    }
+    for (std::size_t topId = 0; topId < topmost.size(); ++topId) {
+        components[top2component[topId]].inputs.emplace_back(topmost[topId]);
+    }
+
+    return components;
 }
 
 } // namespace kas
