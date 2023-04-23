@@ -21,10 +21,13 @@ public:
     FinalizeOp(auto&& tensors): tensors { std::forward<decltype(tensors)>(tensors) } {}
     std::unique_ptr<TensorView> buildTensorView() const;
 
+    static bool Prune(const std::vector<Interface>& trial);
+
     static std::size_t CountSuccesses;
     static std::size_t CountFailures;
     static std::size_t CountLegalFinalizations;
     static std::size_t CountConflictingColors;
+    static std::size_t CountPrunedFinalizations;
     struct GenerateOptions {
         const BindingContext& ctx;
         const Shape& desired;

@@ -11,10 +11,24 @@ std::unique_ptr<TensorView> FinalizeOp::buildTensorView() const {
     return std::make_unique<TensorView>(tensors);
 }
 
+bool FinalizeOp::Prune(const std::vector<Interface>& trial) {
+    for (std::size_t i = 1; i < trial.size(); ++i) { // Check weights.
+        const auto& t = trial[i];
+        for (auto&& dim: t) {
+            if (auto r = dim.tryAs<MapReduceOp>(); r) {
+                // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::size_t FinalizeOp::CountSuccesses = 0;
 std::size_t FinalizeOp::CountFailures = 0;
 std::size_t FinalizeOp::CountLegalFinalizations = 0;
 std::size_t FinalizeOp::CountConflictingColors = 0;
+std::size_t FinalizeOp::CountPrunedFinalizations = 0;
 std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
     std::vector<FinalizeOp> result;
     const auto& desired = options.desired;
@@ -56,6 +70,10 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& outputShape
             }
             if (!colors.isConsistent() || !Colors::CheckFinalization(tensors)) {
                 ++CountConflictingColors;
+                return;
+            }
+            if (Prune(tensors)) {
+                ++CountPrunedFinalizations;
                 return;
             }
             result.emplace_back(std::move(tensors));

@@ -18,6 +18,7 @@
 ## CodeGen
 
 - [ ] Add padding by padding variables that cannot be divided by their denominators.
+- [ ] Optimization: Early reduction to reduce FLOPs.
 
 ## Transforms
 

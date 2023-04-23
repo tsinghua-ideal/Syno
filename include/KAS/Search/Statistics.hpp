@@ -46,6 +46,7 @@ struct StatisticsCollector {
         fmt::format_to(it(), "  CountFailures: {}\n", FinalizeOp::CountFailures);
         fmt::format_to(it(), "  CountLegalFinalizations: {}\n", FinalizeOp::CountLegalFinalizations);
         fmt::format_to(it(), "  CountConflictingColors: {}\n", FinalizeOp::CountConflictingColors);
+        fmt::format_to(it(), "  CountPrunedFinalizations: {}\n", FinalizeOp::CountPrunedFinalizations);
     }
 };
 
