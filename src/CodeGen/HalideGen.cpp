@@ -26,10 +26,12 @@ HalideAccess::HalideAccess(const ConcreteConsts& consts, const AbstractAccess& a
         outerLoops.emplace_back(outerLoop.as<VariableValueNode>().name);
     }
     auto reductionShape = ConcretizeShape(consts, access.innerLoopsShape, false); // The order of reduction does not matter, because interchanging them does not change the result.
-    reductionDomain = Halide::RDom(reductionShape);
     std::vector<Halide::RVar> innerLoops;
-    for (std::size_t i = 0; i < reductionDomain.dimensions(); ++i) {
-        innerLoops.emplace_back(reductionDomain[i]);
+    if (reductionShape.size() > 0) {
+        reductionDomain = Halide::RDom(reductionShape);
+        for (std::size_t i = 0; i < reductionDomain.dimensions(); ++i) {
+            innerLoops.emplace_back(reductionDomain[i]);
+        }
     }
 
     struct Evaluator: public IteratorValueVisitor {
@@ -158,9 +160,10 @@ Halide::Func HalideGen::lower(std::vector<Halide::ImageParam>& inputTensors, Hal
         guardedRhs = Halide::select(conditions, Halide::likely(rhs), 0.0f);
     }
 
-    if (access.reductionDomain.dimensions() == 0) {
+    if (!access.reductionDomain.defined()) {
         func(access.outerLoops) = guardedRhs;
     } else {
+        // TODO: In autodiff, guardedRhs may contain no RVar at all, in which case this throws!
         func(access.outerLoops) = Halide::sum(guardedRhs);
     }
     return func;
