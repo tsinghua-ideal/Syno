@@ -7,7 +7,7 @@ from typing import List, Tuple, Dict, Optional, Union, Callable, Any
 
 
 class MCTS:
-    def __init__(self, sampler: Sampler, exploration_weight: float = math.sqrt(2)):
+    def __init__(self, sampler: Sampler, exploration_weight: float = math.sqrt(2)) -> None:
         self._Q = defaultdict(float)  # Total reward of each node.
         self._N = defaultdict(int)  # Total visit count for each node.
         # Number of children of each node. Only explored nodes are in this dict.
@@ -28,6 +28,13 @@ class MCTS:
                 logging.warning(
                     f"During rollout, dead end {path} encountered. Retrying...")
                 self.back_propagate(path, 0.0)
+
+    def get_results(self, root: List[int] = []) -> List[int]:
+        """Return the best result searched from the tree. """
+        node = root
+        while not self._is_terminal(node):
+            node.append(self._best_select(node))
+        return node
 
     def _may_fail_rollout(self, node: list[int]) -> Tuple[List[int], bool]:
         "The trial may encounter a dead end. In this case, False is returned."
@@ -61,7 +68,7 @@ class MCTS:
                     return augmented
             node = self._uct_select(node)  # descend a layer deeper
 
-    def _expand(self, node: list[int]):
+    def _expand(self, node: list[int]) -> None:
         "Update the `children` dict with the children of `node`"
         tuple_node = tuple(node)
         if tuple_node in self._children_count:
@@ -79,7 +86,7 @@ class MCTS:
                 [random.randrange(0, self._compute_children_count(node))]
 
     # Move increment of `_N` to `do_rollout` for parallel search. TODO
-    def back_propagate(self, node: list[int], reward: float):
+    def back_propagate(self, node: list[int], reward: float) -> None:
         "Send the reward back up to the ancestors of the leaf"
         assert 0.0 <= reward <= 1.0
         for i in range(len(node), -1, -1):
@@ -97,7 +104,7 @@ class MCTS:
 
         log_N_vertex = math.log(self._N[tuple_node])
 
-        def uct(n):
+        def uct(n) -> float:
             "Upper confidence bound for trees"
             t = tuple(node + [n])
             return self._Q[t] / self._N[t] + self._exploration_weight * math.sqrt(
@@ -105,3 +112,15 @@ class MCTS:
             )
 
         return node + [max(self._children_count[tuple_node], key=uct)]
+
+    def _best_select(self, node: List[int]) -> int:
+        "Select the best child of a given node"
+        tuple_node = tuple(node)
+
+        def score(n) -> float:
+            t = tuple(node + [n])
+            if self._N[t] == 0:
+                return math.inf
+            return self._Q[t] / self._N[t]
+
+        return max(self._children_count[tuple_node], key=score)
