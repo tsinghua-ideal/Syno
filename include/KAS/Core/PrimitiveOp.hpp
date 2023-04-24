@@ -22,7 +22,6 @@ public:
         // This dimension has already been assigned with a value.
         Valued = 2,
     };
-    using enum Type;
 
 private:
     std::variant<std::monostate, Direction, IteratorValue> value;
@@ -36,18 +35,18 @@ public:
     inline Type type() const noexcept {
         return static_cast<Type>(value.index());
     }
-    inline bool isUnoriented() const noexcept { return type() == Unoriented; }
-    inline bool isOriented() const noexcept { return type() == Oriented; }
+    inline bool isUnoriented() const noexcept { return type() == Type::Unoriented; }
+    inline bool isOriented() const noexcept { return type() == Type::Oriented; }
     inline bool isOrientedUp() const { return isOriented() && std::get<Direction>(value) == Direction::Up; }
     inline bool isOrientedDown() const { return isOriented() && std::get<Direction>(value) == Direction::Down; }
     inline bool isUnorientedOrOrientedUp() const { return isUnoriented() || isOrientedUp(); }
     inline bool isUnorientedOrOrientedDown() const { return isUnoriented() || isOrientedDown(); }
-    inline bool isValued() const noexcept { return type() == Valued; }
+    inline bool isValued() const noexcept { return type() == Type::Valued; }
     inline bool isValuedOrOrientedUp() const { return isValued() || isOrientedUp(); }
     inline bool isValuedOrOrientedDown() const { return isValued() || isOrientedDown(); }
     inline void assertCanBeConvertedFrom(const Valuation& other) const {
         KAS_ASSERT(type() >= other.type(), "Valuation of a dimension is decaying from {} to {}!", static_cast<int>(other.type()), static_cast<int>(type()));
-        if (type() == Oriented && other.type() == Oriented) {
+        if (type() == Type::Oriented && other.type() == Type::Oriented) {
             auto dir = std::get<Direction>(value);
             auto otherDir = std::get<Direction>(other.value);
             KAS_ASSERT(dir == otherDir, "Valuation of a dimension is changing direction from {} to {}!", otherDir, dir);
@@ -57,22 +56,22 @@ public:
         return type() > other.type();
     }
     inline Direction extractOrientation() const {
-        KAS_ASSERT(type() == Oriented, "Extracting a direction from a dimension which is not oriented!");
+        KAS_ASSERT(type() == Type::Oriented, "Extracting a direction from a dimension which is not oriented!");
         return std::get<Direction>(value);
     }
     inline std::optional<Direction> tryOrientation() const {
-        if (type() == Oriented) {
+        if (type() == Type::Oriented) {
             return std::get<Direction>(value);
         } else {
             return std::nullopt;
         }
     }
     inline const IteratorValue& extractValue() const {
-        KAS_ASSERT(type() == Valued, "Extracting a dimension which is not yet valued!");
+        KAS_ASSERT(type() == Type::Valued, "Extracting a dimension which is not yet valued!");
         return std::get<IteratorValue>(value);
     }
     inline IteratorValue tryValue() const {
-        if (type() == Valued) {
+        if (type() == Type::Valued) {
             return std::get<IteratorValue>(value);
         } else {
             return {};
@@ -91,15 +90,15 @@ public:
     Result match(CaseUnoriented&& caseUnoriented, CaseOriented&& caseOriented, CaseValued&& caseValued) const {
         if constexpr (std::is_void_v<Result>) {
             switch (type()) {
-                case Unoriented: caseUnoriented(); break;
-                case Oriented: caseOriented(std::get<Direction>(value)); break;
-                case Valued: caseValued(std::get<IteratorValue>(value)); break;
+                case Type::Unoriented: caseUnoriented(); break;
+                case Type::Oriented: caseOriented(std::get<Direction>(value)); break;
+                case Type::Valued: caseValued(std::get<IteratorValue>(value)); break;
             }
         } else {
             switch (type()) {
-                case Unoriented: return caseUnoriented();
-                case Oriented: return caseOriented(std::get<Direction>(value));
-                case Valued: return caseValued(std::get<IteratorValue>(value));
+                case Type::Unoriented: return caseUnoriented();
+                case Type::Oriented: return caseOriented(std::get<Direction>(value));
+                case Type::Valued: return caseValued(std::get<IteratorValue>(value));
             }
         }
     }
@@ -307,9 +306,9 @@ struct fmt::formatter<kas::Valuation::Type>: formatter<string_view> {
         string_view name = "Unknown";
         switch (v) {
         using namespace std::literals;
-        case kas::Valuation::Unoriented: name = "Unoriented"sv; break;
-        case kas::Valuation::Oriented: name = "Oriented"sv; break;
-        case kas::Valuation::Valued: name = "Valued"sv; break;
+        case kas::Valuation::Type::Unoriented: name = "Unoriented"sv; break;
+        case kas::Valuation::Type::Oriented: name = "Oriented"sv; break;
+        case kas::Valuation::Type::Valued: name = "Valued"sv; break;
         }
         return formatter<string_view>::format(name, ctx);
     }
@@ -322,14 +321,14 @@ struct fmt::formatter<kas::Valuation>: formatter<string_view> {
         string_view name = "Unknown";
         switch (v.type()) {
         using namespace std::literals;
-        case kas::Valuation::Unoriented: name = "Unoriented"sv; break;
-        case kas::Valuation::Oriented:
+        case kas::Valuation::Type::Unoriented: name = "Unoriented"sv; break;
+        case kas::Valuation::Type::Oriented:
             switch (v.extractOrientation()) {
             case kas::Direction::Up: name = "Oriented Up"sv; break;
             case kas::Direction::Down: name = "Oriented Down"sv; break;
             }
             break;
-        case kas::Valuation::Valued: name = "Valued"sv; break;
+        case kas::Valuation::Type::Valued: name = "Valued"sv; break;
         }
         return formatter<string_view>::format(name, ctx);
     }

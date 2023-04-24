@@ -5,7 +5,7 @@ namespace kas {
 
 void DimensionEvaluator::assign(const Dimension& dim, IteratorValue value) {
     Valuation& val = values[dim];
-    KAS_ASSERT(val.type() == Valuation::Unoriented, "Assigning to assigned or constrained dimension.");
+    KAS_ASSERT(val.type() == Valuation::Type::Unoriented, "Assigning to assigned or constrained dimension.");
     val = Valuation { value };
     freeCandidates.erase(dim);
     unknownDimensions.erase(dim);

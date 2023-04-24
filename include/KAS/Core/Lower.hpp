@@ -58,11 +58,11 @@ class DimensionEvaluator {
                 newValue.assertCanBeConvertedFrom(knownValue);
                 Dimension which = v[static_cast<V::BranchType>(branch)];
                 if (newValue.isRefined(knownValue)) {
-                    if (newValue.type() == Valuation::Valued) {
+                    if (newValue.type() == Valuation::Type::Valued) {
                         // We have assigned this Dimension.
                         eval.unknownDimensions.erase(which);
                     }
-                    if (knownValue.type() == Valuation::Unoriented) {
+                    if (knownValue.type() == Valuation::Type::Unoriented) {
                         // This Dimension can no longer be free.
                         eval.freeCandidates.erase(which);
                     }
