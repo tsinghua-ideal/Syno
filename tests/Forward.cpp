@@ -30,7 +30,7 @@ protected:
     const bool doSemanticTests = true;
     const bool createStaticLibrary = true;
     std::mt19937 rng { std::random_device()() };
-    std::uniform_real_distribution<float> dist { -1.0f, 1.0f };
+    std::uniform_real_distribution<float> dist { 0.5f, 1.5f };
     float random() { return dist(rng); }
 };
 
@@ -249,7 +249,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
         fmt::print("Running semantic tests for {}...\n", funcName);
         auto in_0_grad = new float[n][c_in][h][w]();
         auto in_1_grad = new float[c_out][c_in][k][k]();
-        constexpr float eps = 1e-1;
+        constexpr float eps = 1e-4;
         std::int64_t cntCorrect = 0, cntIncorrect = 0;
         for (int N = 0; N < n; ++N) {
             for (int C_out = 0; C_out < c_out; ++C_out) {
