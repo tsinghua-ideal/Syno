@@ -8,6 +8,7 @@
 
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/CodeGen/Kernel.hpp"
+#include "KAS/Search/Node.hpp"
 #include "KAS/Search/Sample.hpp"
 
 
@@ -49,22 +50,23 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("get_inputs_shapes", &Kernel::getInputsShapes)
         .def("get_output_shape", &Kernel::getOutputShape);
 
-    pybind11::class_<Sampler>(m, "Sampler")
-        .def(pybind11::init<std::string, std::string, std::vector<std::string>, std::vector<std::string>, SampleOptions>())
-        .def("random_path_with_prefix", &Sampler::randomPathWithPrefix)
-        .def("is_final", &Sampler::isFinal)
-        .def("children_count", &Sampler::childrenCount)
-        .def("children_types", &Sampler::childrenTypes)
-        .def("node_str", &Sampler::nodeString)
-        .def("op_str", &Sampler::opString)
-        .def("op_type", &Sampler::opType)
-        .def("realize", [](Sampler& self, const std::vector<std::size_t>& path, HalideGen::Options options) -> std::unique_ptr<Kernel> {
-            auto kernel = self.realize(path);
+    pybind11::class_<Node>(m, "Node")
+        .def("children_count", &Node::countChildren)
+        .def("get_children_handles", &Node::getChildrenHandles)
+        .def("get_child", &Node::getChild)
+        .def("is_final", &Node::isFinal)
+        .def("realize_as_final", [](Node& self, HalideGen::Options options) -> std::unique_ptr<Kernel> {
+            auto kernel = self.asKernel();
             if (kernel == nullptr) {
                 return nullptr;
             }
-            return std::make_unique<Kernel>(*kernel, self.getBindingContext(), std::move(options));
+            return std::make_unique<Kernel>(*kernel, self.getSampler()->getBindingContext(), std::move(options));
         });
+
+    pybind11::class_<Sampler>(m, "Sampler")
+        .def(pybind11::init<std::string, std::string, std::vector<std::string>, std::vector<std::string>, SampleOptions>())
+        .def("visit", &Sampler::visit)
+        .def("random_node_with_prefix", &Sampler::randomNodeWithPrefix);
 
 #ifdef VERSION_INFO
 #define STRINGIFY(x) #x

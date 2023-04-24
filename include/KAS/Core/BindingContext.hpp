@@ -51,6 +51,7 @@ protected:
     Size lookUp(const std::string& name, const LookUpTable& primaryTable, const LookUpTable& coefficientTable) const;
 
 public:
+    BindingContext() = default;
     BindingContext(std::size_t countPrimary, std::size_t countCoefficient);
     template<typename Tp, typename Tc>
     requires(std::is_same_v<std::remove_cvref_t<Tp>, std::vector<Metadata>> && std::is_same_v<std::remove_cvref_t<Tc>, std::vector<Metadata>>)

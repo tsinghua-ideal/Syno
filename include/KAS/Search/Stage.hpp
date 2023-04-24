@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <unordered_set>
 #include <variant>
 #include <vector>
@@ -16,6 +17,7 @@
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Finalize.hpp"
+#include "KAS/Search/Node.hpp"
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Utils/Hash.hpp"
 
@@ -23,27 +25,6 @@
 namespace kas {
 
 class Sampler;
-
-struct Next {
-    enum class Type {
-        Finalize,
-        RepeatLike,
-        SplitLike,
-        MergeLike,
-    };
-    Type type;
-    std::size_t index;
-};
-
-struct NextBound {
-    std::size_t finalizeCount;
-    std::size_t repeatLikeCount;
-    std::size_t splitLikeCount;
-    std::size_t mergeLikeCount;
-    std::size_t size() const;
-    Next get(std::size_t index) const;
-};
-
 class Stage;
 
 class StageStore {
@@ -70,38 +51,70 @@ public:
 };
 
 class Stage {
-    friend class StageStore;
-    FRIEND_TEST(search_tests, sampler);
-
     // The interface decides the hash. Other properties are computed.
     ColoredInterface interface;
 
+    struct NextFinalizeSlot {
+        std::size_t key;
+        FinalizeOp finalization;
+        std::unique_ptr<TensorView> kernel;
+        inline Next toNext() const {
+            return Next { Next::Type::Finalize, key };
+        }
+    };
+
+    template<typename Op>
+    struct NextOpSlot {
+        std::size_t key;
+        const Op *op;
+        Stage *nextStage;
+        Next toNext() const {
+            return Next { Next::TypeOf<Op>(), key };
+        }
+    };
+    template<typename Op>
+    using NextOpStore = std::vector<NextOpSlot<Op>>;
+    template<typename... Ops>
+    struct NextOpStores {
+        std::tuple<NextOpStore<Ops>...> stores;
+        template<typename Op>
+        NextOpStore<Op>& get() {
+            return std::get<NextOpStore<Op>>(stores);
+        }
+        template<typename Op>
+        const NextOpStore<Op>& get() const {
+            return std::get<NextOpStore<Op>>(stores);
+        }
+    };
+
+    // Lazily generate children.
+    bool childrenGenerated = false;
+    // Children handles.
+    std::vector<Next> nexts;
     // Node pointers. The nodes are lazily computed. We are searching bottom-up, so the children are actually closer to the input.
-    std::optional<NextBound> nexts; // If `nexts == std::nullopt`, then all children are not evaluated. If `nexts` is evaluated, all children are evaluated, but the `Stage *` may be `nullptr`, i.e., remains to be evaluated.
-    std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> finalizes;
-    std::vector<std::pair<const RepeatLikeOp * const, Stage *>> nextRepeatLikes;
-    std::vector<std::pair<const SplitLikeOp * const, Stage *>> nextSplitLikes;
-    std::vector<std::pair<const MergeLikeOp * const, Stage *>> nextMergeLikes;
+    std::vector<NextFinalizeSlot> nextFinalizations;
+    NextOpStores<ShiftOp, StrideOp, SplitOp, UnfoldOp, MergeOp, ShareOp> nextOpStores;
 
     // Metadata.
     Sampler& sampler;
-    Colors colors;
-    std::vector<std::reference_wrapper<const Size>> missingSizes;
-    std::size_t depth; // Stages with identical interfaces must be the same depth.
-
     StageStore& getStageStore();
+    Colors colors;
+    // std::vector<std::reference_wrapper<const Size>> missingSizes;
+    std::size_t depth; // Stages with identical interfaces must be of the same depth.
 
     // This checks whether the nexts are evaluated. If not, it evaluates them.
     void guard();
 
-    TensorView *getFinalize(std::size_t index);
+    // Execute the finalization to obtain TensorView.
+    TensorView *getFinalize(std::size_t key);
 
     static constexpr Colors::Options colorsOptions = {
         .maximumTensors = 2,
     };
 
-    template<PrimitiveOp NextOp>
-    Stage *getNext(const NextOp *op) {
+    // Apply the Op to obtain Stage.
+    template<typename Op>
+    Stage *getNextOp(const Op *op) {
         StageStore& store = getStageStore();
         auto newInterface = interface;
         auto newColors = colors;
@@ -132,18 +145,21 @@ class Stage {
 public:
     Stage(auto&& interface, auto&& colors, Sampler& sampler, std::size_t depth):
         interface { std::forward<decltype(interface)>(interface) },
-        sampler { sampler },
+        sampler { std::forward<decltype(sampler)>(sampler) },
         colors { std::forward<decltype(colors)>(colors) },
         depth { depth }
     {
-        // Compute colors and missing sizes. TODO.
+        // Compute missing sizes. TODO.
     }
     inline const ColoredInterface& getInterface() const { return interface; }
     std::size_t countChildren();
-    bool isFinal(std::size_t index);
-    std::variant<Stage *, TensorView *> next(std::size_t index);
-    std::string opType(std::size_t index);
-    std::string opDescription(std::size_t index);
+    inline const std::vector<Next>& getChildrenHandles() {
+        guard();
+        return nexts;
+    }
+    Node getChild(Next next);
+    std::string shapeToString() const;
+    std::string description() const;
 };
 
 } // namespace kas

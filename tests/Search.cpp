@@ -37,15 +37,15 @@ TEST(search_tests, sampler) {
     constexpr std::size_t trials = 100;
     std::size_t successes = 0;
     for (int i = 0; i < trials; ++i) {
-        auto path = sampler.randomPathWithPrefix({});
-        if (!sampler.isFinal(path)) {
+        auto node = sampler.randomNodeWithPrefix({});
+        if (!node.isFinal()) {
             fmt::print("Trial {} failed.\n", i);
             continue;
         } else {
             fmt::print("Trial {} succeeded.\n", i);
         }
         ++successes;
-        auto& tensorView = *sampler.realize(path);
+        auto& tensorView = *node.asKernel();
 
         auto r = tensorView.getUnderlyingTensors() | std::ranges::views::transform([&](const auto& tensor) { return tensor.shapeToString(ctx); });
         std::cout << fmt::format("Input Shape: {}", fmt::join(r, ", ")) << std::endl;

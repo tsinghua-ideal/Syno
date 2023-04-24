@@ -25,11 +25,12 @@ protected:
 TEST_F(codegen_tests, generate) {
     std::size_t i = 0;
     while (true) {
-        auto sample = sampler.randomSample();
-        if (!sample) {
+        auto node = sampler.randomNodeWithPrefix({});
+        if (!node.isFinal()) {
             ++i;
             continue;
         }
+        auto sample = node.asKernel();
         std::cout << sample->printNestedLoopsForAll(ctx);
         HalideGen gen { ctx, *sample, {
             .useGPU = false,
