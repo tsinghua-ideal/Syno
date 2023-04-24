@@ -49,26 +49,22 @@ class Stage;
 class StageStore {
     DimensionStore dimensionStore;
     struct Hash {
-        std::size_t operator()(const ColoredInterface *interface) const noexcept {
-            std::size_t h = interface->items.size();
-            for (const auto& dim: interface->items) {
-                HashCombine(h, dim.dimension.hash());
-            }
-            return h;
-        }
+        using is_transparent = void;
+        std::size_t operator()(const ColoredInterface& interface) const noexcept;
+        std::size_t operator()(const Stage * stage) const noexcept;
     };
     struct Equal {
-        bool operator()(const ColoredInterface *lhs, const ColoredInterface *rhs) const noexcept {
-            return std::ranges::equal(lhs->items, rhs->items, std::equal_to<Dimension>{}, ColoredDimension::Projection{}, ColoredDimension::Projection{});
-        }
+        using is_transparent = void;
+        bool operator()(const ColoredInterface& lhs, const ColoredInterface& rhs) const noexcept;
+        bool operator()(const ColoredInterface& lhs, const Stage *rhs) const noexcept;
+        bool operator()(const Stage *lhs, const ColoredInterface& rhs) const noexcept;
+        bool operator()(const Stage *lhs, const Stage *rhs) const noexcept;
     };
-    std::unordered_set<ColoredInterface *, Hash, Equal> interfaces;
+    std::unordered_set<Stage *, Hash, Equal> interfaces;
 
-    // This is just the `container_of()` in Linux kernel.
-    static Stage *Convert(ColoredInterface *from);
 public:
     inline DimensionStore& dimStore() { return dimensionStore; }
-    Stage *find(ColoredInterface *interface) const;
+    Stage *find(const ColoredInterface& interface) const;
     bool insert(Stage *stage);
     ~StageStore();
 };
@@ -115,7 +111,7 @@ class Stage {
         if (!newColors.isConsistent()) {
             return nullptr; // Inconsistent colors. This failed.
         }
-        if (Stage *found = store.find(&newInterface); found) {
+        if (Stage *found = store.find(newInterface); found) {
             return found;
         } else {
             auto tempStage = std::make_unique<Stage>(std::move(newInterface), std::move(newColors), sampler, depth + 1);

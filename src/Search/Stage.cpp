@@ -32,26 +32,47 @@ Next NextBound::get(std::size_t index) const {
     throw std::runtime_error("Invalid index for Next.");
 }
 
-Stage *StageStore::Convert(ColoredInterface *from) {
-    return reinterpret_cast<Stage *>(reinterpret_cast<std::size_t>(from) - offsetof(Stage, interface));
+std::size_t StageStore::Hash::operator()(const ColoredInterface& interface) const noexcept {
+    std::size_t h = interface.items.size();
+    for (const auto& dim: interface.items) {
+        HashCombine(h, dim.dimension.hash());
+    }
+    return h;
 }
 
-Stage *StageStore::find(ColoredInterface *interface) const {
-    KAS_ASSERT(std::ranges::is_sorted(interface->items, Dimension::HashLessThan{}, ColoredDimension::Projection{}), "Interface is not sorted.");
+std::size_t StageStore::Hash::operator()(const Stage * stage) const noexcept {
+    return (*this)(stage->interface);
+}
+
+bool StageStore::Equal::operator()(const ColoredInterface& lhs, const ColoredInterface& rhs) const noexcept {
+    return std::ranges::equal(lhs.items, rhs.items, std::equal_to<Dimension>{}, ColoredDimension::Projection{}, ColoredDimension::Projection{});
+}
+bool StageStore::Equal::operator()(const ColoredInterface& lhs, const Stage *rhs) const noexcept {
+    return (*this)(lhs, rhs->interface);
+}
+bool StageStore::Equal::operator()(const Stage *lhs, const ColoredInterface& rhs) const noexcept {
+    return (*this)(lhs->interface, rhs);
+}
+bool StageStore::Equal::operator()(const Stage *lhs, const Stage *rhs) const noexcept {
+    return (*this)(lhs->interface, rhs->interface);
+}
+
+Stage *StageStore::find(const ColoredInterface& interface) const {
+    KAS_ASSERT(std::ranges::is_sorted(interface.items, Dimension::HashLessThan{}, ColoredDimension::Projection{}), "Interface is not sorted.");
     if (auto it = interfaces.find(interface); it != interfaces.end()) {
-        return Convert(*it);
+        return *it;
     } else {
         return nullptr;
     }
 }
 
 bool StageStore::insert(Stage *stage) {
-    return interfaces.insert(&stage->interface).second;
+    return interfaces.insert(stage).second;
 }
 
 StageStore::~StageStore() {
     for (auto interface: interfaces) {
-        delete Convert(interface);
+        delete interface;
     }
 }
 
