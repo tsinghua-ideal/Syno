@@ -77,3 +77,66 @@ class KASConv(nn.Module):
         x = self.layers(image)
 
         return self.linear(x.view(B, -1))
+
+
+class KASGrayConv(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.blocks = nn.ModuleList([
+            nn.Conv2d(1, 32, 5, padding='same'),
+            nn.ReLU(),
+            nn.MaxPool2d(4, 4),
+        ])
+
+        self.linear = nn.Linear(32*7*7, 10)
+
+        self.layers = None
+
+    def bootstraped(self) -> bool:
+        return self.layers is not None
+
+    def generatePlaceHolder(self, x: Tensor) -> Tensor:
+        """Replace blocks with Placeholder for search"""
+        assert not self.bootstraped(), "the module has been replaced"
+
+        layers = []
+
+        # record the shape
+        for block in self.blocks:
+
+            if isinstance(block, nn.Conv2d):
+                N, C1, H, W = x.size()
+                assert C1 == 1
+
+            x = block(x)
+
+            if isinstance(block, nn.Conv2d):
+                N2, C2, H2, W2 = x.size()
+                assert N2 == N, f"Batch size change detected! {N} -> {N2}. "
+                assert H2 == H and W2 == W, "Not using same padding. "
+                block = Placeholder(
+                    {"N": N, "C_out": C2, "H": H, "W": W})
+
+            layers.append(block)
+
+        self.layers = nn.ModuleList(layers)
+
+        return x
+
+    def show_placeholders(self):
+        print("\nShow placeholders....")
+        for block in self.layers:
+            if isinstance(block, Placeholder):
+                print(block.kernel._module)
+                print([weight.size() for weight in block.kernel.weights])
+                print([weight for weight in block.kernel.weights])
+
+    def forward(self, image: Tensor) -> Tensor:
+        B = image.size(0)
+        x = image.squeeze(1)
+
+        for layer in self.layers:
+            x = layer(x)
+
+        return self.linear(x.view(B, -1))

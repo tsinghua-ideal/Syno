@@ -6,7 +6,6 @@ import math
 # Systems
 import time
 import random
-from copy import deepcopy
 from typing import List
 import os
 import sys
@@ -18,7 +17,7 @@ from kas_cpp_bindings import CodeGenOptions
 
 from train import train
 from utils.data import get_dataloader
-from utils.models import KASConv
+from utils.models import KASGrayConv as KASConv
 from utils.parser import arg_parse
 
 
@@ -40,7 +39,8 @@ class ModelBackup:
         if len(pack) > 0:
             assert isinstance(pack[0], KernelPack
                               ), f"elements in pack are not valid! {type(pack[0])}"
-            Modifier.kernel_replace(placeholders, deepcopy(pack))
+            Modifier.kernel_replace(placeholders, pack)
+        model.show_placeholders()
         model = model.to(device)
         return model
 
@@ -98,7 +98,12 @@ class Searcher(MCTS):
     def search(self, iterations=1000):
         for iter in range(iterations):
             print(f"Iteration {iter}")
-            self.update(f"Iteration{iter}")
+            while True:
+                try:
+                    self.update(f"Iteration{iter}")
+                    break
+                except Exception as e:
+                    print("Catched error {}, retrying".format(e))
 
 
 if __name__ == '__main__':
@@ -125,7 +130,7 @@ if __name__ == '__main__':
     )
 
     kas_sampler = Sampler(
-        input_shape="[N,C_in,H,W]",
+        input_shape="[N,H,W]",  # "[N,C_in,H,W]",
         output_shape="[N,C_out,H,W]",
         primary_specs=[],
         coefficient_specs=["s_1=2: 2", "k_1=3", "5"],
