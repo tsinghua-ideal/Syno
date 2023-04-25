@@ -6,10 +6,10 @@ import os
 
 def test_sample():
     options = SampleOptions()
-    sampler = Sampler("[H,W]", "[H,W]", ["H=16", "W=16"], ["s=2"], options)
+    sampler = Sampler("[H,W]", "[H,W]", ["H=16", "W=16"], ["s=2"], [], options)
     trials = 0
     while True:
-        sample = sampler.random_node_with_prefix([])
+        _, sample = sampler.random_node_with_prefix([])
         trials += 1
         if sample.is_final():
             break
