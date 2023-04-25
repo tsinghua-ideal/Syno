@@ -9,7 +9,7 @@ def arg_parse():
     # Dataset.
     parser.add_argument('--seed', type=int, default=42, metavar='S',
                         help='Random seed (default: 42)')
-    parser.add_argument('--batch-size', metavar='N', type=int, default=128,
+    parser.add_argument('--batch-size', metavar='N', type=int, default=500,
                         help='Batch size')
 
     # Optimizer parameters.
