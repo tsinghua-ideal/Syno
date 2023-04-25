@@ -26,7 +26,7 @@ def test_sampler():
     net = Model()
     # path = sampler.sample(net)
     kernelPacks = sampler.SampleKernel(net)
-    Modifier.KernelReplace(net, kernelPacks)
+    Modifier.kernel_replace(net, kernelPacks)
     in_tensor = torch.randn((16, 16))
     out_tensor = net(in_tensor)
     print("First output:", out_tensor)

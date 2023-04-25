@@ -10,6 +10,7 @@ from .KernelPack import KernelPack
 from .Placeholder import Placeholder
 from .Modifier import Modifier
 
+
 class Sampler:
     def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, save_path: str = './save', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot):
         options = kas_cpp_bindings.SampleOptions(
@@ -51,7 +52,7 @@ class Sampler:
         save_path = os.path.join(self._save_path, identifier_prefix)
         kernelPacks = []
         os.makedirs(save_path, exist_ok=True)
-        for i, placeholder in enumerate(Modifier.FindPlaceholders(net)):
+        for i, placeholder in enumerate(Modifier.find_placeholders(net)):
             kernel_name = f'kernel_{i}'
             mappings = placeholder.mappings
             logging.debug(f"For kernel_{i} mappings: {mappings}")
