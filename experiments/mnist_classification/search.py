@@ -12,7 +12,7 @@ import sys
 import logging
 
 # KAS
-from KAS import MCTS, Sampler, Modifier, KernelPack
+from KAS import MCTS, Sampler, Modifier, KernelPack, Node
 from kas_cpp_bindings import CodeGenOptions
 
 from train import train
@@ -54,32 +54,6 @@ class Searcher(MCTS):
         self._save_path = save_path
         self._train_params = train_params
 
-    def generate_kernel(self, model: nn.Module, path: List[int], prefix: str) -> List[KernelPack]:
-        """Generate a kernel. """
-        kernel = self._sampler._realize(path)
-        logging.debug(f"Path: {self._sampler._path_str(path)}")
-        logging.debug(f"Kernel: {kernel}")
-
-        identifier_prefix = prefix + '_' + '_'.join(map(str, path))
-        save_path = os.path.join(self._save_path, identifier_prefix)
-        kernelPacks = []
-        os.makedirs(save_path, exist_ok=True)
-        for i, placeholder in enumerate(Modifier.find_placeholders(model)):
-            kernel_name = f'kernel_{i}'
-            mappings = placeholder.mappings
-            logging.debug(f"For kernel_{i} mappings: {mappings}")
-            kernel.generate(save_path, kernel_name, mappings)
-            identifier = identifier_prefix + "__" + str(i)
-            inputs_shapes = kernel.get_inputs_shapes(mappings)
-            logging.debug(f"Inputs shapes: {inputs_shapes}")
-            output_shape = kernel.get_output_shape(mappings)
-            logging.debug(f"Output shape: {output_shape}")
-            kernelPacks.append(
-                KernelPack(identifier, save_path, kernel_name,
-                           inputs_shapes, output_shape, self._sampler._device)
-            )
-        return kernelPacks
-
     def _eval_model(self, model: nn.Module) -> float:
         train_error, val_error = train(
             model, **self._train_params, verbose=True)
@@ -88,9 +62,9 @@ class Searcher(MCTS):
         return accuracy
 
     def update(self, prefix="") -> None:
-        path = self.do_rollout([])
+        path = self.do_rollout(kas_sampler.root())
         model = self._model.create_instance()
-        kernelPacks = self.generate_kernel(model, path, prefix)
+        kernelPacks = self._sampler.realize(model, path, prefix)
         model = self._model.restore_model_params(model, kernelPacks)
         reward = self._eval_model(model)
         self.back_propagate(path, reward)
@@ -101,7 +75,7 @@ class Searcher(MCTS):
             while True:
                 try:
                     self.update(f"Iteration{iter}")
-                    break
+                    # break
                 except Exception as e:
                     print("Catched error {}, retrying".format(e))
 
@@ -124,7 +98,7 @@ if __name__ == '__main__':
         criterion=nn.CrossEntropyLoss(),
         lr=0.1,
         momentum=0.9,
-        epochs=30,
+        epochs=1,
         val_period=1,
         use_cuda=torch.cuda.is_available()
     )

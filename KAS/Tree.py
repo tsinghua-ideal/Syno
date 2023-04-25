@@ -70,7 +70,7 @@ class MCTS:
     def _simulate(self, node: Node) -> Tuple[Node, bool]:
         "Returns a random simulation (to completion) of `node`"
         node = self._sampler.random_node_with_prefix(node.path)
-        return node, not node.is_dead_end()
+        return node, node.is_final()
 
     # Move increment of `_N` to `do_rollout` for parallel search. TODO
     def back_propagate(self, node: Node, reward: float) -> None:
