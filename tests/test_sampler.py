@@ -2,8 +2,7 @@ import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import KAS
-from KAS import Sampler, Placeholder, CodeGenOptions, Modifier
+from KAS import Sampler, Placeholder, CodeGenOptions
 
 
 class Model(nn.Module):
@@ -20,13 +19,17 @@ class Model(nn.Module):
 
 
 def test_sampler():
-    sampler = Sampler("[H,W]", "[N,C,H,W]", [], ["s_1=2", "s_2=2"], depth=2,
+    net = Model()
+    sampler = Sampler("[H,W]", "[N,C,H,W]", [], ["s_1=2", "s_2=2"], net=net, seed=42, depth=2,
                       cuda=False, autoscheduler=CodeGenOptions.ComputeRoot)
 
-    net = Model()
-    # path = sampler.sample(net)
-    kernelPacks = sampler.SampleKernel(net)
-    Modifier.KernelReplace(net, kernelPacks)
+    while True:
+        node = sampler.random_node_with_prefix([])
+        if node.is_final():
+            break
+    kernel_packs = sampler.realize(net, node, "test_sampler")
+    sampler.replace(net, kernel_packs)
+
     in_tensor = torch.randn((16, 16))
     out_tensor = net(in_tensor)
     print("First output:", out_tensor)
@@ -37,8 +40,10 @@ def test_sampler():
     loss.backward()
     # descent
     with torch.no_grad():
+        # get max component
+        max_grad = max(torch.max(param.grad) for param in net.parameters())
         for param in net.parameters():
-            param -= param.grad * 1.0e-5
+            param -= param.grad / max_grad * 1.0e-3
             param.grad.zero_()
     out_tensor = net(in_tensor)
     print("Second output:", out_tensor)

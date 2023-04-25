@@ -64,7 +64,7 @@ public:
     // A specification has the following forms:
     // <literal-value> [: <max-occurrencens>]
     // <variable-name> [= <literal-value>] [: <max-occurrencens>]
-    Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options);
+    Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, int>>& allMappings, const SampleOptions& options);
     Sampler(const Sampler&) = delete;
     Sampler(Sampler&&) = delete;
 

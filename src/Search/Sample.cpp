@@ -48,7 +48,7 @@ namespace {
     }
 }
 
-Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const SampleOptions& options):
+Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, int>>& allMappings, const SampleOptions& options):
     rng { options.seed },
     options { options },
     colorOptions { .maximumTensors = options.maximumTensors }

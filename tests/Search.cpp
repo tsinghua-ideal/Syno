@@ -28,7 +28,7 @@ TEST(search_tests, sampler) {
         .dimUpperBound = 6,
         .maximumTensors = 2,
     };
-    Sampler sampler("[H,W]", "[H,W]", {}, {"k_1=3", "s_1=2", "k_2=5", "s_2=4"}, options);
+    Sampler sampler("[H,W]", "[H,W]", {}, {"k_1=3", "s_1=2", "k_2=5", "s_2=4"}, {}, options);
     auto& ctx = sampler.getBindingContext();
     BindingContext::PublicCtx = &ctx; // For debugging.
     ASSERT_EQ(ctx.getPrimaryCount(), 2);

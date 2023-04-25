@@ -116,8 +116,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<Sampler>(m, "Sampler")
         .def(
-            pybind11::init<std::string, std::string, std::vector<std::string>, std::vector<std::string>, SampleOptions>(),
-            pybind11::arg("input_shape"), pybind11::arg("output_shape"), pybind11::arg("primary_specs"), pybind11::arg("coefficient_specs"), pybind11::arg("options"))
+            pybind11::init<std::string, std::string, std::vector<std::string>, std::vector<std::string>, std::vector<std::map<std::string, int>>, SampleOptions>(),
+            pybind11::arg("input_shape"), pybind11::arg("output_shape"), pybind11::arg("primary_specs"), pybind11::arg("coefficient_specs"), pybind11::arg("all_mappings"), pybind11::arg("options"))
         .def(
             "visit", &Sampler::visit,
             pybind11::arg("path")
