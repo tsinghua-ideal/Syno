@@ -24,6 +24,20 @@ class Path:
 
     def __init__(self, path: List[PseudoNext]) -> None:
         self.abs_path: AbsolutePath = [Path.to_next(n) for n in path]
+    
+    def __len__(self) -> int:
+        return len(self.abs_path)
+
+    def __iter__(self):
+        return iter(self.abs_path)
+
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, Path):
+            return False
+        return self.abs_path == __value.abs_path
+    
+    def __hash__(self) -> int:
+        return hash(tuple(self.abs_path))
 
     def append(self, next: PseudoNext):
         self.abs_path.append(Path.to_next(next))
@@ -41,8 +55,17 @@ class Path:
 class Node:
     """A node in Python, not necessarily corresponding to a C++ node."""
 
-    def __init__(self, node: kas_cpp_bindings.Node) -> None:
+    def __init__(self, path: Path, node: kas_cpp_bindings.Node) -> None:
+        self.path = path
         self._node = node
+
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, Node):
+            return False
+        return self.path == __value.path
+    
+    def __hash__(self) -> int:
+        return hash(tuple(self.path))
 
     def children_count(self) -> int:
         return self._node.children_count()
@@ -58,7 +81,7 @@ class Node:
         return result
 
     def get_child(self, next: PseudoNext) -> 'Node':
-        return Node(self._node.get_child(Path.to_next(next)))
+        return Node(self.path.concat(next), self._node.get_child(Path.to_next(next)))
 
     def is_final(self) -> bool:
         return self._node.is_final()

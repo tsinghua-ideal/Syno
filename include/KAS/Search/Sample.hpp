@@ -84,7 +84,7 @@ public:
     // The following APIs can be provided for Python bindings.
     Node visit(const std::vector<Next>& path);
     // The path is intended to visit a TensorView, but it may fail, in which case we rely on the search algorithm to penalize it.
-    Node randomNodeWithPrefix(const std::vector<Next>& prefix);
+    std::pair<std::vector<Next>, Node> randomNodeWithPrefix(const std::vector<Next>& prefix);
 };
 
 } // namespace kas

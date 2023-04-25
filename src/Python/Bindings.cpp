@@ -72,6 +72,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         )
         .def_readwrite("type", &Next::type)
         .def_readwrite("key", &Next::key)
+        .def("__eq__", &Next::operator==)
+        .def("__hash__", &Next::hash)
         .def(
             "description", &Next::description,
             pybind11::arg("based_on_node")

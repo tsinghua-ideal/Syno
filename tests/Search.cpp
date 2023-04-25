@@ -37,7 +37,7 @@ TEST(search_tests, sampler) {
     constexpr std::size_t trials = 100;
     std::size_t successes = 0;
     for (int i = 0; i < trials; ++i) {
-        auto node = sampler.randomNodeWithPrefix({});
+        auto [_, node] = sampler.randomNodeWithPrefix({});
         if (!node.isFinal()) {
             fmt::print("Trial {} failed.\n", i);
             continue;

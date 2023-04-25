@@ -2,7 +2,7 @@ import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from KAS import Sampler, Placeholder, CodeGenOptions
+from KAS import Sampler, Placeholder, CodeGenOptions, Path
 
 
 class Model(nn.Module):
@@ -24,7 +24,7 @@ def test_sampler():
                       cuda=False, autoscheduler=CodeGenOptions.ComputeRoot)
 
     while True:
-        node = sampler.random_node_with_prefix([])
+        node = sampler.random_node_with_prefix(Path([]))
         if node.is_final():
             break
     kernel_packs = sampler.realize(net, node, "test_sampler")
@@ -43,7 +43,7 @@ def test_sampler():
         # get max component
         max_grad = max(torch.max(param.grad) for param in net.parameters())
         for param in net.parameters():
-            param -= param.grad / max_grad * 1.0e-3
+            param -= param.grad / max_grad * 1.0e-4
             param.grad.zero_()
     out_tensor = net(in_tensor)
     print("Second output:", out_tensor)

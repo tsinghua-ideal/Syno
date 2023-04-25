@@ -25,7 +25,7 @@ protected:
 TEST_F(codegen_tests, generate) {
     std::size_t i = 0;
     while (true) {
-        auto node = sampler.randomNodeWithPrefix({});
+        auto [_, node] = sampler.randomNodeWithPrefix({});
         if (!node.isFinal()) {
             ++i;
             continue;

@@ -9,6 +9,7 @@
 #include <fmt/core.h>
 
 #include <KAS/Transforms.hpp>
+#include "KAS/Utils/Hash.hpp"
 
 namespace kas {
 
@@ -31,6 +32,17 @@ struct Next {
     Type type;
     // This can be hash, or any arbitrary fixed number, as long as this is invariant between runs.
     std::size_t key;
+
+    // For Python.
+    bool operator==(const Next& rhs) const noexcept {
+        return type == rhs.type && key == rhs.key;
+    }
+    // For Python.
+    std::size_t hash() const noexcept {
+        std::size_t h = static_cast<std::size_t>(type);
+        HashCombine(h, key);
+        return h;
+    }
 
     // <type>(<key>)
     std::string toString() const;

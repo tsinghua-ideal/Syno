@@ -119,7 +119,8 @@ Node Sampler::visit(const std::vector<Next>& path) {
     return n;
 }
 
-Node Sampler::randomNodeWithPrefix(const std::vector<Next>& prefix) {
+std::pair<std::vector<Next>, Node> Sampler::randomNodeWithPrefix(const std::vector<Next>& prefix) {
+    std::vector<Next> path = prefix;
     Node cur = visit(prefix);
     // Recursively visit children.
     while (true) {
@@ -128,9 +129,10 @@ Node Sampler::randomNodeWithPrefix(const std::vector<Next>& prefix) {
             break;
         }
         auto next = cur.getChildrenHandles()[random(cnt)];
+        path.emplace_back(next);
         cur = cur.getChild(next);
     };
-    return cur;
+    return { std::move(path), std::move(cur) };
 }
 
 } // namespace kas

@@ -33,7 +33,7 @@ class Sampler:
         self._save_path = save_path
 
         all_mappings = []
-        if net != None:
+        if net is not None:
             placeholders = Sampler._extract_placeholders(net)
             if len(placeholders) == 0:
                 raise ValueError('No placeholders found in the network.')
@@ -47,21 +47,24 @@ class Sampler:
 
     def root(self) -> Node:
         """Get the root node."""
-        return Node(self._sampler.visit([]))
+        return self.visit([])
 
     def visit(self, path: Path) -> Node:
         """Visit a node via a path."""
-        return Node(self._sampler.visit(path.abs_path))
+        path = Path(path)
+        return Node(path, self._sampler.visit(path.abs_path))
 
     def random_node_with_prefix(self, prefix: Path) -> Node:
         """Find a leaf node with specified prefix. Note that the Node is not necessarily final."""
-        return Node(self._sampler.random_node_with_prefix(prefix))
+        prefix = Path(prefix)
+        path, node = self._sampler.random_node_with_prefix(prefix.abs_path)
+        return Node(Path(path), node)
 
     def path_to_strs(self, path: Path) -> List[str]:
         node = self.root()
         strs = []
-        for next in path.abs_path:
-            strs.append(next.description(node))
+        for next in path:
+            strs.append(next.description(node._node))
             node = node.get_child(next)
         return strs
 
