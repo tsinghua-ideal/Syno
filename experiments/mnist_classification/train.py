@@ -31,6 +31,7 @@ def train(
     train_errors = []
     val_errors = []
 
+    start = time.time()
     for epoch in range(epochs):
         correct = 0
         total = 0
@@ -78,7 +79,7 @@ def train(
 
                 val_errors.append(1 - correct / total)
 
-        if (epoch + 1) % 10 == 0 and verbose:
+        if (epoch + 1) % 5 == 0 and verbose:
             print(
                 f'Epoch {epoch+1}, train loss {train_loss}, train error {train_errors[-1]}, validation error {val_errors[-1]}, elapsed {time.time() - start}')
             start = time.time()
