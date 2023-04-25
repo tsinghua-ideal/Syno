@@ -72,12 +72,10 @@ class Searcher(MCTS):
     def search(self, iterations=1000):
         for iter in range(iterations):
             print(f"Iteration {iter}")
-            while True:
-                try:
-                    self.update(f"Iteration{iter}")
-                    # break
-                except Exception as e:
-                    print("Catched error {}, retrying".format(e))
+            try:
+                self.update(f"Iteration{iter}")
+            except Exception as e:
+                print("Catched error {}, retrying".format(e))
 
 
 if __name__ == '__main__':
