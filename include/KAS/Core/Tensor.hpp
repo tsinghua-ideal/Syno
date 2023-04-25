@@ -26,6 +26,7 @@ public:
     inline const std::vector<Dimension>& getDimensions() const { return dims; }
     inline ShapeView getShape() const { return ShapeView(dims); }
     std::string shapeToString(const BindingContext& ctx) const;
+    std::string description(const BindingContext& ctx) const;
 };
 
 struct AbstractAccess {
@@ -95,6 +96,8 @@ public:
     // Evaluate the full loops.
     std::string printNestedLoops(const BindingContext& ctx, int pos) const;
     std::string printNestedLoopsForAll(const BindingContext& ctx) const;
+
+    std::string description(const BindingContext& ctx) const;
 };
 
 } // namespace kas

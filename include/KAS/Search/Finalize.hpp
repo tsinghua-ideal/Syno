@@ -17,10 +17,22 @@ namespace kas {
 class FinalizeOp {
     friend class Stage;
     std::vector<Interface> tensors;
+    std::size_t hash;
 
 public:
-    FinalizeOp(auto&& tensors): tensors { std::forward<decltype(tensors)>(tensors) } {}
+    FinalizeOp(auto&& tensors):
+        tensors { std::forward<decltype(tensors)>(tensors) }
+    {
+        std::size_t h = this->tensors.size();
+        for (const auto& tensor : this->tensors) {
+            HashCombine(h, tensor);
+        }
+        hash = h;
+    }
     std::unique_ptr<TensorView> buildTensorView() const;
+    inline std::size_t getHash() const noexcept { return hash; }
+
+    std::string description(const BindingContext& ctx) const;
 
     static bool Prune(const std::vector<Graph::ConnectedComponent>& components, const std::vector<Interface>& trial);
 

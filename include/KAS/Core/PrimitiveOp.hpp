@@ -153,9 +153,7 @@ public:
         }
     public:
         inline std::size_t hash() const noexcept final override {
-            std::size_t h = op->initialHash();
-            HashCombine(h, op->output.hash());
-            return h;
+            return op->opHash();
         }
         void accept(DimVisitor& visitor) const final override;
         inline const RepeatLikeOp *getOp() const noexcept { return op; }
@@ -168,6 +166,11 @@ public:
     RepeatLikeOp(RepeatLikeOp&&) = delete; // Do not move! Same reason.
     virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
+    inline std::size_t opHash() const noexcept {
+        std::size_t h = initialHash();
+        HashCombine(h, output.hash());
+        return h;
+    }
     // We would like to store the DimensionImpl inside this class, so we can just return a reference to part of this object.
     virtual Dimension getInput() const = 0;
 
@@ -177,6 +180,10 @@ public:
 
     virtual inline std::pair<bool, CompactColorType> transformColor(CompactColorType fro) const { return { true, fro }; }
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
+
+    inline std::string description(const BindingContext& ctx) const {
+        return fmt::format("{} -> {}", getInput().description(ctx), output.description(ctx));
+    }
 
     ~RepeatLikeOp() = default;
 };
@@ -207,10 +214,7 @@ public:
         }
     public:
         inline std::size_t hash() const noexcept final override {
-            std::size_t h = op->initialHash();
-            HashCombine(h, op->outputLhs.hash());
-            HashCombine(h, op->outputRhs.hash());
-            return h;
+            return op->opHash();
         }
         void accept(DimVisitor& visitor) const final override;
         inline const SplitLikeOp *getOp() const noexcept { return op; }
@@ -224,6 +228,12 @@ public:
     SplitLikeOp(SplitLikeOp&&) = delete;
     virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
+    inline std::size_t opHash() const noexcept {
+        std::size_t h = initialHash();
+        HashCombine(h, outputLhs.hash());
+        HashCombine(h, outputRhs.hash());
+        return h;
+    }
     virtual Dimension getInput() const = 0;
 
     using Values = Valuations<BranchCount>;
@@ -231,6 +241,10 @@ public:
 
     virtual inline std::tuple<bool, CompactColorType, CompactColorType> transformColor(CompactColorType fro) const { return { true, fro, fro }; }
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
+
+    inline std::string description(const BindingContext& ctx) const {
+        return fmt::format("{} -> {}, {}", getInput().description(ctx), outputLhs.description(ctx), outputRhs.description(ctx));
+    }
 
     ~SplitLikeOp() = default;
 };
@@ -262,8 +276,7 @@ public:
         }
     public:
         inline std::size_t hash() const noexcept final override {
-            std::size_t h = op->initialHash();
-            HashCombine(h, op->output.hash());
+            std::size_t h = op->opHash();
             HashCombine(h, order);
             return h;
         }
@@ -282,6 +295,11 @@ public:
     MergeLikeOp(MergeLikeOp&&) = delete;
     virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
+    inline std::size_t opHash() const noexcept {
+        std::size_t h = initialHash();
+        HashCombine(h, output.hash());
+        return h;
+    }
     virtual Dimension getInputL() const = 0;
     virtual Dimension getInputR() const = 0;
 
@@ -290,6 +308,10 @@ public:
 
     virtual inline std::pair<bool, CompactColorType> transformColor(CompactColorType fro1, CompactColorType fro2) const { return { true, fro1 | fro2 }; }
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
+
+    inline std::string description(const BindingContext& ctx) const {
+        return fmt::format("{}, {} -> {}", getInputL().description(ctx), getInputR().description(ctx), output.description(ctx));
+    }
 
     ~MergeLikeOp() = default;
 };

@@ -72,6 +72,8 @@ public:
     std::string whatReduce() const;
     std::string what() const;
 
+    std::string description(const BindingContext& ctx) const;
+
     struct GenerateOptions {
         const BindingContext& ctx;
         std::size_t dimUpperBound;

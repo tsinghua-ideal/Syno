@@ -25,6 +25,10 @@ std::string PureTensor::shapeToString(const BindingContext& ctx) const {
     return getShape().toString(ctx);
 }
 
+std::string PureTensor::description(const BindingContext& ctx) const {
+    return DimensionArrayToString(dims, ctx);
+}
+
 std::string AbstractAccess::outerLoopsIteratorsToString() const {
     return VectorToString(outerLoops
         | std::views::transform([](const IteratorValue& it) {
@@ -141,6 +145,10 @@ std::string TensorView::printNestedLoopsForAll(const BindingContext& ctx) const 
         ss << printNestedLoops(ctx, i);
     }
     return ss.str();
+}
+
+std::string TensorView::description(const BindingContext& ctx) const {
+    return TensorArrayToString(tensors | std::views::transform([](const PureTensor& tensor) { return tensor.getDimensions(); }), ctx);
 }
 
 TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {

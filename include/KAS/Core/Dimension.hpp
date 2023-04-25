@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <compare>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -116,6 +117,29 @@ template<typename R>
 concept DimensionRange =
     std::ranges::input_range<R> &&
     std::convertible_to<std::ranges::range_value_t<R>, Dimension>;
+
+template<DimensionRange R>
+std::string DimensionArrayToString(R&& interface, const BindingContext& ctx) {
+    return fmt::format("[{}]", fmt::join(
+        interface | std::views::transform([&ctx](auto&& dim) {
+            return dim.description(ctx);
+        }),
+    ", "));
+}
+
+template<typename R>
+concept TensorRange =
+    std::ranges::input_range<R> &&
+    DimensionRange<std::ranges::range_value_t<R>>;
+
+template<TensorRange R>
+std::string TensorArrayToString(R&& tensors, const BindingContext& ctx) {
+    return fmt::format("{}", fmt::join(
+        tensors | std::views::transform([&ctx](auto&& tensor) {
+            return DimensionArrayToString(std::forward<decltype(tensor)>(tensor), ctx);
+        }),
+    ", "));
+}
 
 } // namespace kas
 

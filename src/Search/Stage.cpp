@@ -9,29 +9,6 @@
 
 namespace kas {
 
-std::size_t NextBound::size() const {
-    return finalizeCount + repeatLikeCount + splitLikeCount + mergeLikeCount;
-}
-
-Next NextBound::get(std::size_t index) const {
-    if (index < finalizeCount) {
-        return Next { Next::Type::Finalize, index };
-    }
-    index -= finalizeCount;
-    if (index < repeatLikeCount) {
-        return Next { Next::Type::RepeatLike, index };
-    }
-    index -= repeatLikeCount;
-    if (index < splitLikeCount) {
-        return Next { Next::Type::SplitLike, index };
-    }
-    index -= splitLikeCount;
-    if (index < mergeLikeCount) {
-        return Next { Next::Type::MergeLike, index };
-    }
-    throw std::runtime_error("Invalid index for Next.");
-}
-
 std::size_t StageStore::Hash::operator()(const ColoredInterface& interface) const noexcept {
     std::size_t h = interface.items.size();
     for (const auto& dim: interface.items) {
@@ -41,20 +18,20 @@ std::size_t StageStore::Hash::operator()(const ColoredInterface& interface) cons
 }
 
 std::size_t StageStore::Hash::operator()(const Stage * stage) const noexcept {
-    return (*this)(stage->interface);
+    return (*this)(stage->getInterface());
 }
 
 bool StageStore::Equal::operator()(const ColoredInterface& lhs, const ColoredInterface& rhs) const noexcept {
     return std::ranges::equal(lhs.items, rhs.items, std::equal_to<Dimension>{}, ColoredDimension::Projection{}, ColoredDimension::Projection{});
 }
 bool StageStore::Equal::operator()(const ColoredInterface& lhs, const Stage *rhs) const noexcept {
-    return (*this)(lhs, rhs->interface);
+    return (*this)(lhs, rhs->getInterface());
 }
 bool StageStore::Equal::operator()(const Stage *lhs, const ColoredInterface& rhs) const noexcept {
-    return (*this)(lhs->interface, rhs);
+    return (*this)(lhs->getInterface(), rhs);
 }
 bool StageStore::Equal::operator()(const Stage *lhs, const Stage *rhs) const noexcept {
-    return (*this)(lhs->interface, rhs->interface);
+    return (*this)(lhs->getInterface(), rhs->getInterface());
 }
 
 Stage *StageStore::find(const ColoredInterface& interface) const {
@@ -81,65 +58,67 @@ StageStore& Stage::getStageStore() {
 }
 
 void Stage::guard() {
-    if (nexts.has_value()) {
+    if (childrenGenerated) {
         return;
     }
     const BindingContext& ctx = sampler.getBindingContext();
     const SampleOptions& options = sampler.getOptions();
     DimensionStore& store = sampler.getDimStore();
 
-    for (auto g = FinalizeOp::Generate(interface, colors, { .ctx = ctx, .desired = sampler.getInputShape(), .maximumTensors = options.maximumTensors }); auto& f: g)
-        finalizes.emplace_back(std::move(f), nullptr);
+    auto accumulate = [](const auto& slot) {
+        return slot.toNext();
+    };
 
-    std::vector<const RepeatLikeOp *> nextRepeatLikes;
-    std::vector<const SplitLikeOp *> nextSplitLikes;
-    std::vector<const MergeLikeOp *> nextMergeLikes;
+    // First add finalizations.
+    for (auto g = FinalizeOp::Generate(interface, colors, { .ctx = ctx, .desired = sampler.getInputShape(), .maximumTensors = options.maximumTensors }); auto& f: g)
+        nextFinalizations.emplace_back(f.getHash(), std::move(f), nullptr);
+    std::ranges::sort(nextFinalizations, std::less{}, &NextFinalizeSlot::key);
+    std::ranges::move(nextFinalizations | std::views::transform(accumulate), std::back_inserter(nexts));
+
+    // Wrap the generated Op in a NextOpSlot.
+    auto nextOpProcessor = [&]<typename Op>(const Op *op) -> NextOpSlot<Op> {
+        return { op->opHash(), op, getNextOp<Op>(op) };
+    };
+    // Filter out illegal transforms.
+    auto nextOpFilter = []<typename Op>(const NextOpSlot<Op>& opSlot) -> bool {
+        return opSlot.nextStage != nullptr;
+    };
+    auto add = [&]<typename Op>(const std::vector<const Op *>& newOps) {
+        std::ranges::move(
+            newOps
+            | std::views::transform(nextOpProcessor) | std::views::filter(nextOpFilter),
+            std::back_inserter(nextOpStores.get<Op>())
+        );
+        // Sort according to keys for binary search.
+        std::ranges::sort(nextOpStores.get<Op>(), std::less{}, &NextOpSlot<Op>::key);
+        // Add to all nexts.
+        std::ranges::move(nextOpStores.get<Op>() | std::views::transform(accumulate), std::back_inserter(nexts));
+    };
 
     if (depth < options.depth) {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}, TODO
         // Stride^{-1}
-        std::ranges::move(StrideOp::Generate(store, interface, colors), std::back_inserter(nextRepeatLikes));
+        add(StrideOp::Generate(store, interface, colors));
 
         // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s.
         // Split^{-1}
-        std::ranges::move(SplitOp::Generate(store, interface, colors, { .dimLowerBound = options.dimLowerBound }), std::back_inserter(nextSplitLikes));
+        add(SplitOp::Generate(store, interface, colors, { .dimLowerBound = options.dimLowerBound }));
         // Unfold^{-1}
-        std::ranges::move(UnfoldOp::Generate(store, interface, colors, { .ctx = ctx, .dimLowerBound = options.dimLowerBound }), std::back_inserter(nextSplitLikes));
+        add(UnfoldOp::Generate(store, interface, colors, { .ctx = ctx, .dimLowerBound = options.dimLowerBound }));
 
         // Try increasing dimensionality, by applying `MergeLikeOp`^{-1}s.
         // Merge^{-1}
-        std::ranges::move(MergeOp::Generate(store, interface, colors, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }), std::back_inserter(nextMergeLikes));
+        add(MergeOp::Generate(store, interface, colors, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }));
         // Share^{-1}
-        std::ranges::move(ShareOp::Generate(store, interface, colors, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }), std::back_inserter(nextMergeLikes));
+        add(ShareOp::Generate(store, interface, colors, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }));
     }
 
-    for (auto& op: nextRepeatLikes) {
-        auto stage = getNext<RepeatLikeOp>(op);
-        if (stage) this->nextRepeatLikes.emplace_back(op, stage);
-        else removeOp<RepeatLikeOp>(op);
-    }
-    for (auto& op: nextSplitLikes) {
-        auto stage = getNext<SplitLikeOp>(op);
-        if (stage) this->nextSplitLikes.emplace_back(op, stage);
-        else removeOp<SplitLikeOp>(op);
-    }
-    for (auto& op: nextMergeLikes) {
-        auto stage = getNext<MergeLikeOp>(op);
-        if (stage) this->nextMergeLikes.emplace_back(op, stage);
-        else removeOp<MergeLikeOp>(op);
-    }
-
-    nexts = NextBound {
-        .finalizeCount = finalizes.size(),
-        .repeatLikeCount = this->nextRepeatLikes.size(),
-        .splitLikeCount = this->nextSplitLikes.size(),
-        .mergeLikeCount = this->nextMergeLikes.size(),
-    };
+    childrenGenerated = true;
 }
 
-TensorView *Stage::getFinalize(std::size_t index) {
-    auto& [op, tensorView] = finalizes.at(index);
+TensorView *Stage::getFinalize(std::size_t key) {
+    auto& [_, op, tensorView] = getChildFinalizeSlot(key);
     if (!tensorView) {
         KAS_DEBUG("Building TensorView from Finalization. Iterator graph:\n{}", GraphvizGen(op.tensors, sampler.getBindingContext()).print("kernel"));
         tensorView = op.buildTensorView();
@@ -149,84 +128,32 @@ TensorView *Stage::getFinalize(std::size_t index) {
 
 std::size_t Stage::countChildren() {
     guard();
-    return nexts->size();
+    return nexts.size();
 }
 
-bool Stage::isFinal(std::size_t index) {
+Stage::NextFinalizeSlot& Stage::getChildFinalizeSlot(std::size_t key) {
     guard();
-    return nexts->get(index).type == Next::Type::Finalize;
+    auto it = std::ranges::lower_bound(nextFinalizations, key, std::less{}, &NextFinalizeSlot::key);
+    KAS_ASSERT(it != nextFinalizations.end() && it->key == key, "Specified Finalization not found.");
+    return *it;
 }
 
-std::variant<Stage *, TensorView *> Stage::next(std::size_t index) {
+Node Stage::getChild(Next next) {
     guard();
-    Next next = nexts->get(index);
     switch (next.type) {
-        case Next::Type::Finalize:
-            return getFinalize(next.index);
-        case Next::Type::RepeatLike:
-            return nextRepeatLikes.at(next.index).second;
-        case Next::Type::SplitLike:
-            return nextSplitLikes.at(next.index).second;
-        case Next::Type::MergeLike:
-            return nextMergeLikes.at(next.index).second;
+    case Next::Type::Shift: return { &sampler, getChildSlot<ShiftOp>(next.key).nextStage };
+    case Next::Type::Stride: return { &sampler, getChildSlot<StrideOp>(next.key).nextStage };
+    case Next::Type::Split: return { &sampler, getChildSlot<SplitOp>(next.key).nextStage };
+    case Next::Type::Unfold: return { &sampler, getChildSlot<UnfoldOp>(next.key).nextStage };
+    case Next::Type::Merge: return { &sampler, getChildSlot<MergeOp>(next.key).nextStage };
+    case Next::Type::Share: return { &sampler, getChildSlot<ShareOp>(next.key).nextStage };
+    case Next::Type::Finalize: return { &sampler, getFinalize(next.key) };
+    default: KAS_UNREACHABLE("Invalid Next {}.", next.toString());
     }
-    KAS_UNREACHABLE();
 }
 
-std::string Stage::opType(std::size_t index) {
-    guard();
-    Next next = nexts->get(index);
-    switch (next.type) {
-    case Next::Type::Finalize:
-        return "Finalize";
-    case Next::Type::RepeatLike:
-        return fmt::format("{}", nextRepeatLikes[next.index].first->getType());
-    case Next::Type::SplitLike:
-        return fmt::format("{}", nextSplitLikes[next.index].first->getType());
-    case Next::Type::MergeLike:
-        return fmt::format("{}", nextMergeLikes[next.index].first->getType());
-    }
-    KAS_UNREACHABLE();
-}
-
-std::string Stage::opDescription(std::size_t index) {
-    guard();
-    const BindingContext& ctx = sampler.getBindingContext();
-    Next next = nexts->get(index);
-    switch (next.type) {
-        case Next::Type::Finalize:
-            return "Finalize";
-        case Next::Type::RepeatLike: {
-            const auto& n = nextRepeatLikes[next.index].first;
-            return fmt::format(
-                "{} {} -> {}",
-                n->getType(),
-                n->getInput().description(ctx),
-                n->output.description(ctx)
-            );
-        }
-        case Next::Type::SplitLike: {
-            const auto& n = nextSplitLikes[next.index].first;
-            return fmt::format(
-                "{} {} -> {}, {}",
-                n->getType(),
-                n->getInput().description(ctx),
-                n->outputLhs.description(ctx),
-                n->outputRhs.description(ctx)
-            );
-        }
-        case Next::Type::MergeLike: {
-            const auto& n = nextMergeLikes[next.index].first;
-            return fmt::format(
-                "{} {}, {} -> {}",
-                n->getType(),
-                n->getInputL().description(ctx),
-                n->getInputR().description(ctx),
-                n->output.description(ctx)
-            );
-        }
-    }
-    KAS_UNREACHABLE();
+std::string Stage::description(const BindingContext& ctx) const {
+    return DimensionArrayToString(interface.items | std::views::transform(ColoredDimension::Projection{}), ctx);
 }
 
 } // namespace kas

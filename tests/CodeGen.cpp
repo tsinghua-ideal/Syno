@@ -13,7 +13,7 @@ namespace kas {
 
 class codegen_tests: public ::testing::Test {
 protected:
-    Sampler sampler = { "[H,W]", "[N,C,H,W]", {"N=8", "C=3", "H=16", "W=16"}, {"k=5", "s=2"}, SampleOptions {
+    Sampler sampler = { "[H,W]", "[N,C,H,W]", {"N=8", "C=3", "H=16", "W=16"}, {"k=5", "s=2"}, {}, SampleOptions {
         .seed = 19216811,
         .depth = 3,
         .dimLowerBound = 1,
@@ -25,11 +25,12 @@ protected:
 TEST_F(codegen_tests, generate) {
     std::size_t i = 0;
     while (true) {
-        auto sample = sampler.randomSample();
-        if (!sample) {
+        auto [_, node] = sampler.randomNodeWithPrefix({});
+        if (!node.isFinal()) {
             ++i;
             continue;
         }
+        auto sample = node.asKernel();
         std::cout << sample->printNestedLoopsForAll(ctx);
         HalideGen gen { ctx, *sample, {
             .useGPU = false,
