@@ -118,9 +118,7 @@ void Stage::guard() {
 }
 
 TensorView *Stage::getFinalize(std::size_t key) {
-    auto it = std::ranges::lower_bound(nextFinalizations, key, std::less{}, &NextFinalizeSlot::key);
-    KAS_ASSERT(it != nextFinalizations.end() && it->key == key, "Specified Finalization not found.");
-    auto& [_, op, tensorView] = *it;
+    auto& [_, op, tensorView] = getChildFinalizeSlot(key);
     if (!tensorView) {
         KAS_DEBUG("Building TensorView from Finalization. Iterator graph:\n{}", GraphvizGen(op.tensors, sampler.getBindingContext()).print("kernel"));
         tensorView = op.buildTensorView();
@@ -133,23 +131,29 @@ std::size_t Stage::countChildren() {
     return nexts.size();
 }
 
+Stage::NextFinalizeSlot& Stage::getChildFinalizeSlot(std::size_t key) {
+    guard();
+    auto it = std::ranges::lower_bound(nextFinalizations, key, std::less{}, &NextFinalizeSlot::key);
+    KAS_ASSERT(it != nextFinalizations.end() && it->key == key, "Specified Finalization not found.");
+    return *it;
+}
+
 Node Stage::getChild(Next next) {
     guard();
-    auto handleOp = [&]<typename Op>(NextOpStore<Op>& ops) -> Node {
-        auto it = std::ranges::lower_bound(ops, next.key, std::less{}, &NextOpSlot<Op>::key);
-        KAS_ASSERT(it != ops.end() && it->key == next.key, "Specified {} not found.", typeid(Op).name());
-        return Node { &sampler, it->nextStage };
-    };
     switch (next.type) {
-    case Next::Type::Shift: return handleOp(nextOpStores.get<ShiftOp>());
-    case Next::Type::Stride: return handleOp(nextOpStores.get<StrideOp>());
-    case Next::Type::Split: return handleOp(nextOpStores.get<SplitOp>());
-    case Next::Type::Unfold: return handleOp(nextOpStores.get<UnfoldOp>());
-    case Next::Type::Merge: return handleOp(nextOpStores.get<MergeOp>());
-    case Next::Type::Share: return handleOp(nextOpStores.get<ShareOp>());
-    case Next::Type::Finalize: return Node { &sampler, getFinalize(next.key) };
+    case Next::Type::Shift: return { &sampler, getChildSlot<ShiftOp>(next.key).nextStage };
+    case Next::Type::Stride: return { &sampler, getChildSlot<StrideOp>(next.key).nextStage };
+    case Next::Type::Split: return { &sampler, getChildSlot<SplitOp>(next.key).nextStage };
+    case Next::Type::Unfold: return { &sampler, getChildSlot<UnfoldOp>(next.key).nextStage };
+    case Next::Type::Merge: return { &sampler, getChildSlot<MergeOp>(next.key).nextStage };
+    case Next::Type::Share: return { &sampler, getChildSlot<ShareOp>(next.key).nextStage };
+    case Next::Type::Finalize: return { &sampler, getFinalize(next.key) };
     default: KAS_UNREACHABLE("Invalid Next {}.", next.toString());
     }
+}
+
+std::string Stage::description(const BindingContext& ctx) const {
+    return DimensionArrayToString(interface.items | std::views::transform(ColoredDimension::Projection{}), ctx);
 }
 
 } // namespace kas

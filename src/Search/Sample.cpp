@@ -87,8 +87,8 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         originalBases.emplace_back(std::move(temp), Colors(colorOptions), *this, 0);
     }
     auto hasher = std::hash<Interface>{};
-    std::ranges::move(originalBases | std::views::transform([&](Stage& base) { return std::pair{ hasher(base.getInterface().toInterface()), &base }; }), std::back_inserter(bases));
-    std::ranges::sort(bases, std::less{}, &std::pair<std::size_t, Stage *>::first);
+    std::ranges::move(std::views::iota(static_cast<std::size_t>(0), originalBases.size()) | std::views::transform([&](std::size_t baseIndex) { return std::pair{ hasher(originalBases[baseIndex].getInterface().toInterface()), baseIndex }; }), std::back_inserter(bases));
+    std::ranges::sort(bases, std::less{}, &std::pair<std::size_t, std::size_t>::first);
 }
 
 std::vector<Next> Sampler::getNextBases() const {
@@ -97,10 +97,18 @@ std::vector<Next> Sampler::getNextBases() const {
     return result;
 }
 
-Stage *Sampler::getBase(std::size_t key) const {
-    auto it = std::ranges::lower_bound(bases, key, std::less{}, &std::pair<std::size_t, Stage *>::first);
+std::size_t Sampler::getBaseIndex(std::size_t key) const {
+    auto it = std::ranges::lower_bound(bases, key, std::less{}, &std::pair<std::size_t, std::size_t>::first);
     KAS_ASSERT(it != bases.end() && it->first == key, "Specified MapReduce not found.");
     return it->second;
+}
+
+Stage *Sampler::getBase(std::size_t key) {
+    return &originalBases[getBaseIndex(key)];
+}
+
+const MapReduceOp::Base& Sampler::getReduce(std::size_t key) const {
+    return reduces[getBaseIndex(key)];
 }
 
 Node Sampler::visit(const std::vector<Next>& path) {

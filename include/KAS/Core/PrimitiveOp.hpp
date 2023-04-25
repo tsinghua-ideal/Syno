@@ -181,6 +181,10 @@ public:
     virtual inline std::pair<bool, CompactColorType> transformColor(CompactColorType fro) const { return { true, fro }; }
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
 
+    inline std::string description(const BindingContext& ctx) const {
+        return fmt::format("{} -> {}", getInput().description(ctx), output.description(ctx));
+    }
+
     ~RepeatLikeOp() = default;
 };
 
@@ -237,6 +241,10 @@ public:
 
     virtual inline std::tuple<bool, CompactColorType, CompactColorType> transformColor(CompactColorType fro) const { return { true, fro, fro }; }
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
+
+    inline std::string description(const BindingContext& ctx) const {
+        return fmt::format("{} -> {}, {}", getInput().description(ctx), outputLhs.description(ctx), outputRhs.description(ctx));
+    }
 
     ~SplitLikeOp() = default;
 };
@@ -300,6 +308,10 @@ public:
 
     virtual inline std::pair<bool, CompactColorType> transformColor(CompactColorType fro1, CompactColorType fro2) const { return { true, fro1 | fro2 }; }
     virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
+
+    inline std::string description(const BindingContext& ctx) const {
+        return fmt::format("{}, {} -> {}", getInputL().description(ctx), getInputR().description(ctx), output.description(ctx));
+    }
 
     ~MergeLikeOp() = default;
 };

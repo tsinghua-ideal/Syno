@@ -12,6 +12,8 @@
 
 namespace kas {
 
+class Node;
+
 struct Next {
     enum class Type: std::uint8_t {
         // Root -> Growing
@@ -32,6 +34,8 @@ struct Next {
 
     // <type>(<key>)
     std::string toString() const;
+    // Detailed descriptions of this Op, based on the node.
+    std::string description(const Node& node) const;
 
     static std::map<Type, std::size_t> CountTypes(const std::vector<Next>& nexts);
 
@@ -52,6 +56,8 @@ class Sampler;
 class Stage;
 
 class Node {
+    friend struct Next;
+
     Sampler *sampler;
 
     // A node has 3 types.
@@ -102,8 +108,7 @@ public:
     std::vector<Next> getChildrenHandles() const;
     Node getChild(Next next) const;
     inline bool isFinal() const { return type() == Type::Final; }
-    std::string shapeToString() const;
-    std::string description() const;
+    std::string toString() const;
 };
 
 }

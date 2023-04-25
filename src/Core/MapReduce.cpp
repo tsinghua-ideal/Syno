@@ -48,6 +48,10 @@ std::string MapReduceOp::what() const {
     return what(mapType) + "+" + what(reduceType);
 }
 
+std::string MapReduceOp::description(const BindingContext& ctx) const {
+    return Dimension(this).description(ctx);
+}
+
 std::vector<MapReduceOp::Base> MapReduceOp::GenerateLastLevelMapReduces(const Shape& outputShape, GenerateOptions options) {
     // TODO
 

@@ -55,9 +55,10 @@ class Sampler final {
 
     StageStore store;
 
-    std::vector<MapReduceOp::Base> reduces;
+    std::vector<MapReduceOp::Base> reduces; // The `MapReduce`s are generated first.
     std::vector<Stage> originalBases;
-    std::vector<std::pair<std::size_t, Stage *>> bases; // The `MapReduce`s are generated first.
+    // first -> key of base, second -> index of Stage in originalBases.
+    std::vector<std::pair<std::size_t, std::size_t>> bases;
 
 public:
     // A specification has the following forms:
@@ -76,7 +77,9 @@ public:
 
     inline std::size_t getBaseCount() const { return bases.size(); }
     std::vector<Next> getNextBases() const;
-    Stage *getBase(std::size_t key) const;
+    std::size_t getBaseIndex(std::size_t key) const;
+    Stage *getBase(std::size_t key);
+    const MapReduceOp::Base& getReduce(std::size_t key) const;
 
     // The following APIs can be provided for Python bindings.
     Node visit(const std::vector<Next>& path);

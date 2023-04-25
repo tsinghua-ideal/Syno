@@ -157,9 +157,17 @@ public:
         guard();
         return nexts;
     }
+    NextFinalizeSlot& getChildFinalizeSlot(std::size_t key);
+    template<typename Op>
+    const NextOpSlot<Op>& getChildSlot(std::size_t key) {
+        guard();
+        const auto& ops = nextOpStores.get<Op>();
+        auto it = std::ranges::lower_bound(ops, key, std::less{}, &NextOpSlot<Op>::key);
+        KAS_ASSERT(it != ops.end() && it->key == key, "Specified {} not found.", typeid(Op).name());
+        return *it;
+    }
     Node getChild(Next next);
-    std::string shapeToString() const;
-    std::string description() const;
+    std::string description(const BindingContext& ctx) const;
 };
 
 } // namespace kas

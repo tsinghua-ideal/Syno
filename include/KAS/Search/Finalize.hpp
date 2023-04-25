@@ -32,6 +32,8 @@ public:
     std::unique_ptr<TensorView> buildTensorView() const;
     inline std::size_t getHash() const noexcept { return hash; }
 
+    std::string description(const BindingContext& ctx) const;
+
     static bool Prune(const std::vector<Graph::ConnectedComponent>& components, const std::vector<Interface>& trial);
 
     static std::size_t CountSuccesses;

@@ -11,6 +11,10 @@ std::unique_ptr<TensorView> FinalizeOp::buildTensorView() const {
     return std::make_unique<TensorView>(tensors);
 }
 
+std::string FinalizeOp::description(const BindingContext& ctx) const {
+    return TensorArrayToString(tensors, ctx);
+}
+
 bool FinalizeOp::Prune(const std::vector<Graph::ConnectedComponent>& components, const std::vector<Interface>& trial) {
     std::map<Dimension, std::size_t, Dimension::AddressLessThan> dim2tensorId;
     for (std::size_t tId = 0; tId < trial.size(); ++tId) {
