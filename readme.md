@@ -10,6 +10,13 @@
 - [pybind11](https://github.com/pybind/pybind11).
 - [GoogleTest](https://github.com/google/googletest).
 
+Note: If you are using anaconda to manage your packages, you may also install the dependency via 
+
+```[language=bash]
+conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
+conda install boost fmt pybind11 gtest gmock -c conda-forge
+```
+
 ## Build and Run
 
 CMake tests are available.

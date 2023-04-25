@@ -16,7 +16,7 @@ class MCTS:
         self._exploration_weight = exploration_weight
         random.seed(sampler._seed)
 
-    def do_rollout(self, node: list[int]) -> list[int]:
+    def do_rollout(self, node: list[int]=[]) -> list[int]:
         "Make the tree one layer better. (Train for one iteration.)"
         while True:
             path, success = self._may_fail_rollout(node)

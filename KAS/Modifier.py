@@ -5,10 +5,8 @@ from .KernelPack import KernelPack
 from .Placeholder import Placeholder
 
 
-class Modifier():
-    def __init__(self) -> None:
-        pass
-
+class Modifier:
+    
     @staticmethod
     def FindPlaceholders(net: nn.Module) -> List[Placeholder]:
         """Find all placeholders in the network. """
@@ -17,6 +15,6 @@ class Modifier():
         return placeholders
 
     @staticmethod
-    def KernelReplace(net: nn.Module, kernelPacks: List[KernelPack]):
-        for placeholder, kernelPack in zip(__class__.FindPlaceholders(net), kernelPacks):
+    def KernelReplace(placeholders: List[Placeholder], kernelPacks: List[KernelPack]):
+        for placeholder, kernelPack in zip(placeholders, kernelPacks):
             placeholder.reload(kernelPack)

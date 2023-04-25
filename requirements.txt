@@ -1,3 +1,4 @@
 ptflops
 timm
 oss2
+matplotlib
