@@ -97,16 +97,16 @@ public:
     std::string descendantsDescription(const BindingContext& ctx) const;
 
     // FOR DEBUG USAGE ONLY!
-    inline std::string toString() const {
-        if (BindingContext::PublicCtx) {
-            return description(*BindingContext::PublicCtx);
+    inline std::string debugDescription() const {
+        if (BindingContext::DebugPublicCtx) {
+            return description(*BindingContext::DebugPublicCtx);
         } else {
             return "NO_PUBLIC_CONTEXT";
         }
     }
-    inline std::string descendantsToString() const {
-        if (BindingContext::PublicCtx) {
-            return descendantsDescription(*BindingContext::PublicCtx);
+    inline std::string debugDescendantsDescription() const {
+        if (BindingContext::DebugPublicCtx) {
+            return descendantsDescription(*BindingContext::DebugPublicCtx);
         } else {
             return "NO_PUBLIC_CONTEXT";
         }

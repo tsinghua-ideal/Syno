@@ -30,7 +30,7 @@ TEST(search_tests, sampler) {
     };
     Sampler sampler("[H,W]", "[H,W]", {}, {"k_1=3", "s_1=2", "k_2=5", "s_2=4"}, {}, options);
     auto& ctx = sampler.getBindingContext();
-    BindingContext::PublicCtx = &ctx; // For debugging.
+    BindingContext::DebugPublicCtx = &ctx; // For debugging.
     ASSERT_EQ(ctx.getPrimaryCount(), 2);
     ASSERT_EQ(ctx.getCoefficientCount(), 4);
 

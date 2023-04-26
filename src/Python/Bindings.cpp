@@ -127,6 +127,11 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def(
             "random_node_with_prefix", &Sampler::randomNodeWithPrefix,
             pybind11::arg("prefix")
+        )
+        .def(
+            "bind_debug_context", [](Sampler& self) {
+                BindingContext::DebugPublicCtx = &self.getBindingContext();
+            }
         );
 
 #ifdef VERSION_INFO

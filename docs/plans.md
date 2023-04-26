@@ -40,7 +40,7 @@
 
 ### Misc
 
-- [ ] Index the search tree by hashes for reproducibility.
+- [x] Index the search tree by hashes for reproducibility.
 
 ## Experiment
 

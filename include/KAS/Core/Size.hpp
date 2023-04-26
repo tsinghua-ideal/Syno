@@ -23,7 +23,7 @@ struct Size {
     friend class HalideGen;
 
 public:
-    constexpr static std::size_t MAX_VARIABLES = 16;
+    constexpr static std::size_t MAX_VARIABLES = 8;
     using PowerType = std::int8_t;
     using ExprType = std::array<PowerType, MAX_VARIABLES>;
     enum class Trait {
@@ -130,9 +130,9 @@ public:
     std::string toString(const BindingContext& ctx) const;
 
     // FOR DEBUG USAGE ONLY!
-    inline std::string toString() const {
-        if (BindingContext::PublicCtx) {
-            return toString(*BindingContext::PublicCtx);
+    inline std::string debugToString() const {
+        if (BindingContext::DebugPublicCtx) {
+            return toString(*BindingContext::DebugPublicCtx);
         } else {
             return "NO_PUBLIC_CONTEXT";
         }

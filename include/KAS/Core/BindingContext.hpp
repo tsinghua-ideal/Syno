@@ -45,6 +45,8 @@ protected:
     std::vector<Metadata> primaryMetadata;
     std::vector<Metadata> coefficientMetadata;
 
+    std::vector<ConcreteConsts> allConsts;
+
     using LookUpTable = std::map<std::string, std::size_t>;
     LookUpTable getPrimaryLookupTable() const;
     LookUpTable getCoefficientLookupTable() const;
@@ -53,11 +55,9 @@ protected:
 public:
     BindingContext() = default;
     BindingContext(std::size_t countPrimary, std::size_t countCoefficient);
-    template<typename Tp, typename Tc>
-    requires(std::is_same_v<std::remove_cvref_t<Tp>, std::vector<Metadata>> && std::is_same_v<std::remove_cvref_t<Tc>, std::vector<Metadata>>)
-    BindingContext(Tp&& primaryMetadata, Tc&& coefficientMetadata):
-        primaryMetadata { std::forward<Tp>(primaryMetadata) },
-        coefficientMetadata { std::forward<Tc>(coefficientMetadata) }
+    inline BindingContext(std::vector<Metadata> primaryMetadata, std::vector<Metadata> coefficientMetadata):
+        primaryMetadata { std::move(primaryMetadata) },
+        coefficientMetadata { std::move(coefficientMetadata) }
     {}
 
     std::size_t getPrimaryCount() const;
@@ -84,9 +84,11 @@ public:
     void applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs);
 
     ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings) const;
+    // This overwrites the current allConsts.
+    void applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings);
 
     // FOR DEBUG USAGE ONLY!
-    static inline const BindingContext *PublicCtx = nullptr;
+    static inline const BindingContext *DebugPublicCtx = nullptr;
 };
 
 } // namespace kas

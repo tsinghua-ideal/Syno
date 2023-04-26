@@ -152,4 +152,12 @@ ConcreteConsts BindingContext::realizeConsts(const std::map<std::string, std::si
     return consts;
 }
 
+void BindingContext::applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings) {
+    decltype(allConsts) result;
+    for (const auto& mappings: allMappings) {
+        result.emplace_back(realizeConsts(mappings));
+    }
+    allConsts = std::move(result);
+}
+
 } // namespace kas
