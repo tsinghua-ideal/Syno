@@ -52,7 +52,7 @@ std::size_t FinalizeOp::CountConflictingColors = 0;
 std::size_t FinalizeOp::CountPrunedFinalizations = 0;
 std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
     Graph::Builder builder;
-    builder.addTopmost(outputShape.items | std::views::transform(ColoredDimension::Projection{}));
+    builder.addTopmost(outputShape.toDimensions());
     Graph graph = builder.build();
     auto components = graph.computeConnectedComponents();
 

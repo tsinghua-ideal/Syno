@@ -116,12 +116,8 @@ namespace {
 }
 
 namespace {
-    template<std::ranges::input_range TensorRange>
-    requires (
-        std::ranges::input_range<std::ranges::range_value_t<TensorRange>> &&
-        std::convertible_to<std::ranges::range_value_t<std::ranges::range_value_t<TensorRange>>, Dimension>
-    )
-    std::string draw(const BindingContext& ctx, TensorRange&& tensors) {
+    template<TensorRange R>
+    std::string draw(const BindingContext& ctx, R&& tensors) {
         std::stringstream ss;
         auto SSIt = [&]() { return std::ostreambuf_iterator<char>(ss); };
         std::vector<const Iterator *> outputs;

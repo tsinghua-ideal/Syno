@@ -87,7 +87,7 @@ std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const Colo
     Allowance allowance { Size::Product(interface.getShape()), options.ctx };
     std::vector<const ShareOp *> result;
     if (interface.size() < options.dimUpperBound) {
-        for (auto&& dim: interface.items | std::views::transform(ColoredDimension::Projection{})) {
+        for (auto&& dim: interface.toDimensions()) {
             if (allowance.withinAllowance(dim.size())) {
                 result.emplace_back(store.get<ShareOp>(dim));
             }

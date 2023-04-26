@@ -31,14 +31,6 @@ namespace {
             }
         }
     }
-    auto getShapeParsingCallback(std::map<std::string, Parser::SizeSpec>& primaryVars, const std::map<std::string, Parser::SizeSpec>& coefficientVars) {
-        return [&](const std::string& newName) {
-            if (!coefficientVars.contains(newName) && !primaryVars.contains(newName)) {
-                // We have to add a default spec for the name.
-                primaryVars[newName] = Parser::SizeSpec { .quantity = newName, .maxOccurrences = std::nullopt };
-            }
-        };
-    }
     std::vector<std::pair<std::string, Parser::PureSpec>> contractSpecs(std::map<std::string, Parser::SizeSpec>& specs) {
         std::vector<std::pair<std::string, Parser::PureSpec>> result;
         for (auto&& [name, spec]: specs) {
@@ -48,37 +40,52 @@ namespace {
     }
 }
 
-Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, int>>& allMappings, const SampleOptions& options):
+Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const SampleOptions& options):
     rng { options.seed },
     options { options },
     colorOptions { .maximumTensors = options.maximumTensors }
 {
+    // First parse the variable names in specifications. Unnamed variables are named by x_i and c_i.
     std::map<std::string, Parser::SizeSpec> primaryVars;
     std::map<std::string, Parser::SizeSpec> coefficientVars;
     parseSpecs(primarySpecs, primaryVars, "x_");
     parseSpecs(coefficientSpecs, coefficientVars, "c_");
 
-    std::vector<std::string> inputShapeNames = Size::parseNames(inputShape, getShapeParsingCallback(primaryVars, coefficientVars));
-    std::vector<std::string> outputShapeNames = Size::parseNames(outputShape, getShapeParsingCallback(primaryVars, coefficientVars));
+    // Then we collect the variables in in/out shapes. In case of new variable, add it to primary.
+    auto onNewName = [&](const std::string& newName) {
+        if (!coefficientVars.contains(newName) && !primaryVars.contains(newName)) {
+            // We have to add a default spec for the name.
+            primaryVars[newName] = Parser::SizeSpec { .quantity = newName, .maxOccurrences = std::nullopt };
+        }
+    };
+    std::vector<std::string> inputShapeNames = Size::parseNames(inputShape, onNewName);
+    std::vector<std::string> outputShapeNames = Size::parseNames(outputShape, onNewName);
 
+    // Put the specs in order.
     auto contractedPrimarySpecs = contractSpecs(primaryVars);
     auto contractedCoefficientSpecs = contractSpecs(coefficientVars);
 
+    // Apply the specs to all variables.
     ctx = BindingContext { contractedPrimarySpecs.size(), contractedCoefficientSpecs.size() };
     ctx.applySpecs(contractedPrimarySpecs, contractedCoefficientSpecs);
 
+    // Parse shape from names. TODO: add arithmetics support.
     this->inputShape = ctx.getShapeFromNames(inputShapeNames);
     this->outputShape = ctx.getShapeFromNames(outputShapeNames);
 
     this->options.check();
+    // Initialize the output iterators.
     for (std::size_t index = 0; const auto& domain: this->outputShape) {
         outputIterators.emplace_back(index++, domain);
     }
+    // DO NOT modify root after this, because Dimension references by address these iterators.
     for (const auto& it: outputIterators) {
         root.emplace_back(&it);
     }
 
+    // Generate MapReduce's.
     reduces = MapReduceOp::GenerateLastLevelMapReduces(this->outputShape, { this->ctx, this->options.dimUpperBound });
+    // DO NOT modify reduces and originalBases after this, because Dimension references by address these iterators.
     for (const auto& r: reduces) {
         ColoredInterface temp;
         std::ranges::copy(root | std::views::transform([](const Dimension& dim) { return ColoredDimension { dim, Colors::Unknown }; }), std::back_inserter(temp.items)); // Maybe we can determine the colors here? TODO. Use it below.
@@ -87,7 +94,7 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         originalBases.emplace_back(std::move(temp), Colors(colorOptions), *this, 0);
     }
     auto hasher = std::hash<Interface>{};
-    std::ranges::move(std::views::iota(static_cast<std::size_t>(0), originalBases.size()) | std::views::transform([&](std::size_t baseIndex) { return std::pair{ hasher(originalBases[baseIndex].getInterface().toInterface()), baseIndex }; }), std::back_inserter(bases));
+    std::ranges::move(std::views::iota(static_cast<std::size_t>(0), originalBases.size()) | std::views::transform([&](std::size_t baseIndex) { return std::pair{ hasher(originalBases[baseIndex].getInterface().toDimensions()), baseIndex }; }), std::back_inserter(bases));
     std::ranges::sort(bases, std::less{}, &std::pair<std::size_t, std::size_t>::first);
 }
 

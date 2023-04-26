@@ -143,9 +143,11 @@ std::string TensorArrayToString(R&& tensors, const BindingContext& ctx) {
 
 } // namespace kas
 
-template<>
-struct std::hash<kas::Interface> {
-    inline std::size_t operator()(const kas::Interface& interface) const noexcept {
+template<kas::DimensionRange DR>
+struct std::hash<DR> {
+    // Since this is a template function, std::hash<Interface> can provide hash for arbitrary DimensionRange.
+    template<kas::DimensionRange R>
+    inline std::size_t operator()(R&& interface) const noexcept {
         std::size_t h = interface.size();
         for (const auto& dim: interface) {
             kas::HashCombine(h, dim.hash());

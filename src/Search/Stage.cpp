@@ -153,7 +153,7 @@ Node Stage::getChild(Next next) {
 }
 
 std::string Stage::description(const BindingContext& ctx) const {
-    return DimensionArrayToString(interface.items | std::views::transform(ColoredDimension::Projection{}), ctx);
+    return DimensionArrayToString(interface.toDimensions(), ctx);
 }
 
 } // namespace kas

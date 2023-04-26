@@ -101,11 +101,8 @@ using ColoredInterfaceShapeView = AbstractShape<const std::vector<ColoredDimensi
 
 struct ColoredInterface {
     std::vector<ColoredDimension> items;
-    inline std::vector<Dimension> toInterface() const {
-        std::vector<Dimension> result;
-        result.reserve(items.size());
-        std::ranges::copy(items | std::views::transform(ColoredDimension::Projection{}), std::back_inserter(result));
-        return result;
+    inline auto toDimensions() const {
+        return items | std::views::transform(ColoredDimension::Projection{});
     }
     inline std::size_t size() const noexcept { return items.size(); }
     inline ColoredInterfaceShapeView getShape() const { return ColoredInterfaceShapeView(items); }
