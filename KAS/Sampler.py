@@ -32,7 +32,7 @@ class Sampler:
         placeholders = Sampler._extract_placeholders(net)
         return Sampler._get_all_mappings(placeholders)
 
-    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors = 2, save_path: str = './save', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.ComputeRoot):
+    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors = 2, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot):
         options = kas_cpp_bindings.SampleOptions(
             seed=seed,
             depth=depth,
@@ -119,7 +119,8 @@ class Sampler:
 
         return kernel_packs
 
-    def replace(self, net: nn.Module, kernel_packs: List[KernelPack]):
+    @staticmethod
+    def replace(net: nn.Module, kernel_packs: List[KernelPack]):
         placeholders = Sampler._extract_placeholders(net)
         for placeholder, kernel_pack in zip(placeholders, kernel_packs):
             placeholder.reload(kernel_pack)

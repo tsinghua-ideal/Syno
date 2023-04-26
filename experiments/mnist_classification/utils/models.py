@@ -88,7 +88,6 @@ class KASGrayConv(nn.Module):
             nn.ReLU(),
             nn.MaxPool2d(4, 4),
         ])
-
         self.linear = nn.Linear(32*7*7, 10)
 
         self.layers = None
