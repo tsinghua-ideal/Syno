@@ -6,7 +6,15 @@ import os
 device = torch.device("cuda:0")
 
 # Run CTests before this to generate the kernel
-pack = KAS.KernelPack("conv2d", os.path.join(os.path.dirname(os.path.realpath(__file__)), "../build/tests/kernel_conv2d"), "conv2d", [[64, 3, 128, 128], [16, 3, 5, 5]], [64, 16, 128, 128], device=device)
+pack = KAS.KernelPack(
+    identifier="conv2d",
+    directory=os.path.join(os.path.dirname(os.path.realpath(__file__)), "../build/tests/kernel_conv2d"),
+    name="conv2d",
+    unpadded_inputs_shapes=[[64, 3, 128, 128], [16, 3, 5, 5]],
+    padded_inputs_shapes=[[64, 3, 128, 128], [16, 3, 5, 5]],
+    unpadded_output_shape=[64, 16, 128, 128],
+    padded_output_shape=[64, 16, 128, 128],
+    device=device)
 kas_conv = KAS.Placeholder({})
 kas_conv.reload(pack)
 torch_conv = nn.Conv2d(3, 16, (5, 5), bias=False, padding="same", padding_mode='zeros', device=device)

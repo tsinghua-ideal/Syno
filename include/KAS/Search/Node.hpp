@@ -9,6 +9,7 @@
 #include <fmt/core.h>
 
 #include <KAS/Transforms.hpp>
+#include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/Utils/Hash.hpp"
 
 namespace kas {
@@ -110,10 +111,8 @@ public:
     inline Node(Sampler *sampler, TensorView *kernel):
         sampler { sampler }, inner { kernel } {}
 
-    // Only for Python Bindings!
-    inline Sampler *getSampler() const { return sampler; }
-
-    TensorView *asKernel() const;
+    TensorView *asFinal() const;
+    std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const;
 
     // The count of children nodes.
     std::size_t countChildren() const;

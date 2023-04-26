@@ -217,10 +217,9 @@ HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& 
     return { std::move(inputs), std::move(inputsGrads) };
 }
 
-HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const std::map<std::string, std::size_t>& mappings, std::string_view funcName) {
+HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const ConcreteConsts& consts, std::string_view funcName) {
     const auto& tensors = tensorView.getUnderlyingTensors();
 
-    auto consts = ctx.realizeConsts(mappings);
     auto shapes = concretizeShapes(consts);
     try {
         auto [forwardInputs, forwardFunc] = createFunc(consts, shapes, funcName);
@@ -309,11 +308,11 @@ void HalideGen::GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardIn
     backwardModule.compile(flagsForModule(outputPath / backwardName));
 }
 
-void HalideGen::generate(std::filesystem::path outputPath, std::string_view funcName, const std::map<std::string, std::size_t>& mappings) {
+void HalideGen::generate(std::filesystem::path outputPath, std::string_view funcName, const ConcreteConsts& consts) {
     // Create Halide Functions.
     auto [forwardInputs, forwardFunc,
         backwardInputs, backwardFuncs
-    ] = createPipelines(mappings, funcName);
+    ] = createPipelines(consts, funcName);
 
     auto target = GetHostTarget(options.useGPU);
     auto [forwardPipeline, backwardPipeline] = ApplyAutoScheduler(forwardFunc, backwardFuncs, target, options.scheduler, false);

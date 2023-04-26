@@ -30,13 +30,14 @@ TEST_F(codegen_tests, generate) {
             ++i;
             continue;
         }
-        auto sample = node.asKernel();
+        auto sample = node.asFinal();
         std::cout << sample->printNestedLoopsForAll(ctx);
         HalideGen gen { ctx, *sample, {
             .useGPU = false,
             .scheduler = HalideGen::Options::AutoScheduler::ComputeRoot,
         } };
-        gen.generate("./kernel_1_" + std::to_string(i), "kernel_1_" + std::to_string(i), {});
+        auto consts = ctx.realizeConsts({});
+        gen.generate("./kernel_1_" + std::to_string(i), "kernel_1_" + std::to_string(i), consts);
         break;
     }
 }

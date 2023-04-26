@@ -2,7 +2,7 @@ import os
 import logging
 import torch
 from torch import nn
-from typing import List
+from typing import List, Dict
 import kas_cpp_bindings
 from kas_cpp_bindings import CodeGenOptions
 
@@ -21,6 +21,17 @@ class Sampler:
             node for node in net.modules() if isinstance(node, Placeholder)]
         return placeholders
 
+    @staticmethod
+    def _get_all_mappings(placeholders: List[Placeholder]) -> List[Dict[str, int]]:
+        if len(placeholders) == 0:
+            logging.warning('No placeholders found in the network.')
+        return [placeholder.mappings for placeholder in placeholders]
+
+    @staticmethod
+    def _extract_all_mappings(net: nn.Module) -> List[Dict[str, int]]:
+        placeholders = Sampler._extract_placeholders(net)
+        return Sampler._get_all_mappings(placeholders)
+
     def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors = 2, save_path: str = './save', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.ComputeRoot):
         options = kas_cpp_bindings.SampleOptions(
             seed=seed,
@@ -34,10 +45,7 @@ class Sampler:
 
         all_mappings = []
         if net is not None:
-            placeholders = Sampler._extract_placeholders(net)
-            if len(placeholders) == 0:
-                raise ValueError('No placeholders found in the network.')
-            all_mappings = [placeholder.mappings for placeholder in placeholders]
+            all_mappings = Sampler._extract_all_mappings(net)
 
         self._sampler = kas_cpp_bindings.Sampler(
             input_shape, output_shape, primary_specs, coefficient_specs, all_mappings, options)
@@ -68,33 +76,46 @@ class Sampler:
             node = node.get_child(next)
         return strs
 
-    def _realize(self, node: Node) -> kas_cpp_bindings.Kernel:
-        return node._realize_as_final(self._codegen_options)
+    def _realize(self, node: Node, all_mappings: List[Dict[str, int]]) -> kas_cpp_bindings.Kernel:
+        return node._realize_as_final(all_mappings, self._codegen_options)
 
     def realize(self, net: nn.Module, node: Node, identifier_prefix: str) -> List[KernelPack]:
-        kernel = self._realize(node)
-        logging.debug(f"Sampled kernel: {kernel}")
+        placeholders = Sampler._extract_placeholders(net)
+        all_mappings = Sampler._get_all_mappings(placeholders)
+
+        kernel = self._realize(node, all_mappings)
+        logging.debug(f"Realizing kernel:\n{kernel}")
         save_path = os.path.join(self._save_path, identifier_prefix)
         os.makedirs(save_path, exist_ok=True)
 
-        placeholders = Sampler._extract_placeholders(net)
+        kernel_name_prefix = 'kernel'
+        logging.debug("Generating kernel files...")
+        kernel.generate_operator(save_path, kernel_name_prefix)
+        kernel.generate_graphviz(save_path, kernel_name_prefix)
+        logging.debug("Successfully generated kernel files.")
+
         kernel_packs = []
-        for i, placeholder in enumerate(placeholders):
-            kernel_name = f'kernel_{i}'
+        for i in range(len(placeholders)):
+            kernel_name = f'{kernel_name_prefix}_{i}'
+            logging.debug(f"For placeholder {i},")
 
-            mappings = placeholder.mappings
-            logging.debug(f"For kernel_{i} mappings: {mappings}")
-
-            kernel.generate(save_path, kernel_name, mappings)
-
-            inputs_shapes = kernel.get_inputs_shapes(mappings)
-            logging.debug(f"Inputs shapes: {inputs_shapes}")
-            output_shape = kernel.get_output_shape(mappings)
-            logging.debug(f"Output shape: {output_shape}")
+            unpadded_inputs_shapes = kernel.get_inputs_shapes(False, i)
+            padded_inputs_shapes = kernel.get_inputs_shapes(True, i)
+            logging.debug(f"Unpadded inputs shapes: {unpadded_inputs_shapes}, padded inputs shapes: {padded_inputs_shapes}")
+            unpadded_output_shape = kernel.get_output_shape(False, i)
+            padded_output_shape = kernel.get_output_shape(True, i)
+            logging.debug(f"Unpadded output shape: {unpadded_output_shape}, padded output shape: {padded_output_shape}")
 
             identifier = identifier_prefix + "__" + str(i)
             kernel_packs.append(KernelPack(
-                identifier, save_path, kernel_name, inputs_shapes, output_shape, self._device))
+                identifier=identifier,
+                directory=save_path,
+                name=kernel_name,
+                unpadded_inputs_shapes=unpadded_inputs_shapes,
+                padded_inputs_shapes=padded_inputs_shapes,
+                unpadded_output_shape=unpadded_output_shape,
+                padded_output_shape=padded_output_shape,
+                device=self._device))
 
         return kernel_packs
 

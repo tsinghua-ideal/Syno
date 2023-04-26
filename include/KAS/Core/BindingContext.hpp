@@ -29,6 +29,11 @@ struct ConcreteConsts {
     }
 };
 
+struct PaddedConsts {
+    ConcreteConsts unpadded;
+    ConcreteConsts padded;
+};
+
 class BindingContext final {
     friend class HalideGen;
 

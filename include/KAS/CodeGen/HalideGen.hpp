@@ -95,7 +95,7 @@ public:
 
     using ForwardAndBackwardFuncs = std::tuple<std::vector<Halide::ImageParam>, Halide::Func, std::vector<Halide::ImageParam>, std::vector<Halide::Func>>;
     // Returns the forward and backward funcs.
-    ForwardAndBackwardFuncs createPipelines(const std::map<std::string, std::size_t>& mappings, std::string_view funcName);
+    ForwardAndBackwardFuncs createPipelines(const ConcreteConsts& consts, std::string_view funcName);
 
     // Applys auto-schedulers on the funcs.
     using ScheduledPipelins = std::pair<Halide::Pipeline, Halide::Pipeline>;
@@ -109,7 +109,7 @@ public:
         options { std::move(options) }
     {}
 
-    void generate(std::filesystem::path outputPath, std::string_view funcName, const std::map<std::string, std::size_t>& mappings);
+    void generate(std::filesystem::path outputPath, std::string_view funcName, const ConcreteConsts& consts);
 
     // This is a workaround for reverse indexing caused by Halide's column-major buffers.
     template<typename BufferType>
@@ -144,9 +144,10 @@ public:
     };
     template<bool DoInitialization = true, typename... InputInitializers>
     Realization performTrial(const std::map<std::string, std::size_t>& mappings, auto&& funcName, bool createStaticLibrary, bool verbose, auto&& outputGradInitializer, InputInitializers&&... inputInitializers) {
-        auto consts = ctx.realizeConsts(mappings);
+        auto unpaddedConsts = ctx.realizeConsts(mappings);
+        auto consts = tensorView.computePadding(ctx, unpaddedConsts);
         auto shapes = concretizeShapes(consts);
-        auto [inputs, func, backwardInputs, backwardFuncs] = createPipelines(mappings, std::forward<decltype(funcName)>(funcName));
+        auto [inputs, func, backwardInputs, backwardFuncs] = createPipelines(consts, std::forward<decltype(funcName)>(funcName));
 
         // Initialize input buffers.
         KAS_ASSERT(tensorView.getUnderlyingTensors().size() == sizeof...(inputInitializers));

@@ -93,6 +93,9 @@ public:
     // Returns the map-reduce manipulations.
     inline const std::vector<const MapReduceOp *>& getManipulations() const { return manipulations; }
 
+    // Note that sometimes we need padding to make things work. Here we need to guarantee that all dimensions in the Graph are valid, so instead of padding tensors, we pad variables.
+    ConcreteConsts computePadding(const BindingContext& ctx, const ConcreteConsts& consts) const;
+
     // Evaluate the full loops.
     std::string printNestedLoops(const BindingContext& ctx, int pos) const;
     std::string printNestedLoopsForAll(const BindingContext& ctx) const;

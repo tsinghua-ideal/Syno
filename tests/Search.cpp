@@ -48,7 +48,7 @@ TEST(search_tests, sampler) {
             fmt::print("Trial {} succeeded.\n", i);
         }
         ++successes;
-        auto& tensorView = *node.asKernel();
+        auto& tensorView = *node.asFinal();
 
         auto r = tensorView.getUnderlyingTensors() | std::ranges::views::transform([&](const auto& tensor) { return tensor.shapeToString(ctx); });
         std::cout << fmt::format("Input Shape: {}", fmt::join(r, ", ")) << std::endl;

@@ -6,7 +6,15 @@ import os
 device = torch.device("cuda:0")
 
 # Run CTests before this to generate the kernel
-pack = KAS.KernelPack("pooling", os.path.join(os.path.dirname(os.path.realpath(__file__)), "../build/tests/kernel_pooling"), "pooling", [[64, 3, 125, 125]], [64, 3, 25, 25], device)
+pack = KAS.KernelPack(
+    identifier="pooling",
+    directory=os.path.join(os.path.dirname(os.path.realpath(__file__)), "../build/tests/kernel_pooling"),
+    name="pooling",
+    unpadded_inputs_shapes=[[64, 3, 125, 125]],
+    padded_inputs_shapes=[[64, 3, 125, 125]],
+    unpadded_output_shape=[64, 3, 25, 25],
+    padded_output_shape=[64, 3, 25, 25],
+    device=device)
 kas_pooling = KAS.Placeholder({})
 kas_pooling.reload(pack)
 torch_pooling = nn.AvgPool2d(5)

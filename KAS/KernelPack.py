@@ -1,14 +1,49 @@
+import logging
+import itertools
 import os
 import torch
+import torch.nn.functional as F
 import torch.utils.cpp_extension
 from torch import nn
-import kas_cpp_bindings
-from kas_cpp_bindings import Kernel
+from typing import List, Tuple, Union
 
 class KernelPack(nn.Module):
-    def __init__(self, identifier: str, directory: str, name: str, inputs_shapes: list[list[int]], output_shape: list[int], device: torch.device):
+    """A wrapper for the generated kernel."""
+    @staticmethod
+    def get_paddings_from_shapes(unpadded_shape: List[int], padded_shape: List[int]) -> List[Union[None, Tuple[int, int]]]:
+        """Get paddings from unpadded and padded shapes."""
+        def get_paddings(unpadded: int, padded: int) -> slice:
+            if padded == unpadded:
+                return None
+            elif padded > unpadded:
+                left = (padded - unpadded) // 2
+                right = padded - unpadded - left
+                return (left, right)
+            else:
+                raise ValueError(f'padded {padded} is smaller than unpadded {unpadded}.')
+        return [get_paddings(unpadded, padded) for unpadded, padded in zip(unpadded_shape, padded_shape)]
+
+    @staticmethod
+    def pad_params(paddings: List[Union[None, Tuple[int, int]]]) -> Union[None, List[int]]:
+        """Get parameters for nn.functional.pad."""
+        if all(padding is None for padding in paddings):
+            return None
+        remaining_paddings = list(itertools.dropwhile(lambda padding: padding is None, paddings))
+        remaining_paddings.reverse()
+        # flatten
+        return list(itertools.chain.from_iterable(remaining_paddings))
+
+    @staticmethod
+    def crop_params(paddings: List[Union[None, Tuple[int, int]]]) -> Union[None, List[slice]]:
+        """Get parameters for tensor slicing."""
+        if all(padding is None for padding in paddings):
+            return None
+        return [slice(padding[0], -padding[1]) if padding is not None else slice(None) for padding in paddings]
+
+    def __init__(self, identifier: str, directory: str, name: str, unpadded_inputs_shapes: List[List[int]], padded_inputs_shapes: List[List[int]], unpadded_output_shape: List[int], padded_output_shape: List[int], device: torch.device):
         super(KernelPack, self).__init__()
 
+        # Collect header files.
         srcs = []
         filenames = [os.path.join(directory, name + '.pytorch.h'), os.path.join(directory, name + '_grad.pytorch.h')]
         for filename in filenames:
@@ -16,35 +51,62 @@ class KernelPack(nn.Module):
                 srcs.append(file.read())
 
         # JIT the compiled operator and load it.
+        logging.info(f'Loading {name} with identifier {identifier} from {directory}...')
         forward_name = f'{name}_th_'
         backward_name = f'{name}_grad_th_'
         self._module = torch.utils.cpp_extension.load_inline(
             name=f'kas_{identifier}',
             cpp_sources=srcs,
             functions=[forward_name, backward_name],
-            extra_cflags=['-std=c++17', '-g'],
+            extra_cflags=[
+                '-std=c++17',
+            ],
             extra_ldflags=[
                 f'-L{os.path.abspath(directory)}',
                 '-lcuda',
                 f'-l:{name}.a',
                 f'-l:{name}_grad.a',
-                '-g'
             ],
             with_cuda=True,
-            verbose=True
+            verbose=False
         )
+        logging.info(f'Loaded {name}.')
 
+        # Collect inputs paddings.
+        inputs_paddings = [KernelPack.get_paddings_from_shapes(unpadded_shape, padded_shape) for unpadded_shape, padded_shape in zip(unpadded_inputs_shapes, padded_inputs_shapes)]
+        inputs_pad_params = [KernelPack.pad_params(paddings) for paddings in inputs_paddings]
+        inputs_crop_params = [KernelPack.crop_params(paddings) for paddings in inputs_paddings]
+
+        # Collect output paddings.
+        output_paddings = KernelPack.get_paddings_from_shapes(unpadded_output_shape, padded_output_shape)
+        output_pad_params = KernelPack.pad_params(output_paddings)
+        output_crop_params = KernelPack.crop_params(output_paddings)
+
+        # Forward kernel.
         def kernel_forward(ctx, *args):
-            out_forward = torch.empty(output_shape, device=device)
-            args = tuple(map(lambda x: x.contiguous(), args))
+            # The result that will be written to.
+            out_forward = torch.empty(padded_output_shape, device=device)
+            # Pad the inputs.
+            args = tuple(
+                x.contiguous() if pad_params is None else F.pad(x, pad_params).contiguous()
+                for x, pad_params in zip(args, inputs_pad_params))
+            # Call the operator.
             getattr(self._module, forward_name)(*args, out_forward)
+            # Save for backward.
             ctx.save_for_backward(*args)
-            return out_forward
+            # Crop if needed.
+            return out_forward if output_crop_params is None else out_forward[output_crop_params]
         def kernel_backward(ctx, grad_output):
-            grad_inputs = [torch.empty(shape, device=device) for shape in inputs_shapes]
-            grad_output = grad_output.contiguous()
+            # The result.
+            grad_inputs = [torch.empty(shape, device=device) for shape in padded_inputs_shapes]
+            # Pad the output gradient.
+            grad_output = grad_output.contiguous() if output_pad_params is None else F.pad(grad_output, output_pad_params).contiguous()
+            # Call the operator.
             getattr(self._module, backward_name)(*ctx.saved_tensors, grad_output, *grad_inputs)
-            return tuple(grad_inputs)
+            # Crop if needed.
+            return tuple(
+                grad_input if crop_params is None else grad_input[crop_params]
+                for grad_input, crop_params in zip(grad_inputs, inputs_crop_params))
         # Create an operator.
         self._Kernel = type(f'KASKernel{identifier}', (torch.autograd.Function,), {
             'forward': staticmethod(kernel_forward),
@@ -52,7 +114,8 @@ class KernelPack(nn.Module):
         })
 
         # Initialize weights. Note that the first item is the input.
-        self.weights = nn.ParameterList([torch.randn(shape, device=device) for shape in inputs_shapes[1:]])
+        # TODO: maybe we should add weight initializer?
+        self.weights = nn.ParameterList([torch.randn(shape, device=device) for shape in unpadded_inputs_shapes[1:]])
 
     def forward(self, x):
         return self._Kernel.apply(x, *self.weights)

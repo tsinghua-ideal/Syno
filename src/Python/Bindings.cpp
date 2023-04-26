@@ -82,16 +82,20 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<Kernel>(m, "Kernel")
         .def(
-            "generate", &Kernel::generate,
-            pybind11::arg("path"), pybind11::arg("name"), pybind11::arg("mappings")
+            "generate_operator", &Kernel::generateOperator,
+            pybind11::arg("path"), pybind11::arg("name")
+        )
+        .def(
+            "generate_graphviz", &Kernel::generateGraphviz,
+            pybind11::arg("path"), pybind11::arg("name")
         )
         .def(
             "get_inputs_shapes", &Kernel::getInputsShapes,
-            pybind11::arg("mappings")
+            pybind11::arg("padded"), pybind11::arg("index")
         )
         .def(
             "get_output_shape", &Kernel::getOutputShape,
-            pybind11::arg("mappings")
+            pybind11::arg("padded"), pybind11::arg("index")
         )
         .def("__repr__", &Kernel::toNestedLoops);
 
@@ -104,15 +108,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         )
         .def("is_final", &Node::isFinal)
         .def(
-            "realize_as_final",
-            [](Node& self, HalideGen::Options options) -> std::unique_ptr<Kernel> {
-                auto kernel = self.asKernel();
-                if (kernel == nullptr) {
-                    return nullptr;
-                }
-                return std::make_unique<Kernel>(*kernel, self.getSampler()->getBindingContext(), std::move(options));
-            },
-            pybind11::arg("halide_options")
+            "realize_as_final", &Node::realizeAsFinal,
+            pybind11::arg("all_mappings"), pybind11::arg("halide_options")
         )
         .def("__repr__", &Node::toString);
 

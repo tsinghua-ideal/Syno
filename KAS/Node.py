@@ -93,8 +93,8 @@ class Node:
         # Either a final node, or a dead end.
         return self.is_final() or self.children_count() == 0
 
-    def _realize_as_final(self, halide_options: kas_cpp_bindings.CodeGenOptions) -> kas_cpp_bindings.Kernel:
-        return self._node.realize_as_final(halide_options)
+    def _realize_as_final(self, all_mappings: List[Dict[str, int]], halide_options: kas_cpp_bindings.CodeGenOptions) -> kas_cpp_bindings.Kernel:
+        return self._node.realize_as_final(all_mappings, halide_options)
 
     def __repr__(self) -> str:
         return str(self._node)

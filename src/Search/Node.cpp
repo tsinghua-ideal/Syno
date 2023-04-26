@@ -44,8 +44,16 @@ std::map<Next::Type, std::size_t> Next::CountTypes(const std::vector<Next>& next
     return result;
 }
 
-TensorView *Node::asKernel() const {
+TensorView *Node::asFinal() const {
     return std::get<TensorView *>(inner);
+}
+
+std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const {
+    auto final = asFinal();
+    if (!final) {
+        return nullptr;
+    }
+    return std::make_unique<Kernel>(*final, sampler->getBindingContext(), allMappings, std::move(options));
 }
 
 std::size_t Node::countChildren() const {

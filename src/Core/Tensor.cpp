@@ -74,6 +74,11 @@ std::string AbstractAccess::targetEntryToString() const {
     }
 }
 
+ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const ConcreteConsts& consts) const {
+    // TODO!!!
+    return consts;
+}
+
 namespace {
     auto SSIt(std::stringstream& ss) -> decltype(auto) {
         return std::ostreambuf_iterator<char>(ss);
