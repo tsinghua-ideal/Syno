@@ -33,13 +33,35 @@ public:
         General, // powers of primary >= 0 but not all 0.
     };
 
-protected:
+private:
     const std::size_t primaryCount;
     const std::size_t coefficientCount;
     // Powers of large variables. Must be non-negative.
     ExprType primary;
     // Powers of small variables. Can be negative (when in denominator).
     ExprType coefficient;
+
+    template<typename ValueType, typename Consts>
+    static std::pair<ValueType, ValueType> evalFraction(std::size_t cnt, Consts&& consts, const Size::ExprType& powers) {
+        ValueType nominator = 1;
+        ValueType denominator = 1;
+        for (std::size_t i = 0; i < cnt; ++i) {
+            if (powers[i] > 0) {
+                const ValueType v = consts(i);
+                auto power = static_cast<std::size_t>(powers[i]);
+                for (std::size_t j = 0; j < power; ++j) {
+                    nominator *= v;
+                }
+            } else if (powers[i] < 0) {
+                const ValueType v = consts(i);
+                auto power = static_cast<std::size_t>(-powers[i]);
+                for (std::size_t j = 0; j < power; ++j) {
+                    denominator *= v;
+                }
+            }
+        }
+        return { nominator, denominator };
+    };
 
 public:
     Size(std::size_t primaryCount, std::size_t coefficientCount);
@@ -60,30 +82,15 @@ public:
 
     template<typename ValueType, typename Tp, typename Tc>
     ValueType eval(Tp&& p, Tc&& c) const {
-        auto factor = [](std::size_t cnt, auto&& f, const Size::ExprType& powers) -> std::pair<ValueType, ValueType> {
-            ValueType nominator = 1;
-            ValueType denominator = 1;
-            for (std::size_t i = 0; i < cnt; ++i) {
-                if (powers[i] > 0) {
-                    const ValueType v = f(i);
-                    auto power = static_cast<std::size_t>(powers[i]);
-                    for (std::size_t j = 0; j < power; ++j) {
-                        nominator *= v;
-                    }
-                } else if (powers[i] < 0) {
-                    const ValueType v = f(i);
-                    auto power = static_cast<std::size_t>(-powers[i]);
-                    for (std::size_t j = 0; j < power; ++j) {
-                        denominator *= v;
-                    }
-                }
-            }
-            return { nominator, denominator };
-        };
-        auto [nP, dP] = factor(primaryCount, std::forward<Tp>(p), primary);
-        auto [nC, dC] = factor(coefficientCount, std::forward<Tc>(c), coefficient);
+        auto [nP, dP] = evalFraction<ValueType>(primaryCount, std::forward<Tp>(p), primary);
+        auto [nC, dC] = evalFraction<ValueType>(coefficientCount, std::forward<Tc>(c), coefficient);
         return nP * nC / dP / dC;
     };
+
+    // Quick evaluation.
+    int eval(const ConcreteConsts& consts) const;
+    // Check if the size is >= 2. Otherwise, this cannnot be an actual Dimension.
+    bool isRealistic(const BindingContext& ctx) const;
 
     Size identity() const;
 
@@ -173,12 +180,6 @@ public:
     bool testDividedBy(const Size& other);
     LabeledSize& operator*=(const LabeledSize& other);
     LabeledSize operator*(const LabeledSize& other) const;
-
-    // Assumes that both are coefficients. In effect performs multiplication, and checks if the power of any variable in the denominator decreases. If so, returns the result, otherwise returns nullopt.
-    std::optional<LabeledSize> absorbCoefficientNumeratorToDenominator(const LabeledSize& other) const;
-
-    // Assumes this is IllegalCoefficient and other is General. Computes how much the variables can counteract.
-    int scoreOfGeneralDimension(const LabeledSize& other) const;
 };
 
 struct Allowance {

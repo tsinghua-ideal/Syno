@@ -99,7 +99,7 @@ void Stage::guard() {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}, TODO
         // Stride^{-1}
-        add(StrideOp::Generate(store, interface, colors));
+        add(StrideOp::Generate(store, interface, colors, { .ctx = ctx }));
 
         // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s.
         // Split^{-1}

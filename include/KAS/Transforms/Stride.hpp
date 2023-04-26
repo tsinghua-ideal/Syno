@@ -42,7 +42,10 @@ public:
         return output == other.output && stride == other.stride;
     }
 
-    static std::vector<const StrideOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors);
+    struct GenerateOptions {
+        const BindingContext& ctx;
+    };
+    static std::vector<const StrideOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
 };
 
 } // namespace kas

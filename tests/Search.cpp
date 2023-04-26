@@ -21,6 +21,9 @@
 namespace kas {
 
 TEST(search_tests, sampler) {
+    constexpr int dimH = 64, dimW = 64, dimK1 = 3, dimS1 = 2, dimK2 = 5, dimS2 = 4;
+    std::map<std::string, std::size_t> dict { { "H", dimH }, { "W", dimW }, { "k_1", dimK1 }, { "s_1", dimS1 }, { "k_2", dimK2 }, { "s_2", dimS2 } };
+
     SampleOptions options {
         .seed = 42,
         .depth = 4,
@@ -28,7 +31,7 @@ TEST(search_tests, sampler) {
         .dimUpperBound = 6,
         .maximumTensors = 2,
     };
-    Sampler sampler("[H,W]", "[H,W]", {}, {"k_1=3", "s_1=2", "k_2=5", "s_2=4"}, {}, options);
+    Sampler sampler("[H,W]", "[H,W]", {}, {"k_1=3", "s_1=2", "k_2=5", "s_2=4"}, {dict}, options);
     auto& ctx = sampler.getBindingContext();
     BindingContext::DebugPublicCtx = &ctx; // For debugging.
     ASSERT_EQ(ctx.getPrimaryCount(), 2);
@@ -53,10 +56,8 @@ TEST(search_tests, sampler) {
 
         GraphvizGen(tensorView, ctx).generate("./search_viz", "trial_" + std::to_string(i));
 
-        constexpr int dimH = 64, dimW = 64, dimK1 = 3, dimS1 = 2, dimK2 = 5, dimS2 = 4;
         HalideGen gen(ctx, tensorView, HalideGen::Options());
         auto name = "search_codegen_test_" + std::to_string(i);
-        std::map<std::string, std::size_t> dict { { "H", dimH }, { "W", dimW }, { "k_1", dimK1 }, { "s_1", dimS1 }, { "k_2", dimK2 }, { "s_2", dimS2 } };
         try {
             gen.performTrial<false>(dict, name, true, false,
                 [](){}, [](){}, [](){}

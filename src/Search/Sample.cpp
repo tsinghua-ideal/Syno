@@ -73,6 +73,9 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     this->inputShape = ctx.getShapeFromNames(inputShapeNames);
     this->outputShape = ctx.getShapeFromNames(outputShapeNames);
 
+    // Apply the mappings to obtain concrete consts.
+    ctx.applyMappings(allMappings);
+
     this->options.check();
     // Initialize the output iterators.
     for (std::size_t index = 0; const auto& domain: this->outputShape) {

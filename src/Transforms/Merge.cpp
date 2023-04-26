@@ -71,7 +71,7 @@ std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Colo
     auto primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
 
     std::vector<const MergeOp *> res;
-    auto checkThenAdd = [&store, &res](const Dimension& dim, auto&& block) {
+    auto checkThenAdd = [&ctx, &store, &res](const Dimension& dim, auto&& block) {
         if (auto split = dim.tryAs<SplitOp::Input>(); split) {
             if (split->getOp()->outputRhs.size() == block) {
                 return; // This is pointless!
@@ -82,7 +82,10 @@ std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Colo
         if (auto r = dim.tryAs<MapReduceOp>(); r) {
             return; // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
         }
-        res.emplace_back(store.get<MergeOp>(dim, std::forward<decltype(block)>(block)));
+        // Check that the sizes are realistic.
+        if (block.isRealistic(ctx) && (dim.size() / block).isRealistic(ctx)) {
+            res.emplace_back(store.get<MergeOp>(dim, std::forward<decltype(block)>(block)));
+        }
     };
     if (outputShape.size() < options.dimUpperBound) {
         for (std::size_t i = 0; i < outputShape.size(); ++i) {

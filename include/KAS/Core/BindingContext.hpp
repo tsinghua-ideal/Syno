@@ -86,6 +86,7 @@ public:
     ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings) const;
     // This overwrites the current allConsts.
     void applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings);
+    inline const std::vector<ConcreteConsts>& getAllConsts() const { return allConsts; }
 
     // FOR DEBUG USAGE ONLY!
     static inline const BindingContext *DebugPublicCtx = nullptr;

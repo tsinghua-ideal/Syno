@@ -37,6 +37,19 @@ std::span<const Size::PowerType> Size::getCoefficient() const {
     return { coefficient.data(), coefficientCount };
 }
 
+int Size::eval(const ConcreteConsts& consts) const {
+    return eval<int>(consts.primaryWrapper(), consts.coefficientWrapper());
+}
+
+bool Size::isRealistic(const BindingContext& ctx) const {
+    return std::ranges::all_of(
+        ctx.getAllConsts(),
+        [&](const ConcreteConsts& consts) {
+            return eval(consts) >= 2;
+        }
+    );
+}
+
 Size Size::identity() const {
     return { primaryCount, coefficientCount };
 }
@@ -276,32 +289,6 @@ LabeledSize LabeledSize::operator*(const LabeledSize& other) const {
     auto newSize = *this;
     newSize *= other;
     return newSize;
-}
-
-std::optional<LabeledSize> LabeledSize::absorbCoefficientNumeratorToDenominator(const LabeledSize& other) const {
-    KAS_ASSERT(isIndeterminedCoefficient() && other.isIndeterminedCoefficient());
-    Size res(primaryCount, coefficientCount);
-    bool contribution = false;
-    for (std::size_t i = 0; i < coefficientCount; ++i) {
-        auto c1 = coefficient[i];
-        auto c2 = other.coefficient[i];
-        contribution |= c1 < 0 && c2 > 0;
-        res.coefficient[i] = c1 + c2;
-    }
-    if (contribution) {
-        return { std::move(res) };
-    } else {
-        return std::nullopt;
-    }
-}
-
-int LabeledSize::scoreOfGeneralDimension(const LabeledSize& other) const {
-    KAS_ASSERT(isIllegalCoefficient() && other.isGeneral());
-    int score = 0;
-    for (std::size_t i = 0; i < coefficientCount; ++i) {
-        score += std::abs(coefficient[i]) + std::abs(other.coefficient[i]) - std::abs(coefficient[i] + other.coefficient[i]);
-    }
-    return score;
 }
 
 Allowance::Allowance(const Size& shape, const BindingContext& ctx):
