@@ -122,10 +122,8 @@ def arg_parse():
                         type=int, help='kas sampler minimum dimensions')
     parser.add_argument('--kas-max-dim', default=8,
                         type=int, help='kas sampler maximum dimensions')
-    parser.add_argument('--kas-sampler-save-dir', default='./save',
+    parser.add_argument('--kas-sampler-save-dir', default='./samples',
                         help='Sampler saving directory')
-    parser.add_argument('--kas-searcher-save-dir', default='./search_result',
-                        help='Searcher saving directory')
     parser.add_argument('--kas-iterations', default=1000,
                         help='Searcher iterations')
     parser.add_argument('--kas-min-macs', default=0, type=float,

@@ -8,11 +8,12 @@ import time
 import random
 from typing import List
 import os
+import shutil
 import sys
 import logging
 
 # KAS
-from KAS import MCTS, Sampler, Modifier, KernelPack, Node
+from KAS import MCTS, Sampler, KernelPack, Node
 from kas_cpp_bindings import CodeGenOptions
 
 from train import train
@@ -35,11 +36,10 @@ class ModelBackup:
         """
         Restore model parameters and replace the selected parameters with pack.
         """
-        placeholders = Modifier.find_placeholders(model)
         if len(pack) > 0:
             assert isinstance(pack[0], KernelPack
                               ), f"elements in pack are not valid! {type(pack[0])}"
-            Modifier.kernel_replace(placeholders, pack)
+            Sampler.replace(model, pack)
         model.show_placeholders()
         model = model.to(device)
         return model
@@ -48,10 +48,9 @@ class ModelBackup:
 class Searcher(MCTS):
     def __init__(self,
                  model: nn.Module, sample_input: Tensor, train_params: dict,
-                 sampler: Sampler, exploration_weight: float = math.sqrt(2), save_path: str = './search_result') -> None:
+                 sampler: Sampler, exploration_weight: float = math.sqrt(2)) -> None:
         super().__init__(sampler, exploration_weight)
         self._model = ModelBackup(model, sample_input)
-        self._save_path = save_path
         self._train_params = train_params
 
     def _eval_model(self, model: nn.Module) -> float:
@@ -85,6 +84,10 @@ if __name__ == '__main__':
 
     args = arg_parse()
 
+    if os.path.exists(args.kas_sampler_save_dir):
+        shutil.rmtree(args.kas_sampler_save_dir)
+    os.makedirs(args.kas_sampler_save_dir, exist_ok=True)
+
     train_data_loader, validation_data_loader = get_dataloader(args)
 
     sample_input = train_data_loader.dataset[0][0][None, :].repeat(
@@ -116,8 +119,7 @@ if __name__ == '__main__':
         autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021
     )
 
-    searcher = Searcher(KASConv, sample_input, training_params, kas_sampler,
-                        save_path=args.kas_searcher_save_dir)
+    searcher = Searcher(KASConv, sample_input, training_params, kas_sampler)
 
     searcher.search(iterations=args.kas_iterations)
 
