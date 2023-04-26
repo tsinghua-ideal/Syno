@@ -22,8 +22,7 @@ class model_backup():
         """
         model = deepcopy(self.model).to(args.device)
         if pack is not None:
-            assert isinstance(pack, KernelPack), "pack is not valid!"
-            Modifier.kernel_replace(model, pack.module, args.device)
+            Sampler.replace(model, pack)
         return model
 
 

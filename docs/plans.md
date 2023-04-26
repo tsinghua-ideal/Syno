@@ -44,4 +44,6 @@
 
 ## Experiment
 
-- [ ] Build framework for experiments and consider which models to use.
+- [x] Build framework for MNIST experiments. 
+- [] Multi-processing support for MCTS. 
+- [] Two-step primitive selection. 
