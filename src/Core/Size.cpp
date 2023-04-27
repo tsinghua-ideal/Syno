@@ -1,9 +1,11 @@
 #include <algorithm>
 #include <numeric>
+#include <set>
 #include <sstream>
 
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Size.hpp"
+#include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
@@ -210,6 +212,159 @@ std::string Size::toString(const BindingContext& ctx) const {
         result << "1";
     }
     return result.str();
+}
+
+std::pair<int, int> PaddingSolver::evalFractionalCoefficient(const Size& size) const {
+    return size.evalFraction<int>(size.coefficientCount, consts.coefficientWrapper(), size.coefficient);
+}
+
+PaddingSolver::Power PaddingSolver::lhsLowerBound(Prime prime, const PrimeFactorInequality::LHS& lhs) {
+    Power result = 0;
+    for (auto [index, power]: lhs) {
+        result += power * determinedPaddings[index][prime];
+    }
+    return result;
+}
+
+int PaddingSolver::estimateDeterminedPadding(std::size_t primaryIndex) {
+    int result = 1;
+    for (auto [prime, power]: determinedPaddings[primaryIndex]) {
+        result *= std::pow(prime, power);
+    }
+    return result;
+}
+
+void PaddingSolver::addSingleTermInequality(Prime prime, std::size_t indexPrimary, Power powerPrimary, Power powerPrime) {
+    Power requiredPower = (powerPrime + powerPrimary - 1) / powerPrimary;
+    Power& result = determinedPaddings[indexPrimary][prime];
+    result = std::max(result, requiredPower);
+}
+
+void PaddingSolver::addMultiTermInequality(Prime prime, PrimeFactorInequality::LHS&& lhs, Power rhs) {
+    Power lowewrBound = lhsLowerBound(prime, lhs);
+    if (lowewrBound >= rhs) return;
+    inequalities[prime].emplace_back(std::move(lhs), rhs);
+}
+
+PaddingSolver::PaddingSolver(const BindingContext& ctx, const ConcreteConsts& consts):
+    ctx { ctx },
+    consts { consts },
+    determinedPaddings { ctx.getPrimaryCount() },
+    inequalities {}
+{}
+
+void PaddingSolver::addConstraint(const Size& size) {
+    // First we need to determine the factors of primary variables.
+    auto [numerator, denominator] = evalFractionalCoefficient(size);
+    int gcd = std::gcd(numerator, denominator);
+    int remaining = denominator / gcd;
+    // Factor the remaining denominator using prime table.
+    Divisors factorization;
+    for (Prime prime: Primes) {
+        if (prime > remaining) break;
+        if (remaining % prime == 0) {
+            int count = 0;
+            while (remaining % prime == 0) {
+                remaining /= prime;
+                ++count;
+            }
+            factorization.emplace(prime, count);
+        }
+    }
+    if (remaining != 1) {
+        KAS_CRITICAL("Don't you think you have passed in too big a coefficient variable? denominator = {}", denominator / gcd);
+    }
+
+    // Now we have the factorization of the remaining denominator. Derive inequalities.
+    for (auto [prime, powerPrime]: factorization) {
+        PrimeFactorInequality::LHS lhs;
+        for (std::size_t i = 0; i < size.primaryCount; ++i) {
+            Power powerPrimary = size.primary[i];
+            if (powerPrimary != 0) {
+                lhs.emplace_back(i, powerPrimary);
+            }
+        }
+        if (lhs.size() <= 1) {
+            // We can eagerly add this to determinedPaddings.
+            auto [indexPrimary, powerPrimary] = lhs.at(0);
+            addSingleTermInequality(prime, indexPrimary, powerPrimary, powerPrime);
+        } else {
+            // Add this to inequalities. But we can check whether this is satisfied or not to avoid redundant constraints.
+            addMultiTermInequality(prime, std::move(lhs), powerPrime);
+        }
+    }
+}
+
+ConcreteConsts PaddingSolver::solve(const Size& inputSize, const Size& outputSize) {
+    auto computePenalty = [&](std::size_t primaryIndex) -> float {
+        int existingPadding = estimateDeterminedPadding(primaryIndex);
+        int n = std::max(inputSize.primary[primaryIndex], outputSize.primary[primaryIndex]);
+        int current = consts.primary[primaryIndex];
+        return static_cast<float>(n) / current * existingPadding;
+    };
+    for (auto&& [prime, ineqs]: inequalities) {
+        while (true) {
+            // First scan through the inequalities to find which ones we have figured out.
+            std::vector<PrimeFactorInequality> validIneqs;
+            std::set<std::size_t> relevantVars;
+            float leastPenalty = std::numeric_limits<float>::max();
+            std::size_t argLeastPenalty = std::numeric_limits<std::size_t>::max();
+            for (auto& ineq: ineqs) {
+                if (lhsLowerBound(prime, ineq.lhs) < ineq.rhs) {
+                    // This ineq is still valid. We need to first collect the relevant variables.
+                    for (auto [index, _]: ineq.lhs) {
+                        auto [it, inserted] = relevantVars.insert(index);
+                        if (inserted) {
+                            // Update penalty.
+                            float penalty = computePenalty(index);
+                            if (penalty < leastPenalty) {
+                                leastPenalty = penalty;
+                                argLeastPenalty = index;
+                            }
+                        }
+                    }
+                    validIneqs.emplace_back(std::move(ineq));
+                }
+            }
+            ineqs = std::move(validIneqs);
+
+            // If there are no more inequalities to satisfy, we are done.
+            if (ineqs.empty()) {
+                break;
+            }
+
+            // Use argLeastPenalty to satisfy as many inequalities as possible.
+            for (auto& ineq: ineqs) {
+                auto it = std::ranges::lower_bound(ineq.lhs, argLeastPenalty, {}, &std::pair<std::size_t, Power>::first);
+                // If this inequality is not controlled by argLeastPenalty, skip it.
+                if (it == ineq.lhs.end() || it->first != argLeastPenalty) {
+                    continue;
+                }
+                Power existing = lhsLowerBound(prime, ineq.lhs);
+                Power required = ineq.rhs;
+                Power delta = required - existing;
+                // If this ineq is satisfied, OK.
+                if (delta <= 0) {
+                    continue;
+                }
+                // Otherwise we need to add padding.
+                delta = (delta + it->second - 1) / it->second;
+                determinedPaddings[argLeastPenalty][prime] += delta;
+            }
+        }
+    }
+
+    // Now all the inequalities are satisfied. We can compute the final consts.
+    ConcreteConsts result { consts };
+    for (std::size_t i = 0; i < ctx.getPrimaryCount(); ++i) {
+        int factor = 1;
+        for (auto&& [prime, power]: determinedPaddings[i]) {
+            factor *= std::pow(prime, power);
+        }
+        int padded = (consts.primary[i] + factor - 1) / factor * factor;
+        result.primary[i] = padded;
+    }
+    return result;
 }
 
 LabeledSize::LabeledSize(std::size_t primaryCount, std::size_t coefficientCount):

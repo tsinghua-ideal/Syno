@@ -28,6 +28,7 @@ struct ConcreteConsts {
     inline auto coefficientWrapper() const {
         return [this](std::size_t i) { return coefficient[i]; };
     }
+    bool operator==(const ConcreteConsts& rhs) const = default;
 };
 
 struct PaddedConsts {

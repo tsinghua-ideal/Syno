@@ -20,6 +20,7 @@ namespace kas {
 struct Size {
     friend class BindingContext;
     friend struct LabeledSize;
+    friend class PaddingSolver;
     friend class HalideGen;
 
 public:
@@ -159,10 +160,51 @@ public:
     }
 };
 
-struct LabeledSize: public Size {
-    friend class FinalizeShapeOp;
+class PaddingSolver {
+    using Power = int;
+    using Prime = int;
+    // Support coefficient up to 30.
+    static constexpr std::array<int, 10> Primes = { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29 };
 
-protected:
+    const BindingContext& ctx;
+    const ConcreteConsts& consts;
+
+    // For each primary variable, there are some divisors.
+    using Divisors = std::map<Prime, Power>;
+    // A variable must pad to a multiple of all its divisors.
+    std::vector<Divisors> determinedPaddings;
+
+    // For example, if for prime factor p, lhs = [(0, 1), (3, 2)], and rhs = 5, then p^5 divides x_0^1 * x_3^2.
+    struct PrimeFactorInequality {
+        // The (primary_id, power) list.
+        using LHS = std::vector<std::pair<std::size_t, Power>>;
+        LHS lhs;
+        // The required power.
+        Power rhs;
+    };
+    // For each prime, there are some inequalities.
+    std::map<Prime, std::vector<PrimeFactorInequality>> inequalities;
+
+    // Evaluates only the coefficients, and return a fraction.
+    std::pair<int, int> evalFractionalCoefficient(const Size& size) const;
+
+    // Look up the determinedPaddings and find the value of a LHS.
+    Power lhsLowerBound(Prime prime, const PrimeFactorInequality::LHS& lhs);
+    int estimateDeterminedPadding(std::size_t primaryIndex);
+    void addSingleTermInequality(Prime prime, std::size_t indexPrimary, Power powerPrimary, Power powerPrime);
+    void addMultiTermInequality(Prime prime, PrimeFactorInequality::LHS&& lhs, Power rhs);
+
+public:
+    PaddingSolver(const BindingContext& ctx, const ConcreteConsts& consts);
+
+    // Add inequalities without which the size is not an integer.
+    void addConstraint(const Size& size);
+
+    // Solve all the inequalities and return the result.
+    ConcreteConsts solve(const Size& inputSize, const Size& outputSize);
+};
+
+struct LabeledSize: public Size {
     Trait trait;
 
 public:

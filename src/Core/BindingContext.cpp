@@ -12,7 +12,7 @@ namespace kas {
 
 std::string PaddedConsts::toString(const BindingContext& ctx) const {
     auto formatPart = [](const std::vector<int>& fro, const std::vector<int>& to, auto&& alias) {
-        return fmt::join(
+        return fmt::format("{}", fmt::join(
             std::views::iota(std::size_t{0}, fro.size())
             | std::views::transform([&](std::size_t i) {
                 if (fro[i] == to[i]) {
@@ -21,7 +21,7 @@ std::string PaddedConsts::toString(const BindingContext& ctx) const {
                     return fmt::format("{}: {} -> {}", alias(i), fro[i], to[i]);
                 }
             }), ", "
-        );
+        ));
     };
     return fmt::format("Primary: {{ {} }}, Coefficient {{ {} }}",
         formatPart(unpadded.primary, padded.primary, [&ctx](auto i) { return ctx.getPrimaryAlias(i); }),
