@@ -99,6 +99,8 @@ class Sampler:
             kernel_name = f'{kernel_name_prefix}_{i}'
             logging.debug(f"For placeholder {i},")
 
+            logging.debug(f"Consts: {kernel.get_consts(i)}")
+
             unpadded_inputs_shapes = kernel.get_inputs_shapes(False, i)
             padded_inputs_shapes = kernel.get_inputs_shapes(True, i)
             logging.debug(f"Unpadded inputs shapes: {unpadded_inputs_shapes}, padded inputs shapes: {padded_inputs_shapes}")
@@ -124,3 +126,6 @@ class Sampler:
         placeholders = Sampler._extract_placeholders(net)
         for placeholder, kernel_pack in zip(placeholders, kernel_packs):
             placeholder.reload(kernel_pack)
+
+    def _bind_debug_context(self):
+        self._sampler.bind_debug_context()

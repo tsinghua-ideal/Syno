@@ -10,6 +10,25 @@
 
 namespace kas {
 
+std::string PaddedConsts::toString(const BindingContext& ctx) const {
+    auto formatPart = [](const std::vector<int>& fro, const std::vector<int>& to, auto&& alias) {
+        return fmt::join(
+            std::views::iota(std::size_t{0}, fro.size())
+            | std::views::transform([&](std::size_t i) {
+                if (fro[i] == to[i]) {
+                    return fmt::format("{}: {}", alias(i), fro[i]);
+                } else {
+                    return fmt::format("{}: {} -> {}", alias(i), fro[i], to[i]);
+                }
+            }), ", "
+        );
+    };
+    return fmt::format("Primary: {{ {} }}, Coefficient {{ {} }}",
+        formatPart(unpadded.primary, padded.primary, [&ctx](auto i) { return ctx.getPrimaryAlias(i); }),
+        formatPart(unpadded.coefficient, padded.coefficient, [&ctx](auto i) { return ctx.getCoefficientAlias(i); })
+    );
+}
+
 namespace {
     std::map<std::string, std::size_t> GetLookupTable(const std::vector<BindingContext::Metadata>& metadata) {
         std::map<std::string, std::size_t> lookupTable;

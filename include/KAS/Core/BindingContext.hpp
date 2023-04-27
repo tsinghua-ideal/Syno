@@ -17,6 +17,7 @@ namespace kas {
 struct Size;
 template<typename Storage, auto Mapping> class AbstractShape;
 using Shape = AbstractShape<std::vector<Size>, std::identity{}>;
+class BindingContext;
 
 struct ConcreteConsts {
     std::vector<int> primary;
@@ -32,6 +33,7 @@ struct ConcreteConsts {
 struct PaddedConsts {
     ConcreteConsts unpadded;
     ConcreteConsts padded;
+    std::string toString(const BindingContext& ctx) const;
 };
 
 class BindingContext final {

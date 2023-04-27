@@ -54,13 +54,7 @@ bool StrideOp::transformInterface(ColoredInterface& interface, Colors& colors, C
 }
 
 std::vector<const StrideOp *> StrideOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
-    const BindingContext& ctx = options.ctx;
     std::vector<const StrideOp *> result;
-    auto checkThenAdd = [&ctx, &result, &store](const Dimension& dim, auto&& block) {
-        if ((dim.size() / block).isRealistic(ctx)) { // block is already realistic.
-            result.emplace_back(store.get<StrideOp>(dim, std::forward<decltype(block)>(block)));
-        }
-    };
     for (std::size_t i = 0; i < outputShape.size(); ++i) {
         const Size& size = outputShape[i].size();
         auto primary = size.getPrimary();
@@ -73,7 +67,7 @@ std::vector<const StrideOp *> StrideOp::Generate(DimensionStore& store, const Co
             // Here we take one of the coefficient as stride. If you want more, you can add more StrideShapeOp.
             auto stride = Size(primary.size(), coefficient.size());
             stride.getCoefficient()[j] = 1;
-            checkThenAdd(outputShape[i], stride);
+            result.emplace_back(store.get<StrideOp>(outputShape[i], stride));
         }
     }
     return result;

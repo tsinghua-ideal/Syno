@@ -10,6 +10,7 @@
 #include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/Sample.hpp"
+#include "KAS/Search/Statistics.hpp"
 
 
 PYBIND11_MODULE(kas_cpp_bindings, m) {
@@ -90,6 +91,10 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("path"), pybind11::arg("name")
         )
         .def(
+            "get_consts", &Kernel::getConsts,
+            pybind11::arg("index")
+        )
+        .def(
             "get_inputs_shapes", &Kernel::getInputsShapes,
             pybind11::arg("padded"), pybind11::arg("index")
         )
@@ -128,6 +133,13 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def(
             "bind_debug_context", [](Sampler& self) {
                 BindingContext::DebugPublicCtx = &self.getBindingContext();
+            }
+        );
+    
+    pybind11::class_<StatisticsCollector>(m, "StatisticsCollector")
+        .def_static(
+            "PrintSummary", []() {
+                StatisticsCollector::PrintSummary(std::cout);
             }
         );
 

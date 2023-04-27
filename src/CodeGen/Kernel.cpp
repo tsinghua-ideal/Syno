@@ -33,6 +33,10 @@ void Kernel::generateGraphviz(const std::string& path, const std::string& name) 
     gen.generate(path, name);
 }
 
+std::string Kernel::getConsts(std::size_t index) const {
+    return paddedConsts.at(index).toString(ctx);
+}
+
 std::vector<std::vector<std::size_t>> Kernel::getInputsShapes(bool padded, std::size_t index) const {
     const auto& consts = padded ? paddedConsts[index].padded : paddedConsts[index].unpadded;
     std::vector<std::vector<std::size_t>> result;

@@ -68,12 +68,23 @@ class Node:
         return hash(tuple(self.path))
 
     def children_count(self) -> int:
+        """Get the number of all children of a node."""
         return self._node.children_count()
 
     def get_children_handles(self) -> List[Next]:
+        """Get all children of a node."""
         return self._node.get_children_handles()
 
+    def collect_operations(self) -> Dict[Next.Type, List[int]]:
+        """Group the children of a node by their type."""
+        handles = self.get_children_handles()
+        result = defaultdict(list)
+        for handle in handles:
+            result[handle.type].append(handle.key)
+        return result
+
     def get_children_types(self) -> Dict[str, int]:
+        """Count the number of children of each type."""
         handles = self.get_children_handles()
         result = defaultdict(int)
         for handle in handles:
@@ -81,15 +92,19 @@ class Node:
         return result
 
     def get_child(self, next: PseudoNext) -> 'Node':
+        """Get the child node of a node with a Next."""
         return Node(self.path.concat(next), self._node.get_child(Path.to_next(next)))
 
     def is_final(self) -> bool:
+        """Check if a node is final, which means it can be realized as a Halide kernel."""
         return self._node.is_final()
     
     def is_dead_end(self) -> bool:
+        """Check if a node is a dead end, which means it has no children and is not final."""
         (not self.is_final()) and self.children_count() == 0
     
     def is_terminal(self) -> bool:
+        """Check if a node is terminal, which means it is either final or a dead end."""
         # Either a final node, or a dead end.
         return self.is_final() or self.children_count() == 0
 

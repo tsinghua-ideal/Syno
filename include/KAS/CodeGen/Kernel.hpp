@@ -28,6 +28,8 @@ public:
     void generateOperator(const std::string& path, const std::string& name);
     void generateGraphviz(const std::string& path, const std::string& name);
 
+    std::string getConsts(std::size_t index) const;
+
     std::vector<std::vector<std::size_t>> getInputsShapes(bool padded, std::size_t index) const;
 
     std::vector<std::size_t> getOutputShape(bool padded, std::size_t index) const;
