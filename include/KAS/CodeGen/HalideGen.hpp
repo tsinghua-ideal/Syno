@@ -137,6 +137,7 @@ public:
 
     // For test use only.
     struct Realization {
+        PaddedConsts paddedConsts;
         Halide::Pipeline pipeline;
         HalideGen::BufferAdaptor<float> trial;
         Halide::Pipeline backwardPipeline;
@@ -213,7 +214,7 @@ public:
             backwardTrials.back().content.copy_to_host();
         }
 
-        return { std::move(pipeline), std::move(trial), std::move(backwardPipeline), std::move(backwardTrials) };
+        return { { unpaddedConsts, consts }, std::move(pipeline), std::move(trial), std::move(backwardPipeline), std::move(backwardTrials) };
     }
 
 };

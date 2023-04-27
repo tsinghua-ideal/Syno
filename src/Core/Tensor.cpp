@@ -16,6 +16,7 @@
 #include "KAS/Core/Lower.hpp"
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Core/Size.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -75,8 +76,43 @@ std::string AbstractAccess::targetEntryToString() const {
 }
 
 ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const ConcreteConsts& consts) const {
-    // TODO!!!
-    return consts;
+    PaddingSolver sol { ctx, consts };
+    // Find all merges.
+    struct visitor: public DimVisitor {
+        PaddingSolver& sol;
+        std::set<Dimension, Dimension::AddressLessThan> visited;
+        visitor(PaddingSolver& sol): sol(sol) {}
+        void visit(const RepeatLikeOp::Input& dim) override {
+            auto [_, inserted] = visited.insert(&dim);
+            if (inserted) DimVisitor::visit(dim.getOp()->output);
+        }
+        void visit(const SplitLikeOp::Input& dim) override {
+            auto [_, inserted] = visited.insert(&dim);
+            if (inserted) {
+                DimVisitor::visit(dim.getOp()->outputLhs);
+                DimVisitor::visit(dim.getOp()->outputRhs);
+            }
+        }
+        void visit(const MergeLikeOp::Input& dim) override {
+            auto [_, inserted] = visited.insert(&dim);
+            if (inserted) {
+                sol.addConstraint(dim.size());
+                DimVisitor::visit(dim.getOp()->output);
+            }
+        }
+        using DimVisitor::visit;
+    };
+    visitor v { sol };
+    for (const Dimension& dim: getUnderlyingDimensions()) {
+        v.visit(dim);
+    }
+    for (auto it: interface) {
+        sol.addConstraint(it->size());
+    }
+    for (auto it: manipulations) {
+        sol.addConstraint(it->size());
+    }
+    return sol.solve(Size::Product(getUnderlyingDimensions() | std::views::transform([](const Dimension& dim) { return dim.size(); })), Size::Product(getInterfaceShape()));
 }
 
 namespace {

@@ -35,7 +35,7 @@ protected:
 };
 
 TEST_F(forward_tests, pooling) {
-    constexpr int n = 64, c = 3, h = 125, w = 125, k = 5;
+    constexpr int n = 64, c = 3, h = 128, hp = 130, w = 128, wp = 130, k = 5;
 
     BindingContext ctx { std::vector<SizeName> {
         SizeName { .alias = "N", .estimate = n },
@@ -102,7 +102,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     gvGen.generate("./kernel_" + std::string(funcName), funcName);
     auto gen = HalideGen { ctx, tensorView, options };
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C", c}, {"K", k}};
-    auto [pipeline, trial, backwardPipeline, backwardTrials] = gen.performTrial(mappings, funcName, createStaticLibrary, true,
+    auto [consts, pipeline, trial, backwardPipeline, backwardTrials] = gen.performTrial(mappings, funcName, createStaticLibrary, true,
         [](auto&& grad, int i, int j, int k, int l) {
             grad(i, j, k, l) = static_cast<float>(i + j + k + l);
         },
@@ -110,12 +110,13 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
             inputBuffer(i, j, k, l) = static_cast<float>(i + j + k + l);
         }
     );
+    fmt::print("Consts: {}\n", consts.toString(ctx));
 
     fmt::print("Running semantic tests for {}...\n", funcName);
     for (int N = 0; N < n; ++N) {
         for (int C = 0; C < c; ++C) {
-            for (int H = 0; H < h / k; ++H) {
-                for (int W = 0; W < h / k; ++W) {
+            for (int H = 0; H < hp / k; ++H) {
+                for (int W = 0; W < wp / k; ++W) {
                     auto res = k * k * (N + C + k * H + k * W + 2 * (k - 1) / 2);
                     ASSERT_EQ(trial(N, C, H, W), res);
                 }
@@ -124,9 +125,9 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     }
     for (int N = 0; N < n; ++N) {
         for (int C = 0; C < c; ++C) {
-            for (int H = 0; H < h; ++H) {
-                for (int W = 0; W < w; ++W) {
-                    bool inBound = H < k * (h / k) && W < k * (w / k);
+            for (int H = 0; H < hp; ++H) {
+                for (int W = 0; W < wp; ++W) {
+                    bool inBound = H < k * (hp / k) && W < k * (wp / k);
                     if (inBound) {
                         ASSERT_EQ(backwardTrials[0](N, C, H, W), N + C + H / k + W / k);
                     } else {
@@ -141,7 +142,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     constexpr int x = 1000;
     auto t1 = std::chrono::steady_clock::now();
     for (int i = 0; i < x; ++i) {
-        pipeline.realize({w / k, h / k, c, n});
+        pipeline.realize({wp / k, hp / k, c, n});
     }
     auto t2 = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
@@ -226,7 +227,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     auto in_0 = new float[n][c_in][h][w]();
     auto in_1 = new float[c_out][c_in][k][k]();
     auto out_grad = new float[n][c_out][h][w]();
-    auto [pipeline, trial, backwardPipeline, backwardTrials] = gen.performTrial(mappings, funcName, createStaticLibrary, true,
+    auto [consts, pipeline, trial, backwardPipeline, backwardTrials] = gen.performTrial(mappings, funcName, createStaticLibrary, true,
         [&](auto&& grad, int N, int C_out, int H, int W) {
             float res = random();
             grad(N, C_out, H, W) = res;
@@ -243,6 +244,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
             in_1[C_out][C_in][K1][K2] = res;
         }
     );
+    fmt::print("Consts: {}\n", consts.toString(ctx));
 
     bool success = true;
     if (doSemanticTests) {

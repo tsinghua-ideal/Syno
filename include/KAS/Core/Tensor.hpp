@@ -82,6 +82,14 @@ public:
 
     // Returns the underlying tensor underneath the view.
     inline const std::vector<PureTensor>& getUnderlyingTensors() const { return tensors; }
+    // Returns all dimensions in the underlying tensors.
+    inline auto getUnderlyingDimensions() const {
+        return tensors
+            | std::views::transform([](const PureTensor& tensor) {
+                return tensor.getDimensions();
+            })
+            | std::views::join;
+    }
 
     inline const AbstractAccess& getForwardAccess() const { return forwardAccess; }
 
