@@ -17,7 +17,7 @@
 
 ## CodeGen
 
-- [ ] Add padding by padding variables that cannot be divided by their denominators.
+- [x] Add padding by padding variables that cannot be divided by their denominators.
 - [ ] Optimization: Early reduction to reduce FLOPs.
 - [ ] Early reduction analysis is actually compulsory. Otherwise in autodiff settings, the RDom may be left unmentioned, causing Halide compile errors!
 
@@ -29,7 +29,7 @@
 
 ### Generation
 
-- [ ] Before generating an Op, test sizes of new dimensions to make it legal.
+- [x] Before generating an Op, test sizes of new dimensions to make it legal.
 - [ ] Redesign generation algorithm for each Op.
 
 ### Pruning
@@ -45,5 +45,5 @@
 ## Experiment
 
 - [x] Build framework for MNIST experiments. 
-- [] Multi-processing support for MCTS. 
-- [] Two-step primitive selection. 
+- [ ] Multi-processing support for MCTS. 
+- [ ] Two-step primitive selection. 
