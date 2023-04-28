@@ -1,6 +1,7 @@
-#include "KAS/Core/BindingContext.hpp"
-#include "KAS/Core/Size.hpp"
 #include <gtest/gtest.h>
+
+#include "KAS/Core/Size.hpp"
+
 
 using namespace kas;
 

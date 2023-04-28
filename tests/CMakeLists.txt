@@ -8,10 +8,8 @@ function(add_kas_test TEST_NAME TEST_ENTRY_PATH)
 endfunction()
 
 # Tests
+add_subdirectory(Core)
+add_subdirectory(Transforms)
 add_kas_test(codegen-tests CodeGen.cpp)
-add_kas_test(core-tests Core.cpp)
-add_kas_test(forward-tests Forward.cpp)
-add_kas_test(padding-tests Padding.cpp)
 add_kas_test(search-tests Search.cpp)
-add_kas_test(transforms-tests Transforms.cpp)
 add_kas_test(utils-tests Utils.cpp)
