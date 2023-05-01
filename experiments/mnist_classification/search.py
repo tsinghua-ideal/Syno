@@ -12,6 +12,7 @@ import shutil
 import sys
 import logging
 import traceback
+import json
 
 # KAS
 from KAS import MCTS, Sampler, KernelPack, Node, Path
@@ -61,8 +62,8 @@ class Searcher(MCTS):
         self.min_model_size = int(min_model_size * 1e6)
         self.max_model_size = int(max_model_size * 1e6)
         self.type = type  # 'mcts' or 'random'
-        if self.type == 'random':
-            self.best_node = None
+        self.best_node = None
+        self.upper_bound_list = []
 
     def _eval_model(self, model: nn.Module) -> float:
         train_error, val_error, _ = train(
@@ -71,7 +72,7 @@ class Searcher(MCTS):
         assert 0 <= accuracy <= 1
         return accuracy
 
-    def update(self, prefix="") -> bool:
+    def update(self, prefix=""):
 
         # Selecting a node
         if self.type == 'mcts':
@@ -94,20 +95,20 @@ class Searcher(MCTS):
         if model_size > self.max_model_size:
             logging.info(
                 f"Model size {model_size} exceeds {self.max_model_size}, skipping")
-            return False
+            return None
         elif model_size < self.min_model_size:
             logging.info(
                 f"Model size {model_size} below {self.min_model_size}, skipping")
-            return False
+            return None
 
         reward = self._eval_model(model)
 
         # update
+        if self.best_node is None or self.best_node[1] < reward:
+            self.best_node = (node, reward)
         if self.type == 'mcts':
             self.back_propagate(node, reward)
-        elif self.type == 'random':
-            if self.best_node is None or self.best_node[1] < reward:
-                self.best_node = (node, reward)
+
         return True
 
     def search(self, iterations: int = 1000, result_save_loc: str = './final_result') -> None:
@@ -117,12 +118,17 @@ class Searcher(MCTS):
             while True:
                 try:
                     if self.update(f"Iteration{iter}"):
+                        self.upper_bound_list.append(self.best_node[1])
                         break
                 except Exception as e:
                     logging.warn("Catched error {}, retrying".format(e))
                     traceback.print_exc(file=sys.stderr)
 
         logging.info("Finish searching process. Displaying final result...")
+
+        os.makedirs(result_save_loc, exist_ok=True)
+        perf_path = os.path.join(result_save_loc, 'perf.json')
+        json.dump(self.upper_bound_list, open(perf_path, 'w'))
 
         if self.type == 'mcts':
             node = self.get_results()
@@ -191,10 +197,3 @@ if __name__ == '__main__':
 
     searcher.search(iterations=args.kas_iterations,
                     result_save_loc=args.result_save_dir)
-
-    print("Searched Ended:")
-    path = searcher.get_results()
-    model = searcher._model.create_instance()
-    kernelPacks = searcher.generate_kernel(model, path, "FinalResult")
-    model = searcher._model.restore_model_params(model, kernelPacks)
-    train_error, val_error = train(model, **training_params, verbose=True)
