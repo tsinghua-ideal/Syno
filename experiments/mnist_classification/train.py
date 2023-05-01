@@ -3,6 +3,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 
 import time
+import logging
 from typing import Tuple, List
 
 from utils.models import KASConv
@@ -26,6 +27,7 @@ def train(
         assert torch.cuda.is_available(), "CUDA is not supported. "
         model.cuda()
     optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum)
+    best_model_state_dict = {}
 
     model.train()
     train_errors = []
@@ -78,13 +80,15 @@ def train(
                     total += label.size(0)
 
                 val_errors.append(1 - correct / total)
+                if val_errors[-1] == min(val_errors):
+                    best_model_state_dict = model.state_dict()
 
         if (epoch + 1) % 5 == 0 and verbose:
-            print(
+            logging.info(
                 f'Epoch {epoch+1}, train loss {train_loss}, train error {train_errors[-1]}, validation error {val_errors[-1]}, elapsed {time.time() - start}')
             start = time.time()
 
-    return train_errors, val_errors
+    return train_errors, val_errors, best_model_state_dict
 
 
 if __name__ == '__main__':

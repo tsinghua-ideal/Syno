@@ -123,14 +123,6 @@ class KASGrayConv(nn.Module):
 
         return x
 
-    def show_placeholders(self):
-        print("\nShow placeholders....")
-        for block in self.layers:
-            if isinstance(block, Placeholder):
-                print(block.kernel._module)
-                print([weight.size() for weight in block.kernel.weights])
-                print([weight for weight in block.kernel.weights])
-
     def forward(self, image: Tensor) -> Tensor:
         B = image.size(0)
         x = image.squeeze(1)

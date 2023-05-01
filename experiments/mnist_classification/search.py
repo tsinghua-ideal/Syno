@@ -11,6 +11,7 @@ import os
 import shutil
 import sys
 import logging
+import traceback
 
 # KAS
 from KAS import MCTS, Sampler, KernelPack, Node
@@ -29,18 +30,21 @@ class ModelBackup:
 
     def create_instance(self) -> nn.Module:
         model = self._model_builder()
-        model.generatePlaceHolder(self._sample_input.clone())
+        model_size = sum(p.numel()
+                         for p in model.parameters() if p.requires_grad)
+        logging.info("Original Model size: {}".format(model_size))
+        model.eval()
+        model.generatePlaceHolder(self._sample_input)
         return model
 
     def restore_model_params(self, model, pack: List[KernelPack], device='cuda:0'):
         """
         Restore model parameters and replace the selected parameters with pack.
         """
-        if len(pack) > 0:
-            assert isinstance(pack[0], KernelPack
-                              ), f"elements in pack are not valid! {type(pack[0])}"
-            Sampler.replace(model, pack)
-        model.show_placeholders()
+        assert len(pack) > 0, "Not detected any placeholders! "
+        assert isinstance(pack[0], KernelPack
+                          ), f"elements in pack are not valid! {type(pack[0])}"
+        Sampler.replace(model, pack)
         model = model.to(device)
         return model
 
@@ -48,45 +52,84 @@ class ModelBackup:
 class Searcher(MCTS):
     def __init__(self,
                  model: nn.Module, sample_input: Tensor, train_params: dict,
-                 sampler: Sampler, exploration_weight: float = math.sqrt(2)) -> None:
+                 sampler: Sampler, exploration_weight: float = math.sqrt(2), min_model_size=0.1, max_model_size=0.3) -> None:
         super().__init__(sampler, exploration_weight)
         self._model = ModelBackup(model, sample_input)
         self._train_params = train_params
+        self._device = torch.device(
+            "cuda" if self._train_params["use_cuda"] else "cpu")
+        self.min_model_size = int(min_model_size * 1e6)
+        self.max_model_size = int(max_model_size * 1e6)
 
     def _eval_model(self, model: nn.Module) -> float:
-        train_error, val_error = train(
+        train_error, val_error, _ = train(
             model, **self._train_params, verbose=True)
         accuracy = 1. - min(val_error)
         assert 0 <= accuracy <= 1
         return accuracy
 
-    def update(self, prefix="") -> None:
-        path = self.do_rollout(kas_sampler.root())
+    def update(self, prefix="") -> bool:
+        node = self.do_rollout(kas_sampler.root())
         model = self._model.create_instance()
-        kernelPacks = self._sampler.realize(model, path, prefix)
-        model = self._model.restore_model_params(model, kernelPacks)
-        reward = self._eval_model(model)
-        self.back_propagate(path, reward)
+        kernelPacks = self._sampler.realize(model, node, prefix)
+        model = self._model.restore_model_params(
+            model, kernelPacks, self._device)
+        model_size = sum(p.numel()
+                         for p in model.parameters() if p.requires_grad)
+        logging.info("Model size: {}".format(model_size))
 
-    def search(self, iterations=1000):
+        if model_size > self.max_model_size:
+            logging.info(
+                f"Model size {model_size} exceeds {self.max_model_size}, skipping")
+            return False
+        elif model_size < self.min_model_size:
+            logging.info(
+                f"Model size {model_size} below {self.min_model_size}, skipping")
+            return False
+
+        reward = self._eval_model(model)
+        self.back_propagate(node, reward)
+        return True
+
+    def search(self, iterations: int = 1000, result_save_loc: str = './final_result') -> None:
+        """Search for the best model for iterations times."""
         for iter in range(iterations):
-            print(f"Iteration {iter}")
-            try:
-                self.update(f"Iteration{iter}")
-            except Exception as e:
-                print("Catched error {}, retrying".format(e))
+            logging.info(f"Iteration {iter}")
+            while True:
+                try:
+                    if self.update(f"Iteration{iter}"):
+                        break
+                except Exception as e:
+                    logging.warn("Catched error {}, retrying".format(e))
+                    traceback.print_exc(file=sys.stderr)
+
+        logging.info("Finish searching process. Displaying final result...")
+        path = self.get_results()
+        model = self._model.create_instance()
+        kernelPacks = self._sampler.realize(model, path, "FinalResult")
+        model = self._model.restore_model_params(model, kernelPacks)
+        train_error, val_error, best_model_state_dict = train(
+            model, **self.training_params, verbose=True)
+
+        model_ckpt = (path, best_model_state_dict)
+        model_path = os.path.join(result_save_loc, 'model.pth')
+        torch.save(model_ckpt, model_path)
+
+        logging.info("The best model is saved in {}".format(model_path))
+        logging.info("Best performance: {}".format(min(val_error)))
 
 
 if __name__ == '__main__':
 
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.DEBUG)
+    # set logging level
+    logging.getLogger().setLevel(logging.INFO)
 
     args = arg_parse()
+    use_cuda = torch.cuda.is_available()
 
     if os.path.exists(args.kas_sampler_save_dir):
         shutil.rmtree(args.kas_sampler_save_dir)
-    os.makedirs(args.kas_sampler_save_dir, exist_ok=True)
+    os.makedirs(args.kas_sampler_save_dir)
 
     train_data_loader, validation_data_loader = get_dataloader(args)
 
@@ -99,9 +142,9 @@ if __name__ == '__main__':
         criterion=nn.CrossEntropyLoss(),
         lr=0.1,
         momentum=0.9,
-        epochs=1,
-        val_period=1,
-        use_cuda=torch.cuda.is_available()
+        epochs=30,
+        val_period=5,
+        use_cuda=use_cuda
     )
 
     kas_sampler = Sampler(
@@ -115,13 +158,15 @@ if __name__ == '__main__':
         dim_lower=args.kas_min_dim,
         dim_upper=args.kas_max_dim,
         save_path=args.kas_sampler_save_dir,
-        cuda=torch.cuda.is_available(),
+        cuda=use_cuda,
         autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021
     )
 
-    searcher = Searcher(KASConv, sample_input, training_params, kas_sampler)
+    searcher = Searcher(KASConv, sample_input, training_params,
+                        kas_sampler, min_model_size=args.kas_min_params, max_model_size=args.kas_max_params)
 
-    searcher.search(iterations=args.kas_iterations)
+    searcher.search(iterations=args.kas_iterations,
+                    result_save_loc=args.result_save_dir)
 
     print("Searched Ended:")
     path = searcher.get_results()

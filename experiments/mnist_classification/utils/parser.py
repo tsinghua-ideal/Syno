@@ -124,15 +124,17 @@ def arg_parse():
                         type=int, help='kas sampler maximum dimensions')
     parser.add_argument('--kas-sampler-save-dir', default='./samples',
                         help='Sampler saving directory')
-    parser.add_argument('--kas-iterations', default=1000,
+    parser.add_argument('--result-save-dir', default='./results',
+                        help='Sampler saving directory')
+    parser.add_argument('--kas-iterations', default=10000,
                         help='Searcher iterations')
     parser.add_argument('--kas-min-macs', default=0, type=float,
                         help='Minimum MACs for searched kernels (in G-unit, only for search)')
     parser.add_argument('--kas-max-macs', default=0, type=float,
                         help='Maximum MACs for searched kernels (in G-unit, only for search)')
-    parser.add_argument('--kas-min-params', default=0, type=float,
+    parser.add_argument('--kas-min-params', default=0.01, type=float,
                         help='Minimum params for searched kernels (in M-unit, only for search)')
-    parser.add_argument('--kas-max-params', default=0, type=float,
+    parser.add_argument('--kas-max-params', default=0.03, type=float,
                         help='Maximum params for searched kernels (in M-unit, only for search)')
     parser.add_argument('--kas-min-receptive-size', default=1, type=int,
                         help='Minimum receptive size (only for search)')
