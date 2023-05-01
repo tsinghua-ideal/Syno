@@ -95,6 +95,11 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("index")
         )
         .def(
+            "get_flops", &Kernel::getFLOPs,
+            pybind11::arg("index")
+        )
+        .def("get_total_flops", &Kernel::getTotalFLOPs)
+        .def(
             "get_inputs_shapes", &Kernel::getInputsShapes,
             pybind11::arg("padded"), pybind11::arg("index")
         )
@@ -116,6 +121,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             "realize_as_final", &Node::realizeAsFinal,
             pybind11::arg("all_mappings"), pybind11::arg("halide_options")
         )
+        .def("estimate_total_flops_as_final", &Node::estimateTotalFLOPsAsFinal)
         .def("__repr__", &Node::toString);
 
     pybind11::class_<Sampler>(m, "Sampler")

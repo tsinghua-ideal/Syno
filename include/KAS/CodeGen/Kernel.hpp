@@ -30,6 +30,9 @@ public:
 
     std::string getConsts(std::size_t index) const;
 
+    int getFLOPs(std::size_t index) const;
+    int getTotalFLOPs() const;
+
     std::vector<std::vector<std::size_t>> getInputsShapes(bool padded, std::size_t index) const;
 
     std::vector<std::size_t> getOutputShape(bool padded, std::size_t index) const;

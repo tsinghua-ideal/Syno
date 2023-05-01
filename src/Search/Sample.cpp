@@ -91,8 +91,8 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     // DO NOT modify reduces and originalBases after this, because Dimension references by address these iterators.
     for (const auto& r: reduces) {
         ColoredInterface temp;
-        std::ranges::copy(root | std::views::transform([](const Dimension& dim) { return ColoredDimension { dim, Colors::Unknown }; }), std::back_inserter(temp.items)); // Maybe we can determine the colors here? TODO. Use it below.
-        std::ranges::copy(r | std::views::transform([](const MapReduceOp& m) { return ColoredDimension{ &m, Colors::Unknown }; }), std::back_inserter(temp.items));
+        std::ranges::move(root | std::views::transform([](const Dimension& dim) { return ColoredDimension { dim, Colors::Unknown }; }), std::back_inserter(temp.items)); // Maybe we can determine the colors here? TODO. Use it below.
+        std::ranges::move(r | std::views::transform([](const MapReduceOp& m) { return ColoredDimension{ &m, Colors::Unknown }; }), std::back_inserter(temp.items));
         std::ranges::sort(temp.items, Dimension::HashLessThan{}, ColoredDimension::Projection{});
         originalBases.emplace_back(std::move(temp), Colors(colorOptions), *this, 0);
     }

@@ -230,6 +230,7 @@ cython_debug/
 
 # Generated kernels
 /save/
+/samples/
 /experiments/save
 
 # Files for debug purpose.

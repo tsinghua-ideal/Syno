@@ -111,5 +111,8 @@ class Node:
     def _realize_as_final(self, all_mappings: List[Dict[str, int]], halide_options: kas_cpp_bindings.CodeGenOptions) -> kas_cpp_bindings.Kernel:
         return self._node.realize_as_final(all_mappings, halide_options)
 
+    def estimate_total_flops_as_final(self) -> int:
+        return self._node.estimate_total_flops_as_final()
+
     def __repr__(self) -> str:
         return str(self._node)
