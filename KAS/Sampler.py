@@ -1,4 +1,4 @@
-import os
+import os, shutil
 import logging
 import torch
 from torch import nn
@@ -32,7 +32,13 @@ class Sampler:
         placeholders = Sampler._extract_placeholders(net)
         return Sampler._get_all_mappings(placeholders)
 
-    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors = 2, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot):
+    @staticmethod
+    def replace(net: nn.Module, kernel_packs: List[KernelPack]):
+        placeholders = Sampler._extract_placeholders(net)
+        for placeholder, kernel_pack in zip(placeholders, kernel_packs):
+            placeholder.reload(kernel_pack)
+
+    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors=2, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot):
         options = kas_cpp_bindings.SampleOptions(
             seed=seed,
             depth=depth,
@@ -86,9 +92,10 @@ class Sampler:
         kernel = self._realize(node, all_mappings)
         logging.debug(f"Realizing kernel:\n{kernel}")
         save_path = os.path.join(self._save_path, identifier_prefix)
-        os.makedirs(save_path, exist_ok=True)
+        shutil.rmtree(save_path)
+        os.makedirs(save_path)
 
-        kernel_name_prefix = 'kernel'
+        kernel_name_prefix = f'kernel_{abs(hash(node))}'
         logging.debug("Generating kernel files...")
         kernel.generate_operator(save_path, kernel_name_prefix)
         kernel.generate_graphviz(save_path, kernel_name_prefix)
@@ -103,10 +110,12 @@ class Sampler:
 
             unpadded_inputs_shapes = kernel.get_inputs_shapes(False, i)
             padded_inputs_shapes = kernel.get_inputs_shapes(True, i)
-            logging.debug(f"Unpadded inputs shapes: {unpadded_inputs_shapes}, padded inputs shapes: {padded_inputs_shapes}")
+            logging.debug(
+                f"Unpadded inputs shapes: {unpadded_inputs_shapes}, padded inputs shapes: {padded_inputs_shapes}")
             unpadded_output_shape = kernel.get_output_shape(False, i)
             padded_output_shape = kernel.get_output_shape(True, i)
-            logging.debug(f"Unpadded output shape: {unpadded_output_shape}, padded output shape: {padded_output_shape}")
+            logging.debug(
+                f"Unpadded output shape: {unpadded_output_shape}, padded output shape: {padded_output_shape}")
 
             identifier = identifier_prefix + "__" + str(i)
             kernel_packs.append(KernelPack(
@@ -120,12 +129,6 @@ class Sampler:
                 device=self._device))
 
         return kernel_packs
-
-    @staticmethod
-    def replace(net: nn.Module, kernel_packs: List[KernelPack]):
-        placeholders = Sampler._extract_placeholders(net)
-        for placeholder, kernel_pack in zip(placeholders, kernel_packs):
-            placeholder.reload(kernel_pack)
 
     def _bind_debug_context(self):
         self._sampler.bind_debug_context()
