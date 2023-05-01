@@ -124,6 +124,8 @@ def arg_parse():
                         type=int, help='kas sampler maximum dimensions')
     parser.add_argument('--kas-sampler-save-dir', default='./samples',
                         help='Sampler saving directory')
+    parser.add_argument('--kas-searcher-type', default='mcts', type=str,
+                        help='searcher type (mcts or random)')
     parser.add_argument('--result-save-dir', default='./results',
                         help='Sampler saving directory')
     parser.add_argument('--kas-iterations', default=10000,

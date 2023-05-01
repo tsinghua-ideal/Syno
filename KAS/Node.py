@@ -12,6 +12,7 @@ AbsolutePath is a list of Next(type=Next.Type, key=int).
 
 PseudoNext = Union[Next, Tuple[str, int]]
 
+
 class Path:
     """A path in Python, not necessarily corresponding to a C++ path."""
 
@@ -22,9 +23,18 @@ class Path:
         t, k = tup
         return Next(getattr(Next, t), k)
 
+    def serialize(self) -> str:
+        serialized = [str(int(n.type)) + str(n.key) for n in self.abs_path]
+        return '_'.join(serialized)
+
+    @ staticmethod
+    def deserialize(serialized: str) -> AbsolutePath:
+        deserialized_list = serialized.split('_')
+        return [Next(Next.Type(n[0]), int(n[1:])) for n in deserialized_list]
+
     def __init__(self, path: List[PseudoNext]) -> None:
         self.abs_path: AbsolutePath = [Path.to_next(n) for n in path]
-    
+
     def __len__(self) -> int:
         return len(self.abs_path)
 
@@ -35,7 +45,7 @@ class Path:
         if not isinstance(__value, Path):
             return False
         return self.abs_path == __value.abs_path
-    
+
     def __hash__(self) -> int:
         return hash(tuple(self.abs_path))
 
@@ -63,7 +73,7 @@ class Node:
         if not isinstance(__value, Node):
             return False
         return self.path == __value.path
-    
+
     def __hash__(self) -> int:
         return hash(tuple(self.path))
 
@@ -98,11 +108,11 @@ class Node:
     def is_final(self) -> bool:
         """Check if a node is final, which means it can be realized as a Halide kernel."""
         return self._node.is_final()
-    
+
     def is_dead_end(self) -> bool:
         """Check if a node is a dead end, which means it has no children and is not final."""
         (not self.is_final()) and self.children_count() == 0
-    
+
     def is_terminal(self) -> bool:
         """Check if a node is terminal, which means it is either final or a dead end."""
         # Either a final node, or a dead end.

@@ -14,7 +14,7 @@ import logging
 import traceback
 
 # KAS
-from KAS import MCTS, Sampler, KernelPack, Node
+from KAS import MCTS, Sampler, KernelPack, Node, Path
 from kas_cpp_bindings import CodeGenOptions
 
 from train import train
@@ -52,7 +52,7 @@ class ModelBackup:
 class Searcher(MCTS):
     def __init__(self,
                  model: nn.Module, sample_input: Tensor, train_params: dict,
-                 sampler: Sampler, exploration_weight: float = math.sqrt(2), min_model_size=0.1, max_model_size=0.3) -> None:
+                 sampler: Sampler, type: str, exploration_weight: float = math.sqrt(2), min_model_size=0.1, max_model_size=0.3) -> None:
         super().__init__(sampler, exploration_weight)
         self._model = ModelBackup(model, sample_input)
         self._train_params = train_params
@@ -60,6 +60,9 @@ class Searcher(MCTS):
             "cuda" if self._train_params["use_cuda"] else "cpu")
         self.min_model_size = int(min_model_size * 1e6)
         self.max_model_size = int(max_model_size * 1e6)
+        self.type = type  # 'mcts' or 'random'
+        if self.type == 'random':
+            self.best_node = None
 
     def _eval_model(self, model: nn.Module) -> float:
         train_error, val_error, _ = train(
@@ -69,7 +72,17 @@ class Searcher(MCTS):
         return accuracy
 
     def update(self, prefix="") -> bool:
-        node = self.do_rollout(kas_sampler.root())
+
+        # Selecting a node
+        if self.type == 'mcts':
+            node = self.do_rollout(kas_sampler.root())
+        elif self.type == 'random':
+            while True:
+                node = self._sampler.random_node_with_prefix(Path([]))
+                if node.is_final():
+                    break
+
+        # Analyze a sample
         model = self._model.create_instance()
         kernelPacks = self._sampler.realize(model, node, prefix)
         model = self._model.restore_model_params(
@@ -88,7 +101,13 @@ class Searcher(MCTS):
             return False
 
         reward = self._eval_model(model)
-        self.back_propagate(node, reward)
+
+        # update
+        if self.type == 'mcts':
+            self.back_propagate(node, reward)
+        elif self.type == 'random':
+            if self.best_node is None or self.best_node[1] < reward:
+                self.best_node = (node, reward)
         return True
 
     def search(self, iterations: int = 1000, result_save_loc: str = './final_result') -> None:
@@ -104,14 +123,19 @@ class Searcher(MCTS):
                     traceback.print_exc(file=sys.stderr)
 
         logging.info("Finish searching process. Displaying final result...")
-        path = self.get_results()
+
+        if self.type == 'mcts':
+            node = self.get_results()
+        elif self.type == 'random':
+            node = self.best_node[0]
+
         model = self._model.create_instance()
-        kernelPacks = self._sampler.realize(model, path, "FinalResult")
+        kernelPacks = self._sampler.realize(model, node, "FinalResult")
         model = self._model.restore_model_params(model, kernelPacks)
         train_error, val_error, best_model_state_dict = train(
             model, **self.training_params, verbose=True)
 
-        model_ckpt = (path, best_model_state_dict)
+        model_ckpt = (node.path.serialize(), best_model_state_dict)
         model_path = os.path.join(result_save_loc, 'model.pth')
         torch.save(model_ckpt, model_path)
 
@@ -163,7 +187,7 @@ if __name__ == '__main__':
     )
 
     searcher = Searcher(KASConv, sample_input, training_params,
-                        kas_sampler, min_model_size=args.kas_min_params, max_model_size=args.kas_max_params)
+                        kas_sampler, args.kas_searcher_type, min_model_size=args.kas_min_params, max_model_size=args.kas_max_params)
 
     searcher.search(iterations=args.kas_iterations,
                     result_save_loc=args.result_save_dir)

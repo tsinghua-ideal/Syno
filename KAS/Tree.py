@@ -100,6 +100,8 @@ class MCTS:
 
         def uct(child) -> float:
             "Upper confidence bound for trees"
+            if self._N[child] == 0:
+                return -1  # avoid unseen moves
             return self._Q[child] / self._N[child] + self._exploration_weight * math.sqrt(
                 log_N_vertex / self._N[child]
             )
@@ -119,7 +121,7 @@ class MCTS:
 
         def score(n) -> float:
             if self._N[n] == 0:
-                return math.inf  # avoid unseen moves
+                return -1  # avoid unseen moves
             return self._Q[n] / self._N[n]  # average reward
 
         return max(children, key=score)
