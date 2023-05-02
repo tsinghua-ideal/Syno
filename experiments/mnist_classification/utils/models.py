@@ -123,6 +123,10 @@ class KASGrayConv(nn.Module):
 
         return x
 
+    def _initialize_weight(self):
+        self.linear.weight.data.normal_(0, 0.01)
+        self.linear.bias.data.zero_()
+
     def forward(self, image: Tensor) -> Tensor:
         B = image.size(0)
         x = image.squeeze(1)

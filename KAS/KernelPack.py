@@ -30,7 +30,8 @@ class KernelPack(nn.Module):
         """Get parameters for nn.functional.pad."""
         if all(padding is None for padding in paddings):
             return None
-        remaining_paddings = list(itertools.dropwhile(lambda padding: padding is None, paddings))
+        remaining_paddings = list(
+            map(lambda x: x if x is not None else (0, 0), paddings))
         remaining_paddings.reverse()
         logging.info(f"paddings are {paddings}")
         logging.info(f"remaining_paddings are {remaining_paddings}")

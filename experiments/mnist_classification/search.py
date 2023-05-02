@@ -8,7 +8,6 @@ import time
 import random
 from typing import List
 import os
-import shutil
 import sys
 import logging
 import traceback
@@ -25,20 +24,18 @@ from utils.parser import arg_parse
 
 
 class ModelBackup:
-    def __init__(self, model, sample_input: Tensor) -> None:
+    def __init__(self, model, sample_input: Tensor, device='cuda:0') -> None:
         self._model_builder = model
-        self._sample_input = sample_input
+        self._sample_input = sample_input.to(device)
+
+        self._model = self._model_builder().to(device)
+        self._model.generatePlaceHolder(self._sample_input)
 
     def create_instance(self) -> nn.Module:
-        model = self._model_builder()
-        model_size = sum(p.numel()
-                         for p in model.parameters() if p.requires_grad)
-        logging.info("Original Model size: {}".format(model_size))
-        model.eval()
-        model.generatePlaceHolder(self._sample_input)
-        return model
+        self._model._initialize_weight()
+        return self._model
 
-    def restore_model_params(self, model, pack: List[KernelPack], device='cuda:0'):
+    def restore_model_params(self, model, pack: List[KernelPack]):
         """
         Restore model parameters and replace the selected parameters with pack.
         """
@@ -46,22 +43,21 @@ class ModelBackup:
         assert isinstance(pack[0], KernelPack
                           ), f"elements in pack are not valid! {type(pack[0])}"
         Sampler.replace(model, pack)
-        model = model.to(device)
         return model
 
 
 class Searcher(MCTS):
     def __init__(self,
                  model: nn.Module, sample_input: Tensor, train_params: dict,
-                 sampler: Sampler, type: str, exploration_weight: float = math.sqrt(2), min_model_size=0.1, max_model_size=0.3) -> None:
+                 sampler: Sampler, typ: str, exploration_weight: float = math.sqrt(2), min_model_size=0.1, max_model_size=0.3) -> None:
         super().__init__(sampler, exploration_weight)
-        self._model = ModelBackup(model, sample_input)
         self._train_params = train_params
         self._device = torch.device(
             "cuda" if self._train_params["use_cuda"] else "cpu")
+        self._model = ModelBackup(model, sample_input, self._device)
         self.min_model_size = int(min_model_size * 1e6)
         self.max_model_size = int(max_model_size * 1e6)
-        self.type = type  # 'mcts' or 'random'
+        self.type = typ  # 'mcts' or 'random'
         self.best_node = None
         self.upper_bound_list = []
 
@@ -72,7 +68,7 @@ class Searcher(MCTS):
         assert 0 <= accuracy <= 1
         return accuracy
 
-    def update(self, prefix=""):
+    def update(self, prefix="") -> str:
 
         # Selecting a node
         if self.type == 'mcts':
@@ -86,8 +82,7 @@ class Searcher(MCTS):
         # Analyze a sample
         model = self._model.create_instance()
         kernelPacks = self._sampler.realize(model, node, prefix)
-        model = self._model.restore_model_params(
-            model, kernelPacks, self._device)
+        model = self._model.restore_model_params(model, kernelPacks)
         model_size = sum(p.numel()
                          for p in model.parameters() if p.requires_grad)
         logging.info("Model size: {}".format(model_size))
@@ -95,11 +90,11 @@ class Searcher(MCTS):
         if model_size > self.max_model_size:
             logging.info(
                 f"Model size {model_size} exceeds {self.max_model_size}, skipping")
-            return None
+            return "FAILED because of too big model size."
         elif model_size < self.min_model_size:
             logging.info(
                 f"Model size {model_size} below {self.min_model_size}, skipping")
-            return None
+            return "FAILED because of too small model size."
 
         reward = self._eval_model(model)
 
@@ -109,7 +104,7 @@ class Searcher(MCTS):
         if self.type == 'mcts':
             self.back_propagate(node, reward)
 
-        return True
+        return "SUCCESS"
 
     def search(self, iterations: int = 1000, result_save_loc: str = './final_result') -> None:
         """Search for the best model for iterations times."""
@@ -117,11 +112,11 @@ class Searcher(MCTS):
             logging.info(f"Iteration {iter}")
             while True:
                 try:
-                    if self.update(f"Iteration{iter}"):
-                        self.upper_bound_list.append(self.best_node[1])
-                        break
+                    result = self.update(self.type + f"Iteration{iter}")
+                    self.upper_bound_list.append(self.best_node[1])
+                    logging.info(f"Iteration {iter} {result}.")
                 except Exception as e:
-                    logging.warn("Catched error {}, retrying".format(e))
+                    logging.warning("Catched error {}, retrying".format(e))
                     traceback.print_exc(file=sys.stderr)
 
         logging.info("Finish searching process. Displaying final result...")
@@ -157,9 +152,9 @@ if __name__ == '__main__':
     args = arg_parse()
     use_cuda = torch.cuda.is_available()
 
-    if os.path.exists(args.kas_sampler_save_dir):
-        shutil.rmtree(args.kas_sampler_save_dir)
-    os.makedirs(args.kas_sampler_save_dir)
+    # if os.path.exists(args.kas_sampler_save_dir):
+    #     shutil.rmtree(args.kas_sampler_save_dir)
+    os.makedirs(args.kas_sampler_save_dir, exist_ok=True)
 
     train_data_loader, validation_data_loader = get_dataloader(args)
 
@@ -180,7 +175,7 @@ if __name__ == '__main__':
     kas_sampler = Sampler(
         input_shape="[N,H,W]",  # "[N,C_in,H,W]",
         output_shape="[N,C_out,H,W]",
-        primary_specs=[],
+        primary_specs=["N=128: 1", "H=256", "W=256", "C_out=100"],
         coefficient_specs=["s_1=2: 2", "k_1=3", "5"],
         seed=random.SystemRandom().randint(
             0, 0x7fffffff) if args.kas_seed == 'pure' else args.seed,

@@ -92,7 +92,8 @@ class Sampler:
         kernel = self._realize(node, all_mappings)
         logging.debug(f"Realizing kernel:\n{kernel}")
         save_path = os.path.join(self._save_path, identifier_prefix)
-        shutil.rmtree(save_path)
+        if os.path.exists(save_path):
+            shutil.rmtree(save_path)
         os.makedirs(save_path)
 
         kernel_name_prefix = f'kernel_{abs(hash(node))}'
