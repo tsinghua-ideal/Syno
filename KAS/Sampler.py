@@ -1,4 +1,5 @@
-import os, shutil
+import os
+import shutil
 import logging
 import torch
 from torch import nn
@@ -110,6 +111,7 @@ class Sampler:
 
             logging.debug(f"Consts: {kernel.get_consts(i)}")
             logging.debug(f"FLOPs: {kernel.get_flops(i)}")
+            placeholders[i].set_flops(kernel.get_flops(i))
 
             unpadded_inputs_shapes = kernel.get_inputs_shapes(False, i)
             padded_inputs_shapes = kernel.get_inputs_shapes(True, i)

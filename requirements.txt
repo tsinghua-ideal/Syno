@@ -1,4 +1,4 @@
-ptflops
+thop
 timm
 oss2
 matplotlib
