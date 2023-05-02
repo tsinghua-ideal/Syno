@@ -56,6 +56,16 @@ std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::str
     return std::make_unique<Kernel>(*final, sampler->getBindingContext(), allMappings, std::move(options));
 }
 
+int Node::estimateTotalFLOPsAsFinal() const {
+    auto final = asFinal();
+    const auto& allConsts = sampler->getBindingContext().getAllConsts();
+    int result = 0;
+    for (const auto& consts: allConsts) {
+        result += final->getFLOPs(consts);
+    }
+    return result;
+}
+
 std::size_t Node::countChildren() const {
     return match<std::size_t>(
         [&]() { return sampler->getBaseCount(); },

@@ -37,6 +37,18 @@ std::string Kernel::getConsts(std::size_t index) const {
     return paddedConsts.at(index).toString(ctx);
 }
 
+int Kernel::getFLOPs(std::size_t index) const {
+    // Because we actually use the padded consts.
+    return tensorView.getFLOPs(paddedConsts[index].padded);
+}
+int Kernel::getTotalFLOPs() const {
+    int result = 0;
+    for (std::size_t i = 0; i < paddedConsts.size(); ++i) {
+        result += getFLOPs(i);
+    }
+    return result;
+}
+
 std::vector<std::vector<std::size_t>> Kernel::getInputsShapes(bool padded, std::size_t index) const {
     const auto& consts = padded ? paddedConsts[index].padded : paddedConsts[index].unpadded;
     std::vector<std::vector<std::size_t>> result;

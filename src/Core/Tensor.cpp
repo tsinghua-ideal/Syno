@@ -32,7 +32,7 @@ std::string PureTensor::description(const BindingContext& ctx) const {
 
 std::string AbstractAccess::outerLoopsIteratorsToString() const {
     return VectorToString(outerLoops
-        | std::views::transform([](const IteratorValue& it) {
+        | std::views::transform([](const IteratorValue& it) -> const std::string& {
             return it.as<VariableValueNode>().name;
         })
     );
@@ -40,7 +40,7 @@ std::string AbstractAccess::outerLoopsIteratorsToString() const {
 
 std::string AbstractAccess::innerLoopsIteratorsToString() const {
     return VectorToString(innerLoops
-        | std::views::transform([](const IteratorValue& it) {
+        | std::views::transform([](const IteratorValue& it) -> const std::string& {
             return it.as<VariableValueNode>().name;
         })
     );
@@ -112,7 +112,15 @@ ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const Concr
     for (auto it: manipulations) {
         sol.addConstraint(it->size());
     }
-    return sol.solve(Size::Product(getUnderlyingDimensions() | std::views::transform([](const Dimension& dim) { return dim.size(); })), Size::Product(getInterfaceShape()));
+    return sol.solve(Size::Product(getUnderlyingDimensions() | std::views::transform([](const Dimension& dim) -> const Size& { return dim.size(); })), Size::Product(getInterfaceShape()));
+}
+
+int TensorView::getFLOPs(const ConcreteConsts& consts) const {
+    int outerLoopsIterations = getInterfaceShape().totalSize().eval(consts);
+    int innerLoopsIterations = getManipulations().size() > 0 ? Size::Product(getManipulations() | std::views::transform([](const MapReduceOp *op) -> const Size& { return op->size(); })).eval(consts) : 1;
+    int mult = static_cast<int>(getUnderlyingTensors().size()) - 1;
+    // Multiplication + Addition
+    return outerLoopsIterations * innerLoopsIterations * mult + outerLoopsIterations * (innerLoopsIterations - 1);
 }
 
 namespace {
@@ -189,7 +197,7 @@ std::string TensorView::printNestedLoopsForAll(const BindingContext& ctx) const 
 }
 
 std::string TensorView::description(const BindingContext& ctx) const {
-    return TensorArrayToString(tensors | std::views::transform([](const PureTensor& tensor) { return tensor.getDimensions(); }), ctx);
+    return TensorArrayToString(tensors | std::views::transform([](const PureTensor& tensor) -> const Interface& { return tensor.getDimensions(); }), ctx);
 }
 
 TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {

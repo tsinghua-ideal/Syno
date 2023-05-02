@@ -85,7 +85,7 @@ public:
     // Returns all dimensions in the underlying tensors.
     inline auto getUnderlyingDimensions() const {
         return tensors
-            | std::views::transform([](const PureTensor& tensor) {
+            | std::views::transform([](const PureTensor& tensor) -> const Interface& {
                 return tensor.getDimensions();
             })
             | std::views::join;
@@ -103,6 +103,9 @@ public:
 
     // Note that sometimes we need padding to make things work. Here we need to guarantee that all dimensions in the Graph are valid, so instead of padding tensors, we pad variables.
     ConcreteConsts computePadding(const BindingContext& ctx, const ConcreteConsts& consts) const;
+
+    // Observe that FLOPs is determined by outer loops and inner loops.
+    int getFLOPs(const ConcreteConsts& consts) const;
 
     // Evaluate the full loops.
     std::string printNestedLoops(const BindingContext& ctx, int pos) const;
