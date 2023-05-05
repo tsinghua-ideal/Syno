@@ -95,7 +95,7 @@ public:
     };
 
     // Quick evaluation.
-    int eval(const ConcreteConsts& consts) const;
+    std::size_t eval(const ConcreteConsts& consts) const;
     // Check if the size is >= 2. Otherwise, this cannnot be an actual Dimension.
     bool isRealistic(const BindingContext& ctx) const;
 

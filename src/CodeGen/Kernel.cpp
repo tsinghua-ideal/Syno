@@ -37,12 +37,12 @@ std::string Kernel::getConsts(std::size_t index) const {
     return paddedConsts.at(index).toString(ctx);
 }
 
-int Kernel::getFLOPs(std::size_t index) const {
+std::size_t Kernel::getFLOPs(std::size_t index) const {
     // Because we actually use the padded consts.
     return tensorView.getFLOPs(paddedConsts[index].padded);
 }
-int Kernel::getTotalFLOPs() const {
-    int result = 0;
+std::size_t Kernel::getTotalFLOPs() const {
+    std::size_t result = 0;
     for (std::size_t i = 0; i < paddedConsts.size(); ++i) {
         result += getFLOPs(i);
     }

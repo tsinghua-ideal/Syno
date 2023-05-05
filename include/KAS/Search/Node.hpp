@@ -114,7 +114,7 @@ public:
     TensorView *asFinal() const;
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const;
     // Obtain the mappings from Sampler, and do not solve the paddings. We only want to estimate the FLOPs.
-    int estimateTotalFLOPsAsFinal() const;
+    std::size_t estimateTotalFLOPsAsFinal() const;
 
     // The count of children nodes.
     std::size_t countChildren() const;

@@ -5,6 +5,7 @@
 #include <memory>
 #include <stack>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -14,6 +15,7 @@
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Tensor.hpp"
+#include "KAS/Utils/Functional.hpp"
 #include "KAS/Utils/Tuple.hpp"
 
 
@@ -135,6 +137,15 @@ public:
     template<typename T = void, int Dims = Halide::AnyDims>
     using BufferRefAdaptor = ReverseAdaptor<Halide::Buffer<T, Dims>&>;
 
+    template<typename F>
+    static auto ReverseIntArgs(F&& f) {
+        return [&]<typename... Args, auto = std::conjunction_v<std::is_integral<std::decay_t<Args>>...>, typename = decltype(f(std::declval<Args>()...))>(Args... args) {
+            return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                return f(std::get<sizeof...(Is) - 1 - Is>(std::tie(args...))...);
+            }(std::index_sequence_for<decltype(args)...>{});
+        };
+    }
+
     // For test use only.
     struct Realization {
         PaddedConsts paddedConsts;
@@ -162,7 +173,7 @@ public:
             auto& inputBuffer = inputBuffers.back();
             if constexpr (DoInitialization) {
                 auto proxy = HalideGen::BufferRefAdaptor<float>(inputBuffer);
-                inputBuffer.for_each_element(ReverseArguments(std::bind_front(std::get<i>(initializerTuple), std::ref(proxy))));
+                inputBuffer.for_each_element(ReverseIntArgs(std::bind_front(std::get<i>(initializerTuple), std::ref(proxy))));
             }
             inputs.at(i).set(inputBuffer);
             backwardInputs.at(i).set(inputBuffer);
@@ -193,7 +204,7 @@ public:
         auto outputGradBuffer = Halide::Buffer<float>(outputBufferShape);
         if constexpr (DoInitialization) {
             auto outputGradProxy = HalideGen::BufferRefAdaptor<float>(outputGradBuffer);
-            outputGradBuffer.for_each_element(ReverseArguments(std::bind_front(std::forward<decltype(outputGradInitializer)>(outputGradInitializer), std::ref(outputGradProxy))));
+            outputGradBuffer.for_each_element(ReverseIntArgs(std::bind_front(std::forward<decltype(outputGradInitializer)>(outputGradInitializer), std::ref(outputGradProxy))));
         }
         backwardInputs.back().set(outputGradBuffer);
 

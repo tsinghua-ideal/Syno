@@ -105,7 +105,7 @@ public:
     ConcreteConsts computePadding(const BindingContext& ctx, const ConcreteConsts& consts) const;
 
     // Observe that FLOPs is determined by outer loops and inner loops.
-    int getFLOPs(const ConcreteConsts& consts) const;
+    std::size_t getFLOPs(const ConcreteConsts& consts) const;
 
     // Evaluate the full loops.
     std::string printNestedLoops(const BindingContext& ctx, int pos) const;

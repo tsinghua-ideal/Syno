@@ -39,8 +39,8 @@ std::span<const Size::PowerType> Size::getCoefficient() const {
     return { coefficient.data(), coefficientCount };
 }
 
-int Size::eval(const ConcreteConsts& consts) const {
-    return eval<int>(consts.primaryWrapper(), consts.coefficientWrapper());
+std::size_t Size::eval(const ConcreteConsts& consts) const {
+    return eval<std::size_t>(consts.primaryWrapper(), consts.coefficientWrapper());
 }
 
 bool Size::isRealistic(const BindingContext& ctx) const {
