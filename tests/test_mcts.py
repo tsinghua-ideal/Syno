@@ -20,8 +20,8 @@ def test_mcts():
     mcts = MCTS(sampler)
     in_tensor = torch.randn((128, 128))
     for idx in range(10):
-        node = mcts.do_rollout(sampler.root())
-        path = node.path
+        receipt, node = mcts.do_rollout(sampler.root())
+        _, path = receipt
         print(f"Iteration {idx}. Sampled {path}:")
         print(sampler.path_to_strs(path))
         for i in range(len(path)):
@@ -31,7 +31,7 @@ def test_mcts():
         sampler.replace(net, kernel_packs)
         print(f"Computing forward {idx}...")
         print(f"Result: {net(in_tensor)}")
-        mcts.back_propagate(node, 1.0)
+        mcts.back_propagate(receipt, 1.0)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

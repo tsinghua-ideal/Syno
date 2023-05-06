@@ -65,17 +65,16 @@ class Path:
 class Node:
     """A node in Python, not necessarily corresponding to a C++ node."""
 
-    def __init__(self, path: Path, node: kas_cpp_bindings.Node) -> None:
-        self.path = path
+    def __init__(self, node: kas_cpp_bindings.Node) -> None:
         self._node = node
 
     def __eq__(self, __value: object) -> bool:
         if not isinstance(__value, Node):
             return False
-        return self.path == __value.path
+        return self._node == __value._node
 
     def __hash__(self) -> int:
-        return hash(tuple(self.path))
+        return hash(self._node)
 
     def children_count(self) -> int:
         """Get the number of all children of a node."""
@@ -103,7 +102,7 @@ class Node:
 
     def get_child(self, next: PseudoNext) -> 'Node':
         """Get the child node of a node with a Next."""
-        return Node(self.path.concat(next), self._node.get_child(Path.to_next(next)))
+        return Node(self._node.get_child(Path.to_next(next)))
 
     def is_final(self) -> bool:
         """Check if a node is final, which means it can be realized as a Halide kernel."""

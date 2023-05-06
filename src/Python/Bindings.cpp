@@ -110,6 +110,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("__repr__", &Kernel::toNestedLoops);
 
     pybind11::class_<Node>(m, "Node")
+        .def("__eq__", &Node::operator==)
+        .def("__hash__", &Node::hash)
         .def("children_count", &Node::countChildren)
         .def("get_children_handles", &Node::getChildrenHandles)
         .def(

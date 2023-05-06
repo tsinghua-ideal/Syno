@@ -67,13 +67,14 @@ class Sampler:
     def visit(self, path: Path) -> Node:
         """Visit a node via a path."""
         path = Path(path)
-        return Node(path, self._sampler.visit(path.abs_path))
+        return Node(self._sampler.visit(path.abs_path))
 
     def random_node_with_prefix(self, prefix: Path) -> Node:
         """Find a leaf node with specified prefix. Note that the Node is not necessarily final."""
         prefix = Path(prefix)
         path, node = self._sampler.random_node_with_prefix(prefix.abs_path)
-        return Node(Path(path), node)
+        # Maybe we should use the path somewhere? TODO
+        return Node(node)
 
     def path_to_strs(self, path: Path) -> List[str]:
         node = self.root()
