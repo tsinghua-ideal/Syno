@@ -35,11 +35,9 @@ struct Next {
     std::size_t key;
 
     // For Python.
-    bool operator==(const Next& rhs) const noexcept {
-        return type == rhs.type && key == rhs.key;
-    }
+    bool operator==(const Next& rhs) const noexcept = default;
     // For Python.
-    std::size_t hash() const noexcept {
+    inline std::size_t hash() const noexcept {
         std::size_t h = static_cast<std::size_t>(type);
         HashCombine(h, key);
         return h;
@@ -111,10 +109,17 @@ public:
     inline Node(Sampler *sampler, TensorView *kernel):
         sampler { sampler }, inner { kernel } {}
 
+    // For Python.
+    bool operator==(const Node& rhs) const noexcept = default;
+    // For Python.
+    inline std::size_t hash() const noexcept {
+        return std::hash<decltype(inner)>{}(inner);
+    }
+
     TensorView *asFinal() const;
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const;
     // Obtain the mappings from Sampler, and do not solve the paddings. We only want to estimate the FLOPs.
-    int estimateTotalFLOPsAsFinal() const;
+    std::size_t estimateTotalFLOPsAsFinal() const;
 
     // The count of children nodes.
     std::size_t countChildren() const;

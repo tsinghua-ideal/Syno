@@ -9,9 +9,12 @@ namespace kas {
 std::size_t Colors::CountColorInconsistent = 0;
 
 void Colors::setInconsistent() {
-    KAS_ASSERT(consistent, "Cannot set inconsistent state twice.");
-    consistent = false;
-    ++CountColorInconsistent;
+    if (!consistent) {
+        KAS_WARNING("Cannot set inconsistent state twice!");
+    } else {
+        consistent = false;
+        ++CountColorInconsistent;
+    }
 }
 
 void Colors::disjoint(const Dimension& lhs, const Dimension& rhs) {

@@ -92,7 +92,7 @@ class Searcher(MCTS):
 
         # Selecting a node
         if self.type == 'mcts':
-            node = self.do_rollout(kas_sampler.root())
+            mcts_receipt, node = self.do_rollout(kas_sampler.root())
         elif self.type == 'random':
             while True:
                 node = self._sampler.random_node_with_prefix(Path([]))
@@ -146,7 +146,7 @@ class Searcher(MCTS):
         if self.best_node[1] < reward:
             self.best_node = (node, reward)
         if self.type == 'mcts':
-            self.back_propagate(node, reward)
+            self.back_propagate(mcts_receipt, reward)
 
         return "SUCCESS"
 
