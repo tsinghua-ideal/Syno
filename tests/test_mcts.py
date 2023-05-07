@@ -22,12 +22,12 @@ def test_mcts():
     for idx in range(10):
         receipt, node = mcts.do_rollout(sampler.root())
         _, path = receipt
-        print(f"Iteration {idx}. Sampled {path}:")
+        print(f"Iteration {idx}. Sampled {node.path} for {path}:")
         print(sampler.path_to_strs(path))
         for i in range(len(path)):
             child = sampler.visit(Path(path.abs_path[:i]))
             print(f"Node {child} has children:", child.get_children_types())
-        kernel_packs = sampler.realize(net, node, f"test_mcts_{idx}")
+        kernel_packs, _ = sampler.realize(net, node, f"test_mcts_{idx}")
         sampler.replace(net, kernel_packs)
         print(f"Computing forward {idx}...")
         print(f"Result: {net(in_tensor)}")

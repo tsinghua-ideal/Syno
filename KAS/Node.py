@@ -123,5 +123,27 @@ class Node:
     def estimate_total_flops_as_final(self) -> int:
         return self._node.estimate_total_flops_as_final()
 
+    def to_node(self) -> 'Node':
+        return Node(self._node)
+
     def __repr__(self) -> str:
         return str(self._node)
+
+class VisitedNode(Node):
+    """Node with Path."""
+
+    def __init__(self, path: Path, node: kas_cpp_bindings.Node) -> None:
+        super().__init__(node)
+        self.path = path
+
+    def __eq__(self, __value: object) -> bool:
+        raise ValueError("VisitedNode should not be compared.")
+    def __hash__(self) -> int:
+        raise ValueError("VisitedNode should not be hashed.")
+
+    def get_child(self, next: PseudoNext) -> 'VisitedNode':
+        """Get the child node of a node with a Next."""
+        return VisitedNode(self.path.concat(next), self._node.get_child(Path.to_next(next)))
+
+    def __repr__(self) -> str:
+        return f"VisitedNode({self.path}, {self._node})"

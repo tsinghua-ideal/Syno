@@ -18,6 +18,21 @@ class MCTS:
         self._exploration_weight = exploration_weight
         random.seed(sampler._seed)
 
+    def _get_Q(self, node: Node) -> float:
+        return self._Q[node.to_node()]
+    def _add_Q(self, node: Node, value: float) -> None:
+        self._Q[node.to_node()] += value
+    def _get_N(self, node: Node) -> int:
+        return self._N[node.to_node()]
+    def _add_N(self, node: Node, value: int) -> None:
+        self._N[node.to_node()] += value
+    def _has_children_nexts(self, node: Node) -> bool:
+        return node.to_node() in self._children_nexts
+    def _get_children_nexts(self, node: Node) -> List[Any]:
+        return self._children_nexts[node.to_node()]
+    def _set_children_nexts(self, node: Node, children_nexts: List[Any]) -> None:
+        self._children_nexts[node.to_node()] = children_nexts
+
     # The receipt which is used for back propagation, which is the root node and the path.
     Receipt = Tuple[Node, Path]
 
@@ -58,13 +73,13 @@ class MCTS:
         # Here, the path is just arbitrary, and depends on how we build the search tree. See doc for `_uct_select`. We only need to make sure we can construct a `Path` from `path`.
         path: List[Any] = []
         while True:
-            if node.is_terminal() or (node not in self._children_nexts):
+            if node.is_terminal() or (not self._has_children_nexts(node)):
                 # node is either terminal or unexplored
                 return path, node
-            nexts = self._children_nexts[node]
+            nexts = self._get_children_nexts(node)
             for next in nexts:
                 augmented = node.get_child(next)
-                if augmented not in self._children_nexts:
+                if not self._has_children_nexts(augmented):
                     # we found an unexplored descendent of node
                     path.append(next)
                     return Path(path), augmented
@@ -73,9 +88,9 @@ class MCTS:
 
     def _expand(self, node: Node) -> None:
         "Update the `children` dict with the children of `node`"
-        if node in self._children_nexts:
+        if self._has_children_nexts(node):
             return  # already expanded
-        self._children_nexts[node] = node.get_children_handles()
+        self._set_children_nexts(node, node.get_children_handles())
 
     def _simulate(self, node: Node) -> Tuple[Node, bool]:
         "Returns a random simulation (to completion) of `node`"
@@ -92,8 +107,8 @@ class MCTS:
         assert 0.0 <= reward <= 1.0
 
         def _update_stats(node: Node, reward: float) -> None:
-            self._N[node] += 1
-            self._Q[node] += reward
+            self._add_N(node, 1)
+            self._add_Q(node, reward)
 
         node, path = receipt
         _update_stats(node, reward)
@@ -105,21 +120,21 @@ class MCTS:
     def _uct_select(self, node: Node) -> Tuple[Any, Node]:
         "Select a child of node, balancing exploration & exploitation"
 
-        nexts = self._children_nexts[node]
+        nexts = self._get_children_nexts(node)
         children = [(next, node.get_child(next)) for next in nexts]
 
         # All children of node should already be expanded:
-        assert all(child in self._children_nexts for _, child in children)
+        assert all(self._has_children_nexts(child) for _, child in children)
 
-        log_N_vertex = math.log(self._N[node])
+        log_N_vertex = math.log(self._get_N(node))
 
         def uct(child) -> float:
             "Upper confidence bound for trees"
             _, child = child
-            if self._N[child] == 0:
+            if self._get_N(child) == 0:
                 return -1  # avoid unseen moves
-            return self._Q[child] / self._N[child] + self._exploration_weight * math.sqrt(
-                log_N_vertex / self._N[child]
+            return self._get_Q(child) / self._get_N(child) + self._exploration_weight * math.sqrt(
+                log_N_vertex / self._get_N(child)
             )
 
         return max(children, key=uct)
@@ -129,15 +144,15 @@ class MCTS:
         if node.is_terminal():
             raise RuntimeError(f"choose called on terminal node {node}")
 
-        if node not in self._children_nexts:
+        if not self._has_children_nexts(node):
             children_nexts = node.get_children_handles()
             return node.get_child(random.choice(children_nexts))
 
-        children = [node.get_child(next) for next in self._children_nexts[node]]
+        children = [node.get_child(next) for next in self._get_children_nexts(node)]
 
         def score(n) -> float:
-            if self._N[n] == 0:
+            if self._get_N(n) == 0:
                 return -1  # avoid unseen moves
-            return self._Q[n] / self._N[n]  # average reward
+            return self._get_Q(n) / self._get_N(n)  # average reward
 
         return max(children, key=score)

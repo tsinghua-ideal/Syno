@@ -27,7 +27,7 @@ def test_sampler():
         node = sampler.random_node_with_prefix(Path([]))
         if node.is_final():
             break
-    kernel_packs = sampler.realize(net, node, "test_sampler")
+    kernel_packs, _ = sampler.realize(net, node, "test_sampler")
     sampler.replace(net, kernel_packs)
 
     in_tensor = torch.randn((16, 16))

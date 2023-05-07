@@ -8,7 +8,7 @@ import kas_cpp_bindings
 from kas_cpp_bindings import CodeGenOptions
 
 from .KernelPack import KernelPack
-from .Node import Next, Path, Node
+from .Node import Next, Path, Node, VisitedNode
 from .Placeholder import Placeholder
 
 
@@ -60,21 +60,20 @@ class Sampler:
             cuda, autoscheduler)
         self._device = torch.device('cuda' if cuda else 'cpu')
 
-    def root(self) -> Node:
+    def root(self) -> VisitedNode:
         """Get the root node."""
         return self.visit([])
 
-    def visit(self, path: Path) -> Node:
+    def visit(self, path: Path) -> VisitedNode:
         """Visit a node via a path."""
         path = Path(path)
-        return Node(self._sampler.visit(path.abs_path))
+        return VisitedNode(path, self._sampler.visit(path.abs_path))
 
-    def random_node_with_prefix(self, prefix: Path) -> Node:
+    def random_node_with_prefix(self, prefix: Path) -> VisitedNode:
         """Find a leaf node with specified prefix. Note that the Node is not necessarily final."""
         prefix = Path(prefix)
         path, node = self._sampler.random_node_with_prefix(prefix.abs_path)
-        # Maybe we should use the path somewhere? TODO
-        return Node(node)
+        return VisitedNode(Path(path), node)
 
     def path_to_strs(self, path: Path) -> List[str]:
         node = self.root()
@@ -100,7 +99,7 @@ class Sampler:
             shutil.rmtree(save_path)
         os.makedirs(save_path)
 
-        kernel_name_prefix = f'kernel_{abs(hash(node))}'
+        kernel_name_prefix = f'kernel_{abs(hash(node.to_node()))}'
         logging.debug("Generating kernel files...")
         kernel.generate_operator(save_path, kernel_name_prefix)
         kernel.generate_graphviz(save_path, kernel_name_prefix)
