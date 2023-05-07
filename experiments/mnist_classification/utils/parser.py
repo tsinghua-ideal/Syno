@@ -9,7 +9,7 @@ def arg_parse():
     # Dataset.
     parser.add_argument('--seed', type=int, default=42, metavar='S',
                         help='Random seed (default: 42)')
-    parser.add_argument('--batch-size', metavar='N', type=int, default=500,
+    parser.add_argument('--batch-size', metavar='N', type=int, default=5000,
                         help='Batch size')
 
     # Optimizer parameters.
@@ -116,7 +116,7 @@ def arg_parse():
                         help='Proxy dataset threshold for real training (only for search)')
     parser.add_argument('--kas-kernel', default='', type=str,
                         help='Path to the replaced kernel (only for training)')
-    parser.add_argument('--kas-depth', default=4,
+    parser.add_argument('--kas-depth', default=6,
                         type=int, help='kas sampler depth')
     parser.add_argument('--kas-min-dim', default=2,
                         type=int, help='kas sampler minimum dimensions')
@@ -128,15 +128,15 @@ def arg_parse():
                         help='searcher type (mcts or random)')
     parser.add_argument('--result-save-dir', default='./results',
                         help='Sampler saving directory')
-    parser.add_argument('--kas-iterations', default=50,
+    parser.add_argument('--kas-iterations', default=100,
                         help='Searcher iterations')
     parser.add_argument('--kas-min-macs', default=0, type=float,
                         help='Minimum MACs for searched kernels (in G-unit, only for search)')
-    parser.add_argument('--kas-max-macs', default=1, type=float,
+    parser.add_argument('--kas-max-macs', default=3, type=float,
                         help='Maximum MACs for searched kernels (in G-unit, only for search)')
     parser.add_argument('--kas-min-params', default=0, type=float,
                         help='Minimum params for searched kernels (in M-unit, only for search)')
-    parser.add_argument('--kas-max-params', default=0.03, type=float,
+    parser.add_argument('--kas-max-params', default=0.1, type=float,
                         help='Maximum params for searched kernels (in M-unit, only for search)')
     parser.add_argument('--kas-min-receptive-size', default=1, type=int,
                         help='Minimum receptive size (only for search)')

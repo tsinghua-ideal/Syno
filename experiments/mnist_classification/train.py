@@ -33,6 +33,8 @@ def train(
     train_errors = []
     val_errors = []
 
+    scaler = torch.cuda.amp.GradScaler()
+
     start = time.time()
     for epoch in range(epochs):
         correct = 0
@@ -55,8 +57,9 @@ def train(
 
             # backward
             optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
         train_errors.append(1 - correct / total)
         train_loss /= len(train_loader)

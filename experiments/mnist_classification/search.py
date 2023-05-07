@@ -30,11 +30,13 @@ class ModelBackup:
         self._sample_input = sample_input.to(device)
 
         self._model = self._model_builder().to(device)
-        macs, params = profile(self._model, inputs=(self._sample_input, ))
+        macs, params = profile(self._model, inputs=(
+            self._sample_input, ), verbose=False)
         logging.info(
             f"Referenced model has {round(macs / 1e9, 3)}G MACs and {round(params / 1e6, 3)}M parameters ")
         self.base_macs = macs - \
             self._model.generatePlaceHolder(self._sample_input)
+        logging.info(f"Base MACs is {self.base_macs}")
 
     def create_instance(self) -> nn.Module:
         self._model._initialize_weight()
@@ -53,8 +55,7 @@ class ModelBackup:
 
 class Searcher(MCTS):
     def __init__(self,
-                 model: nn.Module,
-                 sample_input: Tensor,
+                 model: ModelBackup,
                  train_params: dict,
                  sampler: Sampler,
                  typ: str,
@@ -68,7 +69,7 @@ class Searcher(MCTS):
         self._train_params = train_params
         self._device = torch.device(
             "cuda" if self._train_params["use_cuda"] else "cpu")
-        self._model = ModelBackup(model, sample_input, self._device)
+        self._model = model
 
         self.min_model_size = int(min_model_size * 1e6)
         self.max_model_size = int(max_model_size * 1e6)
@@ -76,7 +77,7 @@ class Searcher(MCTS):
         self.max_macs = int(max_macs * 1e9)
 
         self.type = typ  # 'mcts' or 'random'
-        self.best_node = None
+        self.best_node = (0, 0)
         self.upper_bound_list = []
         self.time_list = []
 
@@ -102,20 +103,22 @@ class Searcher(MCTS):
         model = self._model.create_instance()
 
         # Early filter MACs
-        model_macs_estimated = self._model.base_macs + node.estimate_total_flops_as_final() * 2
+        logging.info(f"Estimated flops {node.estimate_total_flops_as_final()}")
+        model_macs_estimated = self._model.base_macs + \
+            node.estimate_total_flops_as_final() * 2
         if model_macs_estimated > self.max_macs * 3:
             logging.info(
-                f"(Estimated) Model macs {model_macs} exceeds {self.max_macs} * 3, skipping")
+                f"(Estimated) Model macs {model_macs_estimated} exceeds {self.max_macs} * 3, skipping")
             return "FAILED because of too big model macs."
         elif model_macs_estimated < self.min_macs * 0.3:
             logging.info(
-                f"(Estimated) Model macs {model_macs} below {self.min_macs} * 0.3, skipping")
+                f"(Estimated) Model macs {model_macs_estimated} below {self.min_macs} * 0.3, skipping")
             return "FAILED because of too small model macs."
 
-        kernelPacks = self._sampler.realize(model, node, prefix)
+        kernelPacks, total_flops = self._sampler.realize(model, node, prefix)
+        model = self._model.restore_model_params(model, kernelPacks)
 
-        model_macs = profile(model, inputs=(
-            self._model._sample_input, ), custom_ops={Placeholder: Placeholder.count_macs})[0]
+        model_macs = self._model.base_macs + total_flops * 2
         logging.info("Model macs: {}".format(model_macs))
         if model_macs > self.max_macs:
             logging.info(
@@ -125,8 +128,6 @@ class Searcher(MCTS):
             logging.info(
                 f"Model macs {model_macs} below {self.min_macs}, skipping")
             return "FAILED because of too small model macs."
-
-        model = self._model.restore_model_params(model, kernelPacks)
 
         model_size = sum([p.numel() for p in model.parameters()])
         logging.info("Model size: {}".format(model_size))
@@ -142,7 +143,7 @@ class Searcher(MCTS):
         reward = self._eval_model(model)
 
         # update
-        if self.best_node is None or self.best_node[1] < reward:
+        if self.best_node[1] < reward:
             self.best_node = (node, reward)
         if self.type == 'mcts':
             self.back_propagate(node, reward)
@@ -161,6 +162,7 @@ class Searcher(MCTS):
                     self.upper_bound_list.append(self.best_node[1])
                     self.time_list.append(time.time() - start)
                     logging.info(f"Iteration {iter} {result}.")
+                    break
                 except Exception as e:
                     logging.warning("Catched error {}, retrying".format(e))
                     traceback.print_exc(file=sys.stderr)
@@ -179,7 +181,7 @@ class Searcher(MCTS):
             node = self.best_node[0]
 
         model = self._model.create_instance()
-        kernelPacks = self._sampler.realize(model, node, "FinalResult")
+        kernelPacks, _ = self._sampler.realize(model, node, "FinalResult")
         model = self._model.restore_model_params(model, kernelPacks)
         train_error, val_error, best_model_state_dict = train(
             model, **self.training_params, verbose=True)
@@ -220,6 +222,9 @@ if __name__ == '__main__':
         use_cuda=use_cuda
     )
 
+    device = torch.device("cuda" if use_cuda else "cpu")
+    model = ModelBackup(KASConv, sample_input, device)
+
     kas_sampler = Sampler(
         input_shape="[N,H,W]",  # "[N,C_in,H,W]",
         output_shape="[N,C_out,H,W]",
@@ -232,11 +237,12 @@ if __name__ == '__main__':
         dim_upper=args.kas_max_dim,
         save_path=args.kas_sampler_save_dir,
         cuda=use_cuda,
+        net=model.create_instance(),
         autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021
     )
 
-    searcher = Searcher(KASConv, sample_input, training_params,
-                        kas_sampler, args.kas_searcher_type, min_model_size=args.kas_min_params, max_model_size=args.kas_max_params)
+    searcher = Searcher(model, training_params,
+                        kas_sampler, args.kas_searcher_type, min_model_size=args.kas_min_params, max_model_size=args.kas_max_params, min_macs=args.kas_min_macs, max_macs=args.kas_max_macs)
 
     searcher.search(iterations=args.kas_iterations,
                     result_save_loc=args.result_save_dir)

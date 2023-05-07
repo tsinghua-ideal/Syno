@@ -19,16 +19,20 @@ def get_dataloader(args, data_path='~/data/'):
     train_data_loader = DataLoader(
         train_data,
         batch_size=args.batch_size,
-        num_workers=4,
+        num_workers=8,
         shuffle=True, 
-        drop_last=True
+        drop_last=True,
+        pin_memory=True,
+        pin_memory_device="cuda:0"
     )
     validation_data_loader = DataLoader(
         validation_data,
         batch_size=args.batch_size,
-        num_workers=4,
+        num_workers=8,
         shuffle=False, 
-        drop_last=True
+        drop_last=True,
+        pin_memory=True,
+        pin_memory_device="cuda:0"
     )
 
     return train_data_loader, validation_data_loader

@@ -91,8 +91,9 @@ class Sampler:
         all_mappings = Sampler._get_all_mappings(placeholders)
 
         kernel = self._realize(node, all_mappings)
+        total_flops = kernel.get_total_flops()
         logging.debug(f"Realizing kernel:\n{kernel}")
-        logging.debug(f"Total FLOPs: {kernel.get_total_flops()}")
+        logging.debug(f"Total FLOPs: {total_flops}")
         save_path = os.path.join(self._save_path, identifier_prefix)
         if os.path.exists(save_path):
             shutil.rmtree(save_path)
@@ -133,7 +134,7 @@ class Sampler:
                 padded_output_shape=padded_output_shape,
                 device=self._device))
 
-        return kernel_packs
+        return kernel_packs, total_flops
 
     def _bind_debug_context(self):
         self._sampler.bind_debug_context()
