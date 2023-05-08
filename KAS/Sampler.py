@@ -74,7 +74,7 @@ class Sampler:
         prefix = Path(prefix)
         path, node = self._sampler.random_node_with_prefix(prefix.abs_path)
         # Maybe we should use the path somewhere? TODO
-        return Node(node)
+        return Node(node), Path(path)
 
     def path_to_strs(self, path: Path) -> List[str]:
         node = self.root()

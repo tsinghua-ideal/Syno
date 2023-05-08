@@ -78,8 +78,9 @@ class Searcher(MCTS):
 
         self.type = typ  # 'mcts' or 'random'
         self.best_node = (0, 0)
-        self.upper_bound_list = []
+        self.reward_list = []
         self.time_list = []
+        self.search_start_timestamp = 0
 
     def _eval_model(self, model: nn.Module) -> float:
         train_error, val_error, _ = train(
@@ -92,10 +93,11 @@ class Searcher(MCTS):
 
         # Selecting a node
         if self.type == 'mcts':
-            mcts_receipt, node = self.do_rollout(kas_sampler.root())
+            receipt, node = self.do_rollout(kas_sampler.root())
         elif self.type == 'random':
             while True:
-                node = self._sampler.random_node_with_prefix(Path([]))
+                receipt = self._sampler.random_node_with_prefix(Path([]))
+                node, path = receipt
                 if node.is_final():
                     break
 
@@ -144,25 +146,27 @@ class Searcher(MCTS):
 
         # update
         if self.best_node[1] < reward:
-            self.best_node = (node, reward)
+            self.best_node = (receipt, reward)
         if self.type == 'mcts':
-            self.back_propagate(mcts_receipt, reward)
+            self.back_propagate(receipt, reward)
+
+        self.reward_list.append(reward)
+        self.time_list.append(time.time() - self.search_start_timestamp)
 
         return "SUCCESS"
 
     def search(self, iterations: int = 1000, result_save_loc: str = './final_result') -> None:
         """Search for the best model for iterations times."""
-        start = time.time()
+        self.search_start_timestamp = time.time()
         for iter in range(iterations):
             logging.info(f"Iteration {iter}")
             while True:
                 try:
                     # Now the iteration end even when it fails
                     result = self.update(self.type + f"Iteration{iter}")
-                    self.upper_bound_list.append(self.best_node[1])
-                    self.time_list.append(time.time() - start)
                     logging.info(f"Iteration {iter} {result}.")
-                    break
+                    if result == "SUCCESS":
+                        break
                 except Exception as e:
                     logging.warning("Catched error {}, retrying".format(e))
                     traceback.print_exc(file=sys.stderr)
@@ -171,30 +175,32 @@ class Searcher(MCTS):
 
         os.makedirs(result_save_loc, exist_ok=True)
         perf_path = os.path.join(result_save_loc, 'perf.json')
-        perf_dict = {"upper_bounds": self.upper_bound_list,
+        perf_dict = {"rewards": self.reward_list,
                      "times": self.time_list}
         json.dump(perf_dict, open(perf_path, 'w'))
 
         if self.type == 'mcts':
             node = self.get_results()
         elif self.type == 'random':
-            node = self.best_node[0]
+            node, path = self.best_node[0]
 
         model = self._model.create_instance()
         kernelPacks, _ = self._sampler.realize(model, node, "FinalResult")
         model = self._model.restore_model_params(model, kernelPacks)
         train_error, val_error, best_model_state_dict = train(
-            model, **self.training_params, verbose=True)
+            model, **self._train_params, verbose=True)
 
-        model_ckpt = (node.path.serialize(), best_model_state_dict)
-        model_path = os.path.join(result_save_loc, 'model.pth')
-        torch.save(model_ckpt, model_path)
+        # model_ckpt = (path.serialize(), best_model_state_dict)
+        # model_path = os.path.join(result_save_loc, 'model.pth')
+        # torch.save(model_ckpt, model_path)
 
-        logging.info("The best model is saved in {}".format(model_path))
-        logging.info("Best performance: {}".format(min(val_error)))
+        # logging.info("The best model is saved in {}".format(model_path))
+        logging.info("Best performance: {}".format(1. - min(val_error)))
 
 
 if __name__ == '__main__':
+
+    start = time.time()
 
     # set logging level
     logging.getLogger().setLevel(logging.INFO)
@@ -218,7 +224,7 @@ if __name__ == '__main__':
         lr=0.1,
         momentum=0.9,
         epochs=30,
-        val_period=5,
+        val_period=30,
         use_cuda=use_cuda
     )
 
@@ -228,7 +234,7 @@ if __name__ == '__main__':
     kas_sampler = Sampler(
         input_shape="[N,H,W]",  # "[N,C_in,H,W]",
         output_shape="[N,C_out,H,W]",
-        primary_specs=["N=128: 1", "H=256", "W=256", "C_out=100"],
+        primary_specs=["N=4096: 1", "H=256", "W=256", "C_out=100"],
         coefficient_specs=["s_1=2: 2", "k_1=3", "5"],
         seed=random.SystemRandom().randint(
             0, 0x7fffffff) if args.kas_seed == 'pure' else args.seed,
@@ -246,3 +252,6 @@ if __name__ == '__main__':
 
     searcher.search(iterations=args.kas_iterations,
                     result_save_loc=args.result_save_dir)
+
+    logging.info("Search Complete, elapsed {} seconds. ".format(
+        time.time() - start))
