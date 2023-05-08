@@ -17,6 +17,8 @@
 
 ## CodeGen
 
+- [ ] Generate object files, instead of static libraries. Then dynamically link the kernels instead of compiling C++ wrappers again and again.
+- [ ] Add auto scheduler options to reduce tuning time.
 - [x] Add padding by padding variables that cannot be divided by their denominators.
 - [ ] Optimization: Early reduction to reduce FLOPs.
 - [ ] Early reduction analysis is actually compulsory. Otherwise in autodiff settings, the RDom may be left unmentioned, causing Halide compile errors!
@@ -41,6 +43,7 @@
 ### Misc
 
 - [x] Index the search tree by hashes for reproducibility.
+- [ ] Allow direct construction of kernel from primitives and parameters, without building the search tree.
 
 ## Experiment
 
