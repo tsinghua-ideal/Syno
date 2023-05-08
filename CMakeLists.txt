@@ -35,6 +35,12 @@ enable_testing()
 find_package(GTest REQUIRED)
 include_directories(${GTEST_INCLUDE_DIRS})
 
+# CUDA
+find_package(CUDAToolkit REQUIRED)
+
+# PyTorch
+find_package(Torch REQUIRED)
+
 # Sub-directories
 add_subdirectory(src)
 add_subdirectory(tests)

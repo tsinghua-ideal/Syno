@@ -4,6 +4,7 @@
 
 - A C++20-compatible compiler and CMake. Ninja is recommended.
 - [Halide with GPU Autoscheduler](https://github.com/aekul/Halide/tree/gpu-autoscheduler), with [this patch](./bugfix.patch) applied. For more information, refer to the [pull request](https://github.com/halide/Halide/pull/6856).
+- CUDA.
 - [PyTorch](https://github.com/pytorch/pytorch).
 - [Boost](https://github.com/boostorg/boost).
 - [fmtlib](https://github.com/fmtlib/fmt).
@@ -23,7 +24,7 @@ CMake tests are available.
 
 ```bash
 mkdir build && cd build
-cmake -G Ninja ..
+cmake -G Ninja -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` ..
 cmake --build .
 ctest
 ```

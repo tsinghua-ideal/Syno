@@ -299,7 +299,7 @@ void HalideGen::GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardIn
         using FileType = Halide::OutputFileType;
         return {
             {FileType::stmt, filename.replace_extension(ext.at(FileType::stmt).extension)},
-            {FileType::static_library, filename.replace_extension(ext.at(FileType::static_library).extension)},
+            {FileType::static_library, filename.replace_extension(ext.at(FileType::object).extension)},
             {FileType::pytorch_wrapper, filename.replace_extension(ext.at(FileType::pytorch_wrapper).extension)},
         };
     };
