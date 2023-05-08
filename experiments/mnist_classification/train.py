@@ -46,8 +46,9 @@ def train(
             label = label.cuda()
 
             # inference
-            logits = model(image)
-            loss = criterion(logits, label)
+            with torch.cuda.amp.autocast():
+                logits = model(image)
+                loss = criterion(logits, label)
 
             # statistic
             pred = torch.argmax(logits, -1)
@@ -57,6 +58,9 @@ def train(
 
             # backward
             optimizer.zero_grad()
+            # loss.backward()
+            # optimizer.step()
+
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
@@ -86,7 +90,7 @@ def train(
                 if val_errors[-1] == min(val_errors):
                     best_model_state_dict = model.state_dict()
 
-        if (epoch + 1) % 5 == 0 and verbose:
+        if (epoch + 1) % val_period == 0 and verbose:
             logging.info(
                 f'Epoch {epoch+1}, train loss {train_loss}, train error {train_errors[-1]}, validation error {val_errors[-1]}, elapsed {time.time() - start}')
             start = time.time()
