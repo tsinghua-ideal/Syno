@@ -2,7 +2,9 @@
 
 ## Build Dependencies
 
-- A C++20-compatible compiler and CMake. Ninja is recommended.
+- A C++20-compatible compiler.
+- CMake.
+- Ninja.
 - [Halide with GPU Autoscheduler](https://github.com/aekul/Halide/tree/gpu-autoscheduler), with [this patch](./bugfix.patch) applied. For more information, refer to the [pull request](https://github.com/halide/Halide/pull/6856).
 - CUDA.
 - [PyTorch](https://github.com/pytorch/pytorch).
@@ -23,16 +25,15 @@ conda install boost fmt pybind11 gtest gmock -c conda-forge
 CMake tests are available.
 
 ```bash
-mkdir build && cd build
-cmake -G Ninja -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` ..
-cmake --build .
+cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=true -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` .
+cmake --build build
 ctest
 ```
 
 This project uses [`scikit-build`](https://github.com/scikit-build/scikit-build-core), so installing the Python module is fairly simple.
 
 ```bash
-pip install .
+pip install . --config-settings=cmake.define.CMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'`
 pytest
 ```
 

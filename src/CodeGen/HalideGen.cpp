@@ -105,18 +105,6 @@ HalideAccess::HalideAccess(const ConcreteConsts& consts, const AbstractAccess& a
     std::ranges::reverse(outerLoops); // To adapt to column-major Halide.
 }
 
-Halide::Target HalideGen::GetHostTarget(bool useGPU) {
-    auto t = Halide::get_host_target();
-    t.with_feature(Halide::Target::Debug);
-    if (useGPU) {
-        t = t
-            .with_feature(Halide::Target::CUDA)
-            .with_feature(Halide::Target::UserContext);
-    }
-    KAS_ASSERT(Halide::host_supports_target_device(t));
-    return t;
-}
-
 void HalideGen::GuardAutoSchedulers() {
     static bool loaded = false;
     if (!loaded) {
@@ -314,7 +302,7 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
         backwardInputs, backwardFuncs
     ] = createPipelines(consts, funcName);
 
-    auto target = GetHostTarget(options.useGPU);
+    auto target = GetHostTarget(options.useGPU, false);
     auto [forwardPipeline, backwardPipeline] = ApplyAutoScheduler(forwardFunc, backwardFuncs, target, options.scheduler, false);
 
     GenerateFromPipelines(forwardInputs, backwardInputs, forwardPipeline, backwardPipeline, outputPath, funcName, target);

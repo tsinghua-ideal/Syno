@@ -12,6 +12,7 @@
 #include <gtest/gtest_prod.h>
 #include "Halide.h"
 
+#include "KAS/CodeGen/HalideCommon.hpp"
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Tensor.hpp"
@@ -67,8 +68,6 @@ private:
     Options options;
 
 public:
-    static Halide::Target GetHostTarget(bool useGPU);
-
     static void GuardAutoSchedulers(); // Load the Halide auto scheduler plugins.
 
     // If lowering a backward pipeline, the output tensor is the gradient of the output tensor.
@@ -183,7 +182,7 @@ public:
         }(std::make_index_sequence<sizeof...(InputInitializers)>());
 
         // Compute the forward result.
-        auto target = HalideGen::GetHostTarget(options.useGPU);
+        auto target = GetHostTarget(options.useGPU, true);
         auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, verbose);
 
         if (createStaticLibrary) {

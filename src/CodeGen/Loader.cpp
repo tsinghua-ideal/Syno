@@ -14,7 +14,7 @@
 
 namespace kas {
 
-Loader::Loader(const std::filesystem::path& path, const std::string& symbol, bool cuda, std::size_t countInputs, std::size_t countKernels):
+Loader::Loader(const std::string& path, const std::string& symbol, bool cuda, std::size_t countInputs, std::size_t countKernels):
     cuda { cuda },
     countInputs { countInputs }
 {

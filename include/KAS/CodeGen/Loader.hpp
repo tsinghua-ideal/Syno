@@ -1,6 +1,5 @@
 #pragma once
 
-#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -24,7 +23,7 @@ class Loader {
 
 public:
     // Loads the dynamic library, and retrieves the function pointers.
-    Loader(const std::filesystem::path& path, const std::string& symbol, bool cuda, std::size_t countInputs, std::size_t countKernels);
+    Loader(const std::string& path, const std::string& symbol, bool cuda, std::size_t countInputs, std::size_t countKernels);
     // Calls the forward pipeline.
     void forward(std::size_t index, const std::vector<at::Tensor *>& buffers) const;
     // Calls the backward pipeline.
