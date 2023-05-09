@@ -7,9 +7,18 @@ import torch.utils.cpp_extension
 from torch import nn
 from typing import List, Tuple, Union
 
+from kas_cpp_bindings import Loader
+
 
 class KernelPack(nn.Module):
     """A wrapper for the generated kernel."""
+
+    @staticmethod
+    def load_kernels(directory: str, name: str, count_inputs: int, count_kernels: int, device: torch.device) -> Loader:
+        """Load kernels from the given directory."""
+        cuda = torch.device(device).type == 'cuda'
+        return Loader(os.path.join(directory, name + ".so"), name, cuda, count_inputs, count_kernels)
+
     @staticmethod
     def get_paddings_from_shapes(unpadded_shape: List[int], padded_shape: List[int]) -> List[Union[None, Tuple[int, int]]]:
         """Get paddings from unpadded and padded shapes."""
@@ -45,39 +54,11 @@ class KernelPack(nn.Module):
             return None
         return [slice(padding[0], -padding[1]) if padding is not None else slice(None) for padding in paddings]
 
-    def __init__(self, identifier: str, directory: str, name: str, unpadded_inputs_shapes: List[List[int]], padded_inputs_shapes: List[List[int]], unpadded_output_shape: List[int], padded_output_shape: List[int], device: torch.device):
+    def __init__(self, identifier: str, loader: Loader, index: int, unpadded_inputs_shapes: List[List[int]], padded_inputs_shapes: List[List[int]], unpadded_output_shape: List[int], padded_output_shape: List[int], device: torch.device):
         super(KernelPack, self).__init__()
 
-        # Collect header files.
-        srcs = []
-        filenames = [os.path.join(directory, name + '.pytorch.h'),
-                     os.path.join(directory, name + '_grad.pytorch.h')]
-        for filename in filenames:
-            with open(filename) as file:
-                srcs.append(file.read())
-
-        # JIT the compiled operator and load it.
-        logging.info(
-            f'Loading {name} with identifier {identifier} from {directory}...')
-        forward_name = f'{name}_th_'
-        backward_name = f'{name}_grad_th_'
-        self._module = torch.utils.cpp_extension.load_inline(
-            name=f'kas_{identifier}',
-            cpp_sources=srcs,
-            functions=[forward_name, backward_name],
-            extra_cflags=[
-                '-std=c++17',
-            ],
-            extra_ldflags=[
-                f'-L{os.path.abspath(directory)}',
-                '-lcuda',
-                f'-l:{name}.a',
-                f'-l:{name}_grad.a',
-            ],
-            with_cuda=True,
-            verbose=False
-        )
-        logging.info(f'Loaded {name}.')
+        self._loader = loader
+        self._index = index
 
         # Collect inputs paddings.
         inputs_paddings = [self.get_paddings_from_shapes(
@@ -102,7 +83,7 @@ class KernelPack(nn.Module):
                 x.contiguous() if pad_params is None else F.pad(x, pad_params).contiguous()
                 for x, pad_params in zip(args, inputs_pad_params))
             # Call the operator.
-            getattr(self._module, forward_name)(*args, out_forward)
+            self._loader.forward(index, *args, out_forward)
             # Save for backward.
             ctx.save_for_backward(*args)
             # Crop if needed.
@@ -116,7 +97,7 @@ class KernelPack(nn.Module):
             grad_output = grad_output.contiguous() if output_pad_params is None else F.pad(
                 grad_output, output_pad_params).contiguous()
             # Call the operator.
-            getattr(self._module, backward_name)(
+            self._loader.backward(index,
                 *ctx.saved_tensors, grad_output, *grad_inputs)
             # Crop if needed.
             return tuple(
@@ -140,5 +121,3 @@ class KernelPack(nn.Module):
         attr_dict = self.__dir__()
         if '_Kernel' in attr_dict:
             del self._Kernel
-        if '_module' in attr_dict:
-            del self._module

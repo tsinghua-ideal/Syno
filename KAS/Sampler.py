@@ -104,6 +104,7 @@ class Sampler:
         kernel.generate_operator(save_path, kernel_name_prefix)
         kernel.generate_graphviz(save_path, kernel_name_prefix)
         logging.debug("Successfully generated kernel files.")
+        loader = KernelPack.load_kernels(save_path, kernel_name_prefix, kernel.get_count_inputs(), len(placeholders), self._device)
 
         kernel_packs = []
         for i in range(len(placeholders)):
@@ -126,8 +127,8 @@ class Sampler:
             identifier = identifier_prefix + "__" + str(i)
             kernel_packs.append(KernelPack(
                 identifier=identifier,
-                directory=save_path,
-                name=kernel_name,
+                loader=loader,
+                index=i,
                 unpadded_inputs_shapes=unpadded_inputs_shapes,
                 padded_inputs_shapes=padded_inputs_shapes,
                 unpadded_output_shape=unpadded_output_shape,

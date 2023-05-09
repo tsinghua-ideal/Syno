@@ -24,6 +24,8 @@ class Loader {
 public:
     // Loads the dynamic library, and retrieves the function pointers.
     Loader(const std::string& path, const std::string& symbol, bool cuda, std::size_t countInputs, std::size_t countKernels);
+    Loader(const Loader&) = delete;
+    Loader(Loader&&) = delete;
     // Calls the forward pipeline.
     void forward(std::size_t index, const std::vector<at::Tensor *>& buffers) const;
     // Calls the backward pipeline.

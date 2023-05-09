@@ -110,6 +110,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("index")
         )
         .def("get_total_flops", &Kernel::getTotalFLOPs)
+        .def("get_count_inputs", &Kernel::getCountInputs)
         .def(
             "get_inputs_shapes", &Kernel::getInputsShapes,
             pybind11::arg("padded"), pybind11::arg("index")
