@@ -5,7 +5,7 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include <torch/types.h>
+#include <torch/extension.h>
 
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/CodeGen/Kernel.hpp"
@@ -19,7 +19,8 @@ std::vector<at::Tensor *> ConvertArgsToTensors(pybind11::args& args) {
     std::vector<at::Tensor *> tensors;
     tensors.reserve(args.size());
     for (auto& arg: args) {
-        tensors.push_back(arg.cast<at::Tensor *>());
+        at::Tensor& buffer = const_cast<at::Tensor&>(THPVariable_Unpack(arg.ptr()));
+        tensors.emplace_back(&buffer);
     }
     return tensors;
 }
@@ -135,14 +136,16 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def(
             "forward",
             [](const Loader& self, std::size_t index, pybind11::args args) {
-                return self.forward(index, ConvertArgsToTensors(args));
+                auto tensors = ConvertArgsToTensors(args);
+                return self.forward(index, tensors);
             },
             pybind11::arg("index")
         )
         .def(
             "backward", 
             [](const Loader& self, std::size_t index, pybind11::args args) {
-                return self.backward(index, ConvertArgsToTensors(args));
+                auto tensors = ConvertArgsToTensors(args);
+                return self.backward(index, tensors);
             },
             pybind11::arg("index")
         );

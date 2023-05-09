@@ -4,9 +4,9 @@ import logging
 import torch
 from torch import nn
 from typing import List, Dict
-import kas_cpp_bindings
-from kas_cpp_bindings import CodeGenOptions
 
+from . import Bindings
+from .Bindings import CodeGenOptions
 from .KernelPack import KernelPack
 from .Node import Next, Path, Node, VisitedNode
 from .Placeholder import Placeholder
@@ -40,7 +40,7 @@ class Sampler:
             placeholder.reload(kernel_pack)
 
     def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors=2, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot):
-        options = kas_cpp_bindings.SampleOptions(
+        options = Bindings.SampleOptions(
             seed=seed,
             depth=depth,
             dim_lower=dim_lower,
@@ -54,9 +54,9 @@ class Sampler:
         if net is not None:
             all_mappings = Sampler._extract_all_mappings(net)
 
-        self._sampler = kas_cpp_bindings.Sampler(
+        self._sampler = Bindings.Sampler(
             input_shape, output_shape, primary_specs, coefficient_specs, all_mappings, options)
-        self._codegen_options = kas_cpp_bindings.CodeGenOptions(
+        self._codegen_options = Bindings.CodeGenOptions(
             cuda, autoscheduler)
         self._device = torch.device('cuda' if cuda else 'cpu')
 
@@ -83,7 +83,7 @@ class Sampler:
             node = node.get_child(next)
         return strs
 
-    def _realize(self, node: Node, all_mappings: List[Dict[str, int]]) -> kas_cpp_bindings.Kernel:
+    def _realize(self, node: Node, all_mappings: List[Dict[str, int]]) -> Bindings.Kernel:
         return node._realize_as_final(all_mappings, self._codegen_options)
 
     def realize(self, net: nn.Module, node: Node, identifier_prefix: str) -> List[KernelPack]:

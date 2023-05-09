@@ -7,7 +7,7 @@ import torch.utils.cpp_extension
 from torch import nn
 from typing import List, Tuple, Union
 
-from kas_cpp_bindings import Loader
+from .Bindings import Loader
 
 
 class KernelPack(nn.Module):

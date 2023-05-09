@@ -1,8 +1,8 @@
 from collections import defaultdict
 from typing import Dict, List, Tuple, Union
 
-import kas_cpp_bindings
-from kas_cpp_bindings import Next
+from . import Bindings
+from .Bindings import Next
 
 
 AbsolutePath = List[Next]
@@ -65,7 +65,7 @@ class Path:
 class Node:
     """A node in Python, not necessarily corresponding to a C++ node."""
 
-    def __init__(self, node: kas_cpp_bindings.Node) -> None:
+    def __init__(self, node: Bindings.Node) -> None:
         self._node = node
 
     def __eq__(self, __value: object) -> bool:
@@ -117,7 +117,7 @@ class Node:
         # Either a final node, or a dead end.
         return self.is_final() or self.children_count() == 0
 
-    def _realize_as_final(self, all_mappings: List[Dict[str, int]], halide_options: kas_cpp_bindings.CodeGenOptions) -> kas_cpp_bindings.Kernel:
+    def _realize_as_final(self, all_mappings: List[Dict[str, int]], halide_options: Bindings.CodeGenOptions) -> Bindings.Kernel:
         return self._node.realize_as_final(all_mappings, halide_options)
 
     def estimate_total_flops_as_final(self) -> int:
@@ -132,7 +132,7 @@ class Node:
 class VisitedNode(Node):
     """Node with Path."""
 
-    def __init__(self, path: Path, node: kas_cpp_bindings.Node) -> None:
+    def __init__(self, path: Path, node: Bindings.Node) -> None:
         super().__init__(node)
         self.path = path
 
