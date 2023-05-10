@@ -113,9 +113,6 @@ class MCTS:
             Two step random selection. First, randomly select a primitive type. Then, randomly select a child of that type.
             """
             selected_child = random.choice(node.get_children_handles())
-            if len(node.get_children_handles()) > 0 and isinstance(selected_child, Next.Type):
-                print("children are ", node.get_children_handles())
-                print("selected ", selected_child)
             return node.get_child(selected_child)
 
         while not node.is_terminal():

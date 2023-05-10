@@ -26,6 +26,11 @@ def test_mcts():
         _, path = receipt
         print(f"Iteration {idx}. Sampled {node.path} for {path}:")
         print(path.path_to_strs(sampler))
+        s = path.serialize()
+        d = path.deserialize(s)
+        print("Serialized Path", s)
+        print("Deserialized Path", d)
+        assert str(s) == str(d)
         for i in range(len(path)):
             child = sampler.visit(Path(path.abs_path[:i]))
             print(f"Node {child} has children:", child.get_children_types())

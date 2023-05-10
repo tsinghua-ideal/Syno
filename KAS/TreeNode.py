@@ -21,6 +21,15 @@ class TreePath(Path):
         if isinstance(tup, Next.Type):
             return Next(tup, 0)
         return super().to_next(tup)
+    
+    def serialize(self) -> str:
+        serialized = [str(int(n.type)) + str(n.key) for n in self.abs_path]
+        return '_'.join(serialized)
+
+    @ staticmethod
+    def deserialize(serialized: str) -> 'TreePath':
+        deserialized_list = serialized.split('_')
+        return TreePath([Next(Next.Type(n[0]), int(n[1:])) for n in deserialized_list])
 
     def __init__(self, path: List[PseudoTreeNext]) -> None:
         """abs_path records [(op, hash)]"""

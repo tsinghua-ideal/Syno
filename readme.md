@@ -18,6 +18,7 @@ Note: If you are using anaconda to manage your packages, you may also install th
 ```[language=bash]
 conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
 conda install boost fmt pybind11 gtest gmock -c conda-forge
+conda install cudatoolkit=11.7 cudnn=8.8.0
 ```
 
 ## Build and Run
