@@ -29,10 +29,10 @@ def test_mcts():
         for i in range(len(path)):
             child = sampler.visit(Path(path.abs_path[:i]))
             print(f"Node {child} has children:", child.get_children_types())
-        # kernel_packs, _ = sampler.realize(net, node, f"test_mcts_{idx}")
-        # sampler.replace(net, kernel_packs)
-        # print(f"Computing forward {idx}...")
-        # print(f"Result: {net(in_tensor)}")
+        kernel_packs, _ = sampler.realize(net, node, f"test_mcts_{idx}")
+        sampler.replace(net, kernel_packs)
+        print(f"Computing forward {idx}...")
+        print(f"Result: {net(in_tensor)}")
         mcts.back_propagate(receipt, 1.0)
 
 
