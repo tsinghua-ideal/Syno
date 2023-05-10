@@ -24,7 +24,7 @@ public:
 
     std::string toNestedLoops() const;
 
-    // Generate headers and static libraries named as name_i.pytorch.h, and name_i.a in the specified directory.
+    // Generate shared library named as name.so in the specified directory. The functions are named as name_0, name_0_grad, name_1, name_1_grad, ...
     void generateOperator(const std::string& path, const std::string& name);
     void generateGraphviz(const std::string& path, const std::string& name);
 
@@ -33,8 +33,8 @@ public:
     std::size_t getFLOPs(std::size_t index) const;
     std::size_t getTotalFLOPs() const;
 
+    std::size_t getCountInputs() const;
     std::vector<std::vector<std::size_t>> getInputsShapes(bool padded, std::size_t index) const;
-
     std::vector<std::size_t> getOutputShape(bool padded, std::size_t index) const;
 };
 

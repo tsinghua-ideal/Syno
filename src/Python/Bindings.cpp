@@ -5,13 +5,25 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <torch/extension.h>
 
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/CodeGen/Kernel.hpp"
+#include "KAS/CodeGen/Loader.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/Statistics.hpp"
 
+
+std::vector<at::Tensor *> ConvertArgsToTensors(pybind11::args& args) {
+    std::vector<at::Tensor *> tensors;
+    tensors.reserve(args.size());
+    for (auto& arg: args) {
+        at::Tensor& buffer = const_cast<at::Tensor&>(THPVariable_Unpack(arg.ptr()));
+        tensors.emplace_back(&buffer);
+    }
+    return tensors;
+}
 
 PYBIND11_MODULE(kas_cpp_bindings, m) {
     m.doc() = "Python/C++ API bindings for KAS.";
@@ -99,6 +111,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("index")
         )
         .def("get_total_flops", &Kernel::getTotalFLOPs)
+        .def("get_count_inputs", &Kernel::getCountInputs)
         .def(
             "get_inputs_shapes", &Kernel::getInputsShapes,
             pybind11::arg("padded"), pybind11::arg("index")
@@ -108,6 +121,34 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("padded"), pybind11::arg("index")
         )
         .def("__repr__", &Kernel::toNestedLoops);
+
+    pybind11::class_<Loader>(m, "Loader")
+        .def(
+            pybind11::init([](const std::string& path, const std::string& symbol, bool cuda, std::size_t countInputs, std::size_t countKernels) {
+                return std::make_unique<Loader>(path, symbol, cuda, countInputs, countKernels);
+            }),
+            pybind11::arg("path"),
+            pybind11::arg("symbol"),
+            pybind11::arg("cuda"),
+            pybind11::arg("count_inputs"),
+            pybind11::arg("count_kernels")
+        )
+        .def(
+            "forward",
+            [](const Loader& self, std::size_t index, pybind11::args args) {
+                auto tensors = ConvertArgsToTensors(args);
+                return self.forward(index, tensors);
+            },
+            pybind11::arg("index")
+        )
+        .def(
+            "backward", 
+            [](const Loader& self, std::size_t index, pybind11::args args) {
+                auto tensors = ConvertArgsToTensors(args);
+                return self.backward(index, tensors);
+            },
+            pybind11::arg("index")
+        );
 
     pybind11::class_<Node>(m, "Node")
         .def("__eq__", &Node::operator==)

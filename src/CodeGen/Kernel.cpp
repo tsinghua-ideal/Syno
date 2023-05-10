@@ -1,5 +1,8 @@
+#include <cstdlib>
+
 #include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/CodeGen/GraphvizGen.hpp"
+#include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
@@ -26,6 +29,18 @@ void Kernel::generateOperator(const std::string& path, const std::string& name) 
         gen.generate(path, fmt::format("{}_{}", name, i), consts.padded);
         ++i;
     }
+    // Invoke the linker through command line and produce a shared library
+    std::filesystem::path dir = path;
+    std::string sharedLibName = fmt::format("{}.so", name);
+    std::string cmd = fmt::format("g++ -shared -fPIC -Wl,-soname,{} -o \"{}\" -Wl,--whole-archive -Wl,--allow-multiple-definition ", sharedLibName, (dir / sharedLibName).string());
+    auto getObjectPath = [&dir, &name](std::size_t i, bool grad) {
+        return (dir / fmt::format("{}_{}{}.o", name, i, grad ? "_grad" : "")).string();
+    };
+    for (std::size_t i = 0; i < paddedConsts.size(); ++i) {
+        cmd += fmt::format("\"{}\" \"{}\" ", getObjectPath(i, false), getObjectPath(i, true));
+    }
+    int err = std::system(cmd.c_str());
+    KAS_ASSERT(err == 0, "Failed to invoke linker, error code = {}", err);
 }
 
 void Kernel::generateGraphviz(const std::string& path, const std::string& name) {
@@ -47,6 +62,10 @@ std::size_t Kernel::getTotalFLOPs() const {
         result += getFLOPs(i);
     }
     return result;
+}
+
+std::size_t Kernel::getCountInputs() const {
+    return tensorView.getUnderlyingTensors().size();
 }
 
 std::vector<std::vector<std::size_t>> Kernel::getInputsShapes(bool padded, std::size_t index) const {

@@ -2,8 +2,15 @@
 requires = [
     "scikit_build_core<0.3.0",
     "pybind11",
+    "ninja",
 ]
 build-backend = "scikit_build_core.setuptools.build_meta"
+
+[tool.scikit-build]
+build-dir = "build/{wheel_tag}"
+cmake.verbose = true
+cmake.args = ["-GNinja"]
+ninja.make-fallback = false
 
 [tool.pytest.ini_options]
 minversion = "6.0"
