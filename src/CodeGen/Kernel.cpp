@@ -32,13 +32,14 @@ void Kernel::generateOperator(const std::string& path, const std::string& name) 
     // Invoke the linker through command line and produce a shared library
     std::filesystem::path dir = path;
     std::string sharedLibName = fmt::format("{}.so", name);
-    std::string cmd = fmt::format("g++ -shared -fPIC -Wl,-soname,{} -o \"{}\" -Wl,--whole-archive -Wl,--allow-multiple-definition ", sharedLibName, (dir / sharedLibName).string());
+    std::string cmd = fmt::format("g++ -shared -fPIC -Wl,-soname,{} -o \"{}\" -Wl,--allow-multiple-definition -Wl,--whole-archive ", sharedLibName, (dir / sharedLibName).string());
     auto getObjectPath = [&dir, &name](std::size_t i, bool grad) {
         return (dir / fmt::format("{}_{}{}.o", name, i, grad ? "_grad" : "")).string();
     };
     for (std::size_t i = 0; i < paddedConsts.size(); ++i) {
         cmd += fmt::format("\"{}\" \"{}\" ", getObjectPath(i, false), getObjectPath(i, true));
     }
+    cmd += fmt::format("-Wl,--no-whole-archive");
     int err = std::system(cmd.c_str());
     KAS_ASSERT(err == 0, "Failed to invoke linker, error code = {}", err);
 }
