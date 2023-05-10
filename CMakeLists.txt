@@ -8,6 +8,7 @@ set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # We first find libTorch. This is because PyTorch requires nvcc to support the same C++ standard as the host compiler, which may be too demanding.
+set(CMAKE_CXX_STANDARD 17)
 # CUDA
 find_package(CUDAToolkit REQUIRED)
 # PyTorch

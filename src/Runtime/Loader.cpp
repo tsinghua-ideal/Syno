@@ -8,7 +8,7 @@
 #include <HalideBuffer.h>
 #include <HalidePyTorchHelpers.h>
 
-#include "KAS/CodeGen/Loader.hpp"
+#include "KAS/Runtime/Loader.hpp"
 #include "KAS/Utils/Common.hpp"
 
 

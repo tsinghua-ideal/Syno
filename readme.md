@@ -27,7 +27,7 @@ CMake tests are available.
 ```bash
 cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=true -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` .
 cmake --build build
-ctest
+ctest --test-dir build
 ```
 
 This project uses [`scikit-build`](https://github.com/scikit-build/scikit-build-core), so installing the Python module is fairly simple.

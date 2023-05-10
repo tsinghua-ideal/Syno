@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -9,7 +10,7 @@
 
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/CodeGen/Kernel.hpp"
-#include "KAS/CodeGen/Loader.hpp"
+#include "KAS/Runtime/Loader.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/Statistics.hpp"
