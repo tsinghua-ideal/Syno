@@ -2,10 +2,14 @@ import random
 import math
 import logging
 from collections import defaultdict
+from itertools import groupby
 from typing import List, Tuple, Any
 
-from .Node import Path, Node
+from .Node import Path, VisitedNode
 from .Sampler import Sampler
+from .TreeNode import TreeNode, TreePath
+
+from kas_cpp_bindings import Next
 
 
 class MCTS:
@@ -18,25 +22,31 @@ class MCTS:
         self._exploration_weight = exploration_weight
         random.seed(sampler._seed)
 
-    def _get_Q(self, node: Node) -> float:
-        return self._Q[node.to_node()]
-    def _add_Q(self, node: Node, value: float) -> None:
-        self._Q[node.to_node()] += value
-    def _get_N(self, node: Node) -> int:
-        return self._N[node.to_node()]
-    def _add_N(self, node: Node, value: int) -> None:
-        self._N[node.to_node()] += value
-    def _has_children_nexts(self, node: Node) -> bool:
-        return node.to_node() in self._children_nexts
-    def _get_children_nexts(self, node: Node) -> List[Any]:
-        return self._children_nexts[node.to_node()]
-    def _set_children_nexts(self, node: Node, children_nexts: List[Any]) -> None:
-        self._children_nexts[node.to_node()] = children_nexts
+    def _get_Q(self, node: VisitedNode) -> float:
+        return self._Q[node]
+
+    def _add_Q(self, node: TreeNode, value: float) -> None:
+        self._Q[node] += value
+
+    def _get_N(self, node: TreeNode) -> int:
+        return self._N[node]
+
+    def _add_N(self, node: TreeNode, value: int) -> None:
+        self._N[node] += value
+
+    def _has_children_nexts(self, node: TreeNode) -> bool:
+        return node in self._children_nexts
+
+    def _get_children_nexts(self, node: TreeNode) -> List[Any]:
+        return self._children_nexts[node]
+
+    def _set_children_nexts(self, node: TreeNode, children_nexts: List[Any]) -> None:
+        self._children_nexts[node] = children_nexts
 
     # The receipt which is used for back propagation, which is the root node and the path.
-    Receipt = Tuple[Node, Path]
+    Receipt = Tuple[TreeNode, TreePath]
 
-    def do_rollout(self, node: Node) -> Tuple[Receipt, Node]:
+    def do_rollout(self, node: VisitedNode) -> Tuple[Receipt, VisitedNode]:
         "Make the tree one layer better. (Train for one iteration.)"
         "Returns `((root, path), leaf)`. `path` is used to propagate reward. `leaf` is the result of simulation. Note that following `path` we do not necessarily arrive at `leaf`."
         while True:
@@ -51,7 +61,7 @@ class MCTS:
                 # This kind of interferes with the evaluation. TODO
                 self.back_propagate((node, path), 0.0)
 
-    def get_results(self, node: Node = None) -> Node:
+    def get_results(self, node: VisitedNode = None) -> VisitedNode:
         "Return the best result searched from the tree."
         if node is None:
             node = self._sampler.root()
@@ -59,8 +69,10 @@ class MCTS:
             node = self._best_select(node)
         return node
 
-    def _may_fail_rollout(self, node: Node) -> Tuple[Path, Node, bool]:
+    def _may_fail_rollout(self, node: VisitedNode) -> Tuple[TreePath, TreeNode, bool]:
         "The trial may encounter a dead end. In this case, False is returned."
+        node = TreeNode(node.path, node._node, is_mid=True, type=node.path[-1].type) if len(
+            node.path) > 0 and node.path[-1] == 0 else TreeNode(node.path, node._node)
         path, leaf = self._select(node)
         if leaf.is_dead_end():
             return path, leaf, False
@@ -68,10 +80,10 @@ class MCTS:
         leaf, success = self._simulate(leaf)
         return path, leaf, success
 
-    def _select(self, node: Node) -> Tuple[Path, Node]:
+    def _select(self, node: TreeNode) -> Tuple[TreePath, TreeNode]:
         "Find an unexplored descendent of `node`"
-        # Here, the path is just arbitrary, and depends on how we build the search tree. See doc for `_uct_select`. We only need to make sure we can construct a `Path` from `path`.
-        path: List[Any] = []
+        # Here, the path is just arbitrary, and depends on how we build the search tree. See doc for `_uct_select`. We only need to make sure we can construct a `TwoStepPath` from `path`.
+        path = TreePath([])
         while True:
             if node.is_terminal() or (not self._has_children_nexts(node)):
                 # node is either terminal or unexplored
@@ -81,22 +93,31 @@ class MCTS:
                 augmented = node.get_child(next)
                 if not self._has_children_nexts(augmented):
                     # we found an unexplored descendent of node
-                    path.append(next)
-                    return Path(path), augmented
+                    path = path.concat(next)
+                    logging.debug(f'path is {path}')
+                    return TreePath(path), augmented
             next, node = self._uct_select(node)  # descend a layer deeper
-            path.append(next)
+            path = path.concat(next)
 
-    def _expand(self, node: Node) -> None:
+    def _expand(self, node: TreeNode) -> None:
         "Update the `children` dict with the children of `node`"
         if self._has_children_nexts(node):
             return  # already expanded
         self._set_children_nexts(node, node.get_children_handles())
 
-    def _simulate(self, node: Node) -> Tuple[Node, bool]:
+    def _simulate(self, node: TreeNode) -> Tuple[TreeNode, bool]:
         "Returns a random simulation (to completion) of `node`"
-        def random_child(node: Node) -> Node:
-            next = random.choice(node.get_children_handles())
-            return node.get_child(next)
+
+        def random_child(node: TreeNode) -> TreeNode:
+            """
+            Two step random selection. First, randomly select a primitive type. Then, randomly select a child of that type.
+            """
+            selected_child = random.choice(node.get_children_handles())
+            if len(node.get_children_handles()) > 0 and isinstance(selected_child, Next.Type):
+                print("children are ", node.get_children_handles())
+                print("selected ", selected_child)
+            return node.get_child(selected_child)
+
         while not node.is_terminal():
             node = random_child(node)
         return node, node.is_final()
@@ -106,18 +127,24 @@ class MCTS:
         "Send the reward back up to the ancestors of the leaf"
         assert 0.0 <= reward <= 1.0
 
-        def _update_stats(node: Node, reward: float) -> None:
+        def _update_stats(node: TreeNode, reward: float) -> None:
             self._add_N(node, 1)
             self._add_Q(node, reward)
 
         node, path = receipt
+        node = TreeNode(node.path, node._node)
+
         _update_stats(node, reward)
         for next in path:
-            node = node.get_child(next)
+            node = node.get_child(next.type)
+            _update_stats(node, reward)
+            if next.key == 0:
+                break
+            node = node.get_child(next.key)
             _update_stats(node, reward)
 
-    # Here, the returnded Any is just an element in the path. The type depends on how we build the search tree. If we follow the C++ implementation, it should be a kas_cpp_bindings.Next. If we use two-step generation for primitives, it should be either Union[primitive type, index of primitive], which is not yet implemented.
-    def _uct_select(self, node: Node) -> Tuple[Any, Node]:
+    # Here, the returned Any is just an element in the path. The type depends on how we build the search tree. If we follow the C++ implementation, it should be a kas_cpp_bindings.Next. If we use two-step generation for primitives, it should be either Union[primitive type, index of primitive], which is not yet implemented.
+    def _uct_select(self, node: TreeNode) -> Tuple[Any, TreeNode]:
         "Select a child of node, balancing exploration & exploitation"
 
         nexts = self._get_children_nexts(node)
@@ -139,7 +166,7 @@ class MCTS:
 
         return max(children, key=uct)
 
-    def _best_select(self, node: Node) -> Node:
+    def _best_select(self, node: TreeNode) -> TreeNode:
         "Select the best child of a given node"
         if node.is_terminal():
             raise RuntimeError(f"choose called on terminal node {node}")
@@ -148,7 +175,8 @@ class MCTS:
             children_nexts = node.get_children_handles()
             return node.get_child(random.choice(children_nexts))
 
-        children = [node.get_child(next) for next in self._get_children_nexts(node)]
+        children = [node.get_child(next)
+                    for next in self._get_children_nexts(node)]
 
         def score(n) -> float:
             if self._get_N(n) == 0:

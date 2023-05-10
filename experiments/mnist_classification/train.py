@@ -6,8 +6,9 @@ import time
 import logging
 from typing import Tuple, List
 
-from utils.models import KASConv
+from utils.models import ConvNet
 from utils.data import get_dataloader
+from utils.parser import arg_parse
 
 
 def train(
@@ -100,9 +101,11 @@ def train(
 
 if __name__ == '__main__':
 
-    train_data_loader, validation_data_loader = get_dataloader()
+    logging.getLogger().setLevel(logging.INFO)
+    args = arg_parse()
+    train_data_loader, validation_data_loader = get_dataloader(args)
 
-    model = KASConv()
+    model = ConvNet()
 
     train(model, train_data_loader, validation_data_loader,
-          use_cuda=torch.cuda.is_available())
+          use_cuda=torch.cuda.is_available(), verbose=True)
