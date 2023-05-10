@@ -19,4 +19,4 @@ set_target_properties(
 )
 
 add_library(codegen-lib STATIC GraphvizGen.cpp HalideGen.cpp Kernel.cpp Loader.cpp)
-target_link_libraries(codegen-lib PRIVATE kas-halide-runtime-lib Halide::Halide CUDA::cudart ${TORCH_LIBRARIES})
+target_link_libraries(codegen-lib PRIVATE kas-halide-runtime-lib Halide::Halide ${CMAKE_DL_LIBS} CUDA::cudart ${TORCH_LIBRARIES})

@@ -7,11 +7,16 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-# Includes and libraries
-include_directories(include)
+# We first find libTorch. This is because PyTorch requires nvcc to support the same C++ standard as the host compiler, which may be too demanding.
+# CUDA
+find_package(CUDAToolkit REQUIRED)
+# PyTorch
+find_package(Torch REQUIRED)
 
-# dynamic library support
-link_libraries(${CMAKE_DL_LIBS})
+# C++ standard
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
+set(CMAKE_CXX_EXTENSIONS NO)
 
 # Boost
 find_package(Boost REQUIRED COMPONENTS program_options REQUIRED)
@@ -33,16 +38,8 @@ enable_testing()
 find_package(GTest REQUIRED)
 include_directories(${GTEST_INCLUDE_DIRS})
 
-# CUDA
-find_package(CUDAToolkit REQUIRED)
-
-# PyTorch
-find_package(Torch REQUIRED)
-
-# C++ standard
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED YES)
-set(CMAKE_CXX_EXTENSIONS NO)
+# Includes and libraries
+include_directories(include)
 
 # Sub-directories
 add_subdirectory(src)
