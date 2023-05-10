@@ -16,7 +16,7 @@ from thop import profile
 
 # KAS
 from KAS import MCTS, Sampler, KernelPack, Node, Path, Placeholder
-from kas_cpp_bindings import CodeGenOptions
+from KAS.Bindings import CodeGenOptions
 
 from train import train
 from utils.data import get_dataloader

@@ -3,9 +3,8 @@ from typing import List, Union
 
 from .Node import Path, Node, PseudoNext, AbsolutePath
 from .Sampler import Sampler
-
-import kas_cpp_bindings
-from kas_cpp_bindings import Next
+from . import Bindings
+from .Bindings import Next
 
 PseudoTreeNext = Union[PseudoNext, Next.Type]
 
@@ -61,7 +60,7 @@ class TreeNode(Node):
     A node that represents either a type or a full node
     """
 
-    def __init__(self, path: Path, node: kas_cpp_bindings.Node, is_mid: bool = False, type: Next.Type = None) -> None:
+    def __init__(self, path: Path, node: Bindings.Node, is_mid: bool = False, type: Next.Type = None) -> None:
         """
         node: the underlying node of this node or of its father (if it is a mid node). 
         """

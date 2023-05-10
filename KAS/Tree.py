@@ -8,8 +8,7 @@ from typing import List, Tuple, Any
 from .Node import Path, VisitedNode
 from .Sampler import Sampler
 from .TreeNode import TreeNode, TreePath
-
-from kas_cpp_bindings import Next
+from .Bindings import Next
 
 
 class MCTS:
