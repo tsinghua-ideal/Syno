@@ -6,7 +6,7 @@
 #include <pybind11/stl.h>
 #include <torch/extension.h>
 
-#include "KAS/Runtime/Loader.hpp"
+#include "Loader.hpp"
 
 
 std::vector<at::Tensor *> ConvertArgsToTensors(pybind11::args& args) {

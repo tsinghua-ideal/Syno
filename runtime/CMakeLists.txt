@@ -20,3 +20,9 @@ set_target_properties(
 
 add_library(runtime-lib STATIC Loader.cpp)
 target_link_libraries(runtime-lib PRIVATE kas-halide-runtime-lib ${TORCH_LIBRARIES} CUDA::cudart ${CMAKE_DL_LIBS})
+
+pybind11_add_module(kas_runtime Runtime.cpp)
+target_link_libraries(kas_runtime PRIVATE runtime-lib ${TORCH_LIBRARIES})
+target_compile_definitions(kas_runtime
+                           PRIVATE VERSION_INFO=${SKBUILD_PROJECT_VERSION})
+install(TARGETS kas_runtime LIBRARY DESTINATION .)

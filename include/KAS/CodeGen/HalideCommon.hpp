@@ -2,8 +2,6 @@
 
 #include "Halide.h"
 
-#include "KAS/Utils/Common.hpp"
-
 
 namespace kas {
 

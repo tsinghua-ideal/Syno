@@ -8,7 +8,7 @@
 #include <HalideBuffer.h>
 #include <HalidePyTorchHelpers.h>
 
-#include "KAS/Runtime/Loader.hpp"
+#include "Loader.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
@@ -54,11 +54,11 @@ void Loader::call(const std::size_t expectedCountBuffers, void *pipeline, const 
         std::vector<Halide::Runtime::Buffer<float>> wrapped;
         wrapped.reserve(expectedCountBuffers);
         // Check tensors have contiguous memory and are on the correct device.
-        for (std::size_t i = 0; at::Tensor *buffer: buffers) {
+        for (std::size_t i = 0; i < buffers.size(); ++i) {
+            at::Tensor *buffer = buffers[i];
             KAS_ASSERT(buffer->is_contiguous(), "Input tensor {} is not contiguous.", i);
             KAS_ASSERT(buffer->is_cuda() && buffer->device().index() == device_id, "Input tensor {} is not on device {}.", i, device_id);
             wrapped.push_back(Halide::PyTorch::wrap_cuda<float>(*buffer));
-            ++i;
         }
 
         int err;
@@ -82,19 +82,19 @@ void Loader::call(const std::size_t expectedCountBuffers, void *pipeline, const 
         AT_ASSERTM(err == 0, "Error {} when executing Halide pipeline.", err);
 
         // Make sure data is on device
-        for (std::size_t i = 0; auto& buffer: wrapped) {
+        for (std::size_t i = 0; i < wrapped.size(); ++i) {
+            auto& buffer = wrapped[i];
             KAS_ASSERT(!buffer.host_dirty(), "Device not synchronized for buffer {}. Make sure all update stages are explicitly computed on GPU.", i);
             buffer.device_detach_native();
-            ++i;
         }
     } else {
         std::vector<Halide::Runtime::Buffer<float>> wrapped;
         wrapped.reserve(expectedCountBuffers);
         // Check tensors have contiguous memory.
-        for (std::size_t i = 0; at::Tensor *buffer: buffers) {
+        for (std::size_t i = 0; i < buffers.size(); ++i) {
+            at::Tensor *buffer = buffers[i];
             KAS_ASSERT(buffer->is_contiguous(), "Input tensor {} is not contiguous.", i);
             wrapped.push_back(Halide::PyTorch::wrap<float>(*buffer));
-            ++i;
         }
 
         int err;
