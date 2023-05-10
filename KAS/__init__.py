@@ -2,7 +2,7 @@ import sys
 import os
 old_flags = sys.getdlopenflags()
 sys.setdlopenflags(os.RTLD_GLOBAL | os.RTLD_LAZY)
-import kas_cpp_bindings
+import kas_runtime
 sys.setdlopenflags(old_flags)
 del old_flags
 

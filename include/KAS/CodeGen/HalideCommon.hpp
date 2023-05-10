@@ -9,7 +9,6 @@ namespace kas {
 
 inline Halide::Target GetHostTarget(bool useGPU, bool withRuntime) {
     auto t = Halide::get_host_target();
-    // t.with_feature(Halide::Target::Debug);
     if (useGPU) {
         t = t
             .with_feature(Halide::Target::CUDA)
@@ -20,7 +19,6 @@ inline Halide::Target GetHostTarget(bool useGPU, bool withRuntime) {
         t = t
             .with_feature(Halide::Target::NoRuntime);
     }
-    KAS_ASSERT(Halide::host_supports_target_device(t));
     return t;
 }
 
