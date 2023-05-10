@@ -2,11 +2,6 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 project(KAS LANGUAGES C CXX)
 
-# C++ standard
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED YES)
-set(CMAKE_CXX_EXTENSIONS NO)
-
 # Compiler flags.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_BUILD_TYPE Debug)
@@ -14,6 +9,9 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # Includes and libraries
 include_directories(include)
+
+# dynamic library support
+link_libraries(${CMAKE_DL_LIBS})
 
 # Boost
 find_package(Boost REQUIRED COMPONENTS program_options REQUIRED)
@@ -40,6 +38,11 @@ find_package(CUDAToolkit REQUIRED)
 
 # PyTorch
 find_package(Torch REQUIRED)
+
+# C++ standard
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
+set(CMAKE_CXX_EXTENSIONS NO)
 
 # Sub-directories
 add_subdirectory(src)
