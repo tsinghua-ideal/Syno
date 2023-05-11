@@ -64,6 +64,8 @@ class MCTS:
         "Return the best result searched from the tree."
         if node is None:
             node = self._sampler.root()
+        node = TreeNode(node.path, node._node, is_mid=True, type=node.path[-1].type) if len(
+            node.path) > 0 and node.path[-1] == 0 else TreeNode(node.path, node._node)
         while not node.is_terminal():
             node = self._best_select(node)
         return node
@@ -149,13 +151,14 @@ class MCTS:
         # All children of node should already be expanded:
         assert all(self._has_children_nexts(child) for _, child in children)
 
+        assert self._get_N(node) > 0
         log_N_vertex = math.log(self._get_N(node))
 
         def uct(child) -> float:
             "Upper confidence bound for trees"
             _, child = child
             if self._get_N(child) == 0:
-                return -1  # avoid unseen moves
+                return -math.inf  # avoid unseen moves
             return self._get_Q(child) / self._get_N(child) + self._exploration_weight * math.sqrt(
                 log_N_vertex / self._get_N(child)
             )
