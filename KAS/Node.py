@@ -28,9 +28,9 @@ class Path:
         return '_'.join(serialized)
 
     @ staticmethod
-    def deserialize(serialized: str) -> AbsolutePath:
+    def deserialize(serialized: str) -> 'Path':
         deserialized_list = serialized.split('_')
-        return [Next(Next.Type(n[0]), int(n[1:])) for n in deserialized_list]
+        return Path([Next(Next.Type(n[0]), int(n[1:])) for n in deserialized_list])
 
     def __init__(self, path: List[PseudoNext]) -> None:
         self.abs_path: AbsolutePath = [Path.to_next(n) for n in path]
@@ -110,7 +110,7 @@ class Node:
 
     def is_dead_end(self) -> bool:
         """Check if a node is a dead end, which means it has no children and is not final."""
-        (not self.is_final()) and self.children_count() == 0
+        return (not self.is_final()) and self.children_count() == 0
 
     def is_terminal(self) -> bool:
         """Check if a node is terminal, which means it is either final or a dead end."""

@@ -20,10 +20,6 @@ class TreePath(Path):
         if isinstance(tup, Next.Type):
             return Next(tup, 0)
         return super().to_next(tup)
-    
-    def serialize(self) -> str:
-        serialized = [str(int(n.type)) + str(n.key) for n in self.abs_path]
-        return '_'.join(serialized)
 
     @ staticmethod
     def deserialize(serialized: str) -> 'TreePath':
