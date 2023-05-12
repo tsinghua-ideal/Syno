@@ -1,5 +1,6 @@
 import logging
-from kas_cpp_bindings import Sampler, SampleOptions, CodeGenOptions
+from KAS import KernelPack
+from KAS.Bindings import Sampler, SampleOptions, CodeGenOptions, Loader
 import torch
 import torch.utils.cpp_extension
 import os
@@ -16,34 +17,17 @@ def test_sample():
     print(f"Found {sample} after {trials} trials.")
     cg_opt = CodeGenOptions(False, CodeGenOptions.ComputeRoot)
     kernel = sample.realize_as_final([{}], cg_opt)
-    kernel.generate_operator("./save/py_kernel_simple", "kernel")
+    kernel.generate_operator("./samples/py_kernel_simple", "kernel")
 
     # Load file
-    srcs = []
-    for filename in ['./save/py_kernel_simple/kernel_0.pytorch.h', './save/py_kernel_simple/kernel_0_grad.pytorch.h']:
-        with open(filename) as file:
-            srcs.append(file.read())
-
-    # Compile
-    module = torch.utils.cpp_extension.load_inline(
-        name='test_inline_ext',
-        cpp_sources=srcs,
-        functions=['kernel_0_th_', 'kernel_0_grad_th_'],
-        extra_cflags=['-std=c++17', '-g'],
-        extra_ldflags=[f'-L{os.getcwd()}/save/py_kernel_simple',
-                       '-lcuda',
-                       '-l:kernel_0.a',
-                       '-l:kernel_0_grad.a'],
-        with_cuda=True,
-        verbose=True
-    )
+    loader = KernelPack.load_kernels("./samples/py_kernel_simple", "kernel", kernel.get_count_inputs(), 1, "cpu")
 
     inputs_shapes = kernel.get_inputs_shapes(True, 0)
     # The first item is the real input. The other are weights.
     inputs = [torch.randn(s) for s in inputs_shapes]
     output_tensor = torch.empty((16, 16), dtype=torch.float32)
 
-    module.kernel_0_th_(*inputs, output_tensor)
+    loader.forward(0, *inputs, output_tensor)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

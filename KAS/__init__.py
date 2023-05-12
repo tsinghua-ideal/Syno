@@ -1,9 +1,14 @@
+# Here, we need to load the runtime symbols for dynamic loading of kernels.
 import sys
 import os
 old_flags = sys.getdlopenflags()
-sys.setdlopenflags(os.RTLD_GLOBAL | os.RTLD_NOW)
+# But we need to resolve symbols for the main program first, because otherwise the symbols may be mistakenly replaced by the runtime.
+sys.setdlopenflags(os.RTLD_LOCAL | os.RTLD_NOW)
 import kas_cpp_bindings
+# Now we can safely load the runtime, adding the symbols to the global scope.
+sys.setdlopenflags(os.RTLD_GLOBAL | os.RTLD_NOW)
 import kas_runtime
+# Restore the original flags.
 sys.setdlopenflags(old_flags)
 del old_flags
 
