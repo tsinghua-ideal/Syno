@@ -1,6 +1,8 @@
 # Here, we need to load the runtime symbols for dynamic loading of kernels.
 import sys
 import os
+# We should first import torch before loading the runtime, because the runtime may depend on torch.
+import torch
 old_flags = sys.getdlopenflags()
 # But we need to resolve symbols for the main program first, because otherwise the symbols may be mistakenly replaced by the runtime.
 sys.setdlopenflags(os.RTLD_LOCAL | os.RTLD_NOW)
