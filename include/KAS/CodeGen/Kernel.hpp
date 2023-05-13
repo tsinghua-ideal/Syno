@@ -25,8 +25,8 @@ public:
     std::string toNestedLoops() const;
 
     // Generate shared library named as name.so in the specified directory. The functions are named as name_0, name_0_grad, name_1, name_1_grad, ...
-    void generateOperator(const std::string& path, const std::string& name);
-    void generateGraphviz(const std::string& path, const std::string& name);
+    void generateOperator(const std::string& dir, const std::string& name);
+    void generateGraphviz(const std::string& dir, const std::string& name);
 
     std::string getConsts(std::size_t index) const;
 

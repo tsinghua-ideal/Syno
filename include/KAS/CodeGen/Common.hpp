@@ -1,5 +1,7 @@
 #pragma once
 
+#include <filesystem>
+
 #include "Halide.h"
 
 
@@ -19,5 +21,8 @@ inline Halide::Target GetHostTarget(bool useGPU, bool withRuntime) {
     }
     return t;
 }
+
+// Link the objects into a shared library.
+int LinkObjects(const std::filesystem::path& dir, const std::string& soName, const std::vector<std::string>& objects);
 
 } // namespace kas

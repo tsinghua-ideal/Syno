@@ -1,6 +1,6 @@
 #include <Halide.h>
 
-#include "KAS/CodeGen/HalideCommon.hpp"
+#include "KAS/CodeGen/Common.hpp"
 
 
 // This simply generates the Halide runtime.

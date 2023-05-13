@@ -12,7 +12,7 @@
 #include <gtest/gtest_prod.h>
 #include "Halide.h"
 
-#include "KAS/CodeGen/HalideCommon.hpp"
+#include "KAS/CodeGen/Common.hpp"
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Tensor.hpp"
@@ -110,7 +110,7 @@ public:
         options { std::move(options) }
     {}
 
-    void generate(std::filesystem::path outputPath, std::string_view funcName, const ConcreteConsts& consts);
+    void generate(std::filesystem::path outputDir, std::string_view funcName, const ConcreteConsts& consts);
 
     // This is a workaround for reverse indexing caused by Halide's column-major buffers.
     template<typename BufferType>
@@ -186,7 +186,11 @@ public:
         auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, verbose);
 
         if (createStaticLibrary) {
-            HalideGen::GenerateFromPipelines(inputs, backwardInputs, pipeline, backwardPipeline, "./kernel_" + std::string(funcName), funcName, target);
+            std::string outputDir = fmt::format("./kernel_{}", funcName);
+            std::string indexedFuncName = fmt::format("{}_0", funcName);
+            HalideGen::GenerateFromPipelines(inputs, backwardInputs, pipeline, backwardPipeline, outputDir, indexedFuncName, target);
+            int err = LinkObjects(outputDir, fmt::format("{}.so", funcName), { fmt::format("{}.o", indexedFuncName), fmt::format("{}_grad.o", indexedFuncName) });
+            KAS_ASSERT(err == 0, "Failed to link objects.");
         }
 
         auto outputBufferShape = ConcreteShapes::RegionToVector(shapes.outputShape);

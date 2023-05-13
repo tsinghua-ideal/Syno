@@ -1,4 +1,4 @@
-#include <cstdlib>
+#include <fmt/format.h>
 
 #include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/CodeGen/GraphvizGen.hpp"
@@ -23,24 +23,23 @@ std::string Kernel::toNestedLoops() const {
     return tensorView.printNestedLoopsForAll(ctx);
 }
 
-void Kernel::generateOperator(const std::string& path, const std::string& name) {
+void Kernel::generateOperator(const std::string& dir, const std::string& name) {
     // Pass padded consts to HalideGen.
     for (std::size_t i = 0; auto&& consts: paddedConsts) {
-        gen.generate(path, fmt::format("{}_{}", name, i), consts.padded);
+        gen.generate(dir, fmt::format("{}_{}", name, i), consts.padded);
         ++i;
     }
     // Invoke the linker through command line and produce a shared library
-    std::filesystem::path dir = path;
-    std::string sharedLibName = fmt::format("{}.so", name);
-    std::string cmd = fmt::format("g++ -shared -fPIC -Wl,-soname,{} -o \"{}\" -Wl,--allow-multiple-definition -Wl,--whole-archive ", sharedLibName, (dir / sharedLibName).string());
-    auto getObjectPath = [&dir, &name](std::size_t i, bool grad) {
-        return (dir / fmt::format("{}_{}{}.o", name, i, grad ? "_grad" : "")).string();
+    std::string soName = fmt::format("{}.so", name);
+    std::vector<std::string> objects;
+    auto getObjectPath = [&name](std::size_t i, bool grad) {
+        return fmt::format("{}_{}{}.o", name, i, grad ? "_grad" : "");
     };
     for (std::size_t i = 0; i < paddedConsts.size(); ++i) {
-        cmd += fmt::format("\"{}\" \"{}\" ", getObjectPath(i, false), getObjectPath(i, true));
+        objects.emplace_back(getObjectPath(i, false));
+        objects.emplace_back(getObjectPath(i, true));
     }
-    cmd += fmt::format("-Wl,--no-whole-archive");
-    int err = std::system(cmd.c_str());
+    int err = LinkObjects(dir, soName, objects);
     KAS_ASSERT(err == 0, "Failed to invoke linker, error code = {}", err);
 }
 

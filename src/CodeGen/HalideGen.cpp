@@ -287,7 +287,7 @@ void HalideGen::GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardIn
         using FileType = Halide::OutputFileType;
         return {
             {FileType::stmt, filename.replace_extension(ext.at(FileType::stmt).extension)},
-            {FileType::static_library, filename.replace_extension(ext.at(FileType::object).extension)},
+            {FileType::object, filename.replace_extension(ext.at(FileType::object).extension)},
             {FileType::pytorch_wrapper, filename.replace_extension(ext.at(FileType::pytorch_wrapper).extension)},
         };
     };
@@ -296,7 +296,7 @@ void HalideGen::GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardIn
     backwardModule.compile(flagsForModule(outputPath / backwardName));
 }
 
-void HalideGen::generate(std::filesystem::path outputPath, std::string_view funcName, const ConcreteConsts& consts) {
+void HalideGen::generate(std::filesystem::path outputDir, std::string_view funcName, const ConcreteConsts& consts) {
     // Create Halide Functions.
     auto [forwardInputs, forwardFunc,
         backwardInputs, backwardFuncs
@@ -305,7 +305,7 @@ void HalideGen::generate(std::filesystem::path outputPath, std::string_view func
     auto target = GetHostTarget(options.useGPU, false);
     auto [forwardPipeline, backwardPipeline] = ApplyAutoScheduler(forwardFunc, backwardFuncs, target, options.scheduler, false);
 
-    GenerateFromPipelines(forwardInputs, backwardInputs, forwardPipeline, backwardPipeline, outputPath, funcName, target);
+    GenerateFromPipelines(forwardInputs, backwardInputs, forwardPipeline, backwardPipeline, outputDir, funcName, target);
 }
 
 } // namespace kas

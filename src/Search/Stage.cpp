@@ -120,7 +120,7 @@ void Stage::guard() {
 TensorView *Stage::getFinalize(std::size_t key) {
     auto& [_, op, tensorView] = getChildFinalizeSlot(key);
     if (!tensorView) {
-        KAS_DEBUG("Building TensorView from Finalization. Iterator graph:\n{}", GraphvizGen(op.tensors, sampler.getBindingContext()).print("kernel"));
+        KAS_DEBUG("Building TensorView from Finalization.");
         tensorView = op.buildTensorView();
     }
     return tensorView.get();
