@@ -4,11 +4,7 @@ import torch
 import torch.nn as nn
 import os
 
-def test_pool2d(*args):
-    is_manual = False
-    if len(args) > 0:
-        is_manual = True
-
+def test_pool2d():
     device = torch.device("cuda:0")
 
     loader = KAS.KernelPack.load_kernels(
@@ -54,11 +50,11 @@ def test_pool2d(*args):
     t_in.grad = None
     print("grad_kas:", grad_kas.view(-1)[1500000:1500010])
     print("grad_torch:", grad_torch.view(-1)[1500000:1500010])
-    print("backward is close:", torch.isclose((grad_kas / 25)[:,:,5:-5,5:-5], grad_torch[:,:,5:-5,5:-5]).all())
+    backward_is_close = torch.isclose((grad_kas / 25)[:,:,5:-5,5:-5], grad_torch[:,:,5:-5,5:-5]).all()
+    print("backward is close:", backward_is_close)
+    assert backward_is_close
 
 
-    if not is_manual:
-        return
     import torch.utils.benchmark as benchmark
 
     t_in = torch.randn([64, 3, 128, 128], device=device)
@@ -109,4 +105,4 @@ def test_pool2d(*args):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    test_pool2d(True)
+    test_pool2d()

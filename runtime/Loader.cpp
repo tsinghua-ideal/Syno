@@ -1,3 +1,5 @@
+#include <array>
+
 #include <dlfcn.h>
 #include <fmt/core.h>
 #include <torch/types.h>
@@ -9,7 +11,9 @@
 #include <HalidePyTorchHelpers.h>
 
 #include "Loader.hpp"
+
 #include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/VarArg.hpp"
 
 
 namespace kas {
@@ -37,7 +41,25 @@ Loader::Loader(const std::string& path, const std::string& symbol, bool cuda, st
     }
 }
 
-void Loader::call(const std::size_t expectedCountBuffers, void *pipeline, const std::vector<at::Tensor *>& buffers) const {
+namespace {
+
+using BufPtr = struct halide_buffer_t *;
+
+template<std::size_t ExpectedCountBuffers, std::size_t... Is>
+int CallWithCtx(void *pipeline, const void *__user_context, std::array<Halide::Runtime::Buffer<float>, ExpectedCountBuffers>& wrapped, std::index_sequence<Is...>) {
+    using Signature = FunctionPtrOfNArgs<int, BufPtr, ExpectedCountBuffers, const void *>;
+    return reinterpret_cast<Signature>(pipeline)(__user_context, wrapped[Is]...);
+}
+
+template<std::size_t ExpectedCountBuffers, std::size_t... Is>
+int CallWithoutCtx(void *pipeline, std::array<Halide::Runtime::Buffer<float>, ExpectedCountBuffers>& wrapped, std::index_sequence<Is...>) {
+    using Signature = FunctionPtrOfNArgs<int, BufPtr, ExpectedCountBuffers>;
+    return reinterpret_cast<Signature>(pipeline)(wrapped[Is]...);
+}
+
+template<std::size_t ExpectedCountBuffers>
+void LoaderCallImpl(bool cuda, void *pipeline, const std::vector<at::Tensor *>& buffers) {
+    std::array<Halide::Runtime::Buffer<float>, ExpectedCountBuffers> wrapped;
     if (cuda) {
         // Setup CUDA.
         int device_id = at::cuda::current_device();
@@ -51,35 +73,17 @@ void Loader::call(const std::size_t expectedCountBuffers, void *pipeline, const 
         user_ctx.stream = &stream;
         const void *__user_context = reinterpret_cast<const void *>(&user_ctx);
 
-        std::vector<Halide::Runtime::Buffer<float>> wrapped;
-        wrapped.reserve(expectedCountBuffers);
         // Check tensors have contiguous memory and are on the correct device.
         for (std::size_t i = 0; i < buffers.size(); ++i) {
             at::Tensor *buffer = buffers[i];
             KAS_ASSERT(buffer->is_contiguous(), "Input tensor {} is not contiguous.", i);
             KAS_ASSERT(buffer->is_cuda() && buffer->device().index() == device_id, "Input tensor {} is not on device {}.", i, device_id);
-            wrapped.push_back(Halide::PyTorch::wrap_cuda<float>(*buffer));
+            wrapped[i] = Halide::PyTorch::wrap_cuda<float>(*buffer);
         }
 
-        int err;
-        using BufPtr = struct halide_buffer_t *;
         // Run Halide pipeline.
-        switch (expectedCountBuffers) {
-        case 0: err = reinterpret_cast<int (*)(const void *)>(pipeline)(__user_context); break;
-        case 1: err = reinterpret_cast<int (*)(const void *, BufPtr)>(pipeline)(__user_context, wrapped[0]); break;
-        case 2: err = reinterpret_cast<int (*)(const void *, BufPtr, BufPtr)>(pipeline)(__user_context, wrapped[0], wrapped[1]); break;
-        case 3: err = reinterpret_cast<int (*)(const void *, BufPtr, BufPtr, BufPtr)>(pipeline)(__user_context, wrapped[0], wrapped[1], wrapped[2]); break;
-        case 4: err = reinterpret_cast<int (*)(const void *, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(__user_context, wrapped[0], wrapped[1], wrapped[2], wrapped[3]); break;
-        case 5: err = reinterpret_cast<int (*)(const void *, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(__user_context, wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4]); break;
-        case 6: err = reinterpret_cast<int (*)(const void *, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(__user_context, wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5]); break;
-        case 7: err = reinterpret_cast<int (*)(const void *, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(__user_context, wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5], wrapped[6]); break;
-        case 8: err = reinterpret_cast<int (*)(const void *, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(__user_context, wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5], wrapped[6], wrapped[7]); break;
-        case 9: err = reinterpret_cast<int (*)(const void *, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(__user_context, wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5], wrapped[6], wrapped[7], wrapped[8]); break;
-        case 10: err = reinterpret_cast<int (*)(const void *, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(__user_context, wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5], wrapped[6], wrapped[7], wrapped[8], wrapped[9]); break;
-        case 11: err = reinterpret_cast<int (*)(const void *, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(__user_context, wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5], wrapped[6], wrapped[7], wrapped[8], wrapped[9], wrapped[10]); break;
-        default: KAS_CRITICAL("Too many buffers!");
-        }
-        AT_ASSERTM(err == 0, "Error {} when executing Halide pipeline.", err);
+        int err = CallWithCtx<ExpectedCountBuffers>(pipeline, __user_context, wrapped, std::make_index_sequence<ExpectedCountBuffers>());
+        KAS_ASSERT(err == 0, "Error {} when executing Halide pipeline.", err);
 
         // Make sure data is on device
         for (std::size_t i = 0; i < wrapped.size(); ++i) {
@@ -88,51 +92,58 @@ void Loader::call(const std::size_t expectedCountBuffers, void *pipeline, const 
             buffer.device_detach_native();
         }
     } else {
-        std::vector<Halide::Runtime::Buffer<float>> wrapped;
-        wrapped.reserve(expectedCountBuffers);
         // Check tensors have contiguous memory.
         for (std::size_t i = 0; i < buffers.size(); ++i) {
             at::Tensor *buffer = buffers[i];
             KAS_ASSERT(buffer->is_contiguous(), "Input tensor {} is not contiguous.", i);
-            wrapped.push_back(Halide::PyTorch::wrap<float>(*buffer));
+            wrapped[i] = Halide::PyTorch::wrap<float>(*buffer);
         }
 
-        int err;
-        using BufPtr = struct halide_buffer_t *;
         // Run Halide pipeline.
-        switch (expectedCountBuffers) {
-        case 0: err = reinterpret_cast<int (*)()>(pipeline)(); break;
-        case 1: err = reinterpret_cast<int (*)(BufPtr)>(pipeline)(wrapped[0]); break;
-        case 2: err = reinterpret_cast<int (*)(BufPtr, BufPtr)>(pipeline)(wrapped[0], wrapped[1]); break;
-        case 3: err = reinterpret_cast<int (*)(BufPtr, BufPtr, BufPtr)>(pipeline)(wrapped[0], wrapped[1], wrapped[2]); break;
-        case 4: err = reinterpret_cast<int (*)(BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(wrapped[0], wrapped[1], wrapped[2], wrapped[3]); break;
-        case 5: err = reinterpret_cast<int (*)(BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4]); break;
-        case 6: err = reinterpret_cast<int (*)(BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5]); break;
-        case 7: err = reinterpret_cast<int (*)(BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5], wrapped[6]); break;
-        case 8: err = reinterpret_cast<int (*)(BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5], wrapped[6], wrapped[7]); break;
-        case 9: err = reinterpret_cast<int (*)(BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5], wrapped[6], wrapped[7], wrapped[8]); break;
-        case 10: err = reinterpret_cast<int (*)(BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5], wrapped[6], wrapped[7], wrapped[8], wrapped[9]); break;
-        case 11: err = reinterpret_cast<int (*)(BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr, BufPtr)>(pipeline)(wrapped[0], wrapped[1], wrapped[2], wrapped[3], wrapped[4], wrapped[5], wrapped[6], wrapped[7], wrapped[8], wrapped[9], wrapped[10]); break;
-        default: KAS_CRITICAL("Too many buffers!");
-        }
-        AT_ASSERTM(err == 0, "Error {} when executing Halide pipeline.", err);
+        int err = CallWithoutCtx<ExpectedCountBuffers>(pipeline, wrapped, std::make_index_sequence<ExpectedCountBuffers>());
+        KAS_ASSERT(err == 0, "Error {} when executing Halide pipeline.", err);
+    }
+}
+
+} // namespace
+
+void Loader::call(const std::size_t expectedCountBuffers, void *pipeline, const std::vector<at::Tensor *>& buffers) const {
+    switch (expectedCountBuffers) {
+    case 0: LoaderCallImpl<0>(cuda, pipeline, buffers); break;
+    case 1: LoaderCallImpl<1>(cuda, pipeline, buffers); break;
+    case 2: LoaderCallImpl<2>(cuda, pipeline, buffers); break;
+    case 3: LoaderCallImpl<3>(cuda, pipeline, buffers); break;
+    case 4: LoaderCallImpl<4>(cuda, pipeline, buffers); break;
+    case 5: LoaderCallImpl<5>(cuda, pipeline, buffers); break;
+    case 6: LoaderCallImpl<6>(cuda, pipeline, buffers); break;
+    case 7: LoaderCallImpl<7>(cuda, pipeline, buffers); break;
+    case 8: LoaderCallImpl<8>(cuda, pipeline, buffers); break;
+    case 9: LoaderCallImpl<9>(cuda, pipeline, buffers); break;
+    case 10: LoaderCallImpl<10>(cuda, pipeline, buffers); break;
+    case 11: LoaderCallImpl<11>(cuda, pipeline, buffers); break;
+    case 12: LoaderCallImpl<12>(cuda, pipeline, buffers); break;
+    case 13: LoaderCallImpl<13>(cuda, pipeline, buffers); break;
+    case 14: LoaderCallImpl<14>(cuda, pipeline, buffers); break;
+    case 15: LoaderCallImpl<15>(cuda, pipeline, buffers); break;
+    case 16: LoaderCallImpl<16>(cuda, pipeline, buffers); break;
+    case 17: LoaderCallImpl<17>(cuda, pipeline, buffers); break;
     }
 }
 
 void Loader::forward(std::size_t index, const std::vector<at::Tensor *>& buffers) const {
-    const std::size_t expectedCountBuffers = countInputs + 1;
-    KAS_ASSERT(buffers.size() == expectedCountBuffers, "Expected {} input tensors and 1 result tensor in forward pipeline, got {} buffers.", countInputs, buffers.size());
+    const std::size_t ExpectedCountBuffers = countInputs + 1;
+    KAS_ASSERT(buffers.size() == ExpectedCountBuffers, "Expected {} input tensors and 1 result tensor in forward pipeline, got {} buffers.", countInputs, buffers.size());
     void *pipeline = forwardPipelines.at(index);
 
-    call(expectedCountBuffers, pipeline, buffers);
+    call(ExpectedCountBuffers, pipeline, buffers);
 }
 
 void Loader::backward(std::size_t index, const std::vector<at::Tensor *>& buffers) const {
-    const std::size_t expectedCountBuffers = 2 * countInputs + 1;
-    KAS_ASSERT(buffers.size() == expectedCountBuffers, "Expected {0} input tensors, 1 output gradient tensor and {0} gradient tensor in backward pipeline, got {1} buffers.", countInputs, buffers.size());
+    const std::size_t ExpectedCountBuffers = 2 * countInputs + 1;
+    KAS_ASSERT(buffers.size() == ExpectedCountBuffers, "Expected {0} input tensors, 1 output gradient tensor and {0} gradient tensor in backward pipeline, got {1} buffers.", countInputs, buffers.size());
     void *pipeline = backwardPipelines.at(index);
 
-    call(expectedCountBuffers, pipeline, buffers);
+    call(ExpectedCountBuffers, pipeline, buffers);
 }
 
 Loader::~Loader() {

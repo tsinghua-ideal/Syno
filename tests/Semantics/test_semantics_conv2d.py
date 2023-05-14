@@ -5,11 +5,7 @@ import torch.nn as nn
 import os
 
 
-def test_conv2d(*args):
-    is_manual = False
-    if len(args) > 0:
-        is_manual = True
-
+def test_conv2d():
     device = torch.device("cuda:0")
 
     loader = KAS.KernelPack.load_kernels(
@@ -34,19 +30,21 @@ def test_conv2d(*args):
     kas_conv.reload(pack)
     torch_conv = nn.Conv2d(3, 16, (5, 5), bias=False, padding="same", padding_mode='zeros', device=device)
 
-    pack.weights = nn.ParameterList([torch.ones([16, 3, 5, 5], device=device)])
-    torch_conv.weight = nn.Parameter(torch.ones_like(torch_conv.weight, device=device))
+    pack.weights = nn.ParameterList([torch.randn([16, 3, 5, 5], device=device)])
+    torch_conv.weight = nn.Parameter(pack.weights[0].detach())
 
 
     assert torch.isclose(pack.weights[0], torch_conv.weight).all()
-    t_in = torch.ones([64, 3, 128, 128], device=device)
+    t_in = torch.randn([64, 3, 128, 128], device=device)
 
     with torch.no_grad():
         k_out = kas_conv(t_in)
         t_out = torch_conv(t_in)
         print("forward_kas:", k_out.view(-1)[1500000:1500010])
         print("forward_torch:", t_out.view(-1)[1500000:1500010])
-        print("forward is close:", torch.isclose(k_out, t_out).all())
+        forward_is_close = torch.isclose(k_out, t_out, atol=1e-5).all()
+        print("forward is close:", forward_is_close)
+        assert forward_is_close
 
     t_in = torch.randn([64, 3, 128, 128], requires_grad=True, device=device)
     torch.sum(kas_conv(t_in)).backward()
@@ -59,11 +57,11 @@ def test_conv2d(*args):
     t_in.grad = None
     print("grad_kas:", grad_kas.view(-1)[1500000:1500010])
     print("grad_torch:", grad_torch.view(-1)[1500000:1500010])
-    print("backward is close:", torch.isclose(grad_kas, grad_torch).all())
+    backward_is_close = torch.isclose(grad_kas, grad_torch, atol=1e-5).all()
+    print("backward is close:", backward_is_close)
+    assert backward_is_close
 
 
-    if not is_manual:
-        return
     import torch.utils.benchmark as benchmark
 
     t_in = torch.randn([64, 3, 128, 128], device=device)
@@ -114,4 +112,4 @@ def test_conv2d(*args):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    test_conv2d(True)
+    test_conv2d()
