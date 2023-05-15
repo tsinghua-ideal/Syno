@@ -32,11 +32,11 @@ class ModelBackup:
         self._model = self._model_builder().to(device)
         macs, params = profile(self._model, inputs=(
             self._sample_input, ), verbose=False)
-        logging.info(
+        print(
             f"Referenced model has {round(macs / 1e9, 3)}G MACs and {round(params / 1e6, 3)}M parameters ")
         self.base_macs = macs - \
             self._model.generatePlaceHolder(self._sample_input)
-        logging.info(f"Base MACs is {self.base_macs}")
+        print(f"Base MACs is {self.base_macs}")
 
     def create_instance(self) -> nn.Module:
         self._model._initialize_weight()
@@ -104,15 +104,15 @@ class Searcher(MCTS):
         model = self._model.create_instance()
 
         # Early filter MACs
-        logging.info(f"Estimated flops {node.estimate_total_flops_as_final()}")
+        print(f"Estimated flops {node.estimate_total_flops_as_final()}")
         model_macs_estimated = self._model.base_macs + \
             node.estimate_total_flops_as_final() * 2
         if model_macs_estimated > self.max_macs * 3:
-            logging.info(
+            print(
                 f"(Estimated) Model macs {model_macs_estimated} exceeds {self.max_macs} * 3, skipping")
             return "FAILED because of too big model macs."
         elif model_macs_estimated < self.min_macs * 0.3:
-            logging.info(
+            print(
                 f"(Estimated) Model macs {model_macs_estimated} below {self.min_macs} * 0.3, skipping")
             return "FAILED because of too small model macs."
 
@@ -120,24 +120,24 @@ class Searcher(MCTS):
         model = self._model.restore_model_params(model, kernelPacks)
 
         model_macs = self._model.base_macs + total_flops * 2
-        logging.info("Model macs: {}".format(model_macs))
+        print("Model macs: {}".format(model_macs))
         if model_macs > self.max_macs:
-            logging.info(
+            print(
                 f"Model macs {model_macs} exceeds {self.max_macs}, skipping")
             return "FAILED because of too big model macs."
         elif model_macs < self.min_macs:
-            logging.info(
+            print(
                 f"Model macs {model_macs} below {self.min_macs}, skipping")
             return "FAILED because of too small model macs."
 
         model_size = sum([p.numel() for p in model.parameters()])
-        logging.info("Model size: {}".format(model_size))
+        print("Model size: {}".format(model_size))
         if model_size > self.max_model_size:
-            logging.info(
+            print(
                 f"Model size {model_size} exceeds {self.max_model_size}, skipping")
             return "FAILED because of too big model size."
         elif model_size < self.min_model_size:
-            logging.info(
+            print(
                 f"Model size {model_size} below {self.min_model_size}, skipping")
             return "FAILED because of too small model size."
 
@@ -158,19 +158,19 @@ class Searcher(MCTS):
         """Search for the best model for iterations times."""
         self.search_start_timestamp = time.time()
         for iter in range(iterations):
-            logging.info(f"Iteration {iter}")
+            print(f"Iteration {iter}")
             while True:
                 try:
                     # Now the iteration end even when it fails
                     result = self.update(self.type + f"Iteration{iter}")
-                    logging.info(f"Iteration {iter} {result}.")
+                    print(f"Iteration {iter} {result}.")
                     if result == "SUCCESS":
                         break
                 except Exception as e:
                     logging.warning("Catched error {}, retrying".format(e))
                     traceback.print_exc(file=sys.stderr)
 
-        logging.info("Finish searching process. Displaying final result...")
+        print("Finish searching process. Displaying final result...")
 
         os.makedirs(result_save_loc, exist_ok=True)
         perf_path = os.path.join(result_save_loc, 'perf.json')
@@ -193,8 +193,8 @@ class Searcher(MCTS):
         model_path = os.path.join(result_save_loc, 'model.pth')
         torch.save(model_ckpt, model_path)
 
-        logging.info("The best model is saved in {}".format(model_path))
-        logging.info("Best performance: {}".format(1. - min(val_error)))
+        print("The best model is saved in {}".format(model_path))
+        print("Best performance: {}".format(1. - min(val_error)))
 
 
 if __name__ == '__main__':
@@ -252,5 +252,5 @@ if __name__ == '__main__':
     searcher.search(iterations=args.kas_iterations,
                     result_save_loc=args.result_save_dir)
 
-    logging.info("Search Complete, elapsed {} seconds. ".format(
+    print("Search Complete, elapsed {} seconds. ".format(
         time.time() - start))
