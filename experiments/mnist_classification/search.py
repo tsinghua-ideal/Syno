@@ -6,7 +6,7 @@ import math
 # Systems
 import time
 import random
-from typing import List
+from typing import List, Union
 import os
 import sys
 import logging
@@ -82,6 +82,26 @@ class Searcher(MCTS):
         self.time_list = []
         self.search_start_timestamp = 0
 
+        self.eval_result_cache = {}  # -1 stands for dead node
+
+    def has_eval_result(self, node) -> bool:
+        return node._node in self.eval_result_cache
+
+    def check_dead(self, node) -> bool:
+        return self.has_eval_result(node) and self.eval_result_cache[node._node] == -1
+
+    def get_eval_result(self, node) -> float:
+        assert not self.check_dead(node), "Node is dead!"
+        return self.eval_result_cache[node._node]
+
+    def set_dead(self, node) -> None:
+        self.eval_result_cache[node._node] = -1
+
+    def set_eval_result(self, node, val: float) -> None:
+        assert 0 <= val <= 1, "Invalid eval result!"
+        assert not self.has_eval_result(node), "Node already has eval result!"
+        self.eval_result_cache[node._node] = val
+
     def _eval_model(self, model: nn.Module) -> float:
         train_error, val_error, _ = train(
             model, **self._train_params, verbose=True)
@@ -94,54 +114,68 @@ class Searcher(MCTS):
         # Selecting a node
         if self.type == 'mcts':
             receipt, node = self.do_rollout(kas_sampler.root())
+            while self.check_dead(node):
+                receipt, node = self.do_rollout(kas_sampler.root())
         elif self.type == 'random':
             while True:
                 node = self._sampler.random_node_with_prefix(Path([]))
                 if node.is_final():
                     break
 
-        # Analyze a sample
-        model = self._model.create_instance()
+        if not self.has_eval_result(node):
+            # Analyze a sample
+            model = self._model.create_instance()
 
-        # Early filter MACs
-        print(f"Estimated flops {node.estimate_total_flops_as_final()}")
-        model_macs_estimated = self._model.base_macs + \
-            node.estimate_total_flops_as_final() * 2
-        if model_macs_estimated > self.max_macs * 3:
-            print(
-                f"(Estimated) Model macs {model_macs_estimated} exceeds {self.max_macs} * 3, skipping")
-            return "FAILED because of too big model macs."
-        elif model_macs_estimated < self.min_macs * 0.3:
-            print(
-                f"(Estimated) Model macs {model_macs_estimated} below {self.min_macs} * 0.3, skipping")
-            return "FAILED because of too small model macs."
+            # Early filter MACs
+            print(f"Estimated flops {node.estimate_total_flops_as_final()}")
+            model_macs_estimated = self._model.base_macs + \
+                node.estimate_total_flops_as_final() * 2
+            if model_macs_estimated > self.max_macs * 10:
+                print(
+                    f"(Estimated) Model macs {model_macs_estimated} exceeds {self.max_macs} * 10, skipping")
+                self.set_dead(node)
+                return "FAILED because of too big model macs."
+            elif model_macs_estimated < self.min_macs * 0.1:
+                print(
+                    f"(Estimated) Model macs {model_macs_estimated} below {self.min_macs} * 0.1, skipping")
+                self.set_dead(node)
+                return "FAILED because of too small model macs."
 
-        kernelPacks, total_flops = self._sampler.realize(model, node, prefix)
-        model = self._model.restore_model_params(model, kernelPacks)
+            kernelPacks, total_flops = self._sampler.realize(
+                model, node, prefix)
+            model = self._model.restore_model_params(model, kernelPacks)
 
-        model_macs = self._model.base_macs + total_flops * 2
-        print("Model macs: {}".format(model_macs))
-        if model_macs > self.max_macs:
-            print(
-                f"Model macs {model_macs} exceeds {self.max_macs}, skipping")
-            return "FAILED because of too big model macs."
-        elif model_macs < self.min_macs:
-            print(
-                f"Model macs {model_macs} below {self.min_macs}, skipping")
-            return "FAILED because of too small model macs."
+            model_macs = self._model.base_macs + total_flops * 2
+            print("Model macs: {}".format(model_macs))
+            if model_macs > self.max_macs:
+                print(
+                    f"Model macs {model_macs} exceeds {self.max_macs}, skipping")
+                self.set_dead(node)
+                return "FAILED because of too big model macs."
+            elif model_macs < self.min_macs:
+                print(
+                    f"Model macs {model_macs} below {self.min_macs}, skipping")
+                self.set_dead(node)
+                return "FAILED because of too small model macs."
 
-        model_size = sum([p.numel() for p in model.parameters()])
-        print("Model size: {}".format(model_size))
-        if model_size > self.max_model_size:
-            print(
-                f"Model size {model_size} exceeds {self.max_model_size}, skipping")
-            return "FAILED because of too big model size."
-        elif model_size < self.min_model_size:
-            print(
-                f"Model size {model_size} below {self.min_model_size}, skipping")
-            return "FAILED because of too small model size."
+            model_size = sum([p.numel() for p in model.parameters()])
+            print("Model size: {}".format(model_size))
+            if model_size > self.max_model_size:
+                print(
+                    f"Model size {model_size} exceeds {self.max_model_size}, skipping")
+                self.set_dead(node)
+                return "FAILED because of too big model size."
+            elif model_size < self.min_model_size:
+                print(
+                    f"Model size {model_size} below {self.min_model_size}, skipping")
+                self.set_dead(node)
+                return "FAILED because of too small model size."
 
-        reward = self._eval_model(model)
+            reward = self._eval_model(model)
+            self.set_eval_result(node, reward)
+
+        assert self.has_eval_result(node) and not self.check_dead(node)
+        reward = self.get_eval_result(node)
 
         # update
         if self.best_node[1] < reward:
@@ -223,7 +257,7 @@ if __name__ == '__main__':
         lr=0.1,
         momentum=0.9,
         epochs=30,
-        val_period=30,
+        val_period=5,
         use_cuda=use_cuda
     )
 
@@ -231,10 +265,10 @@ if __name__ == '__main__':
     model = ModelBackup(KASConv, sample_input, device)
 
     kas_sampler = Sampler(
-        input_shape="[N,H,W]",  # "[N,C_in,H,W]",
-        output_shape="[N,C_out,H,W]",
-        primary_specs=["N=4096: 1", "H=256", "W=256", "C_out=100"],
-        coefficient_specs=["s_1=2: 2", "k_1=3", "5"],
+        input_shape="[N,H,H]",
+        output_shape="[N,C_out,H,H]",
+        primary_specs=["N=4096: 1", "H=256", "C_out=100"],
+        coefficient_specs=["s_1=2", "k_1=3", "k_2=5"],
         seed=random.SystemRandom().randint(
             0, 0x7fffffff) if args.kas_seed == 'pure' else args.seed,
         depth=args.kas_depth,

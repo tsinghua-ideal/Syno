@@ -48,8 +48,8 @@
 ## Experiment
 
 - [x] Build framework for MNIST experiments. 
-- [ ] Multi-processing support for MCTS. (Tree parallelization)
-- [ ] Two-step primitive selection. 
-- [ ] Early Stopping during training. 
+- [ ] Multi-process support for MCTS. (Tree parallelization)
+- [x] Two-step primitive selection. 
+- [ ] Early Stopping during training. (Not urgent yet. )
 - [ ] Search Result Saving (path, mcts, etc.). 
-- [ ] Cache the searched nodes. 
+- [x] Cache the searched nodes. 

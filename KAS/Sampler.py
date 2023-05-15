@@ -95,16 +95,17 @@ class Sampler:
         logging.debug(f"Realizing kernel:\n{kernel}")
         logging.debug(f"Total FLOPs: {total_flops}")
         save_path = os.path.join(self._save_path, identifier_prefix)
-        if os.path.exists(save_path):
-            shutil.rmtree(save_path)
-        os.makedirs(save_path)
+        # if os.path.exists(save_path):
+        #     shutil.rmtree(save_path)
+        os.makedirs(save_path, exist_ok=True)
 
         kernel_name_prefix = f'kernel_{abs(hash(node.to_node()))}'
         logging.debug("Generating kernel files...")
         kernel.generate_operator(save_path, kernel_name_prefix)
         kernel.generate_graphviz(save_path, kernel_name_prefix)
         logging.debug("Successfully generated kernel files.")
-        loader = KernelPack.load_kernels(save_path, kernel_name_prefix, kernel.get_count_inputs(), len(placeholders), self._device)
+        loader = KernelPack.load_kernels(
+            save_path, kernel_name_prefix, kernel.get_count_inputs(), len(placeholders), self._device)
 
         kernel_packs = []
         for i in range(len(placeholders)):

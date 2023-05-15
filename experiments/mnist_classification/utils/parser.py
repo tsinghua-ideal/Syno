@@ -128,7 +128,7 @@ def arg_parse():
                         help='searcher type (mcts or random)')
     parser.add_argument('--result-save-dir', default='./results',
                         help='Sampler saving directory')
-    parser.add_argument('--kas-iterations', default=30,
+    parser.add_argument('--kas-iterations', default=30, type=int, 
                         help='Searcher iterations')
     parser.add_argument('--kas-min-macs', default=0, type=float,
                         help='Minimum MACs for searched kernels (in G-unit, only for search)')

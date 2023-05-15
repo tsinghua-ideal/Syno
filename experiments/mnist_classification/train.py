@@ -95,6 +95,8 @@ def train(
             logging.info(
                 f'Epoch {epoch+1}, train loss {train_loss}, train error {train_errors[-1]}, validation error {val_errors[-1]}, elapsed {time.time() - start}')
             start = time.time()
+    
+    print(f'Training Complete. Accuracy {1-val_errors[-1]}')
 
     return train_errors, val_errors, best_model_state_dict
 
