@@ -112,7 +112,7 @@ ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const Concr
     for (auto it: manipulations) {
         sol.addConstraint(it->size());
     }
-    return sol.solve(Size::Product(getUnderlyingDimensions() | std::views::transform([](const Dimension& dim) -> const Size& { return dim.size(); })), Size::Product(getInterfaceShape()));
+    return sol.solve(Size::Product(getUnderlyingDimensions() | std::views::transform(&Dimension::size)), Size::Product(getInterfaceShape()));
 }
 
 std::size_t TensorView::getFLOPs(const ConcreteConsts& consts) const {
@@ -197,7 +197,7 @@ std::string TensorView::printNestedLoopsForAll(const BindingContext& ctx) const 
 }
 
 std::string TensorView::description(const BindingContext& ctx) const {
-    return TensorArrayToString(tensors | std::views::transform([](const PureTensor& tensor) -> const Interface& { return tensor.getDimensions(); }), ctx);
+    return TensorArrayToString(tensors | std::views::transform(&PureTensor::getDimensions), ctx);
 }
 
 TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {

@@ -2,12 +2,23 @@
 
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Finalize.hpp"
+#include "KAS/Search/Sample.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
 
-std::unique_ptr<TensorView> FinalizeOp::buildTensorView() const {
+std::unique_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedDimension>& fixed) const {
+    if (fixed.empty()) {
+        return std::make_unique<TensorView>(tensors);
+    }
+    std::vector<Interface> tensors;
+    std::ranges::copy(this->tensors, std::back_inserter(tensors));
+    auto& inputTensor = tensors.at(0);
+    for (const auto& [index, dim]: fixed) {
+        // Given the fact that fixed is sorted.
+        inputTensor.insert(inputTensor.begin() + index, dim);
+    }
     return std::make_unique<TensorView>(tensors);
 }
 

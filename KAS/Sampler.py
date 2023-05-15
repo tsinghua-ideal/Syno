@@ -3,7 +3,7 @@ import shutil
 import logging
 import torch
 from torch import nn
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 from . import Bindings
 from .Bindings import CodeGenOptions
@@ -39,7 +39,7 @@ class Sampler:
         for placeholder, kernel_pack in zip(placeholders, kernel_packs):
             placeholder.reload(kernel_pack)
 
-    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors=2, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot):
+    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors=2, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot):
         options = Bindings.SampleOptions(
             seed=seed,
             depth=depth,
@@ -55,7 +55,7 @@ class Sampler:
             all_mappings = Sampler._extract_all_mappings(net)
 
         self._sampler = Bindings.Sampler(
-            input_shape, output_shape, primary_specs, coefficient_specs, all_mappings, options)
+            input_shape, output_shape, primary_specs, coefficient_specs, all_mappings, fixed_io_pairs, options)
         self._codegen_options = Bindings.CodeGenOptions(
             cuda, autoscheduler)
         self._device = torch.device('cuda' if cuda else 'cpu')

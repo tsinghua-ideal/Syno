@@ -168,9 +168,7 @@ GraphvizGen::GraphvizGen(const std::vector<Interface>& tensors, const BindingCon
 }
 
 GraphvizGen::GraphvizGen(const TensorView& tensorView, const BindingContext& ctx) {
-    code = draw(ctx, tensorView.getUnderlyingTensors() | std::views::transform([](const PureTensor& tensor) -> const Interface& {
-        return tensor.getDimensions();
-    }));
+    code = draw(ctx, tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getDimensions));
 }
 
 void GraphvizGen::generate(std::filesystem::path outputDirectory, std::string_view funcName) const {

@@ -13,6 +13,8 @@
 
 namespace kas {
 
+struct FixedDimension;
+
 // Contains multiple finalization options.
 class FinalizeOp {
     friend class Stage;
@@ -29,7 +31,8 @@ public:
         }
         hash = h;
     }
-    std::unique_ptr<TensorView> buildTensorView() const;
+    // Pass in sorted fixed dimensions.
+    std::unique_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed) const;
     inline std::size_t getHash() const noexcept { return hash; }
 
     std::string description(const BindingContext& ctx) const;
