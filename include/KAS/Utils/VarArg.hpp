@@ -7,7 +7,7 @@ namespace kas {
 namespace detail {
 
 template<typename R, typename... Args>
-using FunctionPtrOfArgs = int (*)(Args...);
+using FunctionPtrOfArgs = R (*)(Args...);
 
 template<typename T, std::size_t Dummy>
 using IdentityWithDummy = T;
