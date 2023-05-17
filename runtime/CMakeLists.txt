@@ -1,3 +1,10 @@
+# Downgrade C++ standard. This is because PyTorch requires nvcc to support the same C++ standard as the host compiler, which may be too demanding.
+set(CMAKE_CXX_STANDARD 17)
+# CUDA
+find_package(CUDAToolkit REQUIRED)
+# PyTorch
+find_package(Torch REQUIRED)
+
 add_executable(RuntimeGen RuntimeGen.cpp)
 target_link_libraries(RuntimeGen PRIVATE Halide::Halide)
 

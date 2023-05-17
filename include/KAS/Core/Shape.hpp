@@ -18,6 +18,7 @@ namespace kas {
 // (const std::remove_cvref_t<Storage>::value_type&) -> const Size&
 template<typename Storage, auto Mapping>
 class AbstractShape {
+public:
     Storage sizes;
 
     struct Iterator {
@@ -53,7 +54,6 @@ class AbstractShape {
         inline std::strong_ordering operator<=>(const Iterator& other) const = default;
     };
 
-public:
     AbstractShape() requires(std::is_default_constructible_v<Storage>) = default;
     AbstractShape(auto&& sizes): sizes { std::forward<decltype(sizes)>(sizes) } {}
 

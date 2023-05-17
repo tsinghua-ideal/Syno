@@ -44,6 +44,8 @@
 
 - [x] Index the search tree by hashes for reproducibility.
 - [ ] Allow direct construction of kernel from primitives and parameters, without building the search tree.
+- [ ] Discover full-dead-end subtrees and report to Python.
+- [ ] Multithreaded search tree building.
 
 ## Experiment
 

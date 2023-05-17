@@ -85,9 +85,7 @@ public:
     // Returns all dimensions in the underlying tensors.
     inline auto getUnderlyingDimensions() const {
         return tensors
-            | std::views::transform([](const PureTensor& tensor) -> const Interface& {
-                return tensor.getDimensions();
-            })
+            | std::views::transform(&PureTensor::getDimensions)
             | std::views::join;
     }
 

@@ -40,7 +40,7 @@ namespace {
     }
 }
 
-Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const SampleOptions& options):
+Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const std::vector<std::pair<std::size_t, std::size_t>>& fixedIODims, const SampleOptions& options):
     rng { options.seed },
     options { options },
     colorOptions { .maximumTensors = options.maximumTensors }
@@ -81,8 +81,31 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     for (std::size_t index = 0; const auto& domain: this->outputShape) {
         outputIterators.emplace_back(index++, domain);
     }
+
+    // Check that the bound I/O dimensions are of the same size, and collect fixedDimensions.
+    std::vector<std::size_t> boundOutputDimensions;
+    for (auto [i, o]: fixedIODims) {
+        KAS_ASSERT(this->inputShape[i] == this->outputShape[o], "Bound I/O dimensions must be of the same size.");
+        fixedDimensions.emplace_back(i, &outputIterators[i]);
+        boundOutputDimensions.emplace_back(o);
+    }
+    // Sort fixedDimensions by input index. We will insert them back into tensors in FinalizeOp::buildTensorView().
+    std::ranges::sort(fixedDimensions, std::less{}, &FixedDimension::index);
+    std::ranges::sort(boundOutputDimensions);
+    // To bind input and output dimensions, remove fixed dimensions from inputShape and outputShape.
+    for (std::size_t i: fixedDimensions | std::views::reverse | std::views::transform(&FixedDimension::index)) {
+        this->inputShape.sizes.erase(this->inputShape.sizes.begin() + i);
+    }
+    for (std::size_t o: boundOutputDimensions | std::views::reverse) {
+        this->outputShape.sizes.erase(this->outputShape.sizes.begin() + o);
+    }
+
     // DO NOT modify root after this, because Dimension references by address these iterators.
     for (const auto& it: outputIterators) {
+        // Exclude the bound dimensions.
+        if (std::ranges::binary_search(boundOutputDimensions, it.getIndex())) {
+            continue;
+        }
         root.emplace_back(&it);
     }
 

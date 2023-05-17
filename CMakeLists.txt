@@ -4,7 +4,6 @@ project(KAS LANGUAGES C CXX)
 
 # Compiler flags.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # C++ standard
@@ -39,11 +38,5 @@ include_directories(include)
 add_subdirectory(src)
 add_subdirectory(tests)
 
-# Downgrade C++ standard. This is because PyTorch requires nvcc to support the same C++ standard as the host compiler, which may be too demanding.
-set(CMAKE_CXX_STANDARD 17)
-# CUDA
-find_package(CUDAToolkit REQUIRED)
-# PyTorch
-find_package(Torch REQUIRED)
-
+# Only runtime requires CUDA and Torch.
 add_subdirectory(runtime)
