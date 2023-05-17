@@ -110,20 +110,24 @@ Size BindingContext::getSingleCoefficientVariableSize(std::size_t index) const {
     return res;
 }
 
-Size BindingContext::get(const std::string& name) const {
+Size BindingContext::getSize(const std::string& name) const {
     auto pNameToIndex = getPrimaryLookupTable();
     auto cNameToIndex = getCoefficientLookupTable();
     return lookUp(name, pNameToIndex, cNameToIndex);
 }
 
-Shape BindingContext::getShapeFromNames(const std::vector<std::string>& names) const {
+std::vector<Size> BindingContext::getSizes(const std::vector<std::string>& names) const {
     std::map<std::string, std::size_t> pNameToIndex = getPrimaryLookupTable();
     std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();
     std::vector<Size> result;
     for (const auto& name: names) {
         result.emplace_back(lookUp(name, pNameToIndex, cNameToIndex));
     }
-    return Shape { std::move(result) };
+    return result;
+}
+
+Shape BindingContext::getShape(const std::vector<std::string>& names) const {
+    return Shape { getSizes(names) };
 }
 
 void BindingContext::applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs) {

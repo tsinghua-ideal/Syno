@@ -15,12 +15,12 @@ namespace kas {
 class Kernel {
 protected:
     const TensorView& tensorView;
-    BindingContext& ctx;
+    const BindingContext& ctx;
     HalideGen gen;
     std::vector<PaddedConsts> paddedConsts;
 
 public:
-    Kernel(const TensorView& tensorView, BindingContext& ctx, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options);
+    Kernel(const TensorView& tensorView, const BindingContext& ctx, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options);
 
     std::string toNestedLoops() const;
 

@@ -16,13 +16,13 @@ TEST_F(semantics_tests, conv2d) {
         SizeName { .alias = "C_out", .estimate = c_out },
         SizeName { .alias = "K", .estimate = k },
     } };
-    auto [sizeN, sizeCin, sizeCout, sizeH, sizeW, sizeK] = ctx.getSizes("N", "C_in", "C_out", "H", "W", "K");
-    Forward::Factory factory;
+    Forward::Factory factory { ctx };
+    auto [sizeN, sizeCin, sizeCout, sizeH, sizeW, sizeK] = factory.getSizes("N", "C_in", "C_out", "H", "W", "K");
 
-    auto [dimN, dimCin_input, dimH, dimW] = factory.makeSizes(sizeN, sizeCin, sizeH, sizeW);
+    auto [dimN, dimCin_input, dimH, dimW] = factory.makeDimsOfSizes(sizeN, sizeCin, sizeH, sizeW);
     // [N, C_in, H, W], the input.
 
-    auto [dimCout, dimCin_filter, dimK1, dimK2] = factory.makeSizes(sizeCout, sizeCin, sizeK, sizeK);
+    auto [dimCout, dimCin_filter, dimK1, dimK2] = factory.makeDimsOfSizes(sizeCout, sizeCin, sizeK, sizeK);
     // [C_out, C_in, K, K], the filter.
 
     // The input tensors are blended into [N, C_in, H, W, C_out, C_in, K, K].
@@ -36,13 +36,13 @@ TEST_F(semantics_tests, conv2d) {
     auto dimK2_shared = Forward::ShareOp::Create(dimK2, dimW_dot_K);
     // [N, C_in, H, W, C_out, K, K], where C_in, K1, and K2 are shared.
 
-    auto i_0 = dimN.output(0);
-    auto i_1 = dimCout.output(1);
-    auto i_2 = dimH_over_K.output(2);
-    auto i_3 = dimW_over_K.output(3);
-    auto ri_0 = dimK2_shared.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
-    auto ri_1 = dimK1_shared.reduce(1, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
-    auto ri_2 = dimCin_shared.reduce(2, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+    dimN.output(0);
+    dimCout.output(1);
+    dimH_over_K.output(2);
+    dimW_over_K.output(3);
+    dimK2_shared.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+    dimK1_shared.reduce(1, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+    dimCin_shared.reduce(2, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
     // [N, C_out, H, W], the output.
 
     Interface input { dimN, dimCin_input, dimH, dimW }, weight { dimCout, dimCin_filter, dimK1, dimK2 };

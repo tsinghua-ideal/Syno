@@ -14,10 +14,10 @@ TEST_F(semantics_tests, pool2d) {
         SizeName { .alias = "C", .estimate = c },
         SizeName { .alias = "K", .estimate = k },
     } };
-    auto [sizeN, sizeC, sizeH, sizeW, sizeK] = ctx.getSizes("N", "C", "H", "W", "K");
-    Forward::Factory factory;
+    Forward::Factory factory { ctx };
+    auto [sizeN, sizeC, sizeH, sizeW, sizeK] = factory.getSizes("N", "C", "H", "W", "K");
 
-    auto [dimN, dimC, dimH, dimW] = factory.makeSizes(sizeN, sizeC, sizeH, sizeW);
+    auto [dimN, dimC, dimH, dimW] = factory.makeDimsOfSizes(sizeN, sizeC, sizeH, sizeW);
     // [N, C, H, W], the input.
 
     auto [dimH_over_K, dimH_dot_K] = Forward::SplitOp::Create(dimH, sizeK);
@@ -29,13 +29,13 @@ TEST_F(semantics_tests, pool2d) {
     auto dimH_dot_K_and_dimW_dot_K = Forward::MergeOp::Create(dimH_dot_K, dimW_dot_K);
     // [N, C, H/K, W/K, K^2], where the two K from H and W are merged into K^2.
 
-    auto ri_0 = dimH_dot_K_and_dimW_dot_K.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+    dimH_dot_K_and_dimW_dot_K.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
     // [N, C, H/K, W/K], where the K^2 is reduced.
 
-    auto i_0 = dimN.output(0);
-    auto i_1 = dimC.output(1);
-    auto i_2 = dimH_over_K.output(2);
-    auto i_3 = dimW_over_K.output(3);
+    dimN.output(0);
+    dimC.output(1);
+    dimH_over_K.output(2);
+    dimW_over_K.output(3);
 
     Interface in { dimN, dimC, dimH, dimW };
     auto tensorView = TensorView { { in } };

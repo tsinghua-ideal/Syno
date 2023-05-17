@@ -14,6 +14,7 @@ import kas_runtime
 sys.setdlopenflags(old_flags)
 del old_flags
 
+from .Assembler import Assembled, Assembler
 from .Tree import MCTS, TreeNode, TreePath
 from .Sampler import Sampler, CodeGenOptions
 from .Placeholder import Placeholder

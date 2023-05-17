@@ -7,7 +7,7 @@
 
 namespace kas {
 
-Kernel::Kernel(const TensorView& tensorView, BindingContext& ctx, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options):
+Kernel::Kernel(const TensorView& tensorView, const BindingContext& ctx, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options):
     tensorView { tensorView },
     ctx { ctx },
     gen { ctx, this->tensorView, std::move(options) }

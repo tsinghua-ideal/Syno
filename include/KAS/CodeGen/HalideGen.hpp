@@ -26,8 +26,8 @@ inline Halide::Expr ConcretizeSize(const ConcreteConsts& consts, const Size& val
     return value.eval<int>(consts.primaryWrapper(), consts.coefficientWrapper());
 }
 
-template<typename Storage, auto Mapping>
-Halide::Region ConcretizeShape(const ConcreteConsts& consts, const AbstractShape<Storage, Mapping>& shape, bool reverse = true) {
+template<SizeRange R>
+Halide::Region ConcretizeShape(const ConcreteConsts& consts, R&& shape, bool reverse = true) {
     Halide::Region region;
     for (const auto& s: shape) {
         region.emplace_back(0, ConcretizeSize(consts, s));

@@ -70,8 +70,8 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     ctx.applySpecs(contractedPrimarySpecs, contractedCoefficientSpecs);
 
     // Parse shape from names. TODO: add arithmetics support.
-    this->inputShape = ctx.getShapeFromNames(inputShapeNames);
-    this->outputShape = ctx.getShapeFromNames(outputShapeNames);
+    this->inputShape = ctx.getShape(inputShapeNames);
+    this->outputShape = ctx.getShape(outputShapeNames);
 
     // Apply the mappings to obtain concrete consts.
     ctx.applyMappings(allMappings);

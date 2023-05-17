@@ -3,9 +3,10 @@ import shutil
 import logging
 import torch
 from torch import nn
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union
 
 from . import Bindings
+from .Assembler import Assembled, Assembler
 from .Bindings import CodeGenOptions
 from .KernelPack import KernelPack
 from .Node import Next, Path, Node, VisitedNode
@@ -83,10 +84,12 @@ class Sampler:
             node = node.get_child(next)
         return strs
 
-    def _realize(self, node: Node, all_mappings: List[Dict[str, int]]) -> Bindings.Kernel:
+    def _realize(self, node: Union[Node, Assembled], all_mappings: List[Dict[str, int]]) -> Bindings.Kernel:
+        if isinstance(node, Assembled):
+            return node._realize(all_mappings, self._codegen_options)
         return node._realize_as_final(all_mappings, self._codegen_options)
 
-    def realize(self, net: nn.Module, node: Node, identifier_prefix: str) -> List[KernelPack]:
+    def realize(self, net: nn.Module, node: Union[Node, Assembled], identifier_prefix: str) -> Tuple[List[KernelPack], int]:
         placeholders = Sampler._extract_placeholders(net)
         all_mappings = Sampler._get_all_mappings(placeholders)
 
@@ -99,7 +102,10 @@ class Sampler:
             shutil.rmtree(save_path)
         os.makedirs(save_path)
 
-        kernel_name_prefix = f'kernel_{abs(hash(node.to_node()))}'
+        if isinstance(node, Assembled):
+            kernel_name_prefix = f'kernel_manual'
+        else:
+            kernel_name_prefix = f'kernel_{abs(hash(node.to_node()))}'
         logging.debug("Generating kernel files...")
         kernel.generate_operator(save_path, kernel_name_prefix)
         kernel.generate_graphviz(save_path, kernel_name_prefix)
@@ -136,6 +142,9 @@ class Sampler:
                 device=self._device))
 
         return kernel_packs, total_flops
+
+    def create_assembler(self):
+        return Assembler(self._sampler.create_assembler())
 
     def _bind_debug_context(self):
         self._sampler.bind_debug_context()
