@@ -13,23 +13,27 @@
 
 namespace kas {
 
+class TensorView;
+
 namespace Forward {
 
 using BackwardDimension = ::kas::Dimension;
 using BackwardDimensionImpl = ::kas::DimensionImpl;
 
+class Factory;
+
 class DimensionImpl {
 protected:
-    DimensionStore& store;
+    Factory& factory;
     Size size;
     const BackwardDimensionImpl *value = nullptr;
     virtual void notifyParent() const = 0;
-    DimensionImpl(DimensionStore& store, auto&& size):
-        store { store },
+    DimensionImpl(Factory& factory, auto&& size):
+        factory { factory },
         size { std::forward<decltype(size)>(size) }
     {}
 public:
-    inline DimensionStore& getStore() const { return store; }
+    inline Factory& getFactory() const { return factory; }
     inline const Size& getSize() const { return size; }
     inline bool evaluated() const { return value != nullptr; }
     // Each time a dimension is evluated, its parent Op gets notified. Once all of the children of the Op are evaluated, the Op can be evaluated, propagating to top-most dimensions.
@@ -47,48 +51,75 @@ class Dimension {
     std::shared_ptr<DimensionImpl> inner;
 public:
     inline Dimension(std::shared_ptr<DimensionImpl> inner): inner { std::move(inner) } {}
-    inline DimensionStore& getStore() const { return inner->getStore(); }
+    inline Factory& getFactory() const { return inner->getFactory(); }
     inline const Size& getSize() const { return inner->getSize(); }
+    std::string sizeToString() const;
     inline bool evaluated() const { return inner->evaluated(); }
     inline void set(const BackwardDimension& value) { inner->set(value); }
     inline BackwardDimension get() const { return inner->get(); }
     inline operator BackwardDimension() const { return get(); }
-    [[nodiscard]] std::unique_ptr<Iterator> output(std::size_t index);
-    [[nodiscard]] std::unique_ptr<MapReduceOp> reduce(std::size_t priority, MapReduceOp::MapType mapType, MapReduceOp::ReduceType reduceType);
+    void output(std::size_t index);
+    void reduce(std::size_t priority, MapReduceOp::MapType mapType, MapReduceOp::ReduceType reduceType);
 };
 
 class Pure final: public DimensionImpl {
 protected:
     inline void notifyParent() const override {}
 public:
-    Pure(DimensionStore& store, auto&& size):
-        DimensionImpl { store, std::forward<decltype(size)>(size) }
+    Pure(Factory& factory, auto&& size):
+        DimensionImpl { factory, std::forward<decltype(size)>(size) }
     {}
 };
 
 class Factory {
+    const BindingContext& ctx;
     DimensionStore store;
+    std::vector<std::unique_ptr<Iterator>> iterators;
+    std::vector<std::unique_ptr<MapReduceOp>> mapReduces;
+    std::unique_ptr<TensorView> result;
+
 public:
-    [[nodiscard]] Dimension makeSize(auto&& size) {
-        return Dimension(std::make_shared<Pure>(store, std::forward<decltype(size)>(size)));
+    inline Factory(const BindingContext& ctx): ctx { ctx } {}
+    template<typename Arg>
+    inline Size getSize(Arg&& arg) const {
+        return ctx.getSize(std::forward<decltype(arg)>(arg));
+    }
+    template<typename... Args>
+    requires std::conjunction_v<std::is_convertible<Args, std::string>...>
+    auto getSizes(Args&&... args) const -> std::array<Size, sizeof...(Args)> {
+        return ctx.getSizes(std::forward<decltype(args)>(args)...);
+    }
+    inline std::vector<Size> getSizes(const std::vector<std::string>& names) const {
+        return ctx.getSizes(names);
+    }
+    [[nodiscard]] Dimension makeDimOfSize(auto&& size) {
+        return Dimension(std::make_shared<Pure>(*this, std::forward<decltype(size)>(size)));
     }
     template<typename... Sizes>
-    [[nodiscard]] auto makeSizes(Sizes&&... sizes) -> std::array<Dimension, sizeof...(Sizes)> {
-        return { makeSize(std::forward<decltype(sizes)>(sizes))... };
+    requires std::conjunction_v<std::is_convertible<Sizes, Size>...>
+    [[nodiscard]] auto makeDimsOfSizes(Sizes&&... sizes) -> std::array<Dimension, sizeof...(Sizes)> {
+        return { makeDimOfSize(std::forward<decltype(sizes)>(sizes))... };
     }
-    template<typename Storage, auto Mapping>
-    [[nodiscard]] std::vector<Dimension> makeShape(const AbstractShape<Storage, Mapping>& shape) {
+    template<SizeRange R>
+    [[nodiscard]] std::vector<Dimension> makeDimsOfShape(R&& shape) {
         std::vector<Dimension> result;
         for (auto&& size: shape) {
-            result.emplace_back(makeSize(size));
+            result.emplace_back(makeDimOfSize(std::forward<decltype(size)>(size)));
         }
         return result;
     }
+
+    const BindingContext& getBindingContext() const { return ctx; }
+    DimensionStore& getStore() { return store; }
+    void storeIterator(std::unique_ptr<Iterator> iterator);
+    void storeMapReduce(std::unique_ptr<MapReduceOp> mapReduce);
+
+    TensorView& buildTensorView(const std::vector<std::vector<Dimension>>& tensors);
 };
 
 class Op {
 public:
-    virtual void onNotification(DimensionStore& store) = 0;
+    virtual void onNotification(Factory& store) = 0;
 };
 
 class RepeatLikeOp: public Op {
@@ -96,15 +127,15 @@ public:
     class Output final: public DimensionImpl {
         std::unique_ptr<RepeatLikeOp> op;
         inline void notifyParent() const override {
-            op->onNotification(store);
+            op->onNotification(factory);
         }
-        Output(DimensionStore& store, auto&& size, std::unique_ptr<RepeatLikeOp> op):
-            DimensionImpl { store, std::forward<decltype(size)>(size) },
+        Output(Factory& factory, auto&& size, std::unique_ptr<RepeatLikeOp> op):
+            DimensionImpl { factory, std::forward<decltype(size)>(size) },
             op { std::move(op) }
         {}
     public:
-        static std::shared_ptr<Output> Create(DimensionStore& store, auto&& size, std::unique_ptr<RepeatLikeOp> op) {
-            auto ptr = std::shared_ptr<Output>(new Output { store, std::forward<decltype(size)>(size), std::move(op) });
+        static std::shared_ptr<Output> Create(Factory& factory, auto&& size, std::unique_ptr<RepeatLikeOp> op) {
+            auto ptr = std::shared_ptr<Output>(new Output { factory, std::forward<decltype(size)>(size), std::move(op) });
             ptr->op->setOutput(ptr);
             return ptr;
         }
@@ -123,15 +154,15 @@ public:
     class Output final: public DimensionImpl {
         std::shared_ptr<SplitLikeOp> op;
         inline void notifyParent() const override {
-            op->onNotification(store);
+            op->onNotification(factory);
         }
-        Output(DimensionStore& store, auto&& size, std::shared_ptr<SplitLikeOp> op, Order order):
-            DimensionImpl { store, std::forward<decltype(size)>(size) },
+        Output(Factory& factory, auto&& size, std::shared_ptr<SplitLikeOp> op, Order order):
+            DimensionImpl { factory, std::forward<decltype(size)>(size) },
             op { std::move(op) }
         {}
     public:
-        static std::shared_ptr<Output> Create(DimensionStore& store, auto&& size, std::shared_ptr<SplitLikeOp> op, Order order) {
-            auto ptr = std::shared_ptr<Output>(new Output { store, std::forward<decltype(size)>(size), std::move(op), order });
+        static std::shared_ptr<Output> Create(Factory& factory, auto&& size, std::shared_ptr<SplitLikeOp> op, Order order) {
+            auto ptr = std::shared_ptr<Output>(new Output { factory, std::forward<decltype(size)>(size), std::move(op), order });
             ptr->op->setOutput(ptr, order);
             return ptr;
         }
@@ -157,15 +188,15 @@ public:
     class Output final: public DimensionImpl {
         std::unique_ptr<MergeLikeOp> op;
         inline void notifyParent() const override {
-            op->onNotification(store);
+            op->onNotification(factory);
         }
-        Output(DimensionStore& store, auto&& size, std::unique_ptr<MergeLikeOp> op):
-            DimensionImpl { store, std::forward<decltype(size)>(size) },
+        Output(Factory& factory, auto&& size, std::unique_ptr<MergeLikeOp> op):
+            DimensionImpl { factory, std::forward<decltype(size)>(size) },
             op { std::move(op) }
         {}
     public:
-        static std::shared_ptr<Output> Create(DimensionStore& store, auto&& size, std::unique_ptr<MergeLikeOp> op) {
-            auto ptr = std::shared_ptr<Output>(new Output { store, std::forward<decltype(size)>(size), std::move(op) });
+        static std::shared_ptr<Output> Create(Factory& factory, auto&& size, std::unique_ptr<MergeLikeOp> op) {
+            auto ptr = std::shared_ptr<Output>(new Output { factory, std::forward<decltype(size)>(size), std::move(op) });
             ptr->op->setOutput(ptr);
             return ptr;
         }
@@ -183,7 +214,7 @@ class MergeOp final: public MergeLikeOp {
 protected:
     using MergeLikeOp::MergeLikeOp;
 public:
-    void onNotification(DimensionStore& store) override;
+    void onNotification(Factory& factory) override;
     static Dimension Create(const Dimension& lhs, const Dimension& rhs);
 };
 
@@ -191,7 +222,7 @@ class ShareOp final: public MergeLikeOp {
 protected:
     using MergeLikeOp::MergeLikeOp;
 public:
-    void onNotification(DimensionStore& store) override;
+    void onNotification(Factory& factory) override;
     static Dimension Create(const Dimension& lhs, const Dimension& rhs);
 };
 
@@ -203,7 +234,7 @@ protected:
         shift { shift }
     {}
 public:
-    void onNotification(DimensionStore& store) override;
+    void onNotification(Factory& factory) override;
     static Dimension Create(const Dimension& input, int shift);
 };
 
@@ -211,7 +242,7 @@ class SplitOp final: public SplitLikeOp {
 protected:
     using SplitLikeOp::SplitLikeOp;
 public:
-    void onNotification(DimensionStore& store) override;
+    void onNotification(Factory& factory) override;
     static std::pair<Dimension, Dimension> Create(const Dimension& input, const Size& block);
 };
 
@@ -223,7 +254,7 @@ protected:
         stride { std::forward<decltype(stride)>(stride) }
     {}
 public:
-    void onNotification(DimensionStore& store) override;
+    void onNotification(Factory& factory) override;
     static Dimension Create(const Dimension& input, const Size& stride);
 };
 
@@ -233,7 +264,7 @@ protected:
         SplitLikeOp { input }
     {}
 public:
-    void onNotification(DimensionStore& store) override;
+    void onNotification(Factory& factory) override;
     static std::pair<Dimension, Dimension> Create(const Dimension& input, const Size& window);
 };
 

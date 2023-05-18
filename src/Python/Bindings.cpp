@@ -11,6 +11,7 @@
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/Statistics.hpp"
+#include "KAS/Transforms/Forward.hpp"
 
 
 PYBIND11_MODULE(kas_cpp_bindings, m) {
@@ -127,6 +128,52 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("estimate_total_flops_as_final", &Node::estimateTotalFLOPsAsFinal)
         .def("__repr__", &Node::toString);
 
+    pybind11::class_<Size>(m, "Size")
+        .def("__eq__", &Size::operator==)
+        .def("__mul__", &Size::operator*)
+        .def("__truediv__", &Size::operator/);
+
+    pybind11::class_<Forward::Dimension>(m, "ForwardDimension")
+        .def(
+            "output", &Forward::Dimension::output,
+            pybind11::arg("index")
+        )
+        .def(
+            "sum", [](Forward::Dimension& self, std::size_t priority) {
+                self.reduce(priority, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+            },
+            pybind11::arg("priority")
+        )
+        .def("size", &Forward::Dimension::sizeToString);
+
+    pybind11::class_<Forward::Factory>(m, "Assembler")
+        .def(
+            "get_sizes",
+            [](const Forward::Factory& self, const std::vector<std::string>& names) {
+                return self.getSizes(names);
+            },
+            pybind11::arg("names")
+        )
+        .def(
+            "make_dims_of_sizes",
+            [](Forward::Factory& self, const std::vector<Size>& sizes) {
+                return self.makeDimsOfShape(sizes);
+            },
+            pybind11::arg("sizes")
+        )
+        .def_static("create_merge", &Forward::MergeOp::Create)
+        .def_static("create_share", &Forward::ShareOp::Create)
+        .def_static("create_shift", &Forward::ShiftOp::Create)
+        .def_static("create_split", &Forward::SplitOp::Create)
+        .def_static("create_stride", &Forward::StrideOp::Create)
+        .def_static("create_unfold", &Forward::UnfoldOp::Create)
+        .def(
+            "build", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) {
+                TensorView& tensorView = self.buildTensorView(tensors);
+                return std::make_unique<Kernel>(tensorView, self.getBindingContext(), allMappings, std::move(options));
+            }
+        );
+
     pybind11::class_<Sampler>(m, "Sampler")
         .def(
             pybind11::init<std::string, std::string, std::vector<std::string>, std::vector<std::string>, std::vector<std::map<std::string, std::size_t>>, std::vector<std::pair<std::size_t, std::size_t>>, SampleOptions>(),
@@ -138,6 +185,11 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def(
             "random_node_with_prefix", &Sampler::randomNodeWithPrefix,
             pybind11::arg("prefix")
+        )
+        .def(
+            "create_assembler", [](Sampler& self) {
+                return std::make_unique<Forward::Factory>(self.getBindingContext());
+            }
         )
         .def(
             "bind_debug_context", [](Sampler& self) {

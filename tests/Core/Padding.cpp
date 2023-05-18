@@ -19,11 +19,11 @@ protected:
             { .alias = "s", .estimate = 2 },
         },
     };
-    Size sizeC = ctx.get("C");
-    Size sizeH = ctx.get("H");
-    Size sizeW = ctx.get("W");
-    Size sizeK = ctx.get("k");
-    Size sizeS = ctx.get("s");
+    Size sizeC = ctx.getSize("C");
+    Size sizeH = ctx.getSize("H");
+    Size sizeW = ctx.getSize("W");
+    Size sizeK = ctx.getSize("k");
+    Size sizeS = ctx.getSize("s");
     ConcreteConsts unpaddedConsts = ctx.realizeConsts({});
     PaddingSolver sol { ctx, unpaddedConsts };
 };

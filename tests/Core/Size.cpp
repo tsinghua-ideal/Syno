@@ -15,9 +15,9 @@ TEST(core_tests, size) {
         { .alias = "c", .estimate = 5 },
     };
     auto ctx = BindingContext { std::move(metaPrimary), std::move(metaCoefficient) };
-    auto sizeH = ctx.get("H");
+    auto sizeH = ctx.getSize("H");
     ASSERT_EQ(sizeH.toString(ctx), "H");
-    auto sizeW = ctx.get("W");
+    auto sizeW = ctx.getSize("W");
     ASSERT_EQ(sizeW.toString(ctx), "W");
     auto sizeC = ctx.getSingleCoefficientVariableSize(0);
     auto sizeHWc = Size(2, 1, Size::ExprType { 1, 1 }, Size::ExprType { -1 });

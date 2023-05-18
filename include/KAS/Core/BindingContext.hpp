@@ -79,15 +79,17 @@ public:
 
     Size getSinglePrimaryVariableSize(std::size_t index) const;
     Size getSingleCoefficientVariableSize(std::size_t index) const;
-    Size get(const std::string& name) const;
+    Size getSize(const std::string& name) const;
     template<typename... Args>
+    requires std::conjunction_v<std::is_convertible<Args, std::string>...>
     auto getSizes(Args&&... args) const -> std::array<Size, sizeof...(Args)> {
         std::map<std::string, std::size_t> pNameToIndex = getPrimaryLookupTable();
         std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();
         return std::array { lookUp(std::forward<Args>(args), pNameToIndex, cNameToIndex)... };
     }
 
-    Shape getShapeFromNames(const std::vector<std::string>& names) const;
+    std::vector<Size> getSizes(const std::vector<std::string>& names) const;
+    Shape getShape(const std::vector<std::string>& names) const;
     // This overwrites the current metadata.
     void applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs);
 
