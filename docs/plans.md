@@ -54,4 +54,4 @@
 - [x] Two-step primitive selection. 
 - [ ] Early Stopping during training. (Not urgent yet. )
 - [ ] Search Result Saving (path, mcts, etc.). 
-- [x] Cache the searched nodes. 
+- [x] Cache searched nodes. 

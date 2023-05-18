@@ -265,9 +265,9 @@ if __name__ == '__main__':
     model = ModelBackup(KASConv, sample_input, device)
 
     kas_sampler = Sampler(
-        input_shape="[N,H,H]",
-        output_shape="[N,C_out,H,H]",
-        primary_specs=["N=4096: 1", "H=256", "C_out=100"],
+        input_shape="[N,H,W]",
+        output_shape="[N,C_out,H,W]",
+        primary_specs=["N=4096: 1", "H=256", "W=256", "C_out=100"],
         coefficient_specs=["s_1=2", "k_1=3", "k_2=5"],
         seed=random.SystemRandom().randint(
             0, 0x7fffffff) if args.kas_seed == 'pure' else args.seed,
@@ -277,6 +277,7 @@ if __name__ == '__main__':
         save_path=args.kas_sampler_save_dir,
         cuda=use_cuda,
         net=model.create_instance(),
+        fixed_io_pairs=[(0, 0)],
         autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021
     )
 
