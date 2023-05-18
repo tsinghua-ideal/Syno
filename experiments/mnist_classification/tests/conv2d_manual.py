@@ -1,27 +1,23 @@
 import torch
 from torch import nn, Tensor
 
-import math
-
 # Systems
 import time
 import random
-from typing import List, Union
+from typing import List
 import os
 import sys
 import logging
-import traceback
-import json
 from thop import profile
 
 # KAS
-from KAS import MCTS, Sampler, KernelPack, Node, Path, Placeholder, Assembled, Assembler
+from KAS import Sampler, KernelPack, Assembled, Assembler
 from KAS.Bindings import CodeGenOptions
 
-from train import train
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
+from train import train
 from utils.data import get_dataloader
 from utils.models import KASGrayConv as KASConv
 from utils.parser import arg_parse
@@ -112,7 +108,7 @@ if __name__ == '__main__':
     )
 
     device = torch.device("cuda" if use_cuda else "cpu")
-    model = ModelBackup(KASConv, sample_input, device)
+    model_ = ModelBackup(KASConv, sample_input, device)
 
     kas_sampler = Sampler(
         input_shape="[N,H,W]",
@@ -126,20 +122,20 @@ if __name__ == '__main__':
         dim_upper=args.kas_max_dim,
         save_path=args.kas_sampler_save_dir,
         cuda=use_cuda,
-        net=model.create_instance(),
+        net=model_.create_instance(),
         autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021
     )
 
     assembler = kas_sampler.create_assembler()
 
     # Analyze a sample
-    model = model.create_instance()
+    model = model_.create_instance()
 
     kernelPacks, total_flops = kas_sampler.realize(
         model, conv2d(assembler), "test_manual_conv")
-    model = model.restore_model_params(model, kernelPacks)
+    model = model_.restore_model_params(model, kernelPacks)
 
-    model_macs = model.base_macs + total_flops * 2
+    model_macs = model_.base_macs + total_flops * 2
     print("Model macs: {}".format(model_macs))
     model_size = sum([p.numel() for p in model.parameters()])
     print("Model size: {}".format(model_size))
