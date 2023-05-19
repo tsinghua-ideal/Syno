@@ -10,11 +10,15 @@ public:
     static constexpr DimensionType Type = DimensionType::Merge;
     class Input final: public MergeLikeOp::Input {
     public:
-        inline Input(const MergeOp* op, Order order):
+        Input(const MergeOp* op, Order order):
             MergeLikeOp::Input { op, order }
         {}
         const Size& size() const noexcept override;
         constexpr DimensionType type() const noexcept override { return Type; }
+        bool is(DimensionTypeWithOrder ty) const noexcept override {
+            return (ty == DimensionTypeWithOrder::MergeL && order == Order::Left)
+                || (ty == DimensionTypeWithOrder::MergeR && order == Order::Right);
+        }
     };
 
 protected:
@@ -32,15 +36,11 @@ public:
     {}
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
-    inline Dimension getInputL() const override { return &inputLhs; }
-    inline Dimension getInputR() const override { return &inputRhs; }
+    Dimension getInputL() const override { return &inputLhs; }
+    Dimension getInputR() const override { return &inputRhs; }
     Values value(const Values& known) const override;
 
-    static std::size_t CountColorTrials;
-    static std::size_t CountColorSuccesses;
-    bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
-
-    inline bool operator==(const MergeOp& other) const noexcept {
+    bool operator==(const MergeOp& other) const noexcept {
         return output == other.output && minorSize == other.minorSize;
     }
 
@@ -48,7 +48,7 @@ public:
         const BindingContext& ctx;
         std::size_t dimUpperBound;
     };
-    static std::vector<const MergeOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
+    static std::vector<const MergeOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

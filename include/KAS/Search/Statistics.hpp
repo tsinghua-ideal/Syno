@@ -10,12 +10,12 @@
 namespace kas {
 
 struct StatisticsCollector {
-    static inline void PrintSummary(std::ostream& os) {
+    static void PrintSummary(std::ostream& os) {
         auto it = [&]() {
             return std::ostreambuf_iterator<char>(os);
         };
 
-        fmt::format_to(it(), "Summary for color semantics:\n");
+        fmt::format_to(it(), "Summary for primitives:\n");
         struct Stats {
             const char *name;
             std::size_t trials;

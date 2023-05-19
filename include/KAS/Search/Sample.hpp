@@ -51,7 +51,6 @@ class Sampler final {
 
     BindingContext ctx;
     SampleOptions options;
-    Colors::Options colorOptions;
     Shape inputShape;
     Shape outputShape;
 

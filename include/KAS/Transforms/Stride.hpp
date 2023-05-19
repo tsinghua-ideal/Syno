@@ -10,10 +10,10 @@ public:
     static constexpr DimensionType Type = DimensionType::Stride;
     class Input final: public RepeatLikeOp::Input {
     public:
-        inline Input(const StrideOp* op):
+        Input(const StrideOp* op):
             RepeatLikeOp::Input { op }
         {}
-        inline const Size& size() const noexcept override { return getDerivedOp<StrideOp>()->sz; }
+        const Size& size() const noexcept override { return getDerivedOp<StrideOp>()->sz; }
         constexpr DimensionType type() const noexcept override { return Type; }
     };
 
@@ -31,21 +31,17 @@ public:
     {}
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
-    inline Dimension getInput() const override { return &input; }
+    Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 
-    static std::size_t CountColorTrials;
-    static std::size_t CountColorSuccesses;
-    bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
-
-    inline bool operator==(const StrideOp& other) const noexcept {
+    bool operator==(const StrideOp& other) const noexcept {
         return output == other.output && stride == other.stride;
     }
 
     struct GenerateOptions {
         const BindingContext& ctx;
     };
-    static std::vector<const StrideOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
+    static std::vector<const StrideOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

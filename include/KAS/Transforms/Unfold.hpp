@@ -10,10 +10,10 @@ public:
     static constexpr DimensionType Type = DimensionType::Unfold;
     class Input final: public SplitLikeOp::Input {
     public:
-        inline Input(const UnfoldOp* op):
+        Input(const UnfoldOp* op):
             SplitLikeOp::Input { op }
         {}
-        inline const Size& size() const noexcept override { return getDerivedOp<UnfoldOp>()->outputLhs.size(); }
+        const Size& size() const noexcept override { return getDerivedOp<UnfoldOp>()->outputLhs.size(); }
         constexpr DimensionType type() const noexcept override { return Type; }
     };
 
@@ -27,14 +27,10 @@ public:
     {}
     constexpr DimensionType getType() const noexcept override { return Type; }
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
-    inline Dimension getInput() const override { return &input; }
+    Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 
-    static std::size_t CountColorTrials;
-    static std::size_t CountColorSuccesses;
-    bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
-
-    inline bool operator==(const UnfoldOp& other) const noexcept {
+    bool operator==(const UnfoldOp& other) const noexcept {
         return outputLhs == other.outputLhs && outputRhs == other.outputRhs;
     }
 
@@ -42,7 +38,7 @@ public:
         const BindingContext& ctx;
         std::size_t dimLowerBound;
     };
-    static std::vector<const UnfoldOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
+    static std::vector<const UnfoldOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

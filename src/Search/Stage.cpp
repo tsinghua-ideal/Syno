@@ -10,9 +10,9 @@
 namespace kas {
 
 std::size_t StageStore::Hash::operator()(const ColoredInterface& interface) const noexcept {
-    std::size_t h = interface.items.size();
-    for (const auto& dim: interface.items) {
-        HashCombine(h, dim.dimension.hash());
+    std::size_t h = interface.size();
+    for (const auto& dim: interface.toDimensions()) {
+        HashCombine(h, dim.hash());
     }
     return h;
 }
@@ -22,7 +22,7 @@ std::size_t StageStore::Hash::operator()(const Stage * stage) const noexcept {
 }
 
 bool StageStore::Equal::operator()(const ColoredInterface& lhs, const ColoredInterface& rhs) const noexcept {
-    return std::ranges::equal(lhs.items, rhs.items, std::equal_to<Dimension>{}, ColoredDimension::Projection{}, ColoredDimension::Projection{});
+    return std::ranges::equal(lhs.toDimensions(), rhs.toDimensions());
 }
 bool StageStore::Equal::operator()(const ColoredInterface& lhs, const Stage *rhs) const noexcept {
     return (*this)(lhs, rhs->getInterface());
@@ -35,7 +35,7 @@ bool StageStore::Equal::operator()(const Stage *lhs, const Stage *rhs) const noe
 }
 
 Stage *StageStore::find(const ColoredInterface& interface) const {
-    KAS_ASSERT(std::ranges::is_sorted(interface.items, Dimension::HashLessThan{}, ColoredDimension::Projection{}), "Interface is not sorted.");
+    KAS_ASSERT(std::ranges::is_sorted(interface.toDimensions(), Dimension::HashLessThan{}), "Interface is not sorted.");
     if (auto it = interfaces.find(interface); it != interfaces.end()) {
         return *it;
     } else {
@@ -70,7 +70,7 @@ void Stage::guard() {
     };
 
     // First add finalizations.
-    for (auto g = FinalizeOp::Generate(interface, colors, { .ctx = ctx, .desired = sampler.getInputShape(), .maximumTensors = options.maximumTensors }); auto& f: g)
+    for (auto g = FinalizeOp::Generate(interface, { .ctx = ctx, .desired = sampler.getInputShape(), .maximumTensors = options.maximumTensors }); auto& f: g)
         nextFinalizations.emplace_back(f.getHash(), std::move(f), nullptr);
     std::ranges::sort(nextFinalizations, std::less{}, &NextFinalizeSlot::key);
     std::ranges::move(nextFinalizations | std::views::transform(accumulate), std::back_inserter(nexts));
@@ -85,7 +85,7 @@ void Stage::guard() {
     };
     auto add = [&]<typename Op>(const std::vector<const Op *>& newOps) {
         std::ranges::move(
-            newOps
+            newOps // Apply ShareOp::IsSharedDimensionCanonical here. TODO!!!
             | std::views::transform(nextOpProcessor) | std::views::filter(nextOpFilter),
             std::back_inserter(nextOpStores.get<Op>())
         );
@@ -99,19 +99,19 @@ void Stage::guard() {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}, TODO
         // Stride^{-1}
-        add(StrideOp::Generate(store, interface, colors, { .ctx = ctx }));
+        add(StrideOp::Generate(store, interface, { .ctx = ctx }));
 
         // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s.
         // Split^{-1}
-        add(SplitOp::Generate(store, interface, colors, { .dimLowerBound = options.dimLowerBound }));
+        add(SplitOp::Generate(store, interface, { .dimLowerBound = options.dimLowerBound }));
         // Unfold^{-1}
-        add(UnfoldOp::Generate(store, interface, colors, { .ctx = ctx, .dimLowerBound = options.dimLowerBound }));
+        add(UnfoldOp::Generate(store, interface, { .ctx = ctx, .dimLowerBound = options.dimLowerBound }));
 
         // Try increasing dimensionality, by applying `MergeLikeOp`^{-1}s.
         // Merge^{-1}
-        add(MergeOp::Generate(store, interface, colors, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }));
+        add(MergeOp::Generate(store, interface, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }));
         // Share^{-1}
-        add(ShareOp::Generate(store, interface, colors, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }));
+        add(ShareOp::Generate(store, interface, { .ctx = ctx, .dimUpperBound = options.dimUpperBound, .maximumTensors = options.maximumTensors }));
     }
 
     childrenGenerated = true;

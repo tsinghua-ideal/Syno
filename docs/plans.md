@@ -33,6 +33,7 @@
 
 - [x] Before generating an Op, test sizes of new dimensions to make it legal.
 - [ ] Redesign generation algorithm for each Op.
+- [ ] Accept FLOPs constraints in Sampler, and generate MapReduceOp's accordingly.
 
 ### Pruning
 

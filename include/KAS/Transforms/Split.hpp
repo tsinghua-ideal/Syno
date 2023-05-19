@@ -10,10 +10,10 @@ public:
     static constexpr DimensionType Type = DimensionType::Split;
     class Input final: public SplitLikeOp::Input {
     public:
-        inline Input(const SplitOp* op):
+        Input(const SplitOp* op):
             SplitLikeOp::Input { op }
         {}
-        inline const Size& size() const noexcept override { return getDerivedOp<SplitOp>()->sz; }
+        const Size& size() const noexcept override { return getDerivedOp<SplitOp>()->sz; }
         constexpr DimensionType type() const noexcept override { return Type; }
     };
 
@@ -29,21 +29,17 @@ public:
     {}
     constexpr DimensionType getType() const noexcept override { return Type; }
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
-    inline Dimension getInput() const override { return &input; }
+    Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
-
-    static std::size_t CountColorTrials;
-    static std::size_t CountColorSuccesses;
-    bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
     
-    inline bool operator==(const SplitOp& other) const noexcept {
+    bool operator==(const SplitOp& other) const noexcept {
         return outputLhs == other.outputLhs && outputRhs == other.outputRhs;
     }
 
     struct GenerateOptions {
         std::size_t dimLowerBound;
     };
-    static std::vector<const SplitOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
+    static std::vector<const SplitOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

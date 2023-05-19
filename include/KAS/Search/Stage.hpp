@@ -44,7 +44,7 @@ class StageStore {
     std::unordered_set<Stage *, Hash, Equal> interfaces;
 
 public:
-    inline DimensionStore& dimStore() { return dimensionStore; }
+    DimensionStore& dimStore() { return dimensionStore; }
     Stage *find(const ColoredInterface& interface) const;
     bool insert(Stage *stage);
     ~StageStore();
@@ -58,7 +58,7 @@ class Stage {
         std::size_t key;
         FinalizeOp finalization;
         std::unique_ptr<TensorView> kernel;
-        inline Next toNext() const {
+        Next toNext() const {
             return Next { Next::Type::Finalize, key };
         }
     };
@@ -98,7 +98,6 @@ class Stage {
     // Metadata.
     Sampler& sampler;
     StageStore& getStageStore();
-    Colors colors;
     // std::vector<std::reference_wrapper<const Size>> missingSizes;
     std::size_t depth; // Stages with identical interfaces must be of the same depth.
 
@@ -108,26 +107,15 @@ class Stage {
     // Execute the finalization to obtain TensorView.
     TensorView *getFinalize(std::size_t key);
 
-    static constexpr Colors::Options colorsOptions = {
-        .maximumTensors = 2,
-    };
-
     // Apply the Op to obtain Stage.
     template<typename Op>
     Stage *getNextOp(const Op *op) {
         StageStore& store = getStageStore();
-        auto newInterface = interface;
-        auto newColors = colors;
-        if (!op->transformInterface(newInterface, newColors, colorsOptions)) {
-            return nullptr; // This failed.
-        }
-        if (!newColors.isConsistent()) {
-            return nullptr; // Inconsistent colors. This failed.
-        }
+        auto newInterface = op->applyToInterface(interface);
         if (Stage *found = store.find(newInterface); found) {
             return found;
         } else {
-            auto tempStage = std::make_unique<Stage>(std::move(newInterface), std::move(newColors), sampler, depth + 1);
+            auto tempStage = std::make_unique<Stage>(std::move(newInterface), sampler, depth + 1);
             if(store.insert(tempStage.get())) {
                 return tempStage.release();
             } else {
@@ -137,23 +125,21 @@ class Stage {
     }
 
     // Remove the Op from store, deleting its enclosing dimensions as well.
-    template<PrimitiveOp Op>
-    void removeOp(const Op *op) {
+    void removeOp(const PrimitiveOp *op) {
         // TODO
     }
 
 public:
-    Stage(auto&& interface, auto&& colors, Sampler& sampler, std::size_t depth):
+    Stage(auto&& interface, Sampler& sampler, std::size_t depth):
         interface { std::forward<decltype(interface)>(interface) },
         sampler { std::forward<decltype(sampler)>(sampler) },
-        colors { std::forward<decltype(colors)>(colors) },
         depth { depth }
     {
         // Compute missing sizes. TODO.
     }
-    inline const ColoredInterface& getInterface() const { return interface; }
+    const ColoredInterface& getInterface() const { return interface; }
     std::size_t countChildren();
-    inline const std::vector<Next>& getChildrenHandles() {
+    const std::vector<Next>& getChildrenHandles() {
         guard();
         return nexts;
     }

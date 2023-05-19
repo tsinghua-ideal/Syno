@@ -49,7 +49,7 @@ public:
         const Shape& desired;
         std::size_t maximumTensors;
     };
-    static std::vector<FinalizeOp> Generate(const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
+    static std::vector<FinalizeOp> Generate(const ColoredInterface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <compare>
 #include <limits>
 
 #include "KAS/Core/Dimension.hpp"
@@ -9,87 +10,62 @@
 
 namespace kas {
 
+class MergeLikeOp;
 struct ColoredDimension;
-struct ColoredInterface;
+class ColoredInterface;
 
-class Colors {
+class Color {
 public:
-    enum Color {
-        Clear = 0,
-        First = 1,
-        Second = 2,
-        // ...
-        Unknown = -1,
-    };
-    enum class Category {
-        Clear,
-        Single,
-        Unknown,
-    };
-    struct Options {
-        std::size_t maximumTensors = 2;
+    // Colors are specified by tags. The disjoint constraints are due to ShareOp's. So in each tag we have a ShareOp, to indicate that such a ShareOp is an acestor of this Dimension.
+    struct Tag {
+        // Left or right.
+        Order order;
+        // The ShareOp.
+        const MergeLikeOp *share;
+
+        // To sort the tags.
+        std::strong_ordering operator<=>(const Tag& rhs) const noexcept = default;
     };
 
 private:
-    const Options& options;
-
-    // The disjoint pairs of set of dimensions, in the sense that they have no common color.
-    std::vector<std::pair<std::vector<Dimension>, std::vector<Dimension>>> constraints;
-
-    // Some operations do not require immediate simplification. We use dirty to indicate when we need to simplify.
-    // bool dirty = false;
-
-    // When performing simplification, we may encounter inconsistent state. In that case, do not attempt to go any further.
-    bool consistent = true;
-    void setInconsistent();
+    // Keep them sorted! Note that tags.size() <= maximumTensors - 1.
+    std::vector<Tag> tags;
 
 public:
-    inline Colors(const Options& options): options { options } {}
+    // With no tags.
+    Color() = default;
+    // Copy the color.
+    Color(const Color&) = default;
+    // Add a new tag. Assumes the dim is a ShareOp::Input.
+    Color(const Color& color, const Dimension& dim);
+    // Merge two colors, merging the tags.
+    Color(const Color& lhs, const Color& rhs);
 
-    void disjoint(const Dimension& lhs, const Dimension& rhs);
+    std::size_t countTags() const noexcept { return tags.size(); }
 
-    void substitute(ColoredInterface& interface, const Dimension& fro, ColoredDimension to);
-    void substitute(ColoredInterface& interface, const Dimension& fro, ColoredDimension to1, ColoredDimension to2);
-    void substitute(ColoredInterface& interface, const Dimension& fro1, const Dimension& fro2, ColoredDimension to);
-    ColoredDimension& assign(ColoredInterface& interface, const Dimension& item, int color);
-    void simplify(ColoredInterface& interface);
-
-    static std::size_t CountColorInconsistent;
-    inline bool isConsistent() const { return consistent; }
-    static bool CheckFinalization(const std::vector<Interface>& tensors);
+    // Whether there are no common tags.
+    bool disjoint(const Color& rhs) const;
 };
 
 // Use bits to represent colors.
-class CompactColorType {
+class CompactColor {
     std::size_t value;
 public:
-    inline explicit CompactColorType(std::size_t value): value { value } {}
-    inline explicit CompactColorType(int single): value { std::size_t{1} << single } {
+    explicit CompactColor(std::size_t value): value { value } {}
+    explicit CompactColor(int single): value { std::size_t{1} << single } {
         KAS_ASSERT(single >= 0 && single < std::numeric_limits<std::size_t>::digits);
     }
     // Intersection.
-    inline CompactColorType operator&(const CompactColorType& rhs) const noexcept { return CompactColorType { value & rhs.value }; }
+    CompactColor operator&(const CompactColor& rhs) const noexcept { return CompactColor { value & rhs.value }; }
     // Union.
-    inline CompactColorType operator|(const CompactColorType& rhs) const noexcept { return CompactColorType { value | rhs.value }; }
-    inline explicit operator bool() const noexcept { return value != 0; }
+    CompactColor operator|(const CompactColor& rhs) const noexcept { return CompactColor { value | rhs.value }; }
+    explicit operator bool() const noexcept { return value != 0; }
 };
 
 struct ColoredDimension {
     Dimension dimension;
-    // 0 means clear, 1 means the first tensor, 2 means the second tensor, etc.
-    // Here we only want to support two tensors at most.
-    int color;
-    // A color is one of the following: clear, single or unknown.
-    inline bool isClear() const noexcept { return color == Colors::Clear; }
-    inline bool isSingle() const noexcept { return color > 0; } // Equivalent to not Clear nor Unknown.
-    inline bool isUnknown() const noexcept { return color == Colors::Unknown; }
-    inline Colors::Category category() const noexcept {
-        switch (color) {
-        case Colors::Clear:     return Colors::Category::Clear;
-        case Colors::Unknown:   return Colors::Category::Unknown;
-        default:                return Colors::Category::Single;
-        }
-    }
+    Color color;
+
     const Size& size() const noexcept { return dimension.size(); }
 
     struct Projection {
@@ -98,31 +74,67 @@ struct ColoredDimension {
 };
 
 using ColoredInterfaceShapeView = AbstractShape<const std::vector<ColoredDimension>&, [](const ColoredDimension& cDim) -> const Size& { return cDim.dimension.size(); }>;
+class Graph;
 
-struct ColoredInterface {
+class ColoredInterface {
     std::vector<ColoredDimension> items;
-    inline auto toDimensions() const {
-        return items | std::views::transform(ColoredDimension::Projection{});
+    std::size_t maximumTags;
+
+public:
+    template<std::ranges::input_range R>
+    requires std::convertible_to<std::ranges::range_value_t<R>, ColoredDimension>
+    ColoredInterface(R&& r):
+        items { std::forward<R>(r) },
+        maximumTags { std::ranges::max(items, {}, [](auto&& cdim) { return cdim.color.countTags(); }) }
+    {}
+
+    template<DimensionRange R>
+    ColoredInterface(R&& r): maximumTags { 0 } {
+        items.reserve(std::ranges::size(r));
+        for (auto&& dim: r) {
+            items.emplace_back(dim, Color {});
+        }
     }
-    inline std::size_t size() const noexcept { return items.size(); }
-    inline ColoredInterfaceShapeView getShape() const { return ColoredInterfaceShapeView(items); }
-    inline const Dimension& operator[](std::size_t index) const noexcept { return items[index].dimension; }
-    inline const ColoredDimension& operator[](const Dimension& dim) const {
+
+    auto toDimensions() const {
+        return items | std::views::transform(&ColoredDimension::dimension);
+    }
+    std::size_t size() const noexcept { return items.size(); }
+    ColoredInterfaceShapeView getShape() const { return ColoredInterfaceShapeView(items); }
+
+    auto begin() const { return items.begin(); }
+    auto begin() { return items.begin(); }
+    auto end() const { return items.end(); }
+    auto end() { return items.end(); }
+    const Dimension& operator[](std::size_t index) const noexcept { return items[index].dimension; }
+    const ColoredDimension& operator[](const Dimension& dim) const {
         auto it = binarySearch(dim);
         KAS_ASSERT(it != items.end(), "Dimension not found in interface.");
         return *it;
     }
-    inline ColoredDimension& operator[](const Dimension& dim) {
-        auto it = binarySearch(dim);
-        KAS_ASSERT(it != items.end(), "Dimension not found in interface.");
-        return *it;
+    ColoredDimension& operator[](const Dimension& dim) {
+        return const_cast<ColoredDimension&>(const_cast<const ColoredInterface&>(*this)[dim]);
     }
-    inline Dimension& operator[](std::size_t index) noexcept { return items[index].dimension; }
-    inline std::vector<ColoredDimension>::const_iterator binarySearch(const Dimension& value) const {
+    Dimension& operator[](std::size_t index) noexcept { return items[index].dimension; }
+    std::vector<ColoredDimension>::const_iterator binarySearch(const Dimension& value) const {
         return WeakOrderedBinarySearch(items, value, Dimension::HashLessThan{}, ColoredDimension::Projection{});
     }
-    inline std::vector<ColoredDimension>::iterator binarySearch(const Dimension& value) {
-        return WeakOrderedBinarySearch(items, value, Dimension::HashLessThan{}, ColoredDimension::Projection{});
+    std::vector<ColoredDimension>::iterator binarySearch(const Dimension& value) {
+        auto it = const_cast<const ColoredInterface&>(*this).binarySearch(value);
+        // Amazing trick: https://stackoverflow.com/questions/765148/how-to-remove-constness-of-const-iterator
+        return items.erase(it, it);
+    }
+
+    ColoredInterface substitute1to1(const Dimension& fro, const Dimension& to) const;
+    ColoredInterface substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2, bool addConstraint = false) const;
+    ColoredInterface substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const;
+
+    Graph buildGraph() const;
+
+    auto filterOut(const std::vector<DimensionTypeWithOrder>& disallows) const {
+        return items | std::views::filter([&](const ColoredDimension& cdim) {
+            return std::ranges::none_of(disallows, [&](auto disallow) { return cdim.dimension.is(disallow); });
+        });
     }
 };
 

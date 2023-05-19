@@ -10,11 +10,15 @@ public:
     static constexpr DimensionType Type = DimensionType::Share;
     class Input final: public MergeLikeOp::Input {
     public:
-        inline Input(const ShareOp* op, Order order):
+        Input(const ShareOp* op, Order order):
             MergeLikeOp::Input { op, order }
         {}
-        inline const Size& size() const noexcept override { return op->output.size(); }
+        const Size& size() const noexcept override { return op->output.size(); }
         constexpr DimensionType type() const noexcept override { return Type; }
+        bool is(DimensionTypeWithOrder ty) const noexcept override {
+            return (ty == DimensionTypeWithOrder::ShareL && order == Order::Left)
+                || (ty == DimensionTypeWithOrder::ShareR && order == Order::Right);
+        }
     };
 
 protected:
@@ -28,24 +32,46 @@ public:
     {}
     constexpr DimensionType getType() const noexcept override { return Type; }
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
-    inline Dimension getInputL() const override { return &inputLhs; }
-    inline Dimension getInputR() const override { return &inputRhs; }
+    Dimension getInputL() const override { return &inputLhs; }
+    Dimension getInputR() const override { return &inputRhs; }
     Values value(const Values& known) const override;
 
-    std::pair<bool, CompactColorType> transformColor(CompactColorType fro1, CompactColorType fro2) const override;
-    static std::size_t CountColorTrials;
-    static std::size_t CountColorSuccesses;
-    bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
+    std::pair<bool, CompactColor> transformColor(CompactColor fro1, CompactColor fro2) const override;
+    // Add new constraints.
+    ColoredInterface applyToInterface(const ColoredInterface& interface) const override;
 
-    inline bool operator==(const ShareOp& other) const noexcept {
+    bool operator==(const ShareOp& other) const noexcept {
         return output == other.output;
     }
+
+    // We require a total order of Op's above a chain of ShareOp's.
+    // Just like this:
+    //
+    //     Split(345) Stride(234)
+    //          └────┬────┘
+    //             Share   Unfold(123)
+    //               └────┬────┘
+    //                  Share
+    //
+    // We simply sort by the opHash of Op's.
+    // When building, we must build the Op's from right to left, and in increasing order of opHash.
+    static bool IsSharedDimensionCanonical(const PrimitiveOp *op, const Graph& graph);
 
     struct GenerateOptions {
         const BindingContext& ctx;
         std::size_t dimUpperBound;
+        std::size_t maximumTensors;
+        std::size_t maxColorTags() {
+            return maximumTensors - 1;
+        }
     };
-    static std::vector<const ShareOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
+    static inline std::size_t CountGenerateInvocations = 0;
+    static inline std::size_t CountGenerateAttempts = 0; // Equals the sum of below.
+    static inline std::size_t CountDisallowedAttempts = 0;
+    static inline std::size_t CountAllowanceExceeded = 0;
+    static inline std::size_t CountMaximumTensorsExceeded = 0;
+    static inline std::size_t CountSuccessfulGenerations = 0;
+    static std::vector<const ShareOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, GenerateOptions options);
 };
 
 } // namespace kas
