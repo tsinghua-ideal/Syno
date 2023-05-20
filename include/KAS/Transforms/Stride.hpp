@@ -34,14 +34,26 @@ public:
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 
+    // Set dataDiscardingFlag to true in Color.
+    ColoredInterface applyToInterface(const ColoredInterface& interface) const override;
+
     bool operator==(const StrideOp& other) const noexcept {
         return output == other.output && stride == other.stride;
     }
 
     struct GenerateOptions {
         const BindingContext& ctx;
+        // stride * outputDim.size() == inputDim.size() <= maxStridedDimSize. This should correspond to UnfoldOp::GenerateOptions::maxUnfoldKernelSize.
+        std::size_t maxStridedDimSize = 30;
+        bool disallowStrideAboveSplit;
+        bool disallowStrideAboveMergeR;
     };
-    static std::vector<const StrideOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, GenerateOptions options);
+    static inline std::size_t CountGenerateInvocations = 0;
+    static inline std::size_t CountGenerateAttempts = 0; // Equals the sum of below.
+    static inline std::size_t CountDisallowedAttempts = 0;
+    static inline std::size_t CountSizeTooLarge = 0;
+    static inline std::size_t CountSuccessfulGenerations = 0;
+    static std::vector<const StrideOp *> Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options);
 };
 
 } // namespace kas

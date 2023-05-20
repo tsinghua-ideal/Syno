@@ -42,61 +42,62 @@ UnfoldOp::Values UnfoldOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for UnfoldOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
-std::size_t UnfoldOp::CountColorTrials = 0;
-std::size_t UnfoldOp::CountColorSuccesses = 0;
-bool UnfoldOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
-    ++CountColorTrials;
-    auto& outLhs = interface[outputLhs];
-    auto& outRhs = interface[outputRhs];
-    // Unfold creates clear dimensions.
-    if (outRhs.isSingle()) { // So we must not violate existing constraints.
-        return false;
-    }
-    if (outputRhs.size().isGeneral()) { // [Single Statement] We know that general dimension cannot be clear.
-        return false;
-    }
-    // The `substitute` removes outputRhs, so actually no need to make it clear.
-    // colors.assign(interface, outputRhs, Colors::Clear);
-    // Unfold preserves colors in the major dimension.
-    // colors.substitute(interface, outputLhs, outputRhs, { getInput(), outLhs.color });
-    colors.substitute(interface, outputLhs, outputRhs, { getInput(), Colors::Unknown });
-    colors.simplify(interface);
-    ++CountColorSuccesses;
-    return true;
+ColoredInterface UnfoldOp::applyToInterface(const ColoredInterface& interface) const {
+    // Absorb dataDiscarding flag in outputRhs.
+    return interface.substitute2to1(outputLhs, outputRhs, getInput(), true);
 }
 
-std::vector<const UnfoldOp *> UnfoldOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
+std::vector<const UnfoldOp *> UnfoldOp::Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options) {
+    ++CountGenerateInvocations;
+
+    // In addition, canonicalization can require that UnfoldOp chain be structured in ascending order of kernel size. This changes semantics but it seems to be fine.
+    using enum DimensionTypeWithOrder;
+    std::vector<DimensionTypeWithOrder> disallowsL;
+    if (options.disallowUnfoldLAboveSplit) disallowsL.push_back(Split);
+    if (options.disallowUnfoldLAboveShift) disallowsL.push_back(Shift);
+    auto plausibleL = interface.filterOut(disallowsL);
+
     std::vector<const UnfoldOp *> result;
-    if (outputShape.size() > options.dimLowerBound) {
-        std::vector<std::size_t> generals;
-        std::vector<std::size_t> windows;
-        auto meta = options.ctx.getCoefficientMetadata();
-        auto coefficientCount = options.ctx.getCoefficientCount();
-        for (std::size_t i = 0; i < outputShape.size(); ++i) {
-            const auto& size = outputShape[i].size();
-            auto p = size.getPrimary();
-            if (std::ranges::any_of(p, [](auto i) { return i != 0; })) {
-                // Here, we only allow an axis with primary variable to be unfolded. TODO: relax this?
-                generals.emplace_back(i);
-            } else {
-                auto coefficient = size.getCoefficient();
-                bool isEven = false;
-                for (std::size_t i = 0; i < coefficientCount; ++i) {
-                    if (coefficient[i] != 0 && !meta[i].isOdd) {
-                        isEven = true;
+    if (interface.size() > options.dimLowerBound) {
+        const auto totalAttempts = interface.size() * interface.size() - interface.size();
+        CountGenerateAttempts += totalAttempts;
+        std::size_t countPlausible = 0;
+        for (auto&& [dimL, colorL]: plausibleL) {
+            for (auto&& [dimR, colorR]: interface) {
+                if (dimL == dimR) continue;
+                ++countPlausible;
+                if (!colorL.disjoint(colorR)) {
+                    ++CountConflictingColors;
+                    continue;
+                }
+                // First check whether the kernel is small enough.
+                // Absolute size.
+                if (dimR.size().upperBoundEst(options.ctx) > options.maxUnfoldKernelSize) {
+                    ++CountKernelAbsolutelyTooLarge;
+                    continue;
+                }
+                // Relative size.
+                auto quotient = dimL.size() / dimR.size();
+                if (quotient.lowerBoundEst(options.ctx) < options.minimumRatio) {
+                    ++CountKernelRelativelyTooLarge;
+                    continue;
+                }
+                // Canonicalize unfold chains, requiring that UnfoldOp's with smaller kernels be first built.
+                if (options.canonicalizeUnfoldOrder) {
+                    if (auto nextUnfold = dimL.tryAs<UnfoldOp::Input>(); nextUnfold) {
+                        auto quotient = dimR.size() / nextUnfold->getOp()->outputRhs.size();
+                        if (quotient.lowerBoundEst(options.ctx) < 1) {
+                            ++CountCanonicalizedUnfoldChains;
+                            continue;
+                        }
                     }
                 }
-                if (!isEven) {
-                    windows.emplace_back(i);
-                }
+                // Maybe we should rule out even sized kernels? TODO.
+                ++CountSuccessfulGenerations;
+                result.emplace_back(store.get<UnfoldOp>(dimL, dimR));
             }
         }
-        for (auto general: generals) {
-            for (auto window: windows) {
-                KAS_ASSERT(general != window);
-                result.emplace_back(store.get<UnfoldOp>(outputShape[general], outputShape[window]));
-            }
-        }
+        CountDisallowedAttempts += totalAttempts - countPlausible;
     }
     return result;
 }

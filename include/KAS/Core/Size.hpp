@@ -12,6 +12,7 @@
 
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/Coroutine.hpp"
 #include "KAS/Utils/Hash.hpp"
 
 
@@ -96,6 +97,10 @@ public:
 
     // Quick evaluation.
     std::size_t eval(const ConcreteConsts& consts) const;
+    // Evaluates with all the consts and take the minimum of all results.
+    float lowerBoundEst(const BindingContext& ctx) const;
+    // Evaluates with all the consts and take the maximum of all results.
+    float upperBoundEst(const BindingContext& ctx) const;
     // Check if the size is >= 2. Otherwise, this cannnot be an actual Dimension.
     bool isRealistic(const BindingContext& ctx) const;
 
@@ -141,6 +146,8 @@ public:
     std::optional<Trait> testDividedBy(const Size& other);
     std::optional<Trait> canBeDividedBy(const Size& other) const;
     bool quotientIsLegal(const Size& other) const;
+
+    Generator<Size> sampleDivisors(const BindingContext& ctx) const;
 
     bool operator==(const Size& other) const;
 

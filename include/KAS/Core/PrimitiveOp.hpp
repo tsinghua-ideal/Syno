@@ -157,11 +157,11 @@ public:
     protected:
         const RepeatLikeOp *op;
         Input(const RepeatLikeOp *op): op { op } {}
+    public:
         template<typename Derived>
         const Derived *getDerivedOp() const noexcept {
             return static_cast<const Derived *>(op);
         }
-    public:
         std::size_t hash() const noexcept final override {
             return op->opHash();
         }
@@ -216,11 +216,11 @@ public:
     protected:
         const SplitLikeOp *op;
         Input(const SplitLikeOp *op): op { op } {}
+    public:
         template<typename Derived>
         const Derived *getDerivedOp() const noexcept {
             return static_cast<const Derived *>(op);
         }
-    public:
         std::size_t hash() const noexcept final override {
             return op->opHash();
         }
@@ -276,11 +276,11 @@ public:
         const MergeLikeOp *op;
         Order order;
         Input(const MergeLikeOp *op, Order order): op { op }, order { order } {}
+    public:
         template<typename Derived>
         const Derived *getDerivedOp() const noexcept {
             return static_cast<const Derived *>(op);
         }
-    public:
         std::size_t hash() const noexcept final override {
             std::size_t h = op->opHash();
             HashCombine(h, order);

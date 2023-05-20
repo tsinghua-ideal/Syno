@@ -30,6 +30,9 @@ public:
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 
+    // Absorb dataDiscardingFlag in outputRhs.
+    ColoredInterface applyToInterface(const ColoredInterface& interface) const override;
+
     bool operator==(const UnfoldOp& other) const noexcept {
         return outputLhs == other.outputLhs && outputRhs == other.outputRhs;
     }
@@ -37,8 +40,24 @@ public:
     struct GenerateOptions {
         const BindingContext& ctx;
         std::size_t dimLowerBound;
+        float minimumRatio = 2.0f;
+        // kernel.size() <= maxUnfoldKernelSize. This should correspond to StrideOp::GenerateOptions::maxStridedDimSize.
+        std::size_t maxUnfoldKernelSize = 30;
+        bool disallowUnfoldLAboveSplit;
+        bool canonicalizeUnfoldOrder;
+        bool disallowUnfoldLAboveShift;
+        // This canonicalization deviates a lot from original semantics. Enable with caution!
+        bool disallowUnfoldLAboveMergeR;
     };
-    static std::vector<const UnfoldOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, GenerateOptions options);
+    static inline std::size_t CountGenerateInvocations = 0;
+    static inline std::size_t CountGenerateAttempts = 0; // Equals the sum of below.
+    static inline std::size_t CountDisallowedAttempts = 0;
+    static inline std::size_t CountConflictingColors = 0;
+    static inline std::size_t CountKernelAbsolutelyTooLarge = 0;
+    static inline std::size_t CountKernelRelativelyTooLarge = 0;
+    static inline std::size_t CountCanonicalizedUnfoldChains = 0;
+    static inline std::size_t CountSuccessfulGenerations = 0;
+    static std::vector<const UnfoldOp *> Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options);
 };
 
 } // namespace kas

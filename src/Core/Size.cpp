@@ -43,6 +43,23 @@ std::size_t Size::eval(const ConcreteConsts& consts) const {
     return eval<std::size_t>(consts.primaryWrapper(), consts.coefficientWrapper());
 }
 
+float Size::lowerBoundEst(const BindingContext& ctx) const {
+    return std::ranges::min(
+        ctx.getAllConsts()
+        | std::views::transform([&](const ConcreteConsts& consts) {
+            return eval<float>(consts.primaryWrapper(), consts.coefficientWrapper());
+        })
+    );
+}
+float Size::upperBoundEst(const BindingContext& ctx) const {
+    return std::ranges::max(
+        ctx.getAllConsts()
+        | std::views::transform([&](const ConcreteConsts& consts) {
+            return eval<float>(consts.primaryWrapper(), consts.coefficientWrapper());
+        })
+    );
+}
+
 bool Size::isRealistic(const BindingContext& ctx) const {
     return std::ranges::all_of(
         ctx.getAllConsts(),
@@ -133,7 +150,8 @@ Size Size::operator/(const Size &other) const {
     for (std::size_t i = 0; i < primaryCount; ++i) {
         newPrimary[i] -= other.primary[i];
         // Ensure that no primary variable is in denominator
-        KAS_ASSERT(newPrimary[i] >= 0);
+        // KAS_ASSERT(newPrimary[i] >= 0);
+        // But we actually do not need this! We can simply evaluate and see if the result fits.
     }
     for (std::size_t i = 0; i < coefficientCount; ++i) {
         newCoefficient[i] -= other.coefficient[i];
@@ -457,7 +475,7 @@ Allowance::Allowance(const Size& shape, const BindingContext& ctx):
     auto coefficient = shape.getCoefficient();
     const std::size_t primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
     for (std::size_t i = 0; i < primaryCount; ++i) {
-        // Observe that in the sampling process, the primary variables are generated only by MapReduce. So we can limit it with maximumOccurrence.
+        // Observe that in the sampling process, the primary variables are generated only by Share and MapReduce. So we can limit it with maximumOccurrence.
         if (static_cast<std::size_t>(primary[i]) < primaryMeta[i].maximumOccurrence) {
             this->primary[i] = primaryMeta[i].maximumOccurrence - static_cast<std::size_t>(primary[i]);
         }
