@@ -55,75 +55,59 @@ MergeOp::Values MergeOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for MergeOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs, inputRhs, output);
 }
 
-std::size_t MergeOp::CountColorTrials = 0;
-std::size_t MergeOp::CountColorSuccesses = 0;
-bool MergeOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
-    ++CountColorTrials;
-    auto& out = interface[output];
-    colors.substitute(interface, output, { getInputL(), out.color }, { getInputR(), out.color });
-    colors.simplify(interface); // Actually not needed.
-    ++CountColorSuccesses;
-    return true;
-}
+std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options) {
+    ++CountGenerateInvocations;
 
-std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
-    const auto& ctx = options.ctx;
-    auto primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
+    // Canonicalization. Manually handle SplitOp, StrideOp(s<B) and UnfoldOp(k<B).
+    using enum DimensionTypeWithOrder;
+    std::vector<DimensionTypeWithOrder> disallows { ShareL, ShareR, MergeR };
+    auto plausible = interface.filterOut(disallows);
 
     std::vector<const MergeOp *> res;
-    auto checkThenAdd = [&ctx, &store, &res](const Dimension& dim, auto&& block) {
+    auto checkThenAdd = [&options, &store, &res](const Dimension& dim, Size&& block) {
         if (auto split = dim.tryAs<SplitOp::Input>(); split) {
             if (split->getOp()->outputRhs.size() == block) {
+                ++CountConteractedSplits;
                 return; // This is pointless!
-            } else if (split->getOp()->outputLhs.size() == block) {
-                return; // Maybe this is not pointless (view it in different shape?), but ban it for now.
             }
         }
         if (auto r = dim.tryAs<MapReduceOp>(); r) {
+            ++CountUselessImmediateReductions;
             return; // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
         }
-        // Check that the sizes are realistic.
-        if (block.isRealistic(ctx) && (dim.size() / block).isRealistic(ctx)) {
-            res.emplace_back(store.get<MergeOp>(dim, std::forward<decltype(block)>(block)));
+        if ((dim.size() / block).lowerBoundEst(options.ctx) < options.minimumRatio) {
+            ++CountBlockRelativelyTooLarge;
+            return;
         }
-    };
-    if (outputShape.size() < options.dimUpperBound) {
-        for (std::size_t i = 0; i < outputShape.size(); ++i) {
-            const auto& size = outputShape[i].size();
-            if (size.getPrimaryPowersSum() == 0) {
-                // Here we only split dimensions that have >= 1 primary variables. TODO: split dimensions with only coefficients.
-                continue;
-            }
-            auto primary = size.getPrimary();
-            auto coefficient = size.getCoefficient();
-            for (std::size_t primaryIndex = 0; primaryIndex < primaryCount; ++primaryIndex) {
-                int primaryDim = primary[primaryIndex];
-                if (primaryDim >= 1) {
-                    auto primaryRes = Size(primaryCount, coefficientCount);
-                    // Splitting out power of one is enough. For more, use more MergeOp's.
-                    primaryRes.getPrimary()[primaryIndex] = 1;
-                    bool canBeDividedByPrimary = size.quotientIsLegal(primaryRes);
-                    if (canBeDividedByPrimary) {
-                        checkThenAdd(outputShape[i], primaryRes);
-                    }
-                    for (std::size_t coefficientIndex = 0; coefficientIndex < coefficientCount; ++coefficientIndex) {
-                        std::size_t coefficientDim = coefficient[coefficientIndex];
-                        if (coefficientDim != 0) {
-                            auto coefRes = Size(primaryRes);
-                            // Here we simply split out the coefficient in half. TODO: better sampling.
-                            if (canBeDividedByPrimary) {
-                                coefRes.getCoefficient()[coefficientIndex] = coefficientDim > 0 ? ((coefficientDim + 1) / 2) : ((coefficientDim - 1) / 2);
-                            } else {
-                                coefRes.getCoefficient()[coefficientIndex] = coefficientDim > 0 ? ((coefficientDim + 1) / 2) : coefficientDim;
-                            }
-                            if (size.quotientIsLegal(coefRes)) {
-                                checkThenAdd(outputShape[i], coefRes);
-                            }
-                        }
-                    }
+        if (options.disallowMergeWithLargeBlockAboveStride) {
+            if (auto s = dim.tryAs<StrideOp::Input>(); s) {
+                if ((block / s->getDerivedOp<StrideOp>()->getStride()).lowerBoundEst(options.ctx) > 1) {
+                    ++CountDisallowedAboveStride;
+                    return;
                 }
             }
         }
+        if (options.disallowMergeWithLargeBlockAboveUnfold) {
+            if (auto u = dim.tryAs<UnfoldOp::Input>(); u) {
+                if ((block / u->getOp()->outputRhs.size()).lowerBoundEst(options.ctx) > 1) {
+                    ++CountDisallowedAboveUnfold;
+                    return;
+                }
+            }
+        }
+        ++CountSuccessfulGenerations;
+        res.emplace_back(store.get<MergeOp>(dim, std::move(block)));
+    };
+    if (interface.size() < options.dimUpperBound) {
+        CountGenerateAttempts += interface.size();
+        std::size_t countPlausible = 0;
+        for (auto&& [dim, color]: plausible) {
+            ++countPlausible;
+            for (Size sizeR: dim.size().sampleDivisors(options.ctx)) {
+                checkThenAdd(dim, std::move(sizeR));
+            }
+        }
+        CountDisallowedAttempts += interface.size() - countPlausible;
     }
     return res;
 }

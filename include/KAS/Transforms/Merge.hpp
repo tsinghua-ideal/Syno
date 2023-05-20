@@ -47,8 +47,20 @@ public:
     struct GenerateOptions {
         const BindingContext& ctx;
         std::size_t dimUpperBound;
+        float minimumRatio = 2.0f;
+        bool disallowMergeWithLargeBlockAboveStride;
+        bool disallowMergeWithLargeBlockAboveUnfold;
     };
-    static std::vector<const MergeOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, GenerateOptions options);
+    static inline std::size_t CountGenerateInvocations = 0;
+    static inline std::size_t CountGenerateAttempts = 0; // Equals the sum of below.
+    static inline std::size_t CountDisallowedAttempts = 0;
+    static inline std::size_t CountConteractedSplits = 0;
+    static inline std::size_t CountUselessImmediateReductions = 0;
+    static inline std::size_t CountBlockRelativelyTooLarge = 0;
+    static inline std::size_t CountDisallowedAboveStride = 0;
+    static inline std::size_t CountDisallowedAboveUnfold = 0;
+    static inline std::size_t CountSuccessfulGenerations = 0;
+    static std::vector<const MergeOp *> Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options);
 };
 
 } // namespace kas

@@ -101,8 +101,6 @@ public:
     float lowerBoundEst(const BindingContext& ctx) const;
     // Evaluates with all the consts and take the maximum of all results.
     float upperBoundEst(const BindingContext& ctx) const;
-    // Check if the size is >= 2. Otherwise, this cannnot be an actual Dimension.
-    bool isRealistic(const BindingContext& ctx) const;
 
     Size identity() const;
 
@@ -147,6 +145,7 @@ public:
     std::optional<Trait> canBeDividedBy(const Size& other) const;
     bool quotientIsLegal(const Size& other) const;
 
+    // Return divisors of this Size. Guarantee that for all consts, the divisor is realizable, and not equal to 1 or this.
     Generator<Size> sampleDivisors(const BindingContext& ctx) const;
 
     bool operator==(const Size& other) const;

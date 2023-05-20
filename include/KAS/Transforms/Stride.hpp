@@ -34,6 +34,8 @@ public:
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 
+    const Size& getStride() const { return stride; }
+
     // Set dataDiscardingFlag to true in Color.
     ColoredInterface applyToInterface(const ColoredInterface& interface) const override;
 
