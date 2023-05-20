@@ -31,15 +31,26 @@ public:
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
-    
+
     bool operator==(const SplitOp& other) const noexcept {
         return outputLhs == other.outputLhs && outputRhs == other.outputRhs;
     }
 
     struct GenerateOptions {
         std::size_t dimLowerBound;
+        bool disallowDiscontinuousView;
+        bool disallowSplitRAboveUnfold;
+        bool disallowSplitRAboveStride;
     };
-    static std::vector<const SplitOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, GenerateOptions options);
+    static inline std::size_t CountGenerateInvocations = 0;
+    static inline std::size_t CountGenerateAttempts = 0; // Equals the sum of below.
+    static inline std::size_t CountDisallowedAttempts = 0;
+    static inline std::size_t CountConflictingColors = 0;
+    static inline std::size_t CountCounteractedMerges = 0;
+    static inline std::size_t CountDisallowedDiscontinuousViews = 0;
+    static inline std::size_t CountUselessImmediateReductions = 0;
+    static inline std::size_t CountSuccessfulGenerations = 0;
+    static std::vector<const SplitOp *> Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options);
 };
 
 } // namespace kas

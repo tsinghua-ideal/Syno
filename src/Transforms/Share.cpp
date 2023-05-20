@@ -144,18 +144,18 @@ std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const Colo
     if (interface.size() < options.dimUpperBound) {
         CountGenerateAttempts += interface.size();
         std::size_t countPlausible = 0;
-        for (auto&& dim: plausible) {
+        for (auto&& [dim, color]: plausible) {
             ++countPlausible;
             if (!allowance.withinAllowance(dim.size())) {
                 ++CountAllowanceExceeded;
                 continue;
             }
-            if (dim.dimension.is(DimensionType::Share)) {
+            if (dim.is(DimensionType::Share)) {
                 // We can assert that this is left, because we have filtered ShareR out!
-                auto& self = dim.dimension.as<ShareOp::Input>();
+                auto& self = dim.as<ShareOp::Input>();
                 KAS_ASSERT(self.getOrder() == Order::Left);
             }
-            if (dim.color.countTags() + 1 > options.maxColorTags()) {
+            if (color.countTags() + 1 > options.maxColorTags()) {
                 // Too many color tags.
                 ++CountMaximumTensorsExceeded;
                 continue;

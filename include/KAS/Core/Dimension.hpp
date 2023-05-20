@@ -163,6 +163,14 @@ std::string TensorArrayToString(R&& tensors, const BindingContext& ctx) {
 
 } // namespace kas
 
+#define KAS_REPORT_DIMENSION_HASH_COLLISION(dim1, dim2) do { \
+    KAS_WARNING("Duplicate dimensions! Or even worse, hash collision.{}", \
+        ::kas::BindingContext::DebugPublicCtx != nullptr ? ::fmt::format(" Maybe helpful: {} vs {}.", \
+            (dim1).descendantsDescription(*::kas::BindingContext::DebugPublicCtx), \
+            (dim2).descendantsDescription(*::kas::BindingContext::DebugPublicCtx)) \
+        : ""); \
+} while (false)
+
 template<kas::DimensionRange DR>
 struct std::hash<DR> {
     // Since this is a template function, std::hash<Interface> can provide hash for arbitrary DimensionRange.

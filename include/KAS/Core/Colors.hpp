@@ -30,18 +30,23 @@ public:
 private:
     // Keep them sorted! Note that tags.size() <= maximumTensors - 1.
     std::vector<Tag> tags;
+    bool dataDiscardingFlag = false;
 
 public:
     // With no tags.
     Color() = default;
     // Copy the color.
     Color(const Color&) = default;
-    // Add a new tag. Assumes the dim is a ShareOp::Input.
-    Color(const Color& color, const Dimension& dim);
-    // Merge two colors, merging the tags.
+    // Merge two colors, merging the tags, and dataDiscardingFlag.
     Color(const Color& lhs, const Color& rhs);
 
+    // Add a new tag. Assumes the dim is a ShareOp::Input.
+    void addTag(const Dimension& dim);
+
     std::size_t countTags() const noexcept { return tags.size(); }
+
+    bool isDataDiscarding() const { return dataDiscardingFlag; }
+    void setDataDiscarding(bool value) { dataDiscardingFlag = value; }
 
     // Whether there are no common tags.
     bool disjoint(const Color& rhs) const;
@@ -78,22 +83,27 @@ class Graph;
 
 class ColoredInterface {
     std::vector<ColoredDimension> items;
-    std::size_t maximumTags;
 
 public:
     template<std::ranges::input_range R>
     requires std::convertible_to<std::ranges::range_value_t<R>, ColoredDimension>
     ColoredInterface(R&& r):
-        items { std::forward<R>(r) },
-        maximumTags { std::ranges::max(items, {}, [](auto&& cdim) { return cdim.color.countTags(); }) }
+        items { std::forward<R>(r) }
     {}
 
     template<DimensionRange R>
-    ColoredInterface(R&& r): maximumTags { 0 } {
+    ColoredInterface(R&& r) {
         items.reserve(std::ranges::size(r));
         for (auto&& dim: r) {
             items.emplace_back(dim, Color {});
         }
+    }
+
+    std::size_t maximumTags() const {
+        return std::ranges::max(items | std::views::transform([](auto&& cdim) { return cdim.color.countTags(); }));
+    }
+    std::size_t countDataDiscardingDims() const {
+        return std::ranges::count_if(items, [](auto&& cdim) { return cdim.color.isDataDiscarding(); });
     }
 
     auto toDimensions() const {
@@ -125,9 +135,9 @@ public:
         return items.erase(it, it);
     }
 
-    ColoredInterface substitute1to1(const Dimension& fro, const Dimension& to) const;
+    ColoredInterface substitute1to1(const Dimension& fro, const Dimension& to, bool addDataDiscardingFlag = false) const;
     ColoredInterface substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2, bool addConstraint = false) const;
-    ColoredInterface substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const;
+    ColoredInterface substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to, bool absorbDataDiscardingFlagInFro2 = false) const;
 
     Graph buildGraph() const;
 

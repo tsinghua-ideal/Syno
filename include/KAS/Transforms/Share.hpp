@@ -71,7 +71,7 @@ public:
     static inline std::size_t CountAllowanceExceeded = 0;
     static inline std::size_t CountMaximumTensorsExceeded = 0;
     static inline std::size_t CountSuccessfulGenerations = 0;
-    static std::vector<const ShareOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, GenerateOptions options);
+    static std::vector<const ShareOp *> Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options);
 };
 
 } // namespace kas
