@@ -141,30 +141,28 @@ std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const Colo
 
     Allowance allowance { Size::Product(interface.getShape()), options.ctx };
     std::vector<const ShareOp *> result;
-    if (interface.size() < options.dimUpperBound) {
-        CountGenerateAttempts += interface.size();
-        std::size_t countPlausible = 0;
-        for (auto&& [dim, color]: plausible) {
-            ++countPlausible;
-            if (!allowance.withinAllowance(dim.size())) {
-                ++CountAllowanceExceeded;
-                continue;
-            }
-            if (dim.is(DimensionType::Share)) {
-                // We can assert that this is left, because we have filtered ShareR out!
-                auto& self = dim.as<ShareOp::Input>();
-                KAS_ASSERT(self.getOrder() == Order::Left);
-            }
-            if (color.countTags() + 1 > options.maxColorTags()) {
-                // Too many color tags.
-                ++CountMaximumTensorsExceeded;
-                continue;
-            }
-            ++CountSuccessfulGenerations;
-            result.emplace_back(store.get<ShareOp>(dim));
+    CountGenerateAttempts += interface.size();
+    std::size_t countPlausible = 0;
+    for (auto&& [dim, color]: plausible) {
+        ++countPlausible;
+        if (!allowance.withinAllowance(dim.size())) {
+            ++CountAllowanceExceeded;
+            continue;
         }
-        CountDisallowedAttempts += interface.size() - countPlausible;
+        if (dim.is(DimensionType::Share)) {
+            // We can assert that this is left, because we have filtered ShareR out!
+            auto& self = dim.as<ShareOp::Input>();
+            KAS_ASSERT(self.getOrder() == Order::Left);
+        }
+        if (color.countTags() + 1 > options.maxColorTags()) {
+            // Too many color tags.
+            ++CountMaximumTensorsExceeded;
+            continue;
+        }
+        ++CountSuccessfulGenerations;
+        result.emplace_back(store.get<ShareOp>(dim));
     }
+    CountDisallowedAttempts += interface.size() - countPlausible;
     return result;
 }
 

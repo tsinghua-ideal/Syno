@@ -46,9 +46,9 @@ public:
 
     struct GenerateOptions {
         const BindingContext& ctx;
-        std::size_t dimUpperBound;
         float minimumRatio = 2.0f;
         bool disallowMergeWithLargeBlockAboveStride;
+        // This canonicalization deviates a lot from original semantics. Enable with caution!
         bool disallowMergeWithLargeBlockAboveUnfold;
     };
     static inline std::size_t CountGenerateInvocations = 0;

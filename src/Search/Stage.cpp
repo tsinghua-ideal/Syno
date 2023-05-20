@@ -64,6 +64,9 @@ void Stage::guard() {
     const BindingContext& ctx = sampler.getBindingContext();
     const SampleOptions& options = sampler.getOptions();
     DimensionStore& store = sampler.getDimStore();
+    Graph::Builder gBuilder;
+    gBuilder.addTopmost(interface.toDimensions());
+    Graph graph = gBuilder.build();
 
     auto accumulate = [](const auto& slot) {
         return slot.toNext();
@@ -85,8 +88,10 @@ void Stage::guard() {
     };
     auto add = [&]<typename Op>(const std::vector<const Op *>& newOps) {
         std::ranges::move(
-            newOps // Apply ShareOp::IsSharedDimensionCanonical here. TODO!!!
-            | std::views::transform(nextOpProcessor) | std::views::filter(nextOpFilter),
+            newOps
+            | std::views::filter([&](const Op *op) { return ShareOp::IsSharedDimensionCanonical(op, graph); })
+            | std::views::transform(nextOpProcessor)
+            | std::views::filter(nextOpFilter),
             std::back_inserter(nextOpStores.get<Op>())
         );
         // Sort according to keys for binary search.
@@ -99,19 +104,48 @@ void Stage::guard() {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}, TODO
         // Stride^{-1}
-        add(StrideOp::Generate(store, interface, { .ctx = ctx }));
+        add(StrideOp::Generate(store, interface, {
+            .ctx = ctx,
+            .maxStridedDimSize = options.maxStridedDimSize,
+            .disallowStrideAboveSplit = options.disallowStrideAboveSplit,
+            .disallowStrideAboveMergeR = options.disallowStrideAboveMergeR,
+        }));
 
         // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s.
-        // Split^{-1}
-        add(SplitOp::Generate(store, interface, { .dimLowerBound = options.dimLowerBound }));
-        // Unfold^{-1}
-        add(UnfoldOp::Generate(store, interface, { .ctx = ctx, .dimLowerBound = options.dimLowerBound }));
+        if (interface.size() > options.dimLowerBound) {
+            // Split^{-1}
+            add(SplitOp::Generate(store, interface, {
+                .disallowDiscontinuousView = options.disallowDiscontinuousView,
+                .disallowSplitRAboveUnfold = options.disallowSplitRAboveUnfold,
+                .disallowSplitRAboveStride = options.disallowSplitRAboveStride,
+            }));
+            // Unfold^{-1}
+            add(UnfoldOp::Generate(store, interface, {
+                .ctx = ctx,
+                .minimumRatio = options.minimumUnfoldRatio,
+                .maxUnfoldKernelSize = options.maxUnfoldKernelSize,
+                .disallowUnfoldLAboveSplit = options.disallowUnfoldLAboveSplit,
+                .canonicalizeUnfoldOrder = options.canonicalizeUnfoldOrder,
+                .disallowUnfoldLAboveShift = options.disallowUnfoldLAboveShift,
+                .disallowUnfoldLAboveMergeR = options.disallowUnfoldLAboveMergeR,
+            }));
+        }
 
         // Try increasing dimensionality, by applying `MergeLikeOp`^{-1}s.
-        // Merge^{-1}
-        add(MergeOp::Generate(store, interface, { .ctx = ctx, .dimUpperBound = options.dimUpperBound }));
-        // Share^{-1}
-        add(ShareOp::Generate(store, interface, { .ctx = ctx, .dimUpperBound = options.dimUpperBound, .maximumTensors = options.maximumTensors }));
+        if (interface.size() < options.dimUpperBound) {
+            // Merge^{-1}
+            add(MergeOp::Generate(store, interface, {
+                .ctx = ctx,
+                .minimumRatio = options.minimumMergeRatio,
+                .disallowMergeWithLargeBlockAboveStride = options.disallowMergeWithLargeBlockAboveStride,
+                .disallowMergeWithLargeBlockAboveUnfold = options.disallowMergeWithLargeBlockAboveUnfold,
+            }));
+            // Share^{-1}
+            add(ShareOp::Generate(store, interface, {
+                .ctx = ctx,
+                .maximumTensors = options.maximumTensors,
+            }));
+        }
     }
 
     childrenGenerated = true;

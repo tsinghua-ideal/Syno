@@ -24,13 +24,12 @@ TEST(search_tests, sampler) {
     constexpr int dimH = 64, dimW = 64, dimK1 = 3, dimS1 = 2, dimK2 = 5, dimS2 = 4;
     std::map<std::string, std::size_t> dict { { "H", dimH }, { "W", dimW }, { "k_1", dimK1 }, { "s_1", dimS1 }, { "k_2", dimK2 }, { "s_2", dimS2 } };
 
-    SampleOptions options {
-        .seed = 42,
-        .depth = 4,
-        .dimLowerBound = 2,
-        .dimUpperBound = 6,
-        .maximumTensors = 2,
-    };
+    SampleOptions options;
+    options.seed = 42;
+    options.depth = 4;
+    options.dimLowerBound = 2;
+    options.dimUpperBound = 6;
+    options.maximumTensors = 2;
     Sampler sampler("[N,H,W]", "[N,H,W]", {"N=3"}, {"k_1=3", "s_1=2", "k_2=5", "s_2=4"}, {dict}, {{0, 0}}, options);
     auto& ctx = sampler.getBindingContext();
     BindingContext::DebugPublicCtx = &ctx; // For debugging.

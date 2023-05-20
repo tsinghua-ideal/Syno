@@ -98,17 +98,15 @@ std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Colo
         ++CountSuccessfulGenerations;
         res.emplace_back(store.get<MergeOp>(dim, std::move(block)));
     };
-    if (interface.size() < options.dimUpperBound) {
-        CountGenerateAttempts += interface.size();
-        std::size_t countPlausible = 0;
-        for (auto&& [dim, color]: plausible) {
-            ++countPlausible;
-            for (Size sizeR: dim.size().sampleDivisors(options.ctx)) {
-                checkThenAdd(dim, std::move(sizeR));
-            }
+    CountGenerateAttempts += interface.size();
+    std::size_t countPlausible = 0;
+    for (auto&& [dim, color]: plausible) {
+        ++countPlausible;
+        for (Size sizeR: dim.size().sampleDivisors(options.ctx)) {
+            checkThenAdd(dim, std::move(sizeR));
         }
-        CountDisallowedAttempts += interface.size() - countPlausible;
     }
+    CountDisallowedAttempts += interface.size() - countPlausible;
     return res;
 }
 

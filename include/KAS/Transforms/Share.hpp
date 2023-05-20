@@ -59,7 +59,6 @@ public:
 
     struct GenerateOptions {
         const BindingContext& ctx;
-        std::size_t dimUpperBound;
         std::size_t maximumTensors;
         std::size_t maxColorTags() {
             return maximumTensors - 1;

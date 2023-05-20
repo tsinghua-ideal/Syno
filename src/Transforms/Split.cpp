@@ -77,23 +77,21 @@ std::vector<const SplitOp *> SplitOp::Generate(DimensionStore& store, const Colo
         ++CountSuccessfulGenerations;
         result.emplace_back(store.get<SplitOp>(dimL, dimR));
     };
-    if (interface.size() > options.dimLowerBound) {
-        const auto totalAttempts = interface.size() * interface.size() - interface.size();
-        CountGenerateAttempts += totalAttempts;
-        std::size_t countPlausible = 0;
-        for (auto&& [dimL, colorL]: plausibleL) {
-            for (auto&& [dimR, colorR]: plausibleR) {
-                if (dimL == dimR) continue;
-                ++countPlausible;
-                if (!colorL.disjoint(colorR)) {
-                    ++CountConflictingColors;
-                    continue;
-                }
-                checkThenAdd(dimL, dimR);
+    const auto totalAttempts = interface.size() * interface.size() - interface.size();
+    CountGenerateAttempts += totalAttempts;
+    std::size_t countPlausible = 0;
+    for (auto&& [dimL, colorL]: plausibleL) {
+        for (auto&& [dimR, colorR]: plausibleR) {
+            if (dimL == dimR) continue;
+            ++countPlausible;
+            if (!colorL.disjoint(colorR)) {
+                ++CountConflictingColors;
+                continue;
             }
+            checkThenAdd(dimL, dimR);
         }
-        CountDisallowedAttempts += totalAttempts - countPlausible;
     }
+    CountDisallowedAttempts += totalAttempts - countPlausible;
     return result;
 }
 

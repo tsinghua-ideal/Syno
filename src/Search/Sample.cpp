@@ -16,6 +16,15 @@ void SampleOptions::check() const {
     KAS_ASSERT(dimLowerBound >= 1);
     KAS_ASSERT(dimUpperBound >= dimLowerBound);
     KAS_ASSERT(maximumTensors >= 1);
+    KAS_ASSERT(maxStridedDimSize > 1);
+    KAS_ASSERT(maxUnfoldKernelSize > 1);
+    KAS_ASSERT(minimumUnfoldRatio >= 1.0f);
+    KAS_ASSERT(minimumMergeRatio >= 1.0f);
+    KAS_ASSERT(disallowSplitRAboveUnfold + disallowUnfoldLAboveSplit <= 1);
+    KAS_ASSERT(disallowMergeWithLargeBlockAboveUnfold + disallowUnfoldLAboveMergeR <= 1);
+    KAS_ASSERT(disallowSplitRAboveStride + disallowStrideAboveSplit <= 1);
+    KAS_ASSERT(disallowMergeWithLargeBlockAboveStride + disallowStrideAboveMergeR <= 1);
+    KAS_ASSERT(disallowUnfoldLAboveShift + disallowShiftAboveUnfold <= 1);
 }
 
 namespace {
@@ -42,8 +51,7 @@ namespace {
 
 Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const std::vector<std::pair<std::size_t, std::size_t>>& fixedIODims, const SampleOptions& options):
     rng { options.seed },
-    options { options },
-    colorOptions { .maximumTensors = options.maximumTensors }
+    options { options }
 {
     // First parse the variable names in specifications. Unnamed variables are named by x_i and c_i.
     std::map<std::string, Parser::SizeSpec> primaryVars;
@@ -113,11 +121,10 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     reduces = MapReduceOp::GenerateLastLevelMapReduces(this->outputShape, { this->ctx, this->options.dimUpperBound });
     // DO NOT modify reduces and originalBases after this, because Dimension references by address these iterators.
     for (const auto& r: reduces) {
-        ColoredInterface temp;
-        std::ranges::move(root | std::views::transform([](const Dimension& dim) { return ColoredDimension { dim, Colors::Unknown }; }), std::back_inserter(temp.items)); // Maybe we can determine the colors here? TODO. Use it below.
-        std::ranges::move(r | std::views::transform([](const MapReduceOp& m) { return ColoredDimension{ &m, Colors::Unknown }; }), std::back_inserter(temp.items));
-        std::ranges::sort(temp.items, Dimension::HashLessThan{}, ColoredDimension::Projection{});
-        originalBases.emplace_back(std::move(temp), Colors(colorOptions), *this, 0);
+        Interface temp = root;
+        std::ranges::move(r | std::views::transform([](const MapReduceOp& m) { return &m; }), std::back_inserter(temp));
+        std::ranges::sort(temp, Dimension::HashLessThan{});
+        originalBases.emplace_back(std::move(temp), *this, 0);
     }
     auto hasher = std::hash<Interface>{};
     std::ranges::move(std::views::iota(static_cast<std::size_t>(0), originalBases.size()) | std::views::transform([&](std::size_t baseIndex) { return std::pair{ hasher(originalBases[baseIndex].getInterface().toDimensions()), baseIndex }; }), std::back_inserter(bases));

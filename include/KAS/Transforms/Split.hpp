@@ -37,7 +37,6 @@ public:
     }
 
     struct GenerateOptions {
-        std::size_t dimLowerBound;
         bool disallowDiscontinuousView;
         bool disallowSplitRAboveUnfold;
         bool disallowSplitRAboveStride;

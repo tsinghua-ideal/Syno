@@ -58,47 +58,45 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(DimensionStore& store, const Co
     auto plausibleL = interface.filterOut(disallowsL);
 
     std::vector<const UnfoldOp *> result;
-    if (interface.size() > options.dimLowerBound) {
-        const auto totalAttempts = interface.size() * interface.size() - interface.size();
-        CountGenerateAttempts += totalAttempts;
-        std::size_t countPlausible = 0;
-        for (auto&& [dimL, colorL]: plausibleL) {
-            for (auto&& [dimR, colorR]: interface) {
-                if (dimL == dimR) continue;
-                ++countPlausible;
-                if (!colorL.disjoint(colorR)) {
-                    ++CountConflictingColors;
-                    continue;
-                }
-                // First check whether the kernel is small enough.
-                // Absolute size.
-                if (dimR.size().upperBoundEst(options.ctx) > options.maxUnfoldKernelSize) {
-                    ++CountKernelAbsolutelyTooLarge;
-                    continue;
-                }
-                // Relative size.
-                auto quotient = dimL.size() / dimR.size();
-                if (quotient.lowerBoundEst(options.ctx) < options.minimumRatio) {
-                    ++CountKernelRelativelyTooLarge;
-                    continue;
-                }
-                // Canonicalize unfold chains, requiring that UnfoldOp's with smaller kernels be first built.
-                if (options.canonicalizeUnfoldOrder) {
-                    if (auto nextUnfold = dimL.tryAs<UnfoldOp::Input>(); nextUnfold) {
-                        auto quotient = dimR.size() / nextUnfold->getOp()->outputRhs.size();
-                        if (quotient.lowerBoundEst(options.ctx) < 1) {
-                            ++CountCanonicalizedUnfoldChains;
-                            continue;
-                        }
+    const auto totalAttempts = interface.size() * interface.size() - interface.size();
+    CountGenerateAttempts += totalAttempts;
+    std::size_t countPlausible = 0;
+    for (auto&& [dimL, colorL]: plausibleL) {
+        for (auto&& [dimR, colorR]: interface) {
+            if (dimL == dimR) continue;
+            ++countPlausible;
+            if (!colorL.disjoint(colorR)) {
+                ++CountConflictingColors;
+                continue;
+            }
+            // First check whether the kernel is small enough.
+            // Absolute size.
+            if (dimR.size().upperBoundEst(options.ctx) > options.maxUnfoldKernelSize) {
+                ++CountKernelAbsolutelyTooLarge;
+                continue;
+            }
+            // Relative size.
+            auto quotient = dimL.size() / dimR.size();
+            if (quotient.lowerBoundEst(options.ctx) < options.minimumRatio) {
+                ++CountKernelRelativelyTooLarge;
+                continue;
+            }
+            // Canonicalize unfold chains, requiring that UnfoldOp's with smaller kernels be first built.
+            if (options.canonicalizeUnfoldOrder) {
+                if (auto nextUnfold = dimL.tryAs<UnfoldOp::Input>(); nextUnfold) {
+                    auto quotient = dimR.size() / nextUnfold->getOp()->outputRhs.size();
+                    if (quotient.lowerBoundEst(options.ctx) < 1) {
+                        ++CountCanonicalizedUnfoldChains;
+                        continue;
                     }
                 }
-                // Maybe we should rule out even sized kernels? TODO.
-                ++CountSuccessfulGenerations;
-                result.emplace_back(store.get<UnfoldOp>(dimL, dimR));
             }
+            // Maybe we should rule out even sized kernels? TODO.
+            ++CountSuccessfulGenerations;
+            result.emplace_back(store.get<UnfoldOp>(dimL, dimR));
         }
-        CountDisallowedAttempts += totalAttempts - countPlausible;
     }
+    CountDisallowedAttempts += totalAttempts - countPlausible;
     return result;
 }
 
