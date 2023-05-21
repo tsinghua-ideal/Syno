@@ -17,39 +17,38 @@ class ColoredInterface;
 class Color {
 public:
     // Colors are specified by tags. The disjoint constraints are due to ShareOp's. So in each tag we have a ShareOp, to indicate that such a ShareOp is an acestor of this Dimension.
-    struct Tag {
-        // Left or right.
-        Order order;
-        // The ShareOp.
-        const MergeLikeOp *share;
-
-        // To sort the tags.
-        std::strong_ordering operator<=>(const Tag& rhs) const noexcept = default;
-    };
+    using Tag = const MergeLikeOp *;
 
 private:
     // Keep them sorted! Note that tags.size() <= maximumTensors - 1.
-    std::vector<Tag> tags;
+    std::vector<Tag> tagsLeft;
+    std::vector<Tag> tagsRight;
     bool dataDiscardingFlag = false;
+
+    static bool CheckConflict(const std::vector<Tag>& left, const std::vector<Tag>& right);
 
 public:
     // With no tags.
     Color() = default;
     // Copy the color.
     Color(const Color&) = default;
-    // Merge two colors, merging the tags, and dataDiscardingFlag.
-    Color(const Color& lhs, const Color& rhs);
+    // Merge two colors, merging the tags, and dataDiscardingFlag. Asserts false on conflict.
+    void merge(const Color& other);
 
     // Add a new tag. Assumes the dim is a ShareOp::Input.
     void addTag(const Dimension& dim);
 
-    std::size_t countTags() const noexcept { return tags.size(); }
+    std::size_t countTags() const noexcept { return tagsLeft.size() + tagsRight.size(); }
 
     bool isDataDiscarding() const { return dataDiscardingFlag; }
     void setDataDiscarding(bool value) { dataDiscardingFlag = value; }
 
     // Whether there are no common tags.
-    bool disjoint(const Color& rhs) const;
+    bool disjoint(const Color& other) const;
+
+    // This assigns the dimensions with colors, and verify that color constraints are not violated. 
+    // For correctly constructed Finalizations, this is intended to return true.
+    static bool CheckFinalization(const std::vector<Interface>& tensors);
 };
 
 // Use bits to represent colors.
@@ -71,10 +70,10 @@ struct ColoredDimension {
     Dimension dimension;
     Color color;
 
-    const Size& size() const noexcept { return dimension.size(); }
+    const Size& size() const { return dimension.size(); }
 
     struct Projection {
-        const Dimension& operator()(const ColoredDimension& item) const noexcept { return item.dimension; }
+        const Dimension& operator()(const ColoredDimension& item) const { return item.dimension; }
     };
 };
 
@@ -116,7 +115,7 @@ public:
     auto begin() { return items.begin(); }
     auto end() const { return items.end(); }
     auto end() { return items.end(); }
-    const Dimension& operator[](std::size_t index) const noexcept { return items[index].dimension; }
+    const ColoredDimension& operator[](std::size_t index) const { return items[index]; }
     const ColoredDimension& operator[](const Dimension& dim) const {
         auto it = binarySearch(dim);
         KAS_ASSERT(it != items.end(), "Dimension not found in interface.");
@@ -125,7 +124,7 @@ public:
     ColoredDimension& operator[](const Dimension& dim) {
         return const_cast<ColoredDimension&>(const_cast<const ColoredInterface&>(*this)[dim]);
     }
-    Dimension& operator[](std::size_t index) noexcept { return items[index].dimension; }
+    Dimension& operator[](std::size_t index) { return items[index].dimension; }
     std::vector<ColoredDimension>::const_iterator binarySearch(const Dimension& value) const {
         return WeakOrderedBinarySearch(items, value, Dimension::HashLessThan{}, ColoredDimension::Projection{});
     }

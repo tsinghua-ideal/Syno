@@ -30,6 +30,27 @@ bool FinalizeOp::Prune(const std::vector<Graph::ConnectedComponent>& components,
     std::map<Dimension, std::size_t, Dimension::AddressLessThan> dim2tensorId;
     for (std::size_t tId = 0; tId < trial.size(); ++tId) {
         for (auto&& dim: trial[tId]) {
+            if (tId >= 1) {
+                // We also check for uncanonical cases here.
+                // In a single tensor, there must not be both inputs of MergeOp, or SplitOp, or ShiftOp.
+                auto dimType = dim.type();
+                switch (dimType) {
+                case DimensionType::Merge: {
+                    const auto& merge = dim.as<MergeOp::Input>();
+                    if (auto it = dim2tensorId.find(merge.getOther()); it != dim2tensorId.end()) {
+                        if (it->second == tId) {
+                            return true;
+                        }
+                    }
+                    break;
+                }
+                case DimensionType::Split:
+                case DimensionType::Shift:
+                    return true;
+                default:
+                    break;
+                }
+            }
             dim2tensorId[dim] = tId;
         }
     }
@@ -56,82 +77,120 @@ bool FinalizeOp::Prune(const std::vector<Graph::ConnectedComponent>& components,
     return false;
 }
 
-std::size_t FinalizeOp::CountSuccesses = 0;
-std::size_t FinalizeOp::CountFailures = 0;
-std::size_t FinalizeOp::CountLegalFinalizations = 0;
-std::size_t FinalizeOp::CountConflictingColors = 0;
-std::size_t FinalizeOp::CountPrunedFinalizations = 0;
-std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
-    Graph::Builder builder;
-    builder.addTopmost(outputShape.toDimensions());
-    Graph graph = builder.build();
+namespace {
+
+struct CollectedTensorFragments {
+    std::vector<std::size_t> mappings;
+    Color color;
+    bool canAccept(const Color& color) const {
+        // Collect tags.
+        return this->color.disjoint(color);
+    }
+    void accept(std::size_t index, const Color& color) {
+        mappings.emplace_back(index);
+        // Merge tags.
+        this->color.merge(color);
+    }
+    std::vector<Dimension> toTensor(const ColoredInterface& interface, auto&& callback) const {
+        std::vector<Dimension> result;
+        result.reserve(mappings.size());
+        for (auto mapping: mappings) {
+            result.emplace_back(interface[mapping].dimension);
+            callback(mapping);
+        }
+        return result;
+    }
+};
+
+} // namespace
+
+std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, const Graph& graph, GenerateOptions options) {
+    ++CountGenerateInvocations;
+
+    // First we perform a basic check. If any Dimension is data-discarding, then it is not a legal kernel.
+    if (std::ranges::any_of(interface, [](const ColoredDimension& cdim) { return cdim.color.isDataDiscarding(); })) {
+        ++CountFailedInvocations;
+        return {};
+    }
+
+    // Compute connected components for early reduction analysis.
     auto components = graph.computeConnectedComponents();
 
     std::vector<FinalizeOp> result;
     const auto& desired = options.desired;
-    auto recursion = [&](const auto& self, std::size_t nextIndex, std::vector<std::size_t> mappings) -> void {
-        if (nextIndex == desired.size()) {
-            std::vector<Interface> tensors { {} };
-            auto& inputTensor = tensors.back();
-            inputTensor.reserve(desired.size());
-            auto used = std::vector<bool>(outputShape.size(), false);
-            for (auto mapping: mappings) {
-                inputTensor.emplace_back(outputShape[mapping]);
-                used[mapping] = true;
+
+    auto buildBesideInputTensor = [&](const CollectedTensorFragments& inputCandidate) {
+        std::vector<Interface> tensors { {} };
+        auto& inputTensor = tensors.back();
+        auto used = std::vector<bool>(interface.size(), false);
+        inputTensor = inputCandidate.toTensor(interface, [&](std::size_t index) {
+            used[index] = true;
+        });
+        if (options.maximumTensors == 1) {
+            // Check that there is no excessive dimension.
+            for (std::size_t i = 0; i < used.size(); ++i) {
+                if (!used[i]) {
+                    return;
+                }
             }
-            if (options.maximumTensors == 1) {
-                // Check that there is no excessive dimension.
+        } else if (options.maximumTensors == 2) {
+            if (interface.size() != desired.size()) {
+                // Add the dimensions to weight.
+                tensors.emplace_back();
+                Color weightColors;
+                auto& weightTensor = tensors.back();
                 for (std::size_t i = 0; i < used.size(); ++i) {
                     if (!used[i]) {
-                        return;
-                    }
-                }
-            } else if (options.maximumTensors == 2) {
-                if (outputShape.size() != desired.size()) {
-                    // Add the dimensions to weight.
-                    tensors.emplace_back();
-                    auto& weightTensor = tensors.back();
-                    for (std::size_t i = 0; i < used.size(); ++i) {
-                        if (!used[i]) {
-                            auto& cDim = outputShape.items[i];
-                            if (!cDim.isUnknown() && cDim.color != Colors::Second) {
-                                ++CountConflictingColors;
-                                return; // Conflicting color!
-                            }
-                            weightTensor.emplace_back(outputShape[i]);
+                        auto& [dim, color] = interface[i];
+                        if (!weightColors.disjoint(color)) {
+                            // Conflicting color!
+                            ++CountConflictingColors;
+                            return;
                         }
+                        weightColors.merge(color);
+                        weightTensor.emplace_back(interface[i].dimension);
                     }
                 }
-            } else {
-                KAS_UNIMPLEMENTED("maximumTensors > 2 not supported.");
             }
-            if (!colors.isConsistent() || !Colors::CheckFinalization(tensors)) {
-                ++CountConflictingColors;
-                return;
-            }
-            if (Prune(components, tensors)) {
-                ++CountPrunedFinalizations;
-                return;
-            }
-            result.emplace_back(std::move(tensors));
+        } else {
+            KAS_UNIMPLEMENTED("maximumTensors > 2 not supported.");
+        }
+        if (!Color::CheckFinalization(tensors)) {
+            // We really should avoid this!
+            KAS_WARNING("Finalization with conflicting colors generated!");
+            ++CountConflictingColors;
             return;
         }
-        const auto& desiredDim = desired[nextIndex];
-        for (std::size_t i = 0; i < outputShape.size(); ++i) {
-            auto& cDim = outputShape.items[i];
-            if ((cDim.isUnknown() || cDim.color == Colors::First) && cDim.size() == desiredDim) {
-                mappings.push_back(i);
-                self(self, nextIndex + 1, mappings);
-                mappings.pop_back();
+        if (Prune(components, tensors)) {
+            ++CountPrunedFinalizations;
+            return;
+        }
+        result.emplace_back(std::move(tensors));
+    };
+
+    auto collectInputDimensions = [&](const auto& self, std::size_t nextIndex, const CollectedTensorFragments& fragments) -> void {
+        if (nextIndex == desired.size()) {
+            // We have collected the full input shape. Now build the weights.
+            buildBesideInputTensor(fragments);
+            return;
+        }
+        const auto& desiredDimSize = desired[nextIndex];
+        for (std::size_t i = 0; i < interface.size(); ++i) {
+            auto&& [dim, color] = interface[i];
+            if (dim.size() == desiredDimSize && fragments.canAccept(color)) {
+                auto newFragments = fragments;
+                newFragments.accept(i, color);
+                self(self, nextIndex + 1, newFragments);
             }
         }
     };
-    recursion(recursion, 0, {});
+    collectInputDimensions(collectInputDimensions, 0, {});
+
     CountLegalFinalizations += result.size();
     if (result.empty()) {
-        ++CountFailures;
+        ++CountFailedInvocations;
     } else {
-        ++CountSuccesses;
+        ++CountSuccessfulInvocations;
     }
     return result;
 }

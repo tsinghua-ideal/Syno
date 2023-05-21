@@ -64,16 +64,18 @@ void Stage::guard() {
     const BindingContext& ctx = sampler.getBindingContext();
     const SampleOptions& options = sampler.getOptions();
     DimensionStore& store = sampler.getDimStore();
-    Graph::Builder gBuilder;
-    gBuilder.addTopmost(interface.toDimensions());
-    Graph graph = gBuilder.build();
+    Graph graph = interface.buildGraph();
 
     auto accumulate = [](const auto& slot) {
         return slot.toNext();
     };
 
     // First add finalizations.
-    for (auto g = FinalizeOp::Generate(interface, { .ctx = ctx, .desired = sampler.getInputShape(), .maximumTensors = options.maximumTensors }); auto& f: g)
+    for (auto g = FinalizeOp::Generate(interface, graph, {
+        .ctx = ctx,
+        .desired = sampler.getInputShape(),
+        .maximumTensors = options.maximumTensors,
+    }); auto& f: g)
         nextFinalizations.emplace_back(f.getHash(), std::move(f), nullptr);
     std::ranges::sort(nextFinalizations, std::less{}, &NextFinalizeSlot::key);
     std::ranges::move(nextFinalizations | std::views::transform(accumulate), std::back_inserter(nexts));

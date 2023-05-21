@@ -14,6 +14,7 @@
 ### Hash
 
 - [x] Fix hash collision. (If not possible, try finding data structures that tolerate collisions.) (Temporarily this seems fixed?)
+- [ ] Replace `std::hash` with custom hash for better reproducibility.
 
 ## CodeGen
 

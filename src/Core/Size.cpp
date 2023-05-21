@@ -60,15 +60,6 @@ float Size::upperBoundEst(const BindingContext& ctx) const {
     );
 }
 
-bool Size::isRealistic(const BindingContext& ctx) const {
-    return std::ranges::all_of(
-        ctx.getAllConsts(),
-        [&](const ConcreteConsts& consts) {
-            return eval(consts) >= 2;
-        }
-    );
-}
-
 Size Size::identity() const {
     return { primaryCount, coefficientCount };
 }
