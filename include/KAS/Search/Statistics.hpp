@@ -14,39 +14,22 @@ struct StatisticsCollector {
         auto it = [&]() {
             return std::ostreambuf_iterator<char>(os);
         };
-
-        fmt::format_to(it(), "Summary for primitives:\n");
-        struct Stats {
-            const char *name;
-            std::size_t trials;
-            std::size_t successes;
-            float rate() const noexcept { return static_cast<float>(successes) / trials; }
-        };
-        constexpr std::size_t OpCnt = 6;
-        Stats stats[OpCnt] = {
-            { "Merge", MergeOp::CountColorTrials, MergeOp::CountColorSuccesses },
-            { "Share", ShareOp::CountColorTrials, ShareOp::CountColorSuccesses },
-            { "Shift", ShiftOp::CountColorTrials, ShiftOp::CountColorSuccesses },
-            { "Split", SplitOp::CountColorTrials, SplitOp::CountColorSuccesses },
-            { "Stride", StrideOp::CountColorTrials, StrideOp::CountColorSuccesses },
-            { "Unfold", UnfoldOp::CountColorTrials, UnfoldOp::CountColorSuccesses },
-        };
-        fmt::format_to(it(), "  Success rates:\n");
-        std::size_t trials = 0;
-        for (std::size_t i = 0; i < OpCnt; ++i) {
-            fmt::format_to(it(), "    {}: {:.2f} ({} / {})\n", stats[i].name, stats[i].rate(), stats[i].successes, stats[i].trials);
-            trials += stats[i].trials;
-        }
-        fmt::format_to(it(), "  Inconsistent colors:\n");
-        std::size_t incon = Colors::CountColorInconsistent;
-        fmt::format_to(it(), "    {:.2f} ({} / {})\n", static_cast<float>(incon) / trials, incon, trials);
+#define COLLECT_STATS_FOR_OP(Op) \
+        fmt::format_to(it(), "Summary for #Op:\n"); \
+        Op::PrintStatistics(os);
+        COLLECT_STATS_FOR_OP(MergeOp)
+        COLLECT_STATS_FOR_OP(ShareOp)
+        COLLECT_STATS_FOR_OP(SplitOp)
+        COLLECT_STATS_FOR_OP(StrideOp)
+        COLLECT_STATS_FOR_OP(UnfoldOp)
+#undef COLLECT_STATS_FOR_OP
 
         fmt::format_to(it(), "Summary for finalizations:\n");
-        fmt::format_to(it(), "  CountSuccesses: {}\n", FinalizeOp::CountSuccesses);
-        fmt::format_to(it(), "  CountFailures: {}\n", FinalizeOp::CountFailures);
-        fmt::format_to(it(), "  CountLegalFinalizations: {}\n", FinalizeOp::CountLegalFinalizations);
-        fmt::format_to(it(), "  CountConflictingColors: {}\n", FinalizeOp::CountConflictingColors);
-        fmt::format_to(it(), "  CountPrunedFinalizations: {}\n", FinalizeOp::CountPrunedFinalizations);
+        fmt::format_to(it(), "  SuccessfulInvocations: {}\n", FinalizeOp::CountSuccessfulInvocations);
+        fmt::format_to(it(), "  FailedInvocations: {}\n", FinalizeOp::CountFailedInvocations);
+        fmt::format_to(it(), "  LegalFinalizations: {}\n", FinalizeOp::CountLegalFinalizations);
+        fmt::format_to(it(), "  ConflictingColors: {}\n", FinalizeOp::CountConflictingColors);
+        fmt::format_to(it(), "  PrunedFinalizations: {}\n", FinalizeOp::CountPrunedFinalizations);
     }
 };
 

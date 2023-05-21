@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
@@ -50,11 +51,13 @@ public:
         bool disallowStrideAboveSplit;
         bool disallowStrideAboveMergeR;
     };
-    static inline std::size_t CountGenerateInvocations = 0;
-    static inline std::size_t CountGenerateAttempts = 0; // Equals the sum of below.
-    static inline std::size_t CountDisallowedAttempts = 0;
-    static inline std::size_t CountSizeTooLarge = 0;
-    static inline std::size_t CountSuccessfulGenerations = 0;
+    KAS_STATISTICS_DEF(
+        GenerateInvocations,
+        GenerateAttempts,
+        DisallowedAttempts,
+        SizeTooLarge,
+        SuccessfulGenerations,
+    )
     static std::vector<const StrideOp *> Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options);
 };
 

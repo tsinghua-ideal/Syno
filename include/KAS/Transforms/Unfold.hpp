@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
@@ -48,14 +49,16 @@ public:
         // This canonicalization deviates a lot from original semantics. Enable with caution!
         bool disallowUnfoldLAboveMergeR;
     };
-    static inline std::size_t CountGenerateInvocations = 0;
-    static inline std::size_t CountGenerateAttempts = 0; // Equals the sum of below.
-    static inline std::size_t CountDisallowedAttempts = 0;
-    static inline std::size_t CountConflictingColors = 0;
-    static inline std::size_t CountKernelAbsolutelyTooLarge = 0;
-    static inline std::size_t CountKernelRelativelyTooLarge = 0;
-    static inline std::size_t CountCanonicalizedUnfoldChains = 0;
-    static inline std::size_t CountSuccessfulGenerations = 0;
+    KAS_STATISTICS_DEF(
+        GenerateInvocations,
+        GenerateAttempts,
+        DisallowedAttempts,
+        ConflictingColors,
+        KernelAbsolutelyTooLarge,
+        KernelRelativelyTooLarge,
+        CanonicalizedUnfoldChains,
+        SuccessfulGenerations,
+    )
     static std::vector<const UnfoldOp *> Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options);
 };
 
