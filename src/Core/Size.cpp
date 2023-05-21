@@ -193,6 +193,53 @@ bool Size::quotientIsLegal(const Size& other) const {
     return res.has_value() && res.value() != Trait::IllegalCoefficient && res.value() != Trait::One;
 }
 
+Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
+    auto trait = getTrait();
+    switch (trait) {
+    case Trait::One:
+        co_return;
+    case Trait::IllegalCoefficient:
+        KAS_CRITICAL("Trying to sample divisors of illegal coefficient!");
+    case Trait::Coefficient: {
+        // If the size is completely composed of coefficients, we only need to enumerate the powers, and exclude 1 and this.
+        std::vector<std::size_t> nonzeroPowers;
+        for (std::size_t i = 0; i < coefficientCount; ++i) {
+            if (coefficient[i] > 0) {
+                nonzeroPowers.push_back(i);
+            }
+        }
+        auto divisor = identity();
+        std::size_t fullUntil = nonzeroPowers.size();
+        auto increment = [&](const auto& self, std::size_t indexOfVarToIncrease) -> void {
+            std::size_t varToIncrease = nonzeroPowers[indexOfVarToIncrease];
+            std::size_t diff = coefficient[varToIncrease] - divisor.coefficient[varToIncrease];
+            if (diff > 0) {
+                ++divisor.coefficient[varToIncrease];
+                if (diff == 1 && indexOfVarToIncrease + 1 == fullUntil) {
+                    --fullUntil;
+                }
+            } else {
+                divisor.coefficient[varToIncrease] = 0;
+                self(self, indexOfVarToIncrease + 1);
+            }
+        };
+        increment(increment, 0);
+        while (true) {
+            if (fullUntil == 0) {
+                co_return;
+            }
+            co_yield divisor;
+            increment(increment, 0);
+        }
+        break;
+    }
+    case Trait::General: {
+        // TODO!!!
+        break;
+    }
+    }
+}
+
 bool Size::operator==(const Size& other) const {
     return std::ranges::equal(primary, other.primary) && std::ranges::equal(coefficient, other.coefficient);
 }
