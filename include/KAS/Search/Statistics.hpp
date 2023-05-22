@@ -15,7 +15,7 @@ struct StatisticsCollector {
             return std::ostreambuf_iterator<char>(os);
         };
 #define COLLECT_STATS_FOR_OP(Op) \
-        fmt::format_to(it(), "Summary for #Op:\n"); \
+        fmt::format_to(it(), "Summary for " #Op ":\n"); \
         Op::PrintStatistics(os);
         COLLECT_STATS_FOR_OP(MergeOp)
         COLLECT_STATS_FOR_OP(ShareOp)
@@ -24,7 +24,7 @@ struct StatisticsCollector {
         COLLECT_STATS_FOR_OP(UnfoldOp)
 #undef COLLECT_STATS_FOR_OP
 
-        fmt::format_to(it(), "Summary for finalizations:\n");
+        fmt::format_to(it(), "Summary for Finalize:\n");
         fmt::format_to(it(), "  SuccessfulInvocations: {}\n", FinalizeOp::CountSuccessfulInvocations);
         fmt::format_to(it(), "  FailedInvocations: {}\n", FinalizeOp::CountFailedInvocations);
         fmt::format_to(it(), "  LegalFinalizations: {}\n", FinalizeOp::CountLegalFinalizations);

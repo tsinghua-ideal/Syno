@@ -193,6 +193,47 @@ bool Size::quotientIsLegal(const Size& other) const {
     return res.has_value() && res.value() != Trait::IllegalCoefficient && res.value() != Trait::One;
 }
 
+namespace {
+
+// We frequently need to sample Sizes.
+// We would like to enumerate all the possible sizes, in a fashion similar to the way we increment binary numbers.
+// For example, there are 5 variables in total. We would like to enumerate only certain variables, then a possible combination is
+// basesIndices = { 1, 2, 4 }
+// lowerBound = { 0, 0, 0, 0, 0 } (or just nullptr to indicate all 0)
+// upperBound = { 0, 1, 2, 0, 1 }
+// We would like to enumerate
+// 0, 0, 0, 0, 0
+// 0, 1, 0, 0, 0
+// 0, 0, 1, 0, 0
+// 0, 1, 1, 0, 0
+// 0, 0, 2, 0, 0
+// 0, 1, 2, 0, 0
+// 0, 0, 0, 0, 1
+// 0, 1, 0, 0, 1
+// 0, 0, 1, 0, 1
+// 0, 1, 1, 0, 1
+// 0, 0, 2, 0, 1
+// 0, 1, 2, 0, 1
+// which can be done by recursion.
+// If this is successful, return true. Else return false.
+bool NextSize(Size::ExprType& powers, const std::vector<std::size_t>& basesIndices, const Size::ExprType *lowerBound, const Size::ExprType& upperBound, std::size_t indexOfIndicesOfVarToIncrease = 0) {
+    std::size_t varToIncrease = basesIndices[indexOfIndicesOfVarToIncrease];
+    Size::PowerType diff = upperBound[varToIncrease] - powers[varToIncrease];
+    if (diff > 0) {
+        ++powers[varToIncrease];
+        return true;
+    } else {
+        powers[varToIncrease] = lowerBound ? (*lowerBound)[varToIncrease] : 0;
+        if (indexOfIndicesOfVarToIncrease == basesIndices.size() - 1) {
+            return false;
+        } else {
+            return NextSize(powers, basesIndices, lowerBound, upperBound, indexOfIndicesOfVarToIncrease + 1);
+        }
+    }
+}
+
+}
+
 Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
     auto trait = getTrait();
     switch (trait) {
@@ -209,32 +250,50 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
             }
         }
         auto divisor = identity();
-        std::size_t fullUntil = nonzeroPowers.size();
-        auto increment = [&](const auto& self, std::size_t indexOfVarToIncrease) -> void {
-            std::size_t varToIncrease = nonzeroPowers[indexOfVarToIncrease];
-            std::size_t diff = coefficient[varToIncrease] - divisor.coefficient[varToIncrease];
-            if (diff > 0) {
-                ++divisor.coefficient[varToIncrease];
-                if (diff == 1 && indexOfVarToIncrease + 1 == fullUntil) {
-                    --fullUntil;
-                }
-            } else {
-                divisor.coefficient[varToIncrease] = 0;
-                self(self, indexOfVarToIncrease + 1);
-            }
-        };
-        increment(increment, 0);
         while (true) {
-            if (fullUntil == 0) {
+            NextSize(divisor.coefficient, nonzeroPowers, nullptr, coefficient);
+            if (divisor == *this) {
                 co_return;
             }
             co_yield divisor;
-            increment(increment, 0);
         }
         break;
     }
     case Trait::General: {
-        // TODO!!!
+        auto divisor = identity();
+        std::vector<std::size_t> primaryNonzeroPowers;
+        for (std::size_t i = 0; i < primaryCount; ++i) {
+            if (primary[i] > 0) {
+                primaryNonzeroPowers.push_back(i);
+            }
+        }
+        std::vector<std::size_t> coefficientNonzeroPowers(coefficientCount);
+        std::iota(coefficientNonzeroPowers.begin(), coefficientNonzeroPowers.end(), 0);
+        ExprType coefficientLower {}, coefficientUpper {};
+        for (std::size_t i = 0; i < coefficientCount; ++i) {
+            coefficientLower[i] = coefficient[i] / 2 - 2;
+            coefficientUpper[i] = coefficient[i] / 2 + 2;
+        }
+        // These are just too many! We cannot do it this way! TODO!!!
+        while (true) {
+            divisor.coefficient = coefficientLower;
+            while (true) {
+                if(!NextSize(divisor.coefficient, coefficientNonzeroPowers, &coefficientLower, coefficientUpper)) {
+                    break;
+                }
+                auto quotient = *this;
+                auto qTrait = quotient.testDividedBy(divisor);
+                if (
+                    qTrait && *qTrait != Trait::IllegalCoefficient && *qTrait != Trait::One
+                    && divisor.lowerBoundEst(ctx) > 1.0f && quotient.lowerBoundEst(ctx) > 1.0f
+                ) {
+                    co_yield divisor;
+                }
+            }
+            if(!NextSize(divisor.primary, primaryNonzeroPowers, nullptr, primary)) {
+                co_return;
+            }
+        }
         break;
     }
     }
