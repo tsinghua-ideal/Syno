@@ -69,6 +69,14 @@ BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoeffi
             .alias = "c_" + std::to_string(i),
         };
     }
+    defaultConsts = realizeConsts({});
+}
+
+BindingContext::BindingContext(std::vector<Metadata> primaryMetadata, std::vector<Metadata> coefficientMetadata):
+    primaryMetadata { std::move(primaryMetadata) },
+    coefficientMetadata { std::move(coefficientMetadata) }
+{
+    defaultConsts = realizeConsts({});
 }
 
 std::size_t BindingContext::getPrimaryCount() const {
@@ -148,6 +156,7 @@ void BindingContext::applySpecs(std::vector<std::pair<std::string, Parser::PureS
             .estimate = spec.size.value_or(3),
         };
     }
+    defaultConsts = realizeConsts({});
 }
 
 ConcreteConsts BindingContext::realizeConsts(const std::map<std::string, std::size_t>& mappings) const {

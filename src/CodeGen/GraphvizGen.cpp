@@ -97,9 +97,8 @@ namespace {
             std::ranges::sort(outputs, {}, [](const Iterator * i) { return i->getIndex(); });
             ss << "subgraph cluster_out {\n";
             ss << "label = \"Output\";\n";
-            for (std::size_t i = 0; auto&& output: outputs) {
-                fmt::format_to(SSIt(), "out_{} [label=\"{}\", shape=none];\n", i, output->size().toString(ctx));
-                ++i;
+            for (auto&& output: outputs) {
+                fmt::format_to(SSIt(), "out_{} [label=\"{}\", shape=none];\n", output->getIndex(), output->size().toString(ctx));
             }
             ss << "}\n";
 

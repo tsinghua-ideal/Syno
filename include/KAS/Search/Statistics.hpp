@@ -22,14 +22,8 @@ struct StatisticsCollector {
         COLLECT_STATS_FOR_OP(SplitOp)
         COLLECT_STATS_FOR_OP(StrideOp)
         COLLECT_STATS_FOR_OP(UnfoldOp)
+        COLLECT_STATS_FOR_OP(FinalizeOp)
 #undef COLLECT_STATS_FOR_OP
-
-        fmt::format_to(it(), "Summary for Finalize:\n");
-        fmt::format_to(it(), "  SuccessfulInvocations: {}\n", FinalizeOp::CountSuccessfulInvocations);
-        fmt::format_to(it(), "  FailedInvocations: {}\n", FinalizeOp::CountFailedInvocations);
-        fmt::format_to(it(), "  LegalFinalizations: {}\n", FinalizeOp::CountLegalFinalizations);
-        fmt::format_to(it(), "  ConflictingColors: {}\n", FinalizeOp::CountConflictingColors);
-        fmt::format_to(it(), "  PrunedFinalizations: {}\n", FinalizeOp::CountPrunedFinalizations);
     }
 };
 

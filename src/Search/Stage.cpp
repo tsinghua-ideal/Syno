@@ -84,16 +84,12 @@ void Stage::guard() {
     auto nextOpProcessor = [&]<typename Op>(const Op *op) -> NextOpSlot<Op> {
         return { op->opHash(), op, getNextOp<Op>(op) };
     };
-    // Filter out illegal transforms.
-    auto nextOpFilter = []<typename Op>(const NextOpSlot<Op>& opSlot) -> bool {
-        return opSlot.nextStage != nullptr;
-    };
     auto add = [&]<typename Op>(const std::vector<const Op *>& newOps) {
         std::ranges::move(
             newOps
-            | std::views::filter([&](const Op *op) { return ShareOp::IsSharedDimensionCanonical(op, graph); })
+            | std::views::filter([&](const Op *op) { return ShareOp::IsSharedDimensionCanonical(op, graph); }) /* We need to call removeOp for deleted Op's. TODO */
             | std::views::transform(nextOpProcessor)
-            | std::views::filter(nextOpFilter),
+            | std::views::filter([&](const NextOpSlot<Op>& slot) { return slot.nextStage->possibleToFinalize(); }) /* We need to call removeOp for deleted Op's and removeStage for deleted Stage's. TODO */,
             std::back_inserter(nextOpStores.get<Op>())
         );
         // Sort according to keys for binary search.
@@ -160,6 +156,11 @@ TensorView *Stage::getFinalize(std::size_t key) {
         tensorView = op.buildTensorView(sampler.getFixedDimensions());
     }
     return tensorView.get();
+}
+
+bool Stage::possibleToFinalize() const {
+    // TODO!
+    return true;
 }
 
 std::size_t Stage::countChildren() {

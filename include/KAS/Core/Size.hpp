@@ -94,9 +94,11 @@ public:
         auto [nC, dC] = evalFraction<ValueType>(coefficientCount, std::forward<Tc>(c), coefficient);
         return nP * nC / dP / dC;
     };
+    template<typename ValueType>
+    ValueType eval(const ConcreteConsts& consts) const {
+        return eval<ValueType>(consts.primaryWrapper(), consts.coefficientWrapper());
+    }
 
-    // Quick evaluation.
-    std::size_t eval(const ConcreteConsts& consts) const;
     // Evaluates with all the consts and take the minimum of all results.
     float lowerBoundEst(const BindingContext& ctx) const;
     // Evaluates with all the consts and take the maximum of all results.
@@ -263,7 +265,8 @@ struct std::hash<std::span<T>> {
 template<>
 struct std::hash<kas::Size> {
     std::size_t operator()(const kas::Size& size) const noexcept {
-        auto h = std::hash<std::string>{}("Size");
+        using namespace std::literals;
+        auto h = std::hash<std::string_view>{}("Size"sv);
         kas::HashCombine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getPrimary()));
         kas::HashCombine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getCoefficient()));
         return h;

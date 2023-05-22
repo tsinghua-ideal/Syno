@@ -9,6 +9,7 @@
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/Tensor.hpp"
+#include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
@@ -39,12 +40,14 @@ public:
 
     static bool Prune(const std::vector<Graph::ConnectedComponent>& components, const std::vector<Interface>& trial);
 
-    static inline std::size_t CountGenerateInvocations = 0;
-    static inline std::size_t CountSuccessfulInvocations = 0;
-    static inline std::size_t CountFailedInvocations = 0;
-    static inline std::size_t CountLegalFinalizations = 0;
-    static inline std::size_t CountConflictingColors = 0;
-    static inline std::size_t CountPrunedFinalizations = 0;
+    KAS_STATISTICS_DEF(
+        GenerateInvocations,
+        SuccessfulInvocations,
+        FailedInvocations,
+        LegalFinalizations,
+        ConflictingColors,
+        PrunedFinalizations,
+    )
     struct GenerateOptions {
         const BindingContext& ctx;
         const Shape& desired;

@@ -39,23 +39,29 @@ std::span<const Size::PowerType> Size::getCoefficient() const {
     return { coefficient.data(), coefficientCount };
 }
 
-std::size_t Size::eval(const ConcreteConsts& consts) const {
-    return eval<std::size_t>(consts.primaryWrapper(), consts.coefficientWrapper());
-}
-
 float Size::lowerBoundEst(const BindingContext& ctx) const {
+    const auto& allConsts = ctx.getAllConsts();
+    if (allConsts.empty()) {
+        const auto& defaultConsts = ctx.getDefaultConsts();
+        return eval<float>(defaultConsts);
+    }
     return std::ranges::min(
-        ctx.getAllConsts()
+        allConsts
         | std::views::transform([&](const ConcreteConsts& consts) {
-            return eval<float>(consts.primaryWrapper(), consts.coefficientWrapper());
+            return eval<float>(consts);
         })
     );
 }
 float Size::upperBoundEst(const BindingContext& ctx) const {
+    const auto& allConsts = ctx.getAllConsts();
+    if (allConsts.empty()) {
+        const auto& defaultConsts = ctx.getDefaultConsts();
+        return eval<float>(defaultConsts);
+    }
     return std::ranges::max(
-        ctx.getAllConsts()
+        allConsts
         | std::views::transform([&](const ConcreteConsts& consts) {
-            return eval<float>(consts.primaryWrapper(), consts.coefficientWrapper());
+            return eval<float>(consts);
         })
     );
 }
@@ -278,9 +284,6 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
         while (true) {
             divisor.coefficient = coefficientLower;
             while (true) {
-                if(!NextSize(divisor.coefficient, coefficientNonzeroPowers, &coefficientLower, coefficientUpper)) {
-                    break;
-                }
                 auto quotient = *this;
                 auto qTrait = quotient.testDividedBy(divisor);
                 if (
@@ -288,6 +291,9 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
                     && divisor.lowerBoundEst(ctx) > 1.0f && quotient.lowerBoundEst(ctx) > 1.0f
                 ) {
                     co_yield divisor;
+                }
+                if(!NextSize(divisor.coefficient, coefficientNonzeroPowers, &coefficientLower, coefficientUpper)) {
+                    break;
                 }
             }
             if(!NextSize(divisor.primary, primaryNonzeroPowers, nullptr, primary)) {

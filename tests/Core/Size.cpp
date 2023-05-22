@@ -1,11 +1,14 @@
+#include <unordered_set>
+
 #include <gtest/gtest.h>
 
 #include "KAS/Core/Size.hpp"
 
 
-using namespace kas;
+namespace kas {
 
-TEST(core_tests, size) {
+class core_size_tests: public ::testing::Test {
+protected:
     using Metadata = BindingContext::Metadata;
     std::vector<Metadata> metaPrimary {
         { .alias = "H", .estimate = 128 },
@@ -14,17 +17,22 @@ TEST(core_tests, size) {
     std::vector<Metadata> metaCoefficient {
         { .alias = "c", .estimate = 5 },
     };
-    auto ctx = BindingContext { std::move(metaPrimary), std::move(metaCoefficient) };
-    auto sizeH = ctx.getSize("H");
+    BindingContext ctx = { std::move(metaPrimary), std::move(metaCoefficient) };
+    Size sizeH = ctx.getSize("H");
+    Size sizeW = ctx.getSize("W");
+    Size sizeC = ctx.getSize("c");
+    Size sizeHWc = Size(2, 1, Size::ExprType { 1, 1 }, Size::ExprType { -1 });
+};
+
+TEST_F(core_size_tests, arithmetics) {
     ASSERT_EQ(sizeH.toString(ctx), "H");
-    auto sizeW = ctx.getSize("W");
     ASSERT_EQ(sizeW.toString(ctx), "W");
-    auto sizeC = ctx.getSingleCoefficientVariableSize(0);
-    auto sizeHWc = Size(2, 1, Size::ExprType { 1, 1 }, Size::ExprType { -1 });
     ASSERT_EQ(sizeH * sizeW / sizeC, sizeHWc);
     ASSERT_EQ(sizeHWc.toString(ctx), "c^-1*H*W");
     ASSERT_EQ((sizeH * sizeH).toString(ctx), "H^2");
+}
 
+TEST_F(core_size_tests, trait) {
     auto sizeOneOverC = sizeC.identity();
     ASSERT_EQ(sizeOneOverC.getTrait(), Size::Trait::One);
     ASSERT_EQ(LabeledSize { sizeC }.getTrait(), Size::Trait::Coefficient);
@@ -34,3 +42,27 @@ TEST(core_tests, size) {
     ASSERT_EQ(ls.getTrait(), Size::Trait::IllegalCoefficient);
     ASSERT_EQ((ls * LabeledSize { sizeH }).getTrait(), Size::Trait::General);
 }
+
+TEST_F(core_size_tests, divisors_HWoverC) {
+    std::unordered_set<Size> divisors;
+    std::ranges::move(sizeHWc.sampleDivisors(ctx), std::inserter(divisors, divisors.end()));
+    ASSERT_TRUE(divisors.contains(sizeH));
+}
+
+TEST_F(core_size_tests, divisors_H) {
+    Size query = sizeH;
+    fmt::print("Divisors of {}:\n", query.toString(ctx));
+    for (auto divisor: query.sampleDivisors(ctx)) {
+        fmt::print("  {}\n", divisor.toString(ctx));
+    }
+}
+
+TEST_F(core_size_tests, divisors_HWC3) {
+    Size query = sizeH * sizeW * sizeC * sizeC * sizeC;
+    fmt::print("Divisors of {}:\n", query.toString(ctx));
+    for (auto divisor: query.sampleDivisors(ctx)) {
+        fmt::print("  {}\n", divisor.toString(ctx));
+    }
+}
+
+} // namespace kas

@@ -177,6 +177,10 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
         const auto& desiredDimSize = desired[nextIndex];
         for (std::size_t i = 0; i < interface.size(); ++i) {
             auto&& [dim, color] = interface[i];
+            if (options.maximumTensors <= 2 && color.countRightTags() > 0) {
+                // For canonicalization, we can assume that the input tensor only has left tags.
+                continue;
+            }
             if (dim.size() == desiredDimSize && fragments.canAccept(color)) {
                 auto newFragments = fragments;
                 newFragments.accept(i, color);

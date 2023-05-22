@@ -22,10 +22,10 @@ class BindingContext;
 struct ConcreteConsts {
     std::vector<int> primary;
     std::vector<int> coefficient;
-    inline auto primaryWrapper() const {
+    auto primaryWrapper() const {
         return [this](std::size_t i) { return primary[i]; };
     }
-    inline auto coefficientWrapper() const {
+    auto coefficientWrapper() const {
         return [this](std::size_t i) { return coefficient[i]; };
     }
     bool operator==(const ConcreteConsts& rhs) const = default;
@@ -53,6 +53,7 @@ protected:
     std::vector<Metadata> primaryMetadata;
     std::vector<Metadata> coefficientMetadata;
 
+    ConcreteConsts defaultConsts;
     std::vector<ConcreteConsts> allConsts;
 
     using LookUpTable = std::map<std::string, std::size_t>;
@@ -63,10 +64,7 @@ protected:
 public:
     BindingContext() = default;
     BindingContext(std::size_t countPrimary, std::size_t countCoefficient);
-    inline BindingContext(std::vector<Metadata> primaryMetadata, std::vector<Metadata> coefficientMetadata):
-        primaryMetadata { std::move(primaryMetadata) },
-        coefficientMetadata { std::move(coefficientMetadata) }
-    {}
+    BindingContext(std::vector<Metadata> primaryMetadata, std::vector<Metadata> coefficientMetadata);
 
     std::size_t getPrimaryCount() const;
     std::size_t getCoefficientCount() const;
@@ -96,7 +94,8 @@ public:
     ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings) const;
     // This overwrites the current allConsts.
     void applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings);
-    inline const std::vector<ConcreteConsts>& getAllConsts() const { return allConsts; }
+    const std::vector<ConcreteConsts>& getAllConsts() const { return allConsts; }
+    const ConcreteConsts& getDefaultConsts() const { return defaultConsts; }
 
     // FOR DEBUG USAGE ONLY!
     static inline const BindingContext *DebugPublicCtx = nullptr;

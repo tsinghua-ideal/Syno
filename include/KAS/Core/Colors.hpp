@@ -38,6 +38,8 @@ public:
     // Add a new tag. Assumes the dim is a ShareOp::Input.
     void addTag(const Dimension& dim);
 
+    std::size_t countLeftTags() const noexcept { return tagsLeft.size(); }
+    std::size_t countRightTags() const noexcept { return tagsRight.size(); }
     std::size_t countTags() const noexcept { return tagsLeft.size() + tagsRight.size(); }
 
     bool isDataDiscarding() const { return dataDiscardingFlag; }

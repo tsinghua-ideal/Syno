@@ -137,6 +137,10 @@ public:
     {
         // Compute missing sizes. TODO.
     }
+
+    // This is for pruning. We experimentally finalize this stage, and conservatively exclude the stage if it is not possible to finalize.
+    bool possibleToFinalize() const;
+
     const ColoredInterface& getInterface() const { return interface; }
     std::size_t countChildren();
     const std::vector<Next>& getChildrenHandles() {

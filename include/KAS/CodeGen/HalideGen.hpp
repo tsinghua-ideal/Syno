@@ -23,7 +23,7 @@
 namespace kas {
 
 inline Halide::Expr ConcretizeSize(const ConcreteConsts& consts, const Size& value) {
-    return value.eval<int>(consts.primaryWrapper(), consts.coefficientWrapper());
+    return value.eval<int>(consts);
 }
 
 template<SizeRange R>
