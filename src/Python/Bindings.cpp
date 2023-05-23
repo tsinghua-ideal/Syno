@@ -21,20 +21,52 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<SampleOptions>(m, "SampleOptions")
         .def(
-            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors) {
+            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float minimumMergeRatio, bool disallowDiscontinuousView, bool canonicalizeUnfoldOrder, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold) {
                 return SampleOptions {
                     .seed = seed,
                     .depth = depth,
                     .dimLowerBound = dimLowerBound,
                     .dimUpperBound = dimUpperBound,
                     .maximumTensors = maximumTensors,
+                    .maxStridedDimSize = maxStridedDimSize,
+                    .maxUnfoldKernelSize = maxUnfoldKernelSize,
+                    .minimumUnfoldRatio = minimumUnfoldRatio,
+                    .minimumMergeRatio = minimumMergeRatio,
+                    .disallowDiscontinuousView = disallowDiscontinuousView,
+                    .canonicalizeUnfoldOrder = canonicalizeUnfoldOrder,
+                    .disallowSplitRAboveUnfold = disallowSplitRAboveUnfold,
+                    .disallowUnfoldLAboveSplit = disallowUnfoldLAboveSplit,
+                    .disallowMergeWithLargeBlockAboveUnfold = disallowMergeWithLargeBlockAboveUnfold,
+                    .disallowUnfoldLAboveMergeR = disallowUnfoldLAboveMergeR,
+                    .disallowSplitRAboveStride = disallowSplitRAboveStride,
+                    .disallowStrideAboveSplit = disallowStrideAboveSplit,
+                    .disallowMergeWithLargeBlockAboveStride = disallowMergeWithLargeBlockAboveStride,
+                    .disallowStrideAboveMergeR = disallowStrideAboveMergeR,
+                    .disallowUnfoldLAboveShift = disallowUnfoldLAboveShift,
+                    .disallowShiftAboveUnfold = disallowShiftAboveUnfold,
                 };
             }),
             pybind11::arg("seed") = 42,
             pybind11::arg("depth") = 4,
             pybind11::arg("dim_lower") = 1,
             pybind11::arg("dim_upper") = 8,
-            pybind11::arg("maximum_tensors") = 2
+            pybind11::arg("maximum_tensors") = 2,
+            pybind11::arg("max_strided_dim_size") = 30,
+            pybind11::arg("max_unfold_kernel_size") = 30,
+            pybind11::arg("minimum_unfold_ratio") = 2.0f,
+            pybind11::arg("minimum_merge_ratio") = 2.0f,
+            pybind11::arg("disallow_discontinuous_view") = true,
+            pybind11::arg("canonicalize_unfold_order") = true,
+            pybind11::arg("disallow_split_r_above_unfold") = true,
+            pybind11::arg("disallow_unfold_l_above_split") = false,
+            pybind11::arg("disallow_merge_with_large_block_above_unfold") = false,
+            pybind11::arg("disallow_unfold_l_above_merge_r") = false,
+            pybind11::arg("disallow_split_r_above_stride") = true,
+            pybind11::arg("disallow_stride_above_split") = false,
+            pybind11::arg("disallow_merge_with_large_block_above_stride") = false,
+            pybind11::arg("disallow_stride_above_merge_r") = false,
+            pybind11::arg("disallow_unfold_l_above_shift") = true,
+            pybind11::arg("disallow_shift_above_unfold") = false
         )
         .def_readonly("seed", &SampleOptions::seed)
         .def_readonly("depth", &SampleOptions::depth)
