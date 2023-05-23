@@ -123,4 +123,7 @@ class MCTSTrainer(MCTS):
         }
         json.dump(result_dict, open(result_path, 'w'))
 
-        print("Best performance: {}".format(self.get_eval_result(node)))
+        if self.has_eval_result(node):
+            print("Best performance: {}".format(self.get_eval_result(node)))
+        else:
+            print("[Warning] best path not evaluated. Consider running for more iterations. ")

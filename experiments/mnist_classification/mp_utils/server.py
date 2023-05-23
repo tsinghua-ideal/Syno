@@ -34,22 +34,23 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/arguments':
             response_json = self.mcts.get_args()
         else:
-            while len(self.mcts.pending_evaluate_cache.keys()) == 0:
-                self.mcts.launch_new_iteration()
-                if self.mcts.end_flag:
-                    self.mcts.dump_result()
-                    print(f' > MCTS iteration complete. ')
-                    break
             response_json = {'path': ''}
-            if self.mcts.end_flag:
-                print(f' > No available response')
-            else:
-                selected_path, meta_data = self.mcts.pending_evaluate_cache.popitem()
-                print(f' > Response kernel: {selected_path}')
-                response_json = {'path': selected_path.serialize()}
-                self.mcts.waiting_result_cache[selected_path] = dict(
-                    meta=meta_data, time=time.time()
-                )
+            if not self.mcts.end_flag:
+                while len(self.mcts.pending_evaluate_cache.keys()) == 0:
+                    self.mcts.launch_new_iteration()
+                    if self.mcts.end_flag:
+                        self.mcts.dump_result()
+                        print(f' > MCTS iteration complete. ')
+                        break
+                if self.mcts.end_flag:
+                    print(f' > No available response')
+                else:
+                    selected_path, meta_data = self.mcts.pending_evaluate_cache.popitem()
+                    print(f' > Response kernel: {selected_path}')
+                    response_json = {'path': selected_path.serialize()}
+                    self.mcts.waiting_result_cache[selected_path] = dict(
+                        meta=meta_data, time=time.time()
+                    )
 
         self.send_response(200)
         self.send_header('Content-type', 'application/json')

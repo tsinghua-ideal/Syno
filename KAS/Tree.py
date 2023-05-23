@@ -209,8 +209,8 @@ class MCTS:
         # All children of node should already be expanded:
         assert all(self._has_children_nexts(child) for _, child in children)
 
-        assert self._get_N(node) > 0
-        log_N_vertex = math.log(self._get_N(node))
+        if self._get_N(node) > 0:
+            log_N_vertex = math.log(self._get_N(node))
 
         def uct(child) -> float:
             "Upper confidence bound for trees"
