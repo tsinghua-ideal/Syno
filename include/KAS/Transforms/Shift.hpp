@@ -10,10 +10,10 @@ public:
     static constexpr DimensionType Type = DimensionType::Shift;
     class Input final: public RepeatLikeOp::Input {
     public:
-        inline Input(const ShiftOp* op):
+        Input(const ShiftOp* op):
             RepeatLikeOp::Input { op }
         {}
-        inline const Size& size() const noexcept override { return op->output.size(); }
+        const Size& size() const noexcept override { return op->output.size(); }
         constexpr DimensionType type() const noexcept override { return Type; }
     };
 
@@ -29,18 +29,14 @@ public:
     {}
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
-    inline Dimension getInput() const override { return &input; }
+    Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 
-    static std::size_t CountColorTrials;
-    static std::size_t CountColorSuccesses;
-    bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
-
-    inline bool operator==(const ShiftOp& other) const noexcept {
+    bool operator==(const ShiftOp& other) const noexcept {
         return output == other.output && shift == other.shift;
     }
 
-    static std::vector<const ShiftOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors);
+    static std::vector<const ShiftOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape);
 };
 
 } // namespace kas

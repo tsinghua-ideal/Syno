@@ -9,11 +9,12 @@
 
 ### Colors
 
-- [ ] Refine color semantics (determine more than 1 color when solving constraints).
+- [x] Refine color semantics (determine more than 1 color when solving constraints).
 
 ### Hash
 
 - [x] Fix hash collision. (If not possible, try finding data structures that tolerate collisions.) (Temporarily this seems fixed?)
+- [ ] Replace `std::hash` with custom hash for better reproducibility.
 
 ## CodeGen
 
@@ -32,12 +33,15 @@
 ### Generation
 
 - [x] Before generating an Op, test sizes of new dimensions to make it legal.
-- [ ] Redesign generation algorithm for each Op.
+- [x] Redesign generation algorithm for each Op.
+- [ ] Accept FLOPs constraints in Sampler, and generate MapReduceOp's accordingly.
 
 ### Pruning
 
-- [ ] Add pruning with respect to finalizability criteria.
-- [ ] Canonicalize by pruning uncanonicalized Ops. (E.g., SplitOp and MergeOp should not be generated above Sum reductions, or below a weight dimension, e.t.c..)
+- [x] Add pruning with respect to finalizability criteria.
+- [ ] Add even more pruning with respect to finalizability criteria.
+- [x] Canonicalize by pruning uncanonicalized Ops. (E.g., SplitOp and MergeOp should not be generated above Sum reductions, or below a weight dimension, e.t.c..)
+- [ ] Canonicalize transforms on weight. (E.g., SplitOp and MergeOp should not be generated below a weight dimension.)
 - [ ] Add mechanisms to automatically discover equivalent kernels. (TASO-like?)
 
 ### Misc

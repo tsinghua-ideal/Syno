@@ -9,6 +9,7 @@
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/Tensor.hpp"
+#include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
@@ -33,23 +34,26 @@ public:
     }
     // Pass in sorted fixed dimensions.
     std::unique_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed) const;
-    inline std::size_t getHash() const noexcept { return hash; }
+    std::size_t getHash() const noexcept { return hash; }
 
     std::string description(const BindingContext& ctx) const;
 
     static bool Prune(const std::vector<Graph::ConnectedComponent>& components, const std::vector<Interface>& trial);
 
-    static std::size_t CountSuccesses;
-    static std::size_t CountFailures;
-    static std::size_t CountLegalFinalizations;
-    static std::size_t CountConflictingColors;
-    static std::size_t CountPrunedFinalizations;
+    KAS_STATISTICS_DEF(
+        GenerateInvocations,
+        SuccessfulInvocations,
+        FailedInvocations,
+        LegalFinalizations,
+        ConflictingColors,
+        PrunedFinalizations,
+    )
     struct GenerateOptions {
         const BindingContext& ctx;
         const Shape& desired;
         std::size_t maximumTensors;
     };
-    static std::vector<FinalizeOp> Generate(const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
+    static std::vector<FinalizeOp> Generate(const ColoredInterface& interface, const Graph& graph, GenerateOptions options);
 };
 
 } // namespace kas

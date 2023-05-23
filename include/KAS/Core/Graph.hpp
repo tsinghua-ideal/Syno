@@ -41,7 +41,7 @@ public:
     using BranchType = OpType::Branch;
     const OpType& op;
 
-    inline RepeatLikeVertex(const Graph& graph, const OpType& op):
+    RepeatLikeVertex(const Graph& graph, const OpType& op):
         graph { graph }, op { op } {}
     Dimension operator[](OpType::Branch branch) const;
     Direction outgoingDirection(OpType::Branch branch) const;
@@ -60,7 +60,7 @@ public:
     using BranchType = OpType::Branch;
     const OpType& op;
 
-    inline SplitLikeVertex(const Graph& graph, const OpType& op):
+    SplitLikeVertex(const Graph& graph, const OpType& op):
         graph { graph }, op { op } {}
     Dimension operator[](OpType::Branch branch) const;
     Direction outgoingDirection(OpType::Branch branch) const;
@@ -79,7 +79,7 @@ public:
     using BranchType = OpType::Branch;
     const OpType& op;
 
-    inline MergeLikeVertex(const Graph& graph, const OpType& op):
+    MergeLikeVertex(const Graph& graph, const OpType& op):
         graph { graph }, op { op } {}
     Dimension operator[](OpType::Branch branch) const;
     Direction outgoingDirection(OpType::Branch branch) const;
@@ -89,6 +89,14 @@ template<typename CaseMergeLike>
 concept MergeLikeCase = std::invocable<CaseMergeLike, MergeLikeVertex, MergeLikeOp::Branch>;
 template<MergeLikeCase CaseMergeLike>
 using MergeLikeCaseResult = std::invoke_result_t<CaseMergeLike, MergeLikeVertex, MergeLikeOp::Branch>;
+
+template<auto Val>
+struct EmptyVertexCase {
+    template<typename V, typename B>
+    auto operator()(V&&, B&&) const {
+        return Val;
+    }
+};
 
 class VisitedVertex {
     friend class Graph;
@@ -100,7 +108,7 @@ class VisitedVertex {
     >;
     std::optional<Inner> vertexAndSource;
 
-    inline VisitedVertex(auto&& vertexAndSource):
+    VisitedVertex(auto&& vertexAndSource):
         vertexAndSource { std::forward<decltype(vertexAndSource)>(vertexAndSource) }
     {}
 
@@ -165,29 +173,29 @@ public:
     // Use bits to record the Dimensions of which this Dimension is a descendant.
     class CompactIndices {
         std::size_t content;
-        inline CompactIndices(std::size_t raw): content { raw } {}
+        CompactIndices(std::size_t raw): content { raw } {}
     public:
-        [[nodiscard]] static inline CompactIndices None() { return {0}; }
-        [[nodiscard]] static inline CompactIndices Single(std::size_t index) {
+        [[nodiscard]] static CompactIndices None() { return {0}; }
+        [[nodiscard]] static CompactIndices Single(std::size_t index) {
             return { static_cast<std::size_t>(1) << index };
         }
-        [[nodiscard]] static inline CompactIndices All(std::size_t count) {
+        [[nodiscard]] static CompactIndices All(std::size_t count) {
             return { (static_cast<std::size_t>(1) << count) - 1 };
         }
-        [[nodiscard]] inline CompactIndices merged(CompactIndices other) const {
+        [[nodiscard]] CompactIndices merged(CompactIndices other) const {
             return { content | other.content };
         }
-        inline CompactIndices& merges(CompactIndices other) {
+        CompactIndices& merges(CompactIndices other) {
             content |= other.content;
             return *this;
         }
-        [[nodiscard]] inline bool contains(std::size_t index) const {
+        [[nodiscard]] bool contains(std::size_t index) const {
             return Single(index).content & content;
         }
-        [[nodiscard]] inline CompactIndices excluded(CompactIndices other) const {
+        [[nodiscard]] CompactIndices excluded(CompactIndices other) const {
             return { content & ~other.content };
         }
-        inline CompactIndices& excludes(CompactIndices other) {
+        CompactIndices& excludes(CompactIndices other) {
             content &= ~other.content;
             return *this;
         }
@@ -259,7 +267,7 @@ private:
         void visit(const SplitLikeOp::Input& dim) override;
         void visit(const MergeLikeOp::Input& dim) override;
         using DimVisitor::visit;
-        inline WalkDownVisitor(const Graph& graph): graph { graph } {}
+        WalkDownVisitor(const Graph& graph): graph { graph } {}
     };
 
     // Visitor that walks up along a dimension.
@@ -267,25 +275,25 @@ private:
         const Graph& graph;
         std::optional<VisitedVertex::Inner> result;
 
-        inline void operator()(std::monostate) {}
+        void operator()(std::monostate) {}
         void operator()(const RepeatLikeOp *op);
         void operator()(std::pair<const SplitLikeOp *, Order> opAndOrder);
         void operator()(const MergeLikeOp *op);
-        inline WalkUpVisitor(const Graph& graph): graph { graph } {}
+        WalkUpVisitor(const Graph& graph): graph { graph } {}
     };
 
 public:
     // Walk along a dimension in a direction to find a vertex.
     VisitedVertex visitAlong(const Dimension& dim, Direction dir) const;
 
-    inline const std::vector<Dimension>& getTopmost() const { return topmost; }
-    inline decltype(auto) getDimensions() const {
+    const std::vector<Dimension>& getTopmost() const { return topmost; }
+    decltype(auto) getDimensions() const {
         return dimMeta | std::views::transform([](auto&& pair) { return pair.first; });
     }
-    inline std::vector<const Iterator *>& getOutputIterators() { return outputIterators; }
-    inline const std::vector<const Iterator *>& getOutputIterators() const { return outputIterators; }
-    inline std::vector<const MapReduceOp *>& getMapReduceIterators() { return mapReduceIterators; }
-    inline const std::vector<const MapReduceOp *>& getMapReduceIterators() const { return mapReduceIterators; }
+    std::vector<const Iterator *>& getOutputIterators() { return outputIterators; }
+    const std::vector<const Iterator *>& getOutputIterators() const { return outputIterators; }
+    std::vector<const MapReduceOp *>& getMapReduceIterators() { return mapReduceIterators; }
+    const std::vector<const MapReduceOp *>& getMapReduceIterators() const { return mapReduceIterators; }
 
     struct ConnectedComponent {
         std::vector<Dimension> inputs;

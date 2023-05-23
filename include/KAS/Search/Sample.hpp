@@ -33,6 +33,42 @@ public:
     std::size_t dimLowerBound = 1;
     std::size_t dimUpperBound = 8;
     std::size_t maximumTensors = 2;
+
+    // These might better be the same.
+    std::size_t maxStridedDimSize = 30;
+    std::size_t maxUnfoldKernelSize = 30;
+
+    float minimumUnfoldRatio = 2.0f;
+    float minimumMergeRatio = 2.0f;
+
+    // Below are canonicalization options.
+
+    // This option makes Split-Merge only be able to do views.
+    bool disallowDiscontinuousView = true;
+
+    // This option requires UnfoldOp chain to be in a specific order.
+    bool canonicalizeUnfoldOrder = true;
+
+    // Canonicalization rule set 1: at most one is true.
+    bool disallowSplitRAboveUnfold = true;
+    bool disallowUnfoldLAboveSplit = false;
+
+    // Canonicalization rule set 2: at most one is true, but since this rule is too aggressive, we disable them by default.
+    bool disallowMergeWithLargeBlockAboveUnfold = false;
+    bool disallowUnfoldLAboveMergeR = false;
+
+    // Canonicalization rule set 3: at most one is true. Since this rule perfectly preserves semantics, you'd better set exactly one of them to true.
+    bool disallowSplitRAboveStride = true;
+    bool disallowStrideAboveSplit = false;
+
+    // Canonicalization rule set 4: at most one is true.
+    bool disallowMergeWithLargeBlockAboveStride = false;
+    bool disallowStrideAboveMergeR = true;
+
+    // Canonicalization rule set 5: at most one is true.
+    bool disallowUnfoldLAboveShift = true;
+    bool disallowShiftAboveUnfold = false;
+
     void check() const;
 };
 
@@ -51,7 +87,6 @@ class Sampler final {
 
     BindingContext ctx;
     SampleOptions options;
-    Colors::Options colorOptions;
     Shape inputShape;
     Shape outputShape;
 
@@ -70,7 +105,7 @@ public:
     // A specification has the following forms:
     // <literal-value> [: <max-occurrencens>]
     // <variable-name> [= <literal-value>] [: <max-occurrencens>]
-    Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const std::vector<std::pair<std::size_t, std::size_t>>& fixedIODims, const SampleOptions& options);
+    Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const std::vector<std::pair<std::size_t, std::size_t>>& fixedIODims, const SampleOptions& options = SampleOptions());
     Sampler(const Sampler&) = delete;
     Sampler(Sampler&&) = delete;
 

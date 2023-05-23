@@ -21,21 +21,20 @@
 namespace kas {
 
 TEST(search_tests, sampler) {
-    constexpr int dimH = 64, dimW = 64, dimK1 = 3, dimS1 = 2, dimK2 = 5, dimS2 = 4;
-    std::map<std::string, std::size_t> dict { { "H", dimH }, { "W", dimW }, { "k_1", dimK1 }, { "s_1", dimS1 }, { "k_2", dimK2 }, { "s_2", dimS2 } };
+    constexpr int dimH = 64, dimW = 64, dimK1 = 3, dimS1 = 2;
+    std::map<std::string, std::size_t> dict { { "H", dimH }, { "W", dimW }, { "k_1", dimK1 }, { "s_1", dimS1 } };
 
-    SampleOptions options {
-        .seed = 42,
-        .depth = 4,
-        .dimLowerBound = 2,
-        .dimUpperBound = 6,
-        .maximumTensors = 2,
-    };
-    Sampler sampler("[N,H,W]", "[N,H,W]", {"N=3"}, {"k_1=3", "s_1=2", "k_2=5", "s_2=4"}, {dict}, {{0, 0}}, options);
+    SampleOptions options;
+    options.seed = 42;
+    options.depth = 10;
+    options.dimLowerBound = 2;
+    options.dimUpperBound = 6;
+    options.maximumTensors = 2;
+    Sampler sampler("[N,H,W]", "[N,H,W]", {"N=3:0"}, {"k_1=3", "s_1=2"}, {dict}, {{0, 0}}, options);
     auto& ctx = sampler.getBindingContext();
     BindingContext::DebugPublicCtx = &ctx; // For debugging.
     ASSERT_EQ(ctx.getPrimaryCount(), 3);
-    ASSERT_EQ(ctx.getCoefficientCount(), 4);
+    ASSERT_EQ(ctx.getCoefficientCount(), 2);
 
     constexpr std::size_t trials = 100;
     std::size_t successes = 0;
@@ -59,9 +58,7 @@ TEST(search_tests, sampler) {
         HalideGen gen(ctx, tensorView, HalideGen::Options());
         auto name = "search_codegen_test_" + std::to_string(i);
         try {
-            gen.performTrial<false>(dict, name, true, false,
-                [](){}, [](){}, [](){}
-            );
+            gen.performTrial<false>(dict, name, true, false, []{});
         } catch (const Halide::Error& e) {
             fmt::print("Trial {} failed at runtime: {}\n", i, e.what());
         }

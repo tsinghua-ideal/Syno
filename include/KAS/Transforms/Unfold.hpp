@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
@@ -10,10 +11,10 @@ public:
     static constexpr DimensionType Type = DimensionType::Unfold;
     class Input final: public SplitLikeOp::Input {
     public:
-        inline Input(const UnfoldOp* op):
+        Input(const UnfoldOp* op):
             SplitLikeOp::Input { op }
         {}
-        inline const Size& size() const noexcept override { return getDerivedOp<UnfoldOp>()->outputLhs.size(); }
+        const Size& size() const noexcept override { return getDerivedOp<UnfoldOp>()->outputLhs.size(); }
         constexpr DimensionType type() const noexcept override { return Type; }
     };
 
@@ -27,22 +28,38 @@ public:
     {}
     constexpr DimensionType getType() const noexcept override { return Type; }
     constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
-    inline Dimension getInput() const override { return &input; }
+    Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 
-    static std::size_t CountColorTrials;
-    static std::size_t CountColorSuccesses;
-    bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
+    // Absorb dataDiscardingFlag in outputRhs.
+    ColoredInterface applyToInterface(const ColoredInterface& interface) const override;
 
-    inline bool operator==(const UnfoldOp& other) const noexcept {
+    bool operator==(const UnfoldOp& other) const noexcept {
         return outputLhs == other.outputLhs && outputRhs == other.outputRhs;
     }
 
     struct GenerateOptions {
         const BindingContext& ctx;
-        std::size_t dimLowerBound;
+        float minimumRatio = 2.0f;
+        // kernel.size() <= maxUnfoldKernelSize. This should correspond to StrideOp::GenerateOptions::maxStridedDimSize.
+        std::size_t maxUnfoldKernelSize = 30;
+        bool disallowUnfoldLAboveSplit;
+        bool canonicalizeUnfoldOrder;
+        bool disallowUnfoldLAboveShift;
+        // This canonicalization deviates a lot from original semantics. Enable with caution!
+        bool disallowUnfoldLAboveMergeR;
     };
-    static std::vector<const UnfoldOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
+    KAS_STATISTICS_DEF(
+        GenerateInvocations,
+        GenerateAttempts,
+        DisallowedAttempts,
+        ConflictingColors,
+        KernelAbsolutelyTooLarge,
+        KernelRelativelyTooLarge,
+        CanonicalizedUnfoldChains,
+        SuccessfulGenerations,
+    )
+    static std::vector<const UnfoldOp *> Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options);
 };
 
 } // namespace kas

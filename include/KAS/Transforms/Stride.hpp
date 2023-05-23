@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
@@ -10,10 +11,10 @@ public:
     static constexpr DimensionType Type = DimensionType::Stride;
     class Input final: public RepeatLikeOp::Input {
     public:
-        inline Input(const StrideOp* op):
+        Input(const StrideOp* op):
             RepeatLikeOp::Input { op }
         {}
-        inline const Size& size() const noexcept override { return getDerivedOp<StrideOp>()->sz; }
+        const Size& size() const noexcept override { return getDerivedOp<StrideOp>()->sz; }
         constexpr DimensionType type() const noexcept override { return Type; }
     };
 
@@ -31,21 +32,33 @@ public:
     {}
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
-    inline Dimension getInput() const override { return &input; }
+    Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 
-    static std::size_t CountColorTrials;
-    static std::size_t CountColorSuccesses;
-    bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const override;
+    const Size& getStride() const { return stride; }
 
-    inline bool operator==(const StrideOp& other) const noexcept {
+    // Set dataDiscardingFlag to true in Color.
+    ColoredInterface applyToInterface(const ColoredInterface& interface) const override;
+
+    bool operator==(const StrideOp& other) const noexcept {
         return output == other.output && stride == other.stride;
     }
 
     struct GenerateOptions {
         const BindingContext& ctx;
+        // stride * outputDim.size() == inputDim.size() <= maxStridedDimSize. This should correspond to UnfoldOp::GenerateOptions::maxUnfoldKernelSize.
+        std::size_t maxStridedDimSize = 30;
+        bool disallowStrideAboveSplit;
+        bool disallowStrideAboveMergeR;
     };
-    static std::vector<const StrideOp *> Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options);
+    KAS_STATISTICS_DEF(
+        GenerateInvocations,
+        GenerateAttempts,
+        DisallowedAttempts,
+        SizeTooLarge,
+        SuccessfulGenerations,
+    )
+    static std::vector<const StrideOp *> Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options);
 };
 
 } // namespace kas

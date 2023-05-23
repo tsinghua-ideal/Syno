@@ -12,6 +12,7 @@
 
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/Coroutine.hpp"
 #include "KAS/Utils/Hash.hpp"
 
 
@@ -93,13 +94,18 @@ public:
         auto [nC, dC] = evalFraction<ValueType>(coefficientCount, std::forward<Tc>(c), coefficient);
         return nP * nC / dP / dC;
     };
+    template<typename ValueType>
+    ValueType eval(const ConcreteConsts& consts) const {
+        return eval<ValueType>(consts.primaryWrapper(), consts.coefficientWrapper());
+    }
 
-    // Quick evaluation.
-    std::size_t eval(const ConcreteConsts& consts) const;
-    // Check if the size is >= 2. Otherwise, this cannnot be an actual Dimension.
-    bool isRealistic(const BindingContext& ctx) const;
+    // Evaluates with all the consts and take the minimum of all results.
+    float lowerBoundEst(const BindingContext& ctx) const;
+    // Evaluates with all the consts and take the maximum of all results.
+    float upperBoundEst(const BindingContext& ctx) const;
 
     Size identity() const;
+    static Size Identity(const BindingContext& ctx);
 
     Trait getTrait() const;
     bool is1() const;
@@ -141,6 +147,9 @@ public:
     std::optional<Trait> testDividedBy(const Size& other);
     std::optional<Trait> canBeDividedBy(const Size& other) const;
     bool quotientIsLegal(const Size& other) const;
+
+    // Return divisors of this Size. Guarantee that for all consts, the divisor is realizable, and not equal to 1 or this.
+    Generator<Size> sampleDivisors(const BindingContext& ctx) const;
 
     bool operator==(const Size& other) const;
 
@@ -257,7 +266,8 @@ struct std::hash<std::span<T>> {
 template<>
 struct std::hash<kas::Size> {
     std::size_t operator()(const kas::Size& size) const noexcept {
-        auto h = std::hash<std::string>{}("Size");
+        using namespace std::literals;
+        auto h = std::hash<std::string_view>{}("Size"sv);
         kas::HashCombine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getPrimary()));
         kas::HashCombine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getCoefficient()));
         return h;

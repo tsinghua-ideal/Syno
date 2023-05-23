@@ -116,8 +116,8 @@ ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const Concr
 }
 
 std::size_t TensorView::getFLOPs(const ConcreteConsts& consts) const {
-    std::size_t outerLoopsIterations = getInterfaceShape().totalSize().eval(consts);
-    std::size_t innerLoopsIterations = getManipulations().size() > 0 ? Size::Product(getManipulations() | std::views::transform([](const MapReduceOp *op) -> const Size& { return op->size(); })).eval(consts) : 1;
+    std::size_t outerLoopsIterations = getInterfaceShape().totalSize().eval<std::size_t>(consts);
+    std::size_t innerLoopsIterations = getManipulations().size() > 0 ? Size::Product(getManipulations() | std::views::transform([](const MapReduceOp *op) -> const Size& { return op->size(); })).eval<std::size_t>(consts) : 1;
     std::size_t mult = getUnderlyingTensors().size() - 1;
     // Multiplication + Addition
     return outerLoopsIterations * innerLoopsIterations * mult + outerLoopsIterations * (innerLoopsIterations - 1);

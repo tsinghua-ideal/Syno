@@ -1,122 +1,84 @@
 #include "KAS/Core/Colors.hpp"
 #include "KAS/Core/DimVisitor.hpp"
+#include "KAS/Core/Graph.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Vector.hpp"
 
 
 namespace kas {
 
-std::size_t Colors::CountColorInconsistent = 0;
-
-void Colors::setInconsistent() {
-    if (!consistent) {
-        KAS_WARNING("Cannot set inconsistent state twice!");
-    } else {
-        consistent = false;
-        ++CountColorInconsistent;
-    }
-}
-
-void Colors::disjoint(const Dimension& lhs, const Dimension& rhs) {
-    if (!isConsistent()) return;
-    constraints.emplace_back(Interface { lhs }, Interface { rhs });
-}
-
-void Colors::substitute(ColoredInterface& interface, const Dimension& fro, ColoredDimension to) {
-    if (!isConsistent()) return;
-    for (auto& [lhs, rhs]: constraints) {
-        WeakOrderedSubstituteVector1To1IfAny(lhs, fro, to.dimension, Dimension::HashLessThan{});
-        WeakOrderedSubstituteVector1To1IfAny(rhs, fro, to.dimension, Dimension::HashLessThan{});
-    }
-    bool res = WeakOrderedSubstituteVector1To1IfAny(interface.items, fro, std::move(to), Dimension::HashLessThan{}, ColoredDimension::Projection{});
-    KAS_ASSERT(res);
-}
-
-void Colors::substitute(ColoredInterface& interface, const Dimension& fro, ColoredDimension to1, ColoredDimension to2) {
-    if (!isConsistent()) return;
-    for (auto& [lhs, rhs]: constraints) {
-        WeakOrderedSubstituteVector1To2IfAny(lhs, fro, to1.dimension, to2.dimension, Dimension::HashLessThan{});
-        WeakOrderedSubstituteVector1To2IfAny(rhs, fro, to1.dimension, to2.dimension, Dimension::HashLessThan{});
-    }
-    bool res = WeakOrderedSubstituteVector1To2IfAny(interface.items, fro, std::move(to1), std::move(to2), Dimension::HashLessThan{}, ColoredDimension::Projection{});
-    KAS_ASSERT(res);
-}
-
-void Colors::substitute(ColoredInterface& interface, const Dimension& fro1, const Dimension& fro2, ColoredDimension to) {
-    if (!isConsistent()) return;
-    for (auto& [lhs, rhs]: constraints) {
-        WeakOrderedSubstituteVector2To1IfAny(lhs, fro1, fro2, to.dimension, Dimension::HashLessThan{});
-        WeakOrderedSubstituteVector2To1IfAny(rhs, fro1, fro2, to.dimension, Dimension::HashLessThan{});
-    }
-    bool res = WeakOrderedSubstituteVector2To1IfAny(interface.items, fro1, fro2, std::move(to), Dimension::HashLessThan{}, ColoredDimension::Projection{});
-    KAS_ASSERT(res);
-}
-
-ColoredDimension& Colors::assign(ColoredInterface& interface, const Dimension& item, int color) {
-    auto& target =  interface[item];
-    if (!isConsistent()) return target;
-    if (!target.isUnknown() && target.color != color) {
-        setInconsistent();
-    } else {
-        target.color = color;
-    }
-    return target;
-}
-
-void Colors::simplify(ColoredInterface& interface) {
-    if (!isConsistent()) return;
-    for (auto& [lhs, rhs]: constraints) {
-        for (auto& item: lhs) {
-            if (auto it = WeakOrderedBinarySearch(rhs, item, Dimension::HashLessThan{}); it != rhs.end()) { // The dimensio is disjoint with itself, so it has no color.
-                assign(interface, item, Colors::Clear);
-            }
+bool Color::CheckConflict(const std::vector<Tag>& left, const std::vector<Tag>& right) {
+    auto itL = left.begin();
+    auto itR = right.begin();
+    while (itL != left.end() && itR != right.end()) {
+        if (*itL == *itR) {
+            return true;
+        } else if (*itL < *itR) {
+            ++itL;
+        } else {
+            ++itR;
         }
     }
-    for (auto& [lhs, rhs]: constraints) {
-        auto colorAcc = std::vector<int>(options.maximumTensors + 1, 0); // Clear is color.
-        auto newLhs = std::vector<Dimension>();
-        auto newRhs = std::vector<Dimension>();
-        for (auto& item: lhs) {
-            auto& target = interface[item];
-            switch (target.category()) {
-            case Category::Clear:
-                break; // Remove from constraint.
-            case Category::Single:
-                ++colorAcc.at(target.color); // Record color, and keep in constraint.
-            case Category::Unknown:
-                newLhs.emplace_back(item); // Keep in constraint.
-                break;
-            }
-        }
-        for (auto& item: rhs) {
-            auto& target = interface[item];
-            switch (target.category()) {
-            case Category::Clear:
-                break; // Remove from constraint.
-            case Category::Single:
-                if (colorAcc.at(target.color) > 0) { // The color is already present in the lhs.
-                    // This violates the constraint.
-                    setInconsistent();
-                    return;
-                }
-            case Category::Unknown:
-                newRhs.emplace_back(item); // Keep in constraint.
-                break;
-            }
-        }
-        lhs = std::move(newLhs);
-        rhs = std::move(newRhs);
-    }
-    std::erase_if(constraints, [](const auto& pair) {
-        const auto& [lhs, rhs] = pair;
-        return lhs.empty() || rhs.empty();
-    });
+    return false;
 }
 
-bool Colors::CheckFinalization(const std::vector<Interface>& tensors) {
+void Color::merge(const Color& other) {
+    auto mergeTags = [](std::vector<Tag>& tags, const std::vector<Tag>& otherTags) {
+        // First merge them.
+        auto it1 = tags.begin();
+        auto it2 = otherTags.begin();
+        std::vector<Tag> newTags;
+        while (it1 != tags.end() && it2 != otherTags.end()) {
+            if (*it1 < *it2) {
+                newTags.emplace_back(*it1);
+                ++it1;
+            } else {
+                newTags.emplace_back(*it2);
+                ++it2;
+            }
+        }
+        if (it1 != tags.end()) {
+            newTags.insert(newTags.end(), it1, tags.end());
+        } else if (it2 != otherTags.end()) {
+            newTags.insert(newTags.end(), it2, otherTags.end());
+        }
+        // Then unique.
+        auto uniqueResult = std::ranges::unique(newTags);
+        newTags.erase(uniqueResult.begin(), uniqueResult.end());
+        tags = std::move(newTags);
+    };
+
+    // Merge independently.
+    mergeTags(tagsLeft, other.tagsLeft);
+    mergeTags(tagsRight, other.tagsRight);
+
+    // Now check for conflicts.
+    if (CheckConflict(tagsLeft, tagsRight)) {
+        KAS_CRITICAL("Merging conflicting colors!");
+    }
+
+    dataDiscardingFlag = dataDiscardingFlag || other.dataDiscardingFlag;
+}
+
+void Color::addTag(const Dimension& dim) {
+    const auto& input = dim.as<MergeLikeOp::Input>();
+    std::vector<Tag>& tags = input.getOrder() == Order::Left ? tagsLeft : tagsRight;
+    auto op = input.getOp();
+    // Insert tag into tags and keep it sorted.
+    auto it = std::ranges::lower_bound(tags, op);
+    if (it == tags.end() || *it != op) {
+        tags.insert(it, op);
+    }
+}
+
+bool Color::disjoint(const Color& other) const {
+    return !CheckConflict(tagsLeft, other.tagsRight) && !CheckConflict(other.tagsLeft, tagsRight);
+}
+
+bool Color::CheckFinalization(const std::vector<Interface>& tensors) {
     struct Visitor: public DimVisitor {
-        std::map<Dimension, CompactColorType, Dimension::HashLessThan>& colorMap;
-        Visitor(std::map<Dimension, CompactColorType, Dimension::HashLessThan>& colorMap): colorMap(colorMap) {}
+        std::map<Dimension, CompactColor, Dimension::HashLessThan>& colorMap;
+        Visitor(std::map<Dimension, CompactColor, Dimension::HashLessThan>& colorMap): colorMap(colorMap) {}
         bool fail = false;
         void visit(const RepeatLikeOp::Input& dim) override {
             auto [accept, newColor] = dim.getOp()->transformColor(colorMap.at(&dim));
@@ -157,17 +119,65 @@ bool Colors::CheckFinalization(const std::vector<Interface>& tensors) {
             return !fail;
         }
     };
-    std::map<Dimension, CompactColorType, Dimension::HashLessThan> colorMap;
+    std::map<Dimension, CompactColor, Dimension::HashLessThan> colorMap;
     Visitor visitor { colorMap };
-    for (int color = Colors::First; auto&& tensor: tensors) {
+    for (int color = 0; auto&& tensor: tensors) {
         for (auto&& dim: tensor) {
             auto [_, inserted] = colorMap.emplace(dim, color);
-            KAS_ASSERT(inserted, "Duplicate dimensions in tensors! Or even worse, hash collision.{}", BindingContext::DebugPublicCtx != nullptr ? fmt::format(" Maybe helpful: {} vs {}.", _->first.descendantsDescription(*BindingContext::DebugPublicCtx), dim.descendantsDescription(*BindingContext::DebugPublicCtx)) : "");
+            if (!inserted) {
+                KAS_REPORT_DIMENSION_HASH_COLLISION(_->first, dim);
+            }
             visitor.visit(dim);
         }
         ++color;
     }
     return visitor.pass();
+}
+
+ColoredInterface ColoredInterface::substitute1to1(const Dimension& fro, const Dimension& to, bool addDataDiscardingFlag) const {
+    auto newInterface = *this;
+    auto coloredFro = (*this)[fro];
+    auto coloredTo = ColoredDimension { to, coloredFro.color };
+    if (addDataDiscardingFlag) {
+        coloredTo.color.setDataDiscarding(true);
+    }
+    bool res = WeakOrderedSubstituteVector1To1IfAny(newInterface.items, fro, std::move(coloredTo), Dimension::HashLessThan{}, ColoredDimension::Projection{});
+    KAS_ASSERT(res);
+    return newInterface;
+}
+
+ColoredInterface ColoredInterface::substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2, bool addConstraint) const {
+    auto newInterface = *this;
+    auto coloredFro = (*this)[fro];
+    auto coloredTo1 = ColoredDimension { to1, coloredFro.color };
+    auto coloredTo2 = ColoredDimension { to2, coloredFro.color };
+    if (addConstraint) {
+        coloredTo1.color.addTag(to1);
+        coloredTo2.color.addTag(to2);
+    }
+    bool res = WeakOrderedSubstituteVector1To2IfAny(newInterface.items, fro, std::move(coloredTo1), std::move(coloredTo2), Dimension::HashLessThan{}, ColoredDimension::Projection{});
+    KAS_ASSERT(res);
+    return newInterface;
+}
+
+ColoredInterface ColoredInterface::substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to, bool absorbDataDiscardingFlagInFro2) const {
+    auto newInterface = *this;
+    auto coloredFro1 = (*this)[fro1];
+    auto coloredFro2 = (*this)[fro2];
+    auto coloredTo = ColoredDimension { to, coloredFro1.color };
+    coloredTo.color.merge(coloredFro2.color);
+    if (absorbDataDiscardingFlagInFro2) {
+        coloredTo.color.setDataDiscarding(coloredFro1.color.isDataDiscarding());
+    }
+    bool res = WeakOrderedSubstituteVector2To1IfAny(newInterface.items, fro1, fro2, std::move(coloredTo), Dimension::HashLessThan{}, ColoredDimension::Projection{});
+    KAS_ASSERT(res);
+    return newInterface;
+}
+
+Graph ColoredInterface::buildGraph() const {
+    Graph::Builder builder;
+    builder.addTopmost(toDimensions());
+    return builder.build();
 }
 
 } // namespace kas

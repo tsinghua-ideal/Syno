@@ -38,57 +38,60 @@ SplitOp::Values SplitOp::value(const Values &known) const {
     KAS_CRITICAL("Conflicting values for SplitOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
-std::size_t SplitOp::CountColorTrials = 0;
-std::size_t SplitOp::CountColorSuccesses = 0;
-bool SplitOp::transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const {
-    ++CountColorTrials;
-    auto& outLhs = interface[outputLhs];
-    auto& outRhs = interface[outputRhs];
-    if (outLhs.isUnknown() && outRhs.isUnknown()) { // Pass around the Unknown.
-        colors.substitute(interface, outputLhs, outputRhs, { getInput(), Colors::Unknown });
-    } else if (!outLhs.isUnknown() && !outRhs.isUnknown()) {
-        if (outLhs.color != outRhs.color) {
-            return false; // Because Split preserves colors.
-        }
-        colors.substitute(interface, outputLhs, outputRhs, { getInput(), outLhs.color });
-    } else {
-        auto& known = outLhs.isUnknown() ? outRhs : outLhs;
-        auto& unknown = outLhs.isUnknown() ? outLhs : outRhs;
-        // We have solved the unknown color.
-        // `substitute` removes unknown, so actually no need to call assign here.
-        colors.assign(interface, unknown.dimension, known.color);
-        colors.substitute(interface, outputLhs, outputRhs, { getInput(), known.color });
-    }
-    colors.simplify(interface);
-    ++CountColorSuccesses;
-    return true;
-}
+std::vector<const SplitOp *> SplitOp::Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options) {
+    ++CountGenerateInvocations;
 
-std::vector<const SplitOp *> SplitOp::Generate(DimensionStore& store, const ColoredInterface& outputShape, const Colors& colors, GenerateOptions options) {
+    // Canonicalization requires SplitOp to be chained.
+    using enum DimensionTypeWithOrder;
+    std::vector<DimensionTypeWithOrder> disallowsL { Split, Unfold };
+    std::vector<DimensionTypeWithOrder> disallowsR;
+    if (options.disallowSplitRAboveUnfold) disallowsR.push_back(Unfold);
+    if (options.disallowSplitRAboveStride) disallowsR.push_back(Stride);
+    auto plausibleL = interface.filterOut(disallowsL);
+    auto plausibleR = interface.filterOut(disallowsR);
+
     std::vector<const SplitOp *> result;
-    auto checkThenAdd = [&store, &result](const Dimension& dimL, const Dimension& dimR) {
+    auto checkThenAdd = [&store, &result, disallowDiscontinuousView = options.disallowDiscontinuousView](const Dimension& dimL, const Dimension& dimR) {
         if (auto l = dimL.tryAs<MergeOp::Input>(); l) {
             if (auto r = dimR.tryAs<MergeOp::Input>(); r) {
                 if (l->getOp() == r->getOp()) {
-                    return; // They are just the same merge!
+                    if (l->getOrder() == Order::Left && r->getOrder() == Order::Right) {
+                        // They are just the same merge!
+                        ++CountCounteractedMerges;
+                        return;
+                    } else if (disallowDiscontinuousView && l->getOrder() == Order::Right && r->getOrder() == Order::Left) {
+                        // This is a discontinuous view.
+                        ++CountDisallowedDiscontinuousViews;
+                        return;
+                    }
                 }
             }
         }
         if (auto l = dimL.tryAs<MapReduceOp>(); l) {
             if (auto r = dimR.tryAs<MapReduceOp>(); r) {
-                return; // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
+                // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
+                ++CountUselessImmediateReductions;
+                return;
             }
         }
+        ++CountSuccessfulGenerations;
         result.emplace_back(store.get<SplitOp>(dimL, dimR));
     };
-    if (outputShape.size() > options.dimLowerBound) {
-        for (std::size_t i = 0; i < outputShape.size(); ++i) {
-            for (std::size_t j = 0; j < outputShape.size(); ++j) {
-                if (i == j) continue;
-                checkThenAdd(outputShape[i], outputShape[j]);
+    const auto totalAttempts = interface.size() * interface.size() - interface.size();
+    CountGenerateAttempts += totalAttempts;
+    std::size_t countPlausible = 0;
+    for (auto&& [dimL, colorL]: plausibleL) {
+        for (auto&& [dimR, colorR]: plausibleR) {
+            if (dimL == dimR) continue;
+            ++countPlausible;
+            if (!colorL.disjoint(colorR)) {
+                ++CountConflictingColors;
+                continue;
             }
+            checkThenAdd(dimL, dimR);
         }
     }
+    CountDisallowedAttempts += totalAttempts - countPlausible;
     return result;
 }
 

@@ -23,7 +23,7 @@
 namespace kas {
 
 inline Halide::Expr ConcretizeSize(const ConcreteConsts& consts, const Size& value) {
-    return value.eval<int>(consts.primaryWrapper(), consts.coefficientWrapper());
+    return value.eval<int>(consts);
 }
 
 template<SizeRange R>
@@ -160,26 +160,37 @@ public:
         auto shapes = concretizeShapes(consts);
         auto [inputs, func, backwardInputs, backwardFuncs] = createPipelines(consts, std::forward<decltype(funcName)>(funcName));
 
-        // Initialize input buffers.
-        KAS_ASSERT(tensorView.getUnderlyingTensors().size() == sizeof...(inputInitializers));
-        std::tuple<decltype(inputInitializers)...> initializerTuple = { std::forward<decltype(inputInitializers)>(inputInitializers)... };
         std::vector<Halide::Buffer<float>> inputBuffers;
         std::vector<Halide::Buffer<float>> inputGradsBuffers;
-        auto setter = [&]<std::size_t i>() {
-            std::vector<int> inputBufferShape = ConcreteShapes::RegionToVector(shapes.inputShapes.at(i));
-            inputGradsBuffers.emplace_back(inputBufferShape);
-            inputBuffers.emplace_back(inputBufferShape);
-            auto& inputBuffer = inputBuffers.back();
-            if constexpr (DoInitialization) {
-                auto proxy = HalideGen::BufferRefAdaptor<float>(inputBuffer);
-                inputBuffer.for_each_element(ReverseIntArgs(std::bind_front(std::get<i>(initializerTuple), std::ref(proxy))));
+        if constexpr (DoInitialization) {
+            // Initialize input buffers.
+            KAS_ASSERT(tensorView.getUnderlyingTensors().size() == sizeof...(inputInitializers));
+            std::tuple<decltype(inputInitializers)...> initializerTuple = { std::forward<decltype(inputInitializers)>(inputInitializers)... };
+            auto setter = [&]<std::size_t i>() {
+                std::vector<int> inputBufferShape = ConcreteShapes::RegionToVector(shapes.inputShapes.at(i));
+                inputGradsBuffers.emplace_back(inputBufferShape);
+                inputBuffers.emplace_back(inputBufferShape);
+                auto& inputBuffer = inputBuffers.back();
+                if constexpr (DoInitialization) {
+                    auto proxy = HalideGen::BufferRefAdaptor<float>(inputBuffer);
+                    inputBuffer.for_each_element(ReverseIntArgs(std::bind_front(std::get<i>(initializerTuple), std::ref(proxy))));
+                }
+                inputs.at(i).set(inputBuffer);
+                backwardInputs.at(i).set(inputBuffer);
+            };
+            [&]<std::size_t... i>(std::index_sequence<i...>) {
+                (setter.template operator()<i>(), ...);
+            }(std::make_index_sequence<sizeof...(InputInitializers)>());
+        } else {
+            for (std::size_t i = 0; i < tensorView.getUnderlyingTensors().size(); ++i) {
+                const auto& inputShape = shapes.inputShapes.at(i);
+                std::vector<int> inputBufferShape = ConcreteShapes::RegionToVector(inputShape);
+                inputGradsBuffers.emplace_back(inputBufferShape);
+                inputBuffers.emplace_back(inputBufferShape);
+                inputs.at(i).set(inputBuffers.back());
+                backwardInputs.at(i).set(inputBuffers.back());
             }
-            inputs.at(i).set(inputBuffer);
-            backwardInputs.at(i).set(inputBuffer);
-        };
-        [&]<std::size_t... i>(std::index_sequence<i...>) {
-            (setter.template operator()<i>(), ...);
-        }(std::make_index_sequence<sizeof...(InputInitializers)>());
+        }
 
         // Compute the forward result.
         auto target = GetHostTarget(options.useGPU, true);
@@ -213,9 +224,22 @@ public:
 
         // Compute the backward result.
         backwardPipeline.compile_jit(target);
-        auto realizationArgs = [&]<std::size_t... i>(std::index_sequence<i...>) {
-            return Halide::Pipeline::RealizationArg(inputGradsBuffers.at(i)...);
-        }(std::make_index_sequence<sizeof...(InputInitializers)>());
+        auto realizationArgs = [&]() -> Halide::Pipeline::RealizationArg {
+            if constexpr (DoInitialization) {
+                return [&]<std::size_t... i>(std::index_sequence<i...>) {
+                    return Halide::Pipeline::RealizationArg(inputGradsBuffers.at(i)...);
+                }(std::make_index_sequence<sizeof...(InputInitializers)>());
+            } else {
+                switch (tensorView.getUnderlyingTensors().size()) {
+                case 1: return Halide::Pipeline::RealizationArg(inputGradsBuffers[0]);
+                case 2: return Halide::Pipeline::RealizationArg(inputGradsBuffers[0], inputGradsBuffers[1]);
+                case 3: return Halide::Pipeline::RealizationArg(inputGradsBuffers[0], inputGradsBuffers[1], inputGradsBuffers[2]);
+                case 4: return Halide::Pipeline::RealizationArg(inputGradsBuffers[0], inputGradsBuffers[1], inputGradsBuffers[2], inputGradsBuffers[3]);
+                case 5: return Halide::Pipeline::RealizationArg(inputGradsBuffers[0], inputGradsBuffers[1], inputGradsBuffers[2], inputGradsBuffers[3], inputGradsBuffers[4]);
+                default: KAS_CRITICAL("Unsupported number of input tensors: {}", tensorView.getUnderlyingTensors().size());
+                }
+            }
+        }();
         try {
             backwardPipeline.realize(std::move(realizationArgs), target);
         } catch (const Halide::Error& e) {

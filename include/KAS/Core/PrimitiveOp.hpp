@@ -27,24 +27,24 @@ private:
     std::variant<std::monostate, Direction, IteratorValue> value;
 
 public:
-    inline Valuation() {}
-    inline Valuation(std::monostate) {}
-    inline Valuation(Direction dir): value { dir } {}
-    inline Valuation(const IteratorValue& val): value { val } {}
+    Valuation() {}
+    Valuation(std::monostate) {}
+    Valuation(Direction dir): value { dir } {}
+    Valuation(const IteratorValue& val): value { val } {}
 
-    inline Type type() const noexcept {
+    Type type() const noexcept {
         return static_cast<Type>(value.index());
     }
-    inline bool isUnoriented() const noexcept { return type() == Type::Unoriented; }
-    inline bool isOriented() const noexcept { return type() == Type::Oriented; }
-    inline bool isOrientedUp() const { return isOriented() && std::get<Direction>(value) == Direction::Up; }
-    inline bool isOrientedDown() const { return isOriented() && std::get<Direction>(value) == Direction::Down; }
-    inline bool isUnorientedOrOrientedUp() const { return isUnoriented() || isOrientedUp(); }
-    inline bool isUnorientedOrOrientedDown() const { return isUnoriented() || isOrientedDown(); }
-    inline bool isValued() const noexcept { return type() == Type::Valued; }
-    inline bool isValuedOrOrientedUp() const { return isValued() || isOrientedUp(); }
-    inline bool isValuedOrOrientedDown() const { return isValued() || isOrientedDown(); }
-    inline void assertCanBeConvertedFrom(const Valuation& other) const {
+    bool isUnoriented() const noexcept { return type() == Type::Unoriented; }
+    bool isOriented() const noexcept { return type() == Type::Oriented; }
+    bool isOrientedUp() const { return isOriented() && std::get<Direction>(value) == Direction::Up; }
+    bool isOrientedDown() const { return isOriented() && std::get<Direction>(value) == Direction::Down; }
+    bool isUnorientedOrOrientedUp() const { return isUnoriented() || isOrientedUp(); }
+    bool isUnorientedOrOrientedDown() const { return isUnoriented() || isOrientedDown(); }
+    bool isValued() const noexcept { return type() == Type::Valued; }
+    bool isValuedOrOrientedUp() const { return isValued() || isOrientedUp(); }
+    bool isValuedOrOrientedDown() const { return isValued() || isOrientedDown(); }
+    void assertCanBeConvertedFrom(const Valuation& other) const {
         KAS_ASSERT(type() >= other.type(), "Valuation of a dimension is decaying from {} to {}!", static_cast<int>(other.type()), static_cast<int>(type()));
         if (type() == Type::Oriented && other.type() == Type::Oriented) {
             auto dir = std::get<Direction>(value);
@@ -52,25 +52,25 @@ public:
             KAS_ASSERT(dir == otherDir, "Valuation of a dimension is changing direction from {} to {}!", otherDir, dir);
         }
     }
-    inline bool isRefined(const Valuation& other) const noexcept {
+    bool isRefined(const Valuation& other) const noexcept {
         return type() > other.type();
     }
-    inline Direction extractOrientation() const {
+    Direction extractOrientation() const {
         KAS_ASSERT(type() == Type::Oriented, "Extracting a direction from a dimension which is not oriented!");
         return std::get<Direction>(value);
     }
-    inline std::optional<Direction> tryOrientation() const {
+    std::optional<Direction> tryOrientation() const {
         if (type() == Type::Oriented) {
             return std::get<Direction>(value);
         } else {
             return std::nullopt;
         }
     }
-    inline const IteratorValue& extractValue() const {
+    const IteratorValue& extractValue() const {
         KAS_ASSERT(type() == Type::Valued, "Extracting a dimension which is not yet valued!");
         return std::get<IteratorValue>(value);
     }
-    inline IteratorValue tryValue() const {
+    IteratorValue tryValue() const {
         if (type() == Type::Valued) {
             return std::get<IteratorValue>(value);
         } else {
@@ -109,19 +109,19 @@ requires(Count <= 3)
 struct Valuations {
     std::array<Valuation, Count> values;
     // All Dimensions are valued.
-    inline bool allValued() const noexcept {
+    bool allValued() const noexcept {
         return std::all_of(values.begin(), values.end(), [](const Valuation& val) { return val.isValued(); });
     }
     // We know nothing about these Dimensions.
-    inline bool allUnoriented() const noexcept {
+    bool allUnoriented() const noexcept {
         return std::all_of(values.begin(), values.end(), [](const Valuation& val) { return val.isUnoriented(); });
     }
     // Nothing to deduce if and only if all known or all unknown.
-    inline bool canSkipDeduction() const noexcept {
+    bool canSkipDeduction() const noexcept {
         return allValued() || allUnoriented();
     }
-    inline Valuation& operator[](std::uint8_t branch) noexcept { return values[static_cast<std::size_t>(branch)]; }
-    inline const Valuation& operator[](std::uint8_t branch) const noexcept { return values[static_cast<std::size_t>(branch)]; }
+    Valuation& operator[](std::uint8_t branch) noexcept { return values[static_cast<std::size_t>(branch)]; }
+    const Valuation& operator[](std::uint8_t branch) const noexcept { return values[static_cast<std::size_t>(branch)]; }
     template<typename Fill>
     static Valuations<Count> FillBy(Fill&& fill) {
         return [&]<std::size_t... I>(std::index_sequence<I...>) {
@@ -133,9 +133,19 @@ struct Valuations {
 class DimensionStore;
 
 // There are 3 kinds of `PrimitiveOp`'s, listed below. Those classes can transform `Dimension`s, from those that index the output tensor, to forms that index the original tensors. So this is also kind of bottom-up.
+// First we define a common base class.
+class PrimitiveOp {
+public:
+    virtual DimensionType getType() const noexcept = 0;
+    virtual std::size_t initialHash() const noexcept = 0;
+    virtual std::size_t opHash() const noexcept = 0;
+    virtual ColoredInterface applyToInterface(const ColoredInterface& interface) const = 0;
+    virtual std::string description(const BindingContext& ctx) const = 0;
+    virtual ~PrimitiveOp() = default;
+};
 
 // By repeat-like, we refer to the primitives that have one input iterator and one output iterator.
-class RepeatLikeOp {
+class RepeatLikeOp: public PrimitiveOp {
 public:
     enum class Branch: std::uint8_t {
         Input = 0,
@@ -146,17 +156,17 @@ public:
     class Input: public DimensionImpl {
     protected:
         const RepeatLikeOp *op;
-        inline Input(const RepeatLikeOp *op): op { op } {}
+        Input(const RepeatLikeOp *op): op { op } {}
+    public:
         template<typename Derived>
         const Derived *getDerivedOp() const noexcept {
             return static_cast<const Derived *>(op);
         }
-    public:
-        inline std::size_t hash() const noexcept final override {
+        std::size_t hash() const noexcept final override {
             return op->opHash();
         }
         void accept(DimVisitor& visitor) const final override;
-        inline const RepeatLikeOp *getOp() const noexcept { return op; }
+        const RepeatLikeOp *getOp() const noexcept { return op; }
     };
     Dimension output;
     RepeatLikeOp(auto&& output):
@@ -164,9 +174,7 @@ public:
     {}
     RepeatLikeOp(const RepeatLikeOp&) = delete; // Do not copy! We want to store inputs in this class.
     RepeatLikeOp(RepeatLikeOp&&) = delete; // Do not move! Same reason.
-    virtual DimensionType getType() const noexcept = 0;
-    virtual std::size_t initialHash() const noexcept = 0;
-    inline std::size_t opHash() const noexcept {
+    std::size_t opHash() const noexcept final override {
         std::size_t h = initialHash();
         HashCombine(h, output.hash());
         return h;
@@ -178,18 +186,18 @@ public:
     // Compute the iterators based on given iterators. This also gives orientation, which is the direction of value propagation.
     virtual Values value(const Values& known) const = 0;
 
-    virtual inline std::pair<bool, CompactColorType> transformColor(CompactColorType fro) const { return { true, fro }; }
-    virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
-
-    inline std::string description(const BindingContext& ctx) const {
-        return fmt::format("{} -> {}", getInput().description(ctx), output.description(ctx));
+    virtual std::pair<bool, CompactColor> transformColor(CompactColor fro) const { return { true, fro }; }
+    ColoredInterface applyToInterface(const ColoredInterface& interface) const override {
+        return interface.substitute1to1(output, getInput());
     }
 
-    ~RepeatLikeOp() = default;
+    std::string description(const BindingContext& ctx) const final override {
+        return fmt::format("{} -> {}", getInput().description(ctx), output.description(ctx));
+    }
 };
 
 // By split-like, we refer to the primitives that have one input iterator and two output iterators.
-class SplitLikeOp {
+class SplitLikeOp: public PrimitiveOp {
 public:
     enum class Branch: std::int8_t {
         Input = 0,
@@ -207,17 +215,17 @@ public:
     class Input: public DimensionImpl {
     protected:
         const SplitLikeOp *op;
-        inline Input(const SplitLikeOp *op): op { op } {}
+        Input(const SplitLikeOp *op): op { op } {}
+    public:
         template<typename Derived>
         const Derived *getDerivedOp() const noexcept {
             return static_cast<const Derived *>(op);
         }
-    public:
-        inline std::size_t hash() const noexcept final override {
+        std::size_t hash() const noexcept final override {
             return op->opHash();
         }
         void accept(DimVisitor& visitor) const final override;
-        inline const SplitLikeOp *getOp() const noexcept { return op; }
+        const SplitLikeOp *getOp() const noexcept { return op; }
     };
     Dimension outputLhs, outputRhs;
     SplitLikeOp(auto&& outputLhs, auto&& outputRhs):
@@ -226,9 +234,7 @@ public:
     {}
     SplitLikeOp(const SplitLikeOp&) = delete;
     SplitLikeOp(SplitLikeOp&&) = delete;
-    virtual DimensionType getType() const noexcept = 0;
-    virtual std::size_t initialHash() const noexcept = 0;
-    inline std::size_t opHash() const noexcept {
+    std::size_t opHash() const noexcept final override {
         std::size_t h = initialHash();
         HashCombine(h, outputLhs.hash());
         HashCombine(h, outputRhs.hash());
@@ -239,18 +245,18 @@ public:
     using Values = Valuations<BranchCount>;
     virtual Values value(const Values& known) const = 0;
 
-    virtual inline std::tuple<bool, CompactColorType, CompactColorType> transformColor(CompactColorType fro) const { return { true, fro, fro }; }
-    virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
-
-    inline std::string description(const BindingContext& ctx) const {
-        return fmt::format("{} -> {}, {}", getInput().description(ctx), outputLhs.description(ctx), outputRhs.description(ctx));
+    virtual std::tuple<bool, CompactColor, CompactColor> transformColor(CompactColor fro) const { return { true, fro, fro }; }
+    ColoredInterface applyToInterface(const ColoredInterface& interface) const override {
+        return interface.substitute2to1(outputLhs, outputRhs, getInput());
     }
 
-    ~SplitLikeOp() = default;
+    std::string description(const BindingContext& ctx) const final override {
+        return fmt::format("{} -> {}, {}", getInput().description(ctx), outputLhs.description(ctx), outputRhs.description(ctx));
+    }
 };
 
 // By merge-like, we refer to the primitives that have two input iterators and one output iterator.
-class MergeLikeOp {
+class MergeLikeOp: public PrimitiveOp {
 public:
     enum class Branch: std::int8_t {
         InputLhs = 0,
@@ -269,21 +275,22 @@ public:
     protected:
         const MergeLikeOp *op;
         Order order;
-        inline Input(const MergeLikeOp *op, Order order): op { op }, order { order } {}
+        Input(const MergeLikeOp *op, Order order): op { op }, order { order } {}
+    public:
         template<typename Derived>
         const Derived *getDerivedOp() const noexcept {
             return static_cast<const Derived *>(op);
         }
-    public:
-        inline std::size_t hash() const noexcept final override {
+        std::size_t hash() const noexcept final override {
             std::size_t h = op->opHash();
             HashCombine(h, order);
             return h;
         }
+        virtual bool is(DimensionTypeWithOrder ty) const noexcept override = 0;
         void accept(DimVisitor& visitor) const final override;
-        inline const MergeLikeOp *getOp() const noexcept { return op; }
-        inline Order getOrder() const noexcept { return order; }
-        inline Dimension getOther() const noexcept {
+        const MergeLikeOp *getOp() const noexcept { return op; }
+        Order getOrder() const noexcept { return order; }
+        Dimension getOther() const noexcept {
             return order == Order::Left ? op->getInputR() : op->getInputL();
         }
     };
@@ -293,9 +300,7 @@ public:
     {}
     MergeLikeOp(const MergeLikeOp&) = delete;
     MergeLikeOp(MergeLikeOp&&) = delete;
-    virtual DimensionType getType() const noexcept = 0;
-    virtual std::size_t initialHash() const noexcept = 0;
-    inline std::size_t opHash() const noexcept {
+    std::size_t opHash() const noexcept final override {
         std::size_t h = initialHash();
         HashCombine(h, output.hash());
         return h;
@@ -306,18 +311,15 @@ public:
     using Values = Valuations<BranchCount>;
     virtual Values value(const Values& known) const = 0;
 
-    virtual inline std::pair<bool, CompactColorType> transformColor(CompactColorType fro1, CompactColorType fro2) const { return { true, fro1 | fro2 }; }
-    virtual bool transformInterface(ColoredInterface& interface, Colors& colors, Colors::Options options) const = 0;
-
-    inline std::string description(const BindingContext& ctx) const {
-        return fmt::format("{}, {} -> {}", getInputL().description(ctx), getInputR().description(ctx), output.description(ctx));
+    virtual std::pair<bool, CompactColor> transformColor(CompactColor fro1, CompactColor fro2) const { return { true, fro1 | fro2 }; }
+    ColoredInterface applyToInterface(const ColoredInterface& interface) const override {
+        return interface.substitute1to2(output, getInputL(), getInputR());
     }
 
-    ~MergeLikeOp() = default;
+    std::string description(const BindingContext& ctx) const final override {
+        return fmt::format("{}, {} -> {}", getInputL().description(ctx), getInputR().description(ctx), output.description(ctx));
+    }
 };
-
-template<typename Op>
-concept PrimitiveOp = std::same_as<Op, RepeatLikeOp> || std::same_as<Op, SplitLikeOp> || std::same_as<Op, MergeLikeOp>;
 
 } // namespace kas
 
