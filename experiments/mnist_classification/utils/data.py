@@ -11,8 +11,8 @@ def get_dataloader(args, data_path='~/data/'):
                           ]))
     train_data, validation_data = random_split(mnist_dataset, [50000, 10000])
 
-    print("train data", len(train_data))
-    print("val data", len(validation_data))
+    # print("train data", len(train_data))
+    # print("val data", len(validation_data))
 
     # construct data loader
 
@@ -20,7 +20,7 @@ def get_dataloader(args, data_path='~/data/'):
         train_data,
         batch_size=args.batch_size,
         num_workers=8,
-        shuffle=True, 
+        shuffle=True,
         drop_last=True,
         pin_memory=True,
         pin_memory_device="cuda:0"
@@ -29,7 +29,7 @@ def get_dataloader(args, data_path='~/data/'):
         validation_data,
         batch_size=args.batch_size,
         num_workers=8,
-        shuffle=False, 
+        shuffle=False,
         drop_last=True,
         pin_memory=True,
         pin_memory_device="cuda:0"

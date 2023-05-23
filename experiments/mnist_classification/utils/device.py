@@ -1,16 +1,14 @@
 import os
 import torch
+import logging
 
 from timm.utils import random_seed
-
-from ..mp_utils import log
 
 
 def initialize(args):
     assert torch.cuda.is_available(), 'No available CUDA devices'
 
     # Distributed.
-    logger = log.get_logger()
     setattr(args, 'distributed', False)
     setattr(args, 'world_size', 1)
     setattr(args, 'rank', 0)
@@ -23,10 +21,10 @@ def initialize(args):
             backend='nccl', init_method='env://')
         args.world_size = torch.distributed.get_world_size()
         args.rank = torch.distributed.get_rank()
-        logger.info('Training in distributed mode with multiple processes, 1 GPU per process. Process {}, total {}.'
-                    .format(args.rank, args.world_size))
+        logging.info('Training in distributed mode with multiple processes, 1 GPU per process. Process {}, total {}.'
+                     .format(args.rank, args.world_size))
     else:
-        logger.info('Training with a single process on 1 GPU.')
+        logging.info('Training with a single process on 1 GPU.')
     assert args.rank >= 0
 
     # Set seed.

@@ -16,10 +16,11 @@ class Handler:
         assert 'path' in j
         return j['path']
 
-    def success(self, name, reward):
+    def success(self, name, state, reward):
         assert name is not None
-        requests.post(f'{self.addr}/success?name={name}#{reward}')
+        requests.post(f'{self.addr}/success?name={name}${state}${reward}')
 
-    def failure(self, name=None):
-        if name is not None:
-            requests.post(f'{self.addr}/failure?name={name}')
+    def failure(self, name, state):
+        assert name is not None
+        print(f'{self.addr}/failure?name={name}${state}')
+        requests.post(f'{self.addr}/failure?name={name}${state}')

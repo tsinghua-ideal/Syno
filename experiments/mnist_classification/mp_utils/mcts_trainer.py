@@ -51,10 +51,10 @@ class MCTSTrainer(MCTS):
     def get_args(self):
         return self.args
 
-    def update_result(self, path, reward=None) -> None:
+    def update_result(self, path, reward) -> None:
         """preprocess a path after evaluation. """
         node, receipt = self.waiting_result_cache.pop(path)['meta']
-        if reward is None:
+        if reward == -1:
             self.set_dead(node)
         else:
             self.set_eval_result(node, reward)

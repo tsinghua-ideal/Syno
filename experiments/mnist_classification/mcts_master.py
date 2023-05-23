@@ -1,25 +1,19 @@
 import torch
-from torch import nn, Tensor
-
-import math
 from http.server import HTTPServer
 
 # Systems
 import time
 import random
-from typing import List, Union
-import os
-import sys
+import os, sys
 import logging
 import traceback
 import json
-from thop import profile
+from copy import deepcopy
 
 # KAS
-from KAS import MCTS, Sampler, KernelPack, Node, Path, Placeholder
+from KAS import Sampler
 from KAS.Bindings import CodeGenOptions
 
-from train import train
 from utils.data import get_dataloader
 from utils.models import KASGrayConv as KASConv, ModelBackup
 from utils.parser import arg_parse
@@ -37,7 +31,6 @@ if __name__ == '__main__':
     os.makedirs(args.kas_sampler_save_dir, exist_ok=True)
 
     training_params = dict(
-        criterion=nn.CrossEntropyLoss(),
         lr=0.1,
         momentum=0.9,
         epochs=30,
@@ -69,15 +62,20 @@ if __name__ == '__main__':
         prefix="",
         model_type="KASConv",  # TODO: dynamically load the module
         batch_size=args.batch_size,
-        device=torch.device("cuda" if use_cuda else "cpu")
+        device="cuda" if use_cuda else "cpu"
     )
 
-    arguments = dict(
-        sampler_params=sampler_params,
-        training_params=training_params,
+    arguments = deepcopy(dict(
+        sampler_args=sampler_params,
+        train_args=training_params,
         extra_args=extra_args
-    )
+    ))
+    arguments['sampler_args']['autoscheduler'] = str(
+        arguments['sampler_args']['autoscheduler'])[14:]  # HACK: serialize the enum
 
+    train_data_loader, validation_data_loader = get_dataloader(args)
+    extra_args["sample_input_shape"] = (
+        extra_args["batch_size"], *train_data_loader.dataset[0][0].shape)
     _model = ModelBackup(KASConv, torch.randn(
         extra_args["sample_input_shape"]), extra_args["device"])
     kas_sampler = Sampler(net=_model.create_instance(), **sampler_params)
@@ -87,8 +85,8 @@ if __name__ == '__main__':
 
     class MCTSHandler(Handler_server):
         def __init__(self, *args, **kwargs) -> None:
-            super().__init__(*args, **kwargs)
             self.mcts = searcher
+            super().__init__(*args, **kwargs)
 
     # Start HTTP server.
     print(f'Starting listening at {args.host}:{args.port}')
