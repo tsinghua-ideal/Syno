@@ -1,27 +1,62 @@
 from torch import nn, Tensor
 from thop import profile
+from typing import List
 
-from KAS import Placeholder
+from KAS import Placeholder, KernelPack, Sampler
+
+class ModelBackup:
+    def __init__(self, model, sample_input: Tensor, device='cuda:0') -> None:
+        self._model_builder = model
+        self._sample_input = sample_input.to(device)
+
+        self._model = self._model_builder().to(device)
+        macs, params = profile(self._model, inputs=(
+            self._sample_input, ), verbose=False)
+        print(
+            f"Referenced model has {round(macs / 1e9, 3)}G MACs and {round(params / 1e6, 3)}M parameters ")
+        self.base_macs = macs - \
+            self._model.generatePlaceHolder(self._sample_input)
+        print(f"Base MACs is {self.base_macs}")
+
+    def create_instance(self) -> nn.Module:
+        self._model._initialize_weight()
+        return self._model
+
+    def restore_model_params(self, model, pack: List[KernelPack]):
+        """
+        Restore model parameters and replace the selected parameters with pack.
+        """
+        assert len(pack) > 0, "Not detected any placeholders! "
+        assert isinstance(pack[0], KernelPack
+                          ), f"elements in pack are not valid! {type(pack[0])}"
+        Sampler.replace(model, pack)
+        return model
 
 
 class ConvNet(nn.Module):
+    """CNN architecture follows the implementation of DeepOBS (https://deepobs.readthedocs.io/en/stable/api/testproblems/mnist/mnist_2c2d.html)"""
+
     def __init__(self) -> None:
         super().__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(1, 16, 5, 1, 2),
+            nn.Conv2d(1, 32, kernel_size=5, padding='same'),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2, 0, 1, ceil_mode=False),
-            nn.Conv2d(16, 32, 5, 1, 2),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(32, 64, kernel_size=5, padding='same'),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2, 0, 1, ceil_mode=False)
+            nn.MaxPool2d(2, 2)
         )
-        self.linear = nn.Linear(32*7*7, 10)
+        self.dense = nn.Sequential(
+            nn.Linear(64*7*7, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 10),
+        )
 
     def forward(self, image):
         B = image.size(0)
         image = image.view(B, 1, 28, 28)
         feats = self.conv(image)
-        return self.linear(feats.view(B, -1))
+        return self.dense(feats.view(B, -1))
 
 
 class KASModule(nn.Module):
@@ -91,15 +126,19 @@ class KASConv(KASModule):
         super().__init__()
 
         self.blocks = nn.ModuleList([
-            nn.Conv2d(1, 16, 5, padding='same'),
+            nn.Conv2d(1, 32, kernel_size=5, padding='same'),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
-            nn.Conv2d(16, 32, 5, padding='same'),
+            nn.Conv2d(32, 64, kernel_size=5, padding='same'),
             nn.ReLU(),
             nn.MaxPool2d(2, 2)
         ])
 
-        self.linear = nn.Linear(32*7*7, 10)
+        self.dense = nn.Sequential(
+            nn.Linear(64*7*7, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 10),
+        )
 
     def forward(self, image: Tensor) -> Tensor:
         B = image.size(0)
@@ -107,7 +146,7 @@ class KASConv(KASModule):
 
         x = self.layers(image)
 
-        return self.linear(x.view(B, -1))
+        return self.dense(x.view(B, -1))
 
 
 class KASGrayConv(KASModule):

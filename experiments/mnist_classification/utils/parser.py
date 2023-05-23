@@ -128,8 +128,10 @@ def arg_parse():
                         help='searcher type (mcts or random)')
     parser.add_argument('--result-save-dir', default='./results',
                         help='Sampler saving directory')
-    parser.add_argument('--kas-iterations', default=30, type=int, 
+    parser.add_argument('--kas-iterations', default=30, type=int,
                         help='Searcher iterations')
+    parser.add_argument('--kas-leaf-parallelization-number', default=4, type=int,
+                        help='leaf parallelization')
     parser.add_argument('--kas-min-macs', default=0, type=float,
                         help='Minimum MACs for searched kernels (in G-unit, only for search)')
     parser.add_argument('--kas-max-macs', default=5, type=float,
@@ -146,7 +148,7 @@ def arg_parse():
                         help='Workers to use for sampling (only for search)')
     parser.add_argument('--kas-proxy-kernel-scale-limit', default=0.3, type=float,
                         help='Minimum/maximum kernel scale (geometric mean, only for search)')
-    parser.add_argument('--kas-selector-address', default='http://43.138.119.173:8000', type=str,
+    parser.add_argument('--kas-selector-address', default='127.0.0.1:8000', type=str,
                         help='Selector server address')
     parser.add_argument('--kas-selector-max-params',
                         default=6, help='Maximum model size')
@@ -154,6 +156,9 @@ def arg_parse():
                         help='Selector working directory')
     parser.add_argument('--kas-selector-save-dir', default='./kas_save',
                         help='Selector saving directory')
+
+    parser.add_argument('--host', type=str, metavar='HOST', default='0.0.0.0')
+    parser.add_argument('--port', type=int, metavar='PORT', default='8000')
 
     # Parse program arguments, add timestamp information, and checks.
     args = parser.parse_args()
