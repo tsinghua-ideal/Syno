@@ -15,8 +15,8 @@ from copy import deepcopy
 from KAS import Sampler
 from KAS.Bindings import CodeGenOptions
 
-if os.getcwd() not in sys.path: sys.path.append(os.getcwd())
-from utils.data import get_dataloader
+if os.getcwd() not in sys.path:
+    sys.path.append(os.getcwd())
 from utils.models import KASGrayConv as KASConv, ModelBackup
 from utils.parser import arg_parse
 
@@ -64,6 +64,7 @@ if __name__ == '__main__':
         prefix="",
         model_type="KASConv",  # TODO: dynamically load the module
         batch_size=args.batch_size,
+        sample_input_shape=(args.batch_size, *args.input_size),
         device="cuda" if use_cuda else "cpu"
     )
 
@@ -75,11 +76,8 @@ if __name__ == '__main__':
     arguments['sampler_args']['autoscheduler'] = str(
         arguments['sampler_args']['autoscheduler'])[14:]  # HACK: serialize the enum
 
-    train_data_loader, validation_data_loader = get_dataloader(args)
-    extra_args["sample_input_shape"] = (
-        extra_args["batch_size"], *train_data_loader.dataset[0][0].shape)
     _model = ModelBackup(KASConv, torch.randn(
-        extra_args["sample_input_shape"]), extra_args["device"])
+        extra_args["sample_input_shape"]), "cpu")
     kas_sampler = Sampler(net=_model.create_instance(), **sampler_params)
 
     searcher = MCTSTrainer(
@@ -87,7 +85,7 @@ if __name__ == '__main__':
         arguments,
         mcts_iterations=args.kas_iterations,
         leaf_parallelization_number=args.kas_leaf_parallelization_number,
-        simulate_retry_limit=args.simulate_retry_limit,
+        simulate_retry_limit=args.kas_simulate_retry_limit,
         virtual_loss_constant=args.kas_tree_parallelization_virtual_loss_constant
     )
 

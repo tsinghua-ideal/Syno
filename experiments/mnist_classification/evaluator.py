@@ -10,7 +10,8 @@ from mp_utils import Handler_client, evaluate
 import torch
 
 # Systems
-import os, sys
+import os
+import sys
 import logging
 import traceback
 
@@ -36,8 +37,6 @@ if __name__ == '__main__':
 
     sampler_args['autoscheduler'] = getattr(
         CodeGenOptions.AutoScheduler, sampler_args['autoscheduler'])
-    extra_args["sample_input_shape"] = (
-        extra_args["batch_size"], *train_data_loader.dataset[0][0].shape)
 
     _model = ModelBackup(KASConv, torch.randn(
         extra_args["sample_input_shape"]), extra_args["device"])

@@ -3,6 +3,7 @@ import math
 # Systems
 import os
 import json
+from time import time
 
 # KAS
 from KAS import MCTS, Sampler
@@ -26,6 +27,7 @@ class MCTSTrainer(MCTS):
         self.reward_list = []
         self.time_list = []
         self.end_flag = False
+        self.start_time = time()
 
         # arguments
         self.args = arguments
@@ -71,6 +73,7 @@ class MCTSTrainer(MCTS):
                 self.best_node = (node, reward)
             self.back_propagate(receipt, reward)
             self.reward_list.append(reward)
+            self.time_list.append(time() - self.start_time)
 
     def launch_new_iteration(self) -> None:
         """
@@ -98,17 +101,26 @@ class MCTSTrainer(MCTS):
                 # update
                 self.back_propagate(receipt, reward)
                 self.reward_list.append(reward)
+                self.time_list.append(time() - self.start_time)
 
     def dump_result(self, result_save_loc: str = './final_result') -> None:
         """Search for the best model for iterations times."""
 
         print("Finish searching process. Displaying final result...")
+        node = self.get_results()
 
         os.makedirs(result_save_loc, exist_ok=True)
         perf_path = os.path.join(result_save_loc, 'perf.json')
-        perf_dict = {"rewards": self.reward_list,
-                     "times": self.time_list}
+        perf_dict = {
+            "rewards": self.reward_list,
+            "times": self.time_list
+        }
         json.dump(perf_dict, open(perf_path, 'w'))
+        result_path = os.path.join(result_save_loc, 'result.json')
+        result_dict = {
+            "best_path": node.path.serialize(),
+            "mcts": self.dump()
+        }
+        json.dump(result_dict, open(result_path, 'w'))
 
-        node = self.get_results()
         print("Best performance: {}".format(self.get_eval_result(node)))

@@ -11,6 +11,9 @@ def arg_parse():
                         help='Random seed (default: 42)')
     parser.add_argument('--batch-size', metavar='N', type=int, default=5000,
                         help='Batch size')
+    parser.add_argument('--input-size', default=(1, 28, 28), nargs=3, type=int, metavar='N N N',
+                        help='Input all image dimensions (d h w, e.g. --input-size 3 224 224, '
+                             'model default if none)')
 
     # Optimizer parameters.
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',

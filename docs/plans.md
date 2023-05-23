@@ -50,12 +50,12 @@
 ## Experiment
 
 - [x] Build framework for MNIST experiments. 
-- [ ] Multi-process support for MCTS. (Tree parallelization)
+- [x] Multi-process support for MCTS. (Tree parallelization)
     - [x] server
     - [x] client
-    - [-] Tree parallelization
-    - [-] setup script
+    - [x] Tree parallelization
+    - [x] setup script
 - [x] Two-step primitive selection. 
 - [ ] Early Stopping during training. (Not urgent yet. )
-- [ ] Search Result Saving (path, mcts, etc.). 
+- [-] Search Result Saving (path, mcts, etc.). 
 - [x] Cache searched nodes. 

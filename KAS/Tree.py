@@ -2,7 +2,6 @@ import random
 import math
 import logging
 from collections import defaultdict
-from itertools import groupby
 from typing import List, Tuple, Any
 
 from .Node import Path, VisitedNode
@@ -27,7 +26,27 @@ class MCTS:
         self.leaf_num = leaf_num
         self.simulate_retry_limit = simulate_retry_limit
 
-    def _get_Q(self, node: VisitedNode) -> float:
+    def dump(self) -> dict:
+        """Dump the tree into a json file. """
+        Q_sel = {k.path.serialize(): v for k, v in self._Q.items()}
+        N_sel = {k.path.serialize(): v for k, v in self._N.items()}
+        node_expanded = list(self._children_nexts.keys())
+        node_expanded_sel = [n.path.serialize() for n in node_expanded]
+        packed_args = dict(
+            virtual_loss_constant=self.virtual_loss_constant,
+            leaf_num=self.leaf_num,
+            simulate_retry_limit=self.simulate_retry_limit,
+            _exploration_weight=self._exploration_weight
+        )
+        j = dict(
+            Q=Q_sel,
+            N=N_sel,
+            node_expand=node_expanded_sel,
+            args=packed_args
+        )
+        return j
+
+    def _get_Q(self, node: TreeNode) -> float:
         return self._Q[node]
 
     def _add_Q(self, node: TreeNode, value: float) -> None:
@@ -49,7 +68,7 @@ class MCTS:
         self._children_nexts[node] = children_nexts
 
     def _increment_virtual_loss(self, path: TreePath, node: TreeNode):
-
+        node = TreeNode(node.path, node._node)
         for next in path:
             node = node.get_child(next.type)
             self.virtual_loss_count[node] += 1
@@ -59,7 +78,7 @@ class MCTS:
             self.virtual_loss_count[node] += 1
 
     def _decrement_virtual_loss(self, path: TreePath, node: TreeNode):
-
+        node = TreeNode(node.path, node._node)
         for next in path:
             node = node.get_child(next.type)
             self.virtual_loss_count[node] -= 1
@@ -168,7 +187,8 @@ class MCTS:
 
         node, path = receipt
         node = TreeNode(node.path, node._node)
-        self._decrement_virtual_loss(path, node)
+        if reward > 0:
+            self._decrement_virtual_loss(path, node)
 
         _update_stats(node, reward)
         for next in path:
