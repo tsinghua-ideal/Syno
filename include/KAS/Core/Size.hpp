@@ -105,6 +105,7 @@ public:
     float upperBoundEst(const BindingContext& ctx) const;
 
     Size identity() const;
+    static Size Identity(const BindingContext& ctx);
 
     Trait getTrait() const;
     bool is1() const;

@@ -20,6 +20,7 @@
 #include "KAS/Search/Node.hpp"
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Utils/Hash.hpp"
+#include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
@@ -101,6 +102,8 @@ class Stage {
     // std::vector<std::reference_wrapper<const Size>> missingSizes;
     std::size_t depth; // Stages with identical interfaces must be of the same depth.
 
+    std::size_t remainingDepth() const;
+
     // This checks whether the nexts are evaluated. If not, it evaluates them.
     void guard();
 
@@ -138,6 +141,12 @@ public:
         // Compute missing sizes. TODO.
     }
 
+    KAS_STATISTICS_DEF(
+        FinalizabilityCheckInvocations,
+        TooManyStridedDims,
+        TooFewElementsInInputTensor,
+        ShapeDeviatesTooMuch,
+    );
     // This is for pruning. We experimentally finalize this stage, and conservatively exclude the stage if it is not possible to finalize.
     bool possibleToFinalize() const;
 

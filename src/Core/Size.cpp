@@ -70,6 +70,10 @@ Size Size::identity() const {
     return { primaryCount, coefficientCount };
 }
 
+Size Size::Identity(const BindingContext& ctx) {
+    return { ctx.getPrimaryCount(), ctx.getCoefficientCount() };
+}
+
 Size::Trait Size::getTrait() const {
     bool hasPrimary = false;
     for (auto P = getPrimary(); auto p: P) {
@@ -277,17 +281,19 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
         std::iota(coefficientNonzeroPowers.begin(), coefficientNonzeroPowers.end(), 0);
         ExprType coefficientLower {}, coefficientUpper {};
         for (std::size_t i = 0; i < coefficientCount; ++i) {
-            coefficientLower[i] = coefficient[i] / 2 - 2;
-            coefficientUpper[i] = coefficient[i] / 2 + 2;
+            coefficientLower[i] = coefficient[i] / 2 - 1;
+            coefficientUpper[i] = coefficient[i] / 2 + 1;
         }
         // These are just too many! We cannot do it this way! TODO!!!
         while (true) {
             divisor.coefficient = coefficientLower;
             while (true) {
+                auto dTrait = divisor.getTrait();
                 auto quotient = *this;
                 auto qTrait = quotient.testDividedBy(divisor);
                 if (
-                    qTrait && *qTrait != Trait::IllegalCoefficient && *qTrait != Trait::One
+                    dTrait != Trait::IllegalCoefficient && dTrait != Trait::One
+                    && qTrait && *qTrait != Trait::IllegalCoefficient && *qTrait != Trait::One
                     && divisor.lowerBoundEst(ctx) > 1.0f && quotient.lowerBoundEst(ctx) > 1.0f
                 ) {
                     co_yield divisor;

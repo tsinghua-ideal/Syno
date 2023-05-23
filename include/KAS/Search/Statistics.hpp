@@ -4,6 +4,7 @@
 #include <iterator>
 
 #include "KAS/Search/Finalize.hpp"
+#include "KAS/Search/Stage.hpp"
 #include "KAS/Transforms.hpp"
 
 
@@ -23,6 +24,7 @@ struct StatisticsCollector {
         COLLECT_STATS_FOR_OP(StrideOp)
         COLLECT_STATS_FOR_OP(UnfoldOp)
         COLLECT_STATS_FOR_OP(FinalizeOp)
+        COLLECT_STATS_FOR_OP(Stage)
 #undef COLLECT_STATS_FOR_OP
     }
 };

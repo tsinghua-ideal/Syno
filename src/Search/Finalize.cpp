@@ -82,9 +82,9 @@ namespace {
 struct CollectedTensorFragments {
     std::vector<std::size_t> mappings;
     Color color;
-    bool canAccept(const Color& color) const {
+    bool canAccept(std::size_t index, const Color& color) const {
         // Collect tags.
-        return this->color.disjoint(color);
+        return std::ranges::find(mappings, index) == mappings.end() && this->color.disjoint(color);
     }
     void accept(std::size_t index, const Color& color) {
         mappings.emplace_back(index);
@@ -177,11 +177,11 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
         const auto& desiredDimSize = desired[nextIndex];
         for (std::size_t i = 0; i < interface.size(); ++i) {
             auto&& [dim, color] = interface[i];
-            if (options.maximumTensors <= 2 && color.countRightTags() > 0) {
+            if (color.countRightTags() > 0) {
                 // For canonicalization, we can assume that the input tensor only has left tags.
                 continue;
             }
-            if (dim.size() == desiredDimSize && fragments.canAccept(color)) {
+            if (dim.size() == desiredDimSize && fragments.canAccept(i, color)) {
                 auto newFragments = fragments;
                 newFragments.accept(i, color);
                 self(self, nextIndex + 1, newFragments);

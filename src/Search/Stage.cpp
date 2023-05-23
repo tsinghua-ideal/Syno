@@ -1,10 +1,12 @@
+#include <fmt/core.h>
+#include <unordered_map>
+
 #include "KAS/Search/Stage.hpp"
 #include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Utils/Common.hpp"
-#include <fmt/core.h>
 
 
 namespace kas {
@@ -57,6 +59,10 @@ StageStore& Stage::getStageStore() {
     return sampler.getStageStore();
 }
 
+std::size_t Stage::remainingDepth() const {
+    return sampler.getOptions().depth - depth;
+}
+
 void Stage::guard() {
     if (childrenGenerated) {
         return;
@@ -98,7 +104,7 @@ void Stage::guard() {
         std::ranges::move(nextOpStores.get<Op>() | std::views::transform(accumulate), std::back_inserter(nexts));
     };
 
-    if (depth < options.depth) {
+    if (remainingDepth() > 0) {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}, TODO
         // Stride^{-1}
@@ -159,8 +165,75 @@ TensorView *Stage::getFinalize(std::size_t key) {
 }
 
 bool Stage::possibleToFinalize() const {
-    // TODO!
-    return true;
+    ++CountFinalizabilityCheckInvocations;
+
+    const auto& ctx = sampler.getBindingContext();
+    const std::size_t remainingSteps = remainingDepth();
+
+    // First, check for strided dimensions. They must be absorbed by UnfoldOp before Finalization.
+    std::size_t stridedDims = std::ranges::count_if(interface, [](const ColoredDimension& cdim) { return cdim.color.isDataDiscarding(); });
+    if (stridedDims > remainingSteps) {
+        // We can remove 1 strided dimension per step.
+        ++CountTooManyStridedDims;
+        return false;
+    }
+
+    // Then, check whether there are enough elements in the input tensor.
+    auto inputTensorCandidates =
+        interface
+        | std::views::filter([](const ColoredDimension& cdim) { return cdim.color.countRightTags() == 0 && !cdim.color.isDataDiscarding(); })
+        | std::views::transform(&ColoredDimension::dimension);
+    std::unordered_map<Size, int> counts;
+    auto elements = Size::Identity(ctx);
+    for (const auto& dim: inputTensorCandidates) {
+        // Take the product to find the total elements.
+        elements = elements * dim.size();
+        counts[dim.size()] += 1;
+    }
+    // Check whether there are enough elements.
+    auto quotient = elements.testDividedBy(sampler.getInputShape().totalSize());
+    if (!quotient || *quotient == Size::Trait::IllegalCoefficient) {
+        ++CountTooFewElementsInInputTensor;
+        return false;
+    }
+
+    // At last, try matching the dimensions, which is just experimental Finalization.
+    std::vector<const Size *> unfulfilled;
+    for (const auto& required: sampler.getInputShape()) {
+        auto it = counts.find(required);
+        if (it != counts.end()) {
+            if (it->second == 1) {
+                counts.erase(it);
+            } else {
+                it->second -= 1;
+            }
+        } else {
+            unfulfilled.push_back(&required);
+        }
+    }
+    if (unfulfilled.size() > remainingSteps * 2) {
+        // Merge can possibly fulfill 2 dimensions per step. So this is most conservative.
+        ++CountShapeDeviatesTooMuch;
+        return false;
+    } else if (unfulfilled.size() > remainingSteps) {
+        // We need at least 1 Merge tree to make things work. Enumerate.
+        auto enumerateSizes = [&](const auto& self, const Size& previousSize, std::size_t nextIndex) -> bool {
+            if (nextIndex == unfulfilled.size()) {
+                return counts.contains(previousSize);
+            } else {
+                return self(self, previousSize, nextIndex + 1)
+                    || self(self, previousSize * *unfulfilled[nextIndex], nextIndex + 1);
+            }
+        };
+        if (enumerateSizes(enumerateSizes, Size::Identity(ctx), 0)) {
+            return true;
+        }
+        ++CountShapeDeviatesTooMuch;
+        return false;
+    } else {
+        // We still have enough steps.
+        return true;
+    }
 }
 
 std::size_t Stage::countChildren() {
