@@ -4,7 +4,8 @@ from http.server import HTTPServer
 # Systems
 import time
 import random
-import os, sys
+import os
+import sys
 import logging
 import traceback
 import json
@@ -14,6 +15,7 @@ from copy import deepcopy
 from KAS import Sampler
 from KAS.Bindings import CodeGenOptions
 
+if os.getcwd() not in sys.path: sys.path.append(os.getcwd())
 from utils.data import get_dataloader
 from utils.models import KASGrayConv as KASConv, ModelBackup
 from utils.parser import arg_parse
@@ -80,8 +82,14 @@ if __name__ == '__main__':
         extra_args["sample_input_shape"]), extra_args["device"])
     kas_sampler = Sampler(net=_model.create_instance(), **sampler_params)
 
-    searcher = MCTSTrainer(kas_sampler, arguments,
-                           mcts_iterations=args.kas_iterations, leaf_parallelization_number=args.kas_leaf_parallelization_number)
+    searcher = MCTSTrainer(
+        kas_sampler,
+        arguments,
+        mcts_iterations=args.kas_iterations,
+        leaf_parallelization_number=args.kas_leaf_parallelization_number,
+        simulate_retry_limit=args.simulate_retry_limit,
+        virtual_loss_constant=args.kas_tree_parallelization_virtual_loss_constant
+    )
 
     class MCTSHandler(Handler_server):
         def __init__(self, *args, **kwargs) -> None:

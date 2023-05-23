@@ -14,21 +14,29 @@ class MCTSTrainer(MCTS):
                  arguments: dict,
                  mcts_iterations: int = 1000,
                  leaf_parallelization_number: int = 5,
+                 virtual_loss_constant: float = 5.,
+                 simulate_retry_limit: int = 10,
                  exploration_weight: float = math.sqrt(2)
                  ) -> None:
-        super().__init__(sampler, exploration_weight)
-        self.args = arguments
+        super().__init__(sampler, virtual_loss_constant,
+                         leaf_parallelization_number, simulate_retry_limit, exploration_weight)
 
+        # flags
         self.best_node = (0, 0)
         self.reward_list = []
         self.time_list = []
         self.end_flag = False
 
-        self.eval_result_cache = {}  # -1 stands for dead node
-        self.pending_evaluate_cache = {}  # path -> node, receipt
-        self.waiting_result_cache = {}
+        # arguments
+        self.args = arguments
         self.remain_iterations = mcts_iterations
         self.leaf_parallelization_number = leaf_parallelization_number
+        self.virtual_loss_constant = virtual_loss_constant
+
+        # buffer
+        self.eval_result_cache = {}  # node -> reward; -1 stands for dead node
+        self.pending_evaluate_cache = {}  # path -> trial, receipt
+        self.waiting_result_cache = {}  # path -> trial, receipt
 
     def has_eval_result(self, node) -> bool:
         return node._node in self.eval_result_cache
@@ -77,23 +85,19 @@ class MCTSTrainer(MCTS):
 
         # Selecting a node
         # TODO: add virtual loss
-        for _ in range(self.leaf_parallelization_number):
-            receipt, node = self.do_rollout(self._sampler.root())
-            while self.check_dead(node):
-                receipt, node = self.do_rollout(self._sampler.root())
+        receipt, trials = self.do_rollout(self._sampler.root())
+        while any([self.check_dead(trial) for trial in trials]):
+            receipt, trials = self.do_rollout(self._sampler.root())
 
-            if not self.has_eval_result(node):
-                self.pending_evaluate_cache[node.path] = (node, receipt)
+        for trial in trials:
+            if not self.has_eval_result(trial):
+                self.pending_evaluate_cache[trial.path] = (trial, receipt)
             else:
-                reward = self.get_eval_result(node)
+                reward = self.get_eval_result(trial)
 
                 # update
-                if self.best_node[1] < reward:
-                    self.best_node = (node, reward)
                 self.back_propagate(receipt, reward)
                 self.reward_list.append(reward)
-
-        self.end_flag = False
 
     def dump_result(self, result_save_loc: str = './final_result') -> None:
         """Search for the best model for iterations times."""

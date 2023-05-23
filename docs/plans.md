@@ -53,8 +53,8 @@
 - [ ] Multi-process support for MCTS. (Tree parallelization)
     - [x] server
     - [x] client
-    - [ ] Tree parallelization
-    - [ ] setup script
+    - [-] Tree parallelization
+    - [-] setup script
 - [x] Two-step primitive selection. 
 - [ ] Early Stopping during training. (Not urgent yet. )
 - [ ] Search Result Saving (path, mcts, etc.). 

@@ -12,7 +12,7 @@ from .Bindings import Next
 
 
 class MCTS:
-    def __init__(self, sampler: Sampler, exploration_weight: float = math.sqrt(2)) -> None:
+    def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, simulate_retry_limit: int = 10, exploration_weight: float = math.sqrt(2)) -> None:
         self._Q = defaultdict(float)  # Total reward of each node.
         self._N = defaultdict(int)  # Total visit count for each node.
         # Number of children of each node. Only explored nodes are in this dict.
@@ -20,6 +20,12 @@ class MCTS:
         self._sampler = sampler
         self._exploration_weight = exploration_weight
         random.seed(sampler._seed)
+
+        self.virtual_loss_constant = virtual_loss_constant
+        self.virtual_loss_count = defaultdict(
+            lambda: 0)  # node -> virtual loss count
+        self.leaf_num = leaf_num
+        self.simulate_retry_limit = simulate_retry_limit
 
     def _get_Q(self, node: VisitedNode) -> float:
         return self._Q[node]
@@ -42,18 +48,42 @@ class MCTS:
     def _set_children_nexts(self, node: TreeNode, children_nexts: List[Any]) -> None:
         self._children_nexts[node] = children_nexts
 
+    def _increment_virtual_loss(self, path: TreePath, node: TreeNode):
+
+        for next in path:
+            node = node.get_child(next.type)
+            self.virtual_loss_count[node] += 1
+            if next.key == 0:
+                break
+            node = node.get_child(next.key)
+            self.virtual_loss_count[node] += 1
+
+    def _decrement_virtual_loss(self, path: TreePath, node: TreeNode):
+
+        for next in path:
+            node = node.get_child(next.type)
+            self.virtual_loss_count[node] -= 1
+            assert self.virtual_loss_count[node] >= 0
+            if next.key == 0:
+                break
+            node = node.get_child(next.key)
+            self.virtual_loss_count[node] -= 1
+
+        assert self.virtual_loss_count[node] >= 0
+
     # The receipt which is used for back propagation, which is the root node and the path.
     Receipt = Tuple[TreeNode, TreePath]
 
-    def do_rollout(self, node: VisitedNode) -> Tuple[Receipt, VisitedNode]:
+    def do_rollout(self, node: VisitedNode) -> Tuple[Receipt, List[VisitedNode]]:
         "Make the tree one layer better. (Train for one iteration.)"
         "Returns `((root, path), leaf)`. `path` is used to propagate reward. `leaf` is the result of simulation. Note that following `path` we do not necessarily arrive at `leaf`."
         while True:
-            path, trial, success = self._may_fail_rollout(node)
+            path, trials, success = self._may_fail_rollout(node)
             if success:
                 logging.debug(
                     f"Successful rollout: {path}. Evaluation to be done.")
-                return (node, path), trial
+                self._increment_virtual_loss(path, node)
+                return (node, path), trials
             else:
                 logging.debug(
                     f"During rollout, dead end {path} encountered. Retrying...")
@@ -70,7 +100,7 @@ class MCTS:
             node = self._best_select(node)
         return node
 
-    def _may_fail_rollout(self, node: VisitedNode) -> Tuple[TreePath, TreeNode, bool]:
+    def _may_fail_rollout(self, node: VisitedNode) -> Tuple[TreePath, List[TreeNode], bool]:
         "The trial may encounter a dead end. In this case, False is returned."
         node = TreeNode(node.path, node._node, is_mid=True, type=node.path[-1].type) if len(
             node.path) > 0 and node.path[-1] == 0 else TreeNode(node.path, node._node)
@@ -78,8 +108,15 @@ class MCTS:
         if leaf.is_dead_end():
             return path, leaf, False
         self._expand(leaf)
-        leaf, success = self._simulate(leaf)
-        return path, leaf, success
+        leaves = []
+        for _ in range(self.simulate_retry_limit):
+            leaf_simul, success = self._simulate(leaf)
+            if success:
+                leaves.append(leaf_simul)
+                if len(leaves) == self.leaf_num:
+                    break
+        success = len(leaves) == self.leaf_num
+        return path, leaves, success
 
     def _select(self, node: TreeNode) -> Tuple[TreePath, TreeNode]:
         "Find an unexplored descendent of `node`"
@@ -131,6 +168,7 @@ class MCTS:
 
         node, path = receipt
         node = TreeNode(node.path, node._node)
+        self._decrement_virtual_loss(path, node)
 
         _update_stats(node, reward)
         for next in path:
@@ -161,7 +199,7 @@ class MCTS:
                 return -math.inf  # avoid unseen moves
             return self._get_Q(child) / self._get_N(child) + self._exploration_weight * math.sqrt(
                 log_N_vertex / self._get_N(child)
-            )
+            ) - self.virtual_loss_constant * self.virtual_loss_count[child]
 
         return max(children, key=uct)
 
