@@ -19,17 +19,22 @@ function log2 {
 
 # Create windows.
 tmux new -s "KAS" -d
-for ((i = 0; i < $(log2 "$1"); i ++)); do
+for ((i = 0; i < $(log2 "$1")-1; i ++)); do
   for ((j = 0; j < 2 ** i; j ++)) do
-    tmux selectp -t $((j * 2 + 1))
+    tmux selectp -t $((j * 2))
     tmux splitw -v -p 50
   done
+done
+
+for ((j = 0; j < 2 ** ($(log2 "$1")-1); j ++)) do
+    tmux selectp -t $((j * 2))
+    tmux splitw -h -p 50
 done
 
 # Run KAS.
 current_path=$(pwd)
 machine_name=$(uname -a)
-for ((i = 1; i <= $1; i ++)); do
+for ((i = 0; i < $1; i ++)); do
 if [[ $machine_name == *"longjing-2"* && ($i == 1) ]]; then
   continue
 fi
@@ -38,7 +43,7 @@ tmux send-keys -t "$i" "echo TMUX Pane $i" Enter
 tmux send-keys -t "$i" "conda activate kas-szy" Enter
 tmux send-keys -t "$i" "cd ${current_path}" Enter
 # shellcheck disable=SC2004
-tmux send-keys -t "$i" "CUDA_VISIBLE_DEVICES=$(($i-1)) ${*:2}" Enter
+tmux send-keys -t "$i" "CUDA_VISIBLE_DEVICES=$(($i)) ${*:2} > logs/stdout_worker$(($i)).log 2> logs/stderr_worker$(($i)).log" Enter
 done
 
 # Attach.

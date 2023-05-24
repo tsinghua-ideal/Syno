@@ -85,6 +85,7 @@ class MCTSTrainer(MCTS):
             return
 
         self.remain_iterations -= 1
+        print(f"Remaining iterations: {self.remain_iterations}")
 
         # Selecting a node
         # TODO: add virtual loss
@@ -126,4 +127,5 @@ class MCTSTrainer(MCTS):
         if self.has_eval_result(node):
             print("Best performance: {}".format(self.get_eval_result(node)))
         else:
-            print("[Warning] best path not evaluated. Consider running for more iterations. ")
+            print(
+                "[Warning] best path not evaluated. Consider running for more iterations. ")

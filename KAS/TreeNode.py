@@ -26,6 +26,32 @@ class TreePath(Path):
         deserialized_list = serialized.split('_')
         return TreePath([Next(Next.Type(int(n[0])), int(n[1:])) for n in deserialized_list])
 
+    @staticmethod
+    def decode_next_type(repr_: str):
+        if repr_ == 'MapReduce':
+            return '0'
+        elif repr_ == "Shift":
+            return '1'
+        elif repr_ == "Stride":
+            return '2'
+        elif repr_ == "Split":
+            return '3'
+        elif repr_ == "Unfold":
+            return '4'
+        elif repr_ == "Merge":
+            return '5'
+        elif repr_ == "Share":
+            return '6'
+        elif repr_ == "Finalize":
+            return '7'
+
+    @ staticmethod
+    def decode_str(str_repr: str) -> 'TreePath':
+        str_repr = str_repr[1:-1].split(', ')
+        str_repr = '_'.join([TreePath.decode_next_type(
+            r[:-1].split('(')[0])+r[:-1].split('(')[1] for r in str_repr])
+        return TreePath.deserialize(str_repr)
+
     def __init__(self, path: List[PseudoTreeNext]) -> None:
         """abs_path records [(op, hash)]"""
         self.abs_path: AbsolutePath = [self.to_next(n) for n in path]

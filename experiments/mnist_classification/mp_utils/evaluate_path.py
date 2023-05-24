@@ -36,11 +36,15 @@ def evaluate(path: TreePath, train_loader: DataLoader, val_loader: DataLoader, _
     State, Accuracy
     """
 
+    logging.info(f"Evaluation started")
     node = kas_sampler.visit(path)
+    logging.info(f"Node generated. ")
     model = _model.create_instance()
     kernelPacks, total_flops = kas_sampler.realize(
         model, node, extra_args["prefix"])
+    logging.info(f"kernelPack generated. ")
     model = _model.restore_model_params(model, kernelPacks)
+    logging.info(f"Model constructed. ")
 
     model_macs = _model.base_macs + total_flops * 2
     logging.info("Model macs: {}".format(model_macs))

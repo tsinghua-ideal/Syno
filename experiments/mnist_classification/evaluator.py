@@ -47,13 +47,14 @@ if __name__ == '__main__':
     for i in round_range:
         # Sample a new kernel.
         logging.info('Requesting a new kernel ...')
-        path_serial = web_handler.get_path()
-        if not path_serial:
-            logging.info("fetched an empty path, shutting down. ")
-            break
+        path_serial = TreePath([])
         try:
-            logging.info(f"Received {path_serial}")
+            path_serial = web_handler.get_path()
+            if not path_serial:
+                logging.info("fetched an empty path, shutting down. ")
+                break
             path = TreePath.deserialize(path_serial)
+            logging.info(f"Received {path}")
             try:
                 state, reward = evaluate(
                     path, train_data_loader, validation_data_loader, _model, kas_sampler, train_args, extra_args)
@@ -66,6 +67,8 @@ if __name__ == '__main__':
                 web_handler.failure(path_serial, state)
         except Exception as e:
             state = "FAILURE_DEATH"
-            web_handler.failure(path_serial, state)
+            try:
+                web_handler.failure(path_serial, state)
+            except:
+                pass
             traceback.print_exc()
-            break

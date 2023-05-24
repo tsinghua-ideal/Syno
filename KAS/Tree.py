@@ -126,6 +126,7 @@ class MCTS:
         path, leaf = self._select(node)
         if leaf.is_dead_end():
             return path, leaf, False
+        logging.info(f"Rollout find path {path}")
         self._expand(leaf)
         leaves = []
         for _ in range(self.simulate_retry_limit):
@@ -170,6 +171,7 @@ class MCTS:
             Two step random selection. First, randomly select a primitive type. Then, randomly select a child of that type.
             """
             selected_child = random.choice(node.get_children_handles())
+            logging.info(f"Simulation: {node.path} + {selected_child}")
             return node.get_child(selected_child)
 
         while not node.is_terminal():
