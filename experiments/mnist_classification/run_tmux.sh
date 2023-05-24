@@ -18,6 +18,7 @@ function log2 {
 }
 
 # Create windows.
+tmux kill-session -t "KAS"
 tmux new -s "KAS" -d
 for ((i = 0; i < $(log2 "$1")-1; i ++)); do
   for ((j = 0; j < 2 ** i; j ++)) do
@@ -42,8 +43,9 @@ tmux send-keys -t "$i" "echo TMUX Pane $i" Enter
 # You may change to your personal environment.
 tmux send-keys -t "$i" "conda activate kas-szy" Enter
 tmux send-keys -t "$i" "cd ${current_path}" Enter
+tmux send-keys -t "$i" "export CUDA_VISIBLE_DEVICES=$(($i))" Enter
 # shellcheck disable=SC2004
-tmux send-keys -t "$i" "CUDA_VISIBLE_DEVICES=$(($i)) ${*:2} > logs/stdout_worker$(($i)).log 2> logs/stderr_worker$(($i)).log" Enter
+tmux send-keys -t "$i" "for ((j = 1; ;j ++)); do ${*:2} > logs/stdout_worker$(($i))_trail\$j.log 2> logs/stderr_worker$(($i))_trail\$j.log; done" Enter
 done
 
 # Attach.

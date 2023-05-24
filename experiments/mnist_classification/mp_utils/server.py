@@ -22,13 +22,15 @@ class Handler(BaseHTTPRequestHandler):
         timeout_kernels = []
         for path, pack in self.mcts.waiting_result_cache.items():
             # 24 hours: 86400 secs
-            if time.time() - pack['time'] > 86400 * 10:
+            if time.time() - pack['time'] > 1800:
                 timeout_kernels.append(path)
         for path in timeout_kernels:
             assert path not in self.mcts.pending_evaluate_cache
             assert path in self.mcts.waiting_result_cache
-            self.mcts.pending_evaluate_cache[path] = self.mcts.waiting_result_cache.pop(
-                path)['meta']
+            # self.mcts.pending_evaluate_cache[path] = self.mcts.waiting_result_cache.pop(
+            #     path)['meta']
+            self.mcts.waiting_result_cache.pop(path)  # throw away the path.
+            self.mcts.update_result(path, -1)
             print(f' > Timeout kernel: {path}')
 
         if self.path == '/arguments':
@@ -43,7 +45,8 @@ class Handler(BaseHTTPRequestHandler):
                         print(f' > MCTS iteration complete. ')
                         break
                 if self.mcts.end_flag:
-                    print(f' > No available response')
+                    response_json['path'] = 'ENDTOKEN'
+                    print(f' > Train Ended. No available response')
                 else:
                     selected_path, meta_data = self.mcts.pending_evaluate_cache.popitem()
                     print(f' > Response kernel: {selected_path}')

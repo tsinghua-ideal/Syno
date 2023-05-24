@@ -3,7 +3,7 @@ import math
 # Systems
 import os
 import json
-from time import time
+from time import time, sleep
 
 # KAS
 from KAS import MCTS, Sampler
@@ -81,7 +81,11 @@ class MCTSTrainer(MCTS):
         Tasks: Tree parallelization, Leaf parallelization
         """
         if self.remain_iterations == 0:
-            self.end_flag = True
+            if len(self.waiting_result_cache) == 0:
+                self.end_flag = True
+            else:
+                print(f"Waiting for the following tasks to be done: {list(self.waiting_result_cache.keys())}")
+                sleep(60) # recheck every minute
             return
 
         self.remain_iterations -= 1

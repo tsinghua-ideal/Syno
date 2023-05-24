@@ -53,6 +53,11 @@ if __name__ == '__main__':
             if not path_serial:
                 logging.info("fetched an empty path, shutting down. ")
                 break
+            elif path_serial == "ENDTOKEN":
+                logging.info("fetched ENDTOKEN. Stopped......")
+                print("Search ended. Stucking to avoid resetup. Press Ctrl-C twice to end. ") # TODO: better way to end worker. 
+                while True:
+                    pass
             path = TreePath.deserialize(path_serial)
             logging.info(f"Received {path}")
             try:
