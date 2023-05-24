@@ -73,3 +73,4 @@ def test_realize():
 
 if __name__ == '__main__':
     test_realize()
+    print("Test passed. ")
