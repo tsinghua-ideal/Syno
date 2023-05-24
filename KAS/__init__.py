@@ -18,5 +18,6 @@ from .Assembler import Assembled, Assembler
 from .Tree import MCTS, TreeNode, TreePath
 from .Sampler import Sampler, CodeGenOptions
 from .Placeholder import Placeholder
+from .Statistics import Statistics
 from .Node import Next, Path, Node
 from .KernelPack import KernelPack

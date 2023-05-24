@@ -152,6 +152,15 @@ void Stage::guard() {
         }
     }
 
+    ++CountCreations;
+    CountChildrenFinalize += nextFinalizations.size();
+    CountChildrenShift += nextOpStores.get<ShiftOp>().size();
+    CountChildrenStride += nextOpStores.get<StrideOp>().size();
+    CountChildrenSplit += nextOpStores.get<SplitOp>().size();
+    CountChildrenUnfold += nextOpStores.get<UnfoldOp>().size();
+    CountChildrenMerge += nextOpStores.get<MergeOp>().size();
+    CountChildrenShare += nextOpStores.get<ShareOp>().size();
+
     childrenGenerated = true;
 }
 
@@ -168,6 +177,7 @@ bool Stage::possibleToFinalize() const {
     ++CountFinalizabilityCheckInvocations;
 
     const auto& ctx = sampler.getBindingContext();
+    const auto& options = sampler.getOptions();
     const std::size_t remainingSteps = remainingDepth();
 
     // First, check for strided dimensions. They must be absorbed by UnfoldOp before Finalization.
@@ -176,6 +186,35 @@ bool Stage::possibleToFinalize() const {
         // We can remove 1 strided dimension per step.
         ++CountTooManyStridedDims;
         return false;
+    }
+
+    // Next, check that there exists a coloring for weight tensors. Note that this check is conservative.
+    auto weightTensorDims =
+        interface
+        | std::views::filter([](const ColoredDimension& cdim) { return cdim.color.countRightTags() > 0 && !cdim.color.isDataDiscarding(); });
+    switch (options.maximumTensors) {
+    case 1: {
+        // There must be exactly 1 weight tensor.
+        if (std::ranges::distance(weightTensorDims) > 0) {
+            ++CountTooManyWeights;
+            return false;
+        }
+        break;
+    }
+    case 2: {
+        // We have to check that the colors won't conflict.
+        Color color;
+        for (const auto& cDim: weightTensorDims) {
+            if (!color.disjoint(cDim.color)) {
+                ++CountTooManyWeights;
+                return false;
+            }
+            color.merge(cDim.color);
+        }
+        break;
+    }
+    default:
+        KAS_CRITICAL("Unsupported maximumTensors: {}", options.maximumTensors);
     }
 
     // Then, check whether there are enough elements in the input tensor.

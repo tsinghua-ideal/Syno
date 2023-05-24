@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -231,8 +232,10 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
     
     pybind11::class_<StatisticsCollector>(m, "StatisticsCollector")
         .def_static(
-            "PrintSummary", []() {
-                StatisticsCollector::PrintSummary(std::cout);
+            "PrintSummary", []() -> std::string {
+                std::ostringstream ss;
+                StatisticsCollector::PrintSummary(ss);
+                return ss.str();
             }
         );
 

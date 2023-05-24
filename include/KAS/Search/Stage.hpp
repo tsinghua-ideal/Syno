@@ -142,8 +142,17 @@ public:
     }
 
     KAS_STATISTICS_DEF(
+        Creations,
+        ChildrenFinalize,
+        ChildrenShift,
+        ChildrenStride,
+        ChildrenSplit,
+        ChildrenUnfold,
+        ChildrenMerge,
+        ChildrenShare,
         FinalizabilityCheckInvocations,
         TooManyStridedDims,
+        TooManyWeights,
         TooFewElementsInInputTensor,
         ShapeDeviatesTooMuch,
     );
