@@ -20,7 +20,7 @@ StrideOp::Values StrideOp::value(const Values& known) const {
     }
     auto& [input, output] = known.values;
     auto stride = ConstValueNode::Create(this->stride);
-    if (input.isOrientedUp()) { // Note that we must have set this to Up. This is sanity check. If input is valued, output must have been set beforehand.
+    if (input.isUnorientedOrOrientedUp()) { // If input is valued, output must have been set beforehand.
         if (auto outputV = output.tryValue(); outputV) {
             // Out value -> in value.
             return {{ outputV * stride, outputV }};

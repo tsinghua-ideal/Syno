@@ -113,8 +113,8 @@ class Sampler:
         else:
             kernel_name_prefix = f'kernel_{abs(hash(node.to_node()))}'
         logging.debug("Generating kernel files...")
-        kernel.generate_operator(save_path, kernel_name_prefix)
         kernel.generate_graphviz(save_path, kernel_name_prefix)
+        kernel.generate_operator(save_path, kernel_name_prefix)
         logging.debug("Successfully generated kernel files.")
         loader = KernelPack.load_kernels(
             save_path, kernel_name_prefix, kernel.get_count_inputs(), len(placeholders), self._device)
