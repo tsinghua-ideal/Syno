@@ -28,6 +28,7 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
 
     args = arg_parse()
+    print(args)
     use_cuda = torch.cuda.is_available()
 
     os.makedirs(args.kas_sampler_save_dir, exist_ok=True)

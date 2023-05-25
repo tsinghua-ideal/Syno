@@ -80,16 +80,6 @@ class MCTSTrainer(MCTS):
         Launch a new iteration and push some tasks to the task pool. 
         Tasks: Tree parallelization, Leaf parallelization
         """
-        if self.remain_iterations == 0:
-            if len(self.waiting_result_cache) == 0:
-                self.end_flag = True
-            else:
-                print(f"Waiting for the following tasks to be done: {list(self.waiting_result_cache.keys())}")
-                sleep(60) # recheck every minute
-            return
-
-        self.remain_iterations -= 1
-        print(f"Remaining iterations: {self.remain_iterations}")
 
         # Selecting a node
         # TODO: add virtual loss
@@ -130,6 +120,7 @@ class MCTSTrainer(MCTS):
 
         if self.has_eval_result(node):
             print("Best performance: {}".format(self.get_eval_result(node)))
+            print("Time elapsed: {} seconds.".format(time() - self.start_time))
         else:
             print(
                 "[Warning] best path not evaluated. Consider running for more iterations. ")

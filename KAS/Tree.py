@@ -171,7 +171,7 @@ class MCTS:
             Two step random selection. First, randomly select a primitive type. Then, randomly select a child of that type.
             """
             selected_child = random.choice(node.get_children_handles())
-            logging.info(f"Simulation: {node.path} + {selected_child}")
+            # logging.info(f"Simulation: {node.path} + {selected_child}")
             return node.get_child(selected_child)
 
         while not node.is_terminal():

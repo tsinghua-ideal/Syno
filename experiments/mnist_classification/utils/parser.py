@@ -142,11 +142,11 @@ def arg_parse():
                         help='virtual-loss-constant of tree parallelization')
     parser.add_argument('--kas-min-macs', default=0, type=float,
                         help='Minimum MACs for searched kernels (in G-unit, only for search)')
-    parser.add_argument('--kas-max-macs', default=5, type=float,
+    parser.add_argument('--kas-max-macs', default=30, type=float,
                         help='Maximum MACs for searched kernels (in G-unit, only for search)')
     parser.add_argument('--kas-min-params', default=0, type=float,
                         help='Minimum params for searched kernels (in M-unit, only for search)')
-    parser.add_argument('--kas-max-params', default=0.03, type=float,
+    parser.add_argument('--kas-max-params', default=0.05, type=float,
                         help='Maximum params for searched kernels (in M-unit, only for search)')
     parser.add_argument('--kas-min-receptive-size', default=1, type=int,
                         help='Minimum receptive size (only for search)')

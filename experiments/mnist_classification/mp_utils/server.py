@@ -37,23 +37,18 @@ class Handler(BaseHTTPRequestHandler):
             response_json = self.mcts.get_args()
         else:
             response_json = {'path': ''}
-            if not self.mcts.end_flag:
+            if self.mcts.remain_iterations > 0:
                 while len(self.mcts.pending_evaluate_cache.keys()) == 0:
                     self.mcts.launch_new_iteration()
-                    if self.mcts.end_flag:
-                        self.mcts.dump_result()
-                        print(f' > MCTS iteration complete. ')
-                        break
-                if self.mcts.end_flag:
-                    response_json['path'] = 'ENDTOKEN'
-                    print(f' > Train Ended. No available response')
-                else:
-                    selected_path, meta_data = self.mcts.pending_evaluate_cache.popitem()
-                    print(f' > Response kernel: {selected_path}')
-                    response_json = {'path': selected_path.serialize()}
-                    self.mcts.waiting_result_cache[selected_path] = dict(
-                        meta=meta_data, time=time.time()
-                    )
+                selected_path, meta_data = self.mcts.pending_evaluate_cache.popitem()
+                print(f' > Response kernel: {selected_path}')
+                response_json = {'path': selected_path.serialize()}
+                self.mcts.waiting_result_cache[selected_path] = dict(
+                    meta=meta_data, time=time.time()
+                )
+            else:
+                response_json['path'] = 'ENDTOKEN'
+                print(f' > Train Ended. No available response')
 
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
@@ -73,6 +68,9 @@ class Handler(BaseHTTPRequestHandler):
             assert len(path) > 0
         else:
             path = None
+        if self.mcts.remain_iterations <= 0:
+            print("> Search ended, not receiving new inputs")
+            return
         if self.path.startswith('/success'):
             path, state, reward = path.split('$')
             path = TreePath.deserialize(path)
@@ -80,6 +78,12 @@ class Handler(BaseHTTPRequestHandler):
             assert path not in self.mcts.pending_evaluate_cache
             assert path in self.mcts.waiting_result_cache
             self.mcts.update_result(path, reward)
+            self.mcts.remain_iterations -= 1
+            print(f"Remaining iterations: {self.mcts.remain_iterations}")
+            if self.mcts.remain_iterations == 0:
+                self.mcts.dump_result()
+                print(f' > MCTS iteration complete. ')
+                return
             print(f' > Successfully trained: {path}, accuracy {reward}')
         elif self.path.startswith('/failure'):
             path, state = path.split('$')

@@ -39,6 +39,19 @@ def evaluate(path: TreePath, train_loader: DataLoader, val_loader: DataLoader, _
     logging.info(f"Evaluation started")
     node = kas_sampler.visit(path)
     logging.info(f"Node generated. ")
+
+    estimate_model_macs = _model.base_macs + \
+        node.estimate_total_flops_as_final() * 2
+    logging.info("(Estimated) Model macs: {}".format(estimate_model_macs))
+    if estimate_model_macs > extra_args['max_macs']:
+        logging.info(
+            f"(Estimated) Model macs {estimate_model_macs} exceeds {extra_args['max_macs']}, skipping")
+        return "FAILED_exceeding_model_macs.", 0
+    elif estimate_model_macs < extra_args['min_macs']:
+        logging.info(
+            f"(Estimated) Model macs {estimate_model_macs} below {extra_args['min_macs']}, skipping")
+        return "FAILED_small_model_macs.", 0
+
     model = _model.create_instance()
     kernelPacks, total_flops = kas_sampler.realize(
         model, node, extra_args["prefix"])
