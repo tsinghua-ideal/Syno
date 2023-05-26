@@ -301,8 +301,8 @@ Node Stage::getChild(Next next) {
     }
 }
 
-std::string Stage::description(const BindingContext& ctx) const {
-    return DimensionArrayToString(interface.toDimensions(), ctx);
+std::string Stage::description() const {
+    return DimensionArrayToString(interface.toDimensions(), sampler.getBindingContext());
 }
 
 } // namespace kas

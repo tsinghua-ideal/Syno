@@ -65,4 +65,19 @@ TEST_F(core_size_tests, divisors_HWC3) {
     }
 }
 
+TEST_F(core_size_tests, enumerate_HWC) {
+    Size query = sizeH * sizeW * sizeC;
+    fmt::print("Enumerate {}:\n", query.toString(ctx));
+    std::size_t counter = std::ranges::distance(Size::EnumerateSizes(ctx, query.identity(), query));
+    ASSERT_EQ(counter, 8 - 1);
+}
+
+TEST_F(core_size_tests, enumerate_HWoverC) {
+    auto lower = sizeHWc.identity() / sizeC / sizeC;
+    fmt::print("Enumerate {} ~ {}:\n", lower.toString(ctx), sizeHWc.toString(ctx));
+    for (auto size: Size::EnumerateSizes(ctx, lower, sizeHWc)) {
+        fmt::print("  {}\n", size.toString(ctx));
+    }
+}
+
 } // namespace kas

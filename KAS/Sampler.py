@@ -40,13 +40,15 @@ class Sampler:
         for placeholder, kernel_pack in zip(placeholders, kernel_packs):
             placeholder.reload(kernel_pack)
 
-    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_discontinuous_view: bool = True, canonicalize_unfold_order: bool = True, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot):
+    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_discontinuous_view: bool = True, canonicalize_unfold_order: bool = True, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot):
         options = Bindings.SampleOptions(
             seed=seed,
             depth=depth,
             dim_lower=dim_lower,
             dim_upper=dim_upper,
             maximum_tensors=maximum_tensors,
+            maximum_reductions=maximum_reductions,
+            max_flops=max_flops,
             max_strided_dim_size=max_strided_dim_size,
             max_unfold_kernel_size=max_unfold_kernel_size,
             minimum_unfold_ratio=minimum_unfold_ratio,

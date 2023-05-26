@@ -175,7 +175,7 @@ public:
         return *it;
     }
     Node getChild(Next next);
-    std::string description(const BindingContext& ctx) const;
+    std::string description() const;
 };
 
 } // namespace kas

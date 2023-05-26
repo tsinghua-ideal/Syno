@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <random>
 #include <set>
@@ -20,6 +21,7 @@
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Node.hpp"
+#include "KAS/Search/ReductionStage.hpp"
 #include "KAS/Search/Stage.hpp"
 
 
@@ -33,6 +35,8 @@ public:
     std::size_t dimLowerBound = 1;
     std::size_t dimUpperBound = 8;
     std::size_t maximumTensors = 2;
+    std::size_t maximumReductions = 2;
+    std::size_t maxFLOPs = std::numeric_limits<std::size_t>::max();
 
     // These might better be the same.
     std::size_t maxStridedDimSize = 30;
@@ -94,12 +98,10 @@ class Sampler final {
     std::vector<FixedDimension> fixedDimensions;
     Interface root;
 
+    ReductionStore reductionStore;
     StageStore store;
 
-    std::vector<MapReduceOp::Base> reduces; // The `MapReduce`s are generated first.
-    std::vector<Stage> originalBases;
-    // first -> key of base, second -> index of Stage in originalBases.
-    std::vector<std::pair<std::size_t, std::size_t>> bases;
+    std::unique_ptr<ReductionStage> rootStage;
 
 public:
     // A specification has the following forms:
@@ -109,20 +111,18 @@ public:
     Sampler(const Sampler&) = delete;
     Sampler(Sampler&&) = delete;
 
-    inline BindingContext& getBindingContext() { return ctx; }
-    inline Shape& getInputShape() { return inputShape; }
-    inline Shape& getOutputShape() { return outputShape; }
-    inline const SampleOptions& getOptions() const { return options; }
-    inline DimensionStore& getDimStore() { return store.dimStore(); }
-    inline StageStore& getStageStore() { return store; }
+    BindingContext& getBindingContext() { return ctx; }
+    Shape& getInputShape() { return inputShape; }
+    Shape& getOutputShape() { return outputShape; }
+    const SampleOptions& getOptions() const { return options; }
+    DimensionStore& getDimStore() { return store.dimStore(); }
+    ReductionStore& getReductionStore() { return reductionStore; }
+    StageStore& getStageStore() { return store; }
+    const Interface& getRootInterface() const { return root; }
 
-    inline const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }
-
-    inline std::size_t getBaseCount() const { return bases.size(); }
-    std::vector<Next> getNextBases() const;
-    std::size_t getBaseIndex(std::size_t key) const;
-    Stage *getBase(std::size_t key);
-    const MapReduceOp::Base& getReduce(std::size_t key) const;
+    const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }
+    // Taking fixed dimensions into account.
+    Size getTotalOutputSize() const;
 
     // The following APIs can be provided for Python bindings.
     Node visit(const std::vector<Next>& path);

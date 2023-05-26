@@ -226,14 +226,17 @@ namespace {
 // 0, 1, 2, 0, 1
 // which can be done by recursion.
 // If this is successful, return true. Else return false.
-bool NextSize(Size::ExprType& powers, const std::vector<std::size_t>& basesIndices, const Size::ExprType *lowerBound, const Size::ExprType& upperBound, std::size_t indexOfIndicesOfVarToIncrease = 0) {
+bool NextSize(Size::ExprType& powers, const std::vector<std::size_t>& basesIndices, const Size::ExprType& lowerBound, const Size::ExprType& upperBound, std::size_t indexOfIndicesOfVarToIncrease = 0) {
+    if (indexOfIndicesOfVarToIncrease >= basesIndices.size()) {
+        return false;
+    }
     std::size_t varToIncrease = basesIndices[indexOfIndicesOfVarToIncrease];
     Size::PowerType diff = upperBound[varToIncrease] - powers[varToIncrease];
     if (diff > 0) {
         ++powers[varToIncrease];
         return true;
     } else {
-        powers[varToIncrease] = lowerBound ? (*lowerBound)[varToIncrease] : 0;
+        powers[varToIncrease] = lowerBound[varToIncrease];
         if (indexOfIndicesOfVarToIncrease == basesIndices.size() - 1) {
             return false;
         } else {
@@ -261,7 +264,7 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
         }
         auto divisor = identity();
         while (true) {
-            NextSize(divisor.coefficient, nonzeroPowers, nullptr, coefficient);
+            NextSize(divisor.coefficient, nonzeroPowers, {}, coefficient);
             if (divisor == *this) {
                 co_return;
             }
@@ -298,11 +301,11 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
                 ) {
                     co_yield divisor;
                 }
-                if(!NextSize(divisor.coefficient, coefficientNonzeroPowers, &coefficientLower, coefficientUpper)) {
+                if(!NextSize(divisor.coefficient, coefficientNonzeroPowers, coefficientLower, coefficientUpper)) {
                     break;
                 }
             }
-            if(!NextSize(divisor.primary, primaryNonzeroPowers, nullptr, primary)) {
+            if(!NextSize(divisor.primary, primaryNonzeroPowers, {}, primary)) {
                 co_return;
             }
         }
@@ -311,8 +314,58 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
     }
 }
 
+Generator<Size> Size::EnumerateSizes(const BindingContext& ctx, Size lowerBound, Size upperBound) {
+    const std::size_t primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
+    std::vector<std::size_t> primaryNonzeroPowers;
+    for (std::size_t i = 0; i < primaryCount; ++i) {
+        if (lowerBound.primary[i] < upperBound.primary[i]) {
+            primaryNonzeroPowers.push_back(i);
+        }
+    }
+    std::vector<std::size_t> coefficientNonzeroPowers;
+    for (std::size_t i = 0; i < coefficientCount; ++i) {
+        if (lowerBound.coefficient[i] < upperBound.coefficient[i]) {
+            coefficientNonzeroPowers.push_back(i);
+        }
+    }
+
+    auto size = lowerBound;
+    while (true) {
+        size.coefficient = lowerBound.coefficient;
+        while (true) {
+            auto trait = size.getTrait();
+            if (
+                trait != Trait::IllegalCoefficient && trait != Trait::One
+                && size.lowerBoundEst(ctx) > 1.0f
+            ) {
+                co_yield size;
+            }
+            if(!NextSize(size.coefficient, coefficientNonzeroPowers, lowerBound.coefficient, upperBound.coefficient)) {
+                break;
+            }
+        }
+        if(!NextSize(size.primary, primaryNonzeroPowers, lowerBound.primary, upperBound.primary)) {
+            co_return;
+        }
+    }
+}
+
 bool Size::operator==(const Size& other) const {
     return std::ranges::equal(primary, other.primary) && std::ranges::equal(coefficient, other.coefficient);
+}
+
+bool Size::LexicographicalLEQ(const Size& lhs, const Size& rhs) {
+    for (std::size_t i = 0; i < lhs.primaryCount; ++i) {
+        if (lhs.primary[i] > rhs.primary[i]) {
+            return false;
+        }
+    }
+    for (std::size_t i = 0; i < lhs.coefficientCount; ++i) {
+        if (lhs.coefficient[i] > rhs.coefficient[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 std::string Size::toString(const BindingContext& ctx) const {
@@ -585,14 +638,14 @@ Allowance::Allowance(const Size& shape, const BindingContext& ctx):
     const std::size_t primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
     for (std::size_t i = 0; i < primaryCount; ++i) {
         // Observe that in the sampling process, the primary variables are generated only by Share and MapReduce. So we can limit it with maximumOccurrence.
-        if (static_cast<std::size_t>(primary[i]) < primaryMeta[i].maximumOccurrence) {
-            this->primary[i] = primaryMeta[i].maximumOccurrence - static_cast<std::size_t>(primary[i]);
-        }
+        Size::PowerType maximumOccurrence = primaryMeta[i].maximumOccurrence;
+        this->primary[i] = maximumOccurrence - std::min(maximumOccurrence, primary[i]);
     }
     for (std::size_t i = 0; i < coefficientCount; ++i) {
         // Similar for coefficient.
-        coefficientLower[i] = -coefficientMeta[i].maximumOccurrence - static_cast<std::size_t>(coefficient[i]);
-        coefficientUpper[i] = coefficientMeta[i].maximumOccurrence - static_cast<std::size_t>(coefficient[i]);
+        Size::PowerType maximumOccurrence = coefficientMeta[i].maximumOccurrence;
+        coefficientLower[i] = -maximumOccurrence - coefficient[i];
+        coefficientUpper[i] = maximumOccurrence - coefficient[i];
     }
 }
 
@@ -611,6 +664,34 @@ bool Allowance::withinAllowance(const Size& size) const {
         }
     }
     return true;
+}
+
+Generator<Size> Allowance::enumerateSizes(const BindingContext& ctx) const {
+    constexpr Size::PowerType maxEnumerationsPerVar = 3;
+    auto primary = this->primary;
+    for (std::size_t i = 0; i < ctx.getPrimaryCount(); ++i) {
+        primary[i] = std::clamp(primary[i], static_cast<Size::PowerType>(0), maxEnumerationsPerVar);
+    }
+    auto coefficientLower = this->coefficientLower;
+    auto coefficientUpper = this->coefficientUpper;
+    for (std::size_t i = 0; i < ctx.getCoefficientCount(); ++i) {
+        Size::PowerType &lower = coefficientLower[i], &upper = coefficientUpper[i];
+        Size::PowerType enumerations = upper - lower + 1;
+        if (enumerations > maxEnumerationsPerVar) {
+            if (lower > 0) {
+                upper = lower + maxEnumerationsPerVar - 1;
+            } else if (upper < 0) {
+                lower = upper - maxEnumerationsPerVar + 1;
+            } else {
+                auto delta = (enumerations - maxEnumerationsPerVar) / 2;
+                lower += delta;
+                upper -= delta;
+            }
+        }
+    }
+    auto lower = Size { ctx.getPrimaryCount(), ctx.getCoefficientCount(), Size::ExprType {}, coefficientLower };
+    auto upper = Size { ctx.getPrimaryCount(), ctx.getCoefficientCount(), primary, coefficientUpper };
+    return Size::EnumerateSizes(ctx, lower, upper);
 }
 
 } // namespace kas

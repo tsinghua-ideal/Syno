@@ -37,7 +37,7 @@ struct Next {
     // For Python.
     bool operator==(const Next& rhs) const noexcept = default;
     // For Python.
-    inline std::size_t hash() const noexcept {
+    std::size_t hash() const noexcept {
         std::size_t h = static_cast<std::size_t>(type);
         HashCombine(h, key);
         return h;
@@ -64,6 +64,7 @@ struct Next {
 
 class TensorView;
 class Sampler;
+class ReductionStage;
 class Stage;
 
 class Node {
@@ -73,24 +74,24 @@ class Node {
 
     // A node has 3 types.
     enum class Type: std::uint8_t {
-        Root = 0, // Without MapReduce.
+        Reducing = 0, // Generating reductions.
         Growing = 1, // Now we have generated MapReduce's, repeatedly add PrimitiveOp's.
         Final = 2, // Finalization performed.
     };
     // This corresponds to the three types.
-    std::variant<std::monostate, Stage *, TensorView *> inner;
-    inline Type type() const noexcept {
+    std::variant<ReductionStage *, Stage *, TensorView *> inner;
+    Type type() const noexcept {
         return static_cast<Type>(inner.index());
     }
     template<typename R, typename FR, typename FG, typename FF>
     requires
-        std::convertible_to<std::invoke_result_t<FR>, R> &&
+        std::convertible_to<std::invoke_result_t<FR, ReductionStage *>, R> &&
         std::convertible_to<std::invoke_result_t<FG, Stage *>, R> &&
         std::convertible_to<std::invoke_result_t<FF, TensorView *>, R>
     R match(FR&& fr, FG&& fg, FF&& ff) const {
         return std::visit([&](auto arg) -> R {
-            if constexpr (std::is_same_v<decltype(arg), std::monostate>) {
-                return fr();
+            if constexpr (std::is_same_v<decltype(arg), ReductionStage *>) {
+                return fr(arg);
             } else if constexpr (std::is_same_v<decltype(arg), Stage *>) {
                 return fg(arg);
             } else if constexpr (std::is_same_v<decltype(arg), TensorView *>) {
@@ -102,17 +103,17 @@ class Node {
     }
 
 public:
-    inline Node(Sampler *sampler):
-        sampler { sampler }, inner { std::monostate{} } {}
-    inline Node(Sampler *sampler, Stage *stage):
+    Node(Sampler *sampler, ReductionStage *rStage):
+        sampler { sampler }, inner { rStage } {}
+    Node(Sampler *sampler, Stage *stage):
         sampler { sampler }, inner { stage } {}
-    inline Node(Sampler *sampler, TensorView *kernel):
+    Node(Sampler *sampler, TensorView *kernel):
         sampler { sampler }, inner { kernel } {}
 
     // For Python.
     bool operator==(const Node& rhs) const noexcept = default;
     // For Python.
-    inline std::size_t hash() const noexcept {
+    std::size_t hash() const noexcept {
         return std::hash<decltype(inner)>{}(inner);
     }
 
@@ -125,7 +126,7 @@ public:
     std::size_t countChildren() const;
     std::vector<Next> getChildrenHandles() const;
     Node getChild(Next next) const;
-    inline bool isFinal() const { return type() == Type::Final; }
+    bool isFinal() const { return type() == Type::Final; }
     std::string toString() const;
 };
 

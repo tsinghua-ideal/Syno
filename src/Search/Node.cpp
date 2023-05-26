@@ -1,4 +1,5 @@
 #include "KAS/Search/Node.hpp"
+#include "KAS/Search/ReductionStage.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/Stage.hpp"
 
@@ -12,13 +13,9 @@ std::string Next::toString() const {
 std::string Next::description(const Node& node) const {
     const BindingContext& ctx = node.sampler->getBindingContext();
     return node.match<std::string>(
-        [&]() {
-            return fmt::format("{}",
-                fmt::join(node.sampler->getReduce(key)
-                | std::views::transform([&](const MapReduceOp& op) {
-                    return op.description(ctx);
-                }), ", ")
-            );
+        [&](ReductionStage *rStage) {
+            KAS_ASSERT(type == Type::MapReduce);
+            return rStage->getChildDescription(key);
         },
         [&](Stage *stage) {
             switch (type) {
@@ -68,7 +65,7 @@ std::size_t Node::estimateTotalFLOPsAsFinal() const {
 
 std::size_t Node::countChildren() const {
     return match<std::size_t>(
-        [&]() { return sampler->getBaseCount(); },
+        [](ReductionStage *rStage) { return rStage->countChildren(); },
         [](Stage *stage) { return stage->countChildren(); },
         [](TensorView *tensor) { return 0; }
     );
@@ -76,7 +73,7 @@ std::size_t Node::countChildren() const {
 
 std::vector<Next> Node::getChildrenHandles() const {
     return match<std::vector<Next>>(
-        [&]() { return sampler->getNextBases(); },
+        [](ReductionStage *rStage) { return rStage->getChildrenHandles(); },
         [](Stage *stage) { return stage->getChildrenHandles(); },
         [](TensorView *tensor) { return std::vector<Next>{}; }
     );
@@ -84,7 +81,7 @@ std::vector<Next> Node::getChildrenHandles() const {
 
 Node Node::getChild(Next next) const {
     return match<Node>(
-        [&]() { return Node { sampler, sampler->getBase(next.key) }; },
+        [&](ReductionStage *rStage) { return rStage->getChild(next); },
         [&](Stage *stage) { return stage->getChild(next); },
         [](TensorView *tensor) -> Node { KAS_UNREACHABLE(); }
     );
@@ -93,8 +90,8 @@ Node Node::getChild(Next next) const {
 std::string Node::toString() const {
     const BindingContext& ctx = sampler->getBindingContext();
     return match<std::string>(
-        [&]() { return sampler->getOutputShape().toString(ctx); },
-        [&](Stage *stage) { return stage->description(ctx); },
+        [](ReductionStage *rStage) { return rStage->description(); },
+        [](Stage *stage) { return stage->description(); },
         [&](TensorView *tensor) { return tensor->description(ctx); }
     );
 }

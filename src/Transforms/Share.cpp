@@ -130,7 +130,7 @@ bool ShareOp::IsSharedDimensionCanonical(const PrimitiveOp *op, const Graph& gra
     return canonicalToHaveThisOutputShared(shared) && canonicalToHaveThisOutputShared(sharedAnother);
 }
 
-std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options) {
+std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // Canonicalization requires that ShareOp only appears above Merge.

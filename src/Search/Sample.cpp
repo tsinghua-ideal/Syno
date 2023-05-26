@@ -117,42 +117,21 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         root.emplace_back(&it);
     }
 
-    // Generate MapReduce's.
-    reduces = MapReduceOp::GenerateLastLevelMapReduces(this->outputShape, { this->ctx, this->options.dimUpperBound });
-    // DO NOT modify reduces and originalBases after this, because Dimension references by address these iterators.
-    for (const auto& r: reduces) {
-        Interface temp = root;
-        std::ranges::move(r | std::views::transform([](const MapReduceOp& m) { return &m; }), std::back_inserter(temp));
-        std::ranges::sort(temp, Dimension::HashLessThan{});
-        originalBases.emplace_back(std::move(temp), *this, 0);
-    }
-    auto hasher = std::hash<Interface>{};
-    std::ranges::move(std::views::iota(static_cast<std::size_t>(0), originalBases.size()) | std::views::transform([&](std::size_t baseIndex) { return std::pair{ hasher(originalBases[baseIndex].getInterface().toDimensions()), baseIndex }; }), std::back_inserter(bases));
-    std::ranges::sort(bases, std::less{}, &std::pair<std::size_t, std::size_t>::first);
+    // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
+    rootStage = std::make_unique<ReductionStage>(*this);
 }
 
-std::vector<Next> Sampler::getNextBases() const {
-    std::vector<Next> result;
-    std::ranges::move(bases | std::views::transform([](const auto& base) { return Next { Next::Type::MapReduce, base.first }; }), std::back_inserter(result));
+Size Sampler::getTotalOutputSize() const {
+    Size result = outputShape.totalSize();
+    if (!fixedDimensions.empty()) {
+        using FixedDimensionsShapeView = AbstractShape<const std::vector<FixedDimension>&, [](const FixedDimension& fd) -> const Size& { return fd.dim.size(); }>;
+        result = result * FixedDimensionsShapeView { fixedDimensions }.totalSize();
+    }
     return result;
 }
 
-std::size_t Sampler::getBaseIndex(std::size_t key) const {
-    auto it = std::ranges::lower_bound(bases, key, std::less{}, &std::pair<std::size_t, std::size_t>::first);
-    KAS_ASSERT(it != bases.end() && it->first == key, "Specified MapReduce not found.");
-    return it->second;
-}
-
-Stage *Sampler::getBase(std::size_t key) {
-    return &originalBases[getBaseIndex(key)];
-}
-
-const MapReduceOp::Base& Sampler::getReduce(std::size_t key) const {
-    return reduces[getBaseIndex(key)];
-}
-
 Node Sampler::visit(const std::vector<Next>& path) {
-    Node n { this };
+    Node n { this, rootStage.get() };
     for (const auto& next: path) {
         n = n.getChild(next);
     }

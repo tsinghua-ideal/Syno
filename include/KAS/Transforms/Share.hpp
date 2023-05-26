@@ -61,7 +61,7 @@ public:
     struct GenerateOptions {
         const BindingContext& ctx;
         std::size_t maximumTensors;
-        std::size_t maxColorTags() {
+        std::size_t maxColorTags() const {
             return maximumTensors - 1;
         }
     };
@@ -73,7 +73,7 @@ public:
         MaximumTensorsExceeded,
         SuccessfulGenerations,
     )
-    static std::vector<const ShareOp *> Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options);
+    static std::vector<const ShareOp *> Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options);
 };
 
 } // namespace kas
