@@ -8,7 +8,7 @@
 
 namespace kas {
 
-std::unique_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedDimension>& fixed) const {
+std::shared_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedDimension>& fixed) const {
     if (fixed.empty()) {
         return std::make_unique<TensorView>(tensors);
     }

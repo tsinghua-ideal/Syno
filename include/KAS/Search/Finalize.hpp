@@ -33,7 +33,7 @@ public:
         hash = h;
     }
     // Pass in sorted fixed dimensions.
-    std::unique_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed) const;
+    std::shared_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed) const;
     std::size_t getHash() const noexcept { return hash; }
 
     std::string description(const BindingContext& ctx) const;

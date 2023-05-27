@@ -15,14 +15,11 @@ class ReductionStage {
     std::vector<const MapReduceOp *> reductions;
 
     static constexpr std::size_t StopReductionToken = std::numeric_limits<std::size_t>::max();
-    struct NextReductionStageSlot {
-        std::size_t key;
+    struct NextReductionSlot: NextSlot<Next::Type::MapReduce> {
         std::unique_ptr<ReductionStage> next;
-        Next toNext() const {
-            return Next { Next::Type::MapReduce, key };
-        }
+        static std::size_t GetKey(const MapReduceOp *op) { return op->hash(); }
     };
-    std::vector<NextReductionStageSlot> nextReductions;
+    NextSlotStore<NextReductionSlot> nextReductions;
 
     // The stage that is directly constructed, without appending any reduction.
     std::unique_ptr<Stage> stage;
@@ -45,7 +42,7 @@ public:
     std::size_t countChildren() const { return nextReductions.size() + 1; }
     // Aside from slots, return a special Next (with key StopReductionToken).
     std::vector<Next> getChildrenHandles() const;
-    const NextReductionStageSlot& getChildSlot(std::size_t key) const;
+    const NextReductionSlot& getChildSlot(std::size_t key) const;
     // Use a special Next (with key StopReductionToken) to transition to the normal Stage.
     Node getChild(Next next) const;
     std::string getChildDescription(std::size_t key) const;

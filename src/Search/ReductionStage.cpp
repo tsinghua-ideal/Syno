@@ -28,28 +28,19 @@ ReductionStage::ReductionStage(Sampler& sampler, std::vector<const MapReduceOp *
         .outputSize = sampler.getTotalOutputSize(),
         .maxFLOPs = options.maxFLOPs,
     });
-    std::ranges::sort(nextReductions, {}, &MapReduceOp::hash);
-    this->nextReductions.reserve(nextReductions.size());
-    for (const MapReduceOp *nextReduction: nextReductions) {
-        this->nextReductions.emplace_back(nextReduction->hash(), std::make_unique<ReductionStage>(*this, nextReduction));
-    }
+    this->nextReductions.fill(nextReductions, [&](const MapReduceOp *op) -> NextReductionSlot {
+        return NextReductionSlot({NextReductionSlot::GetKey(op)}, std::make_unique<ReductionStage>(*this, op));
+    });
 }
 
 std::vector<Next> ReductionStage::getChildrenHandles() const {
-    std::vector<Next> handles;
-    handles.reserve(countChildren());
-    std::ranges::move(
-        nextReductions
-        | std::views::transform(&NextReductionStageSlot::toNext),
-    std::back_inserter(handles));
+    std::vector<Next> handles = nextReductions.toNexts();
     handles.emplace_back(Next::Type::MapReduce, StopReductionToken);
     return handles;
 }
 
-const ReductionStage::NextReductionStageSlot& ReductionStage::getChildSlot(std::size_t key) const {
-    auto it = std::ranges::lower_bound(nextReductions, key, std::less{}, &NextReductionStageSlot::key);
-    KAS_ASSERT(it != nextReductions.end() && it->key == key);
-    return *it;
+const ReductionStage::NextReductionSlot& ReductionStage::getChildSlot(std::size_t key) const {
+    return nextReductions.getSlot(key);
 }
 
 Node ReductionStage::getChild(Next next) const {

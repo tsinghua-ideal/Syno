@@ -22,9 +22,9 @@ public:
         name { std::forward<decltype(name)>(name) },
         dims { std::forward<decltype(dims)>(dims) }
     {}
-    inline const std::string& getName() const { return name; }
-    inline const std::vector<Dimension>& getDimensions() const { return dims; }
-    inline ShapeView getShape() const { return ShapeView(dims); }
+    const std::string& getName() const { return name; }
+    const std::vector<Dimension>& getDimensions() const { return dims; }
+    ShapeView getShape() const { return ShapeView(dims); }
     std::string shapeToString(const BindingContext& ctx) const;
     std::string description(const BindingContext& ctx) const;
 };
@@ -75,29 +75,30 @@ protected:
 public:
     // Build the tensor from iterator DAG.
     explicit TensorView(const std::vector<std::vector<Dimension>>& tensors);
-    explicit inline TensorView(std::initializer_list<std::vector<Dimension>> tensors):
+    explicit TensorView(std::initializer_list<std::vector<Dimension>> tensors):
         TensorView { std::vector(tensors) } {}
 
-    inline IteratorShapeView getInterfaceShape() const { return IteratorShapeView(interface); }
+    IteratorShapeView getInterfaceShape() const { return IteratorShapeView(interface); }
 
     // Returns the underlying tensor underneath the view.
-    inline const std::vector<PureTensor>& getUnderlyingTensors() const { return tensors; }
+    const std::vector<PureTensor>& getUnderlyingTensors() const { return tensors; }
+    auto getUnderlyingTensorRange() const { return tensors | std::views::transform(&PureTensor::getDimensions); }
     // Returns all dimensions in the underlying tensors.
-    inline auto getUnderlyingDimensions() const {
+    auto getUnderlyingDimensions() const {
         return tensors
             | std::views::transform(&PureTensor::getDimensions)
             | std::views::join;
     }
 
-    inline const AbstractAccess& getForwardAccess() const { return forwardAccess; }
+    const AbstractAccess& getForwardAccess() const { return forwardAccess; }
 
-    inline const std::vector<AbstractAccess>& getBackwardAccesses() const { return backwardAccesses; }
+    const std::vector<AbstractAccess>& getBackwardAccesses() const { return backwardAccesses; }
 
     // Returns the interface of the view.
-    inline const std::vector<const Iterator *>& getInterfaceIterators() const { return interface; }
+    const std::vector<const Iterator *>& getInterfaceIterators() const { return interface; }
 
     // Returns the map-reduce manipulations.
-    inline const std::vector<const MapReduceOp *>& getManipulations() const { return manipulations; }
+    const std::vector<const MapReduceOp *>& getManipulations() const { return manipulations; }
 
     // Note that sometimes we need padding to make things work. Here we need to guarantee that all dimensions in the Graph are valid, so instead of padding tensors, we pad variables.
     ConcreteConsts computePadding(const BindingContext& ctx, const ConcreteConsts& consts) const;

@@ -29,7 +29,7 @@ std::string Next::description(const Node& node) const {
             default: KAS_UNREACHABLE();
             }
         },
-        [](TensorView *tensor) -> std::string { KAS_UNREACHABLE(); }
+        [](std::shared_ptr<TensorView> tensor) -> std::string { KAS_UNREACHABLE(); }
     );
 }
 
@@ -41,8 +41,8 @@ std::map<Next::Type, std::size_t> Next::CountTypes(const std::vector<Next>& next
     return result;
 }
 
-TensorView *Node::asFinal() const {
-    return std::get<TensorView *>(inner);
+std::shared_ptr<TensorView> Node::asFinal() const {
+    return std::get<std::shared_ptr<TensorView> >(inner);
 }
 
 std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const {
@@ -67,7 +67,7 @@ std::size_t Node::countChildren() const {
     return match<std::size_t>(
         [](ReductionStage *rStage) { return rStage->countChildren(); },
         [](Stage *stage) { return stage->countChildren(); },
-        [](TensorView *tensor) { return 0; }
+        [](std::shared_ptr<TensorView> tensor) { return 0; }
     );
 }
 
@@ -75,7 +75,7 @@ std::vector<Next> Node::getChildrenHandles() const {
     return match<std::vector<Next>>(
         [](ReductionStage *rStage) { return rStage->getChildrenHandles(); },
         [](Stage *stage) { return stage->getChildrenHandles(); },
-        [](TensorView *tensor) { return std::vector<Next>{}; }
+        [](std::shared_ptr<TensorView> tensor) { return std::vector<Next>{}; }
     );
 }
 
@@ -83,7 +83,7 @@ Node Node::getChild(Next next) const {
     return match<Node>(
         [&](ReductionStage *rStage) { return rStage->getChild(next); },
         [&](Stage *stage) { return stage->getChild(next); },
-        [](TensorView *tensor) -> Node { KAS_UNREACHABLE(); }
+        [](std::shared_ptr<TensorView> tensor) -> Node { KAS_UNREACHABLE(); }
     );
 }
 
@@ -92,7 +92,7 @@ std::string Node::toString() const {
     return match<std::string>(
         [](ReductionStage *rStage) { return rStage->description(); },
         [](Stage *stage) { return stage->description(); },
-        [&](TensorView *tensor) { return tensor->description(ctx); }
+        [&](std::shared_ptr<TensorView> tensor) { return tensor->description(ctx); }
     );
 }
 

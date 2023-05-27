@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <map>
+#include <ranges>
 #include <string>
 #include <type_traits>
 #include <variant>
@@ -62,6 +63,88 @@ struct Next {
     }
 };
 
+template<Next::Type _SlotType>
+struct NextSlot {
+    static constexpr Next::Type SlotType = _SlotType;
+
+    // This is the key, used for indexing.
+    std::size_t key;
+
+    Next toNext() const {
+        return Next { SlotType, key };
+    }
+};
+
+template<typename Slot>
+requires
+    std::derived_from<Slot, NextSlot<Slot::SlotType>>
+    && std::move_constructible<Slot>
+class NextSlotStore {
+    using Self = NextSlotStore<Slot>;
+
+    std::vector<Slot> slots;
+
+public:
+    NextSlotStore() = default;
+    NextSlotStore(const NextSlotStore&) = delete;
+    NextSlotStore(NextSlotStore&&) = delete;
+
+    std::size_t size() const { return slots.size(); }
+
+    // A slot can be found by its key, because we have sorted the slots by key.
+    std::vector<Slot>::const_iterator findSlot(std::size_t key) const {
+        return std::ranges::lower_bound(slots, key, std::less{}, &Slot::key);;
+    }
+    std::vector<Slot>::iterator findSlot(std::size_t key) {
+        return std::ranges::lower_bound(slots, key, std::less{}, &Slot::key);;
+    }
+    const Slot& getSlot(std::size_t key) const {
+        auto it = findSlot(key);
+        KAS_ASSERT(it != slots.end() && it->key == key, "Slot not found.");
+        return *it;
+    }
+    Slot& getSlot(std::size_t key) { return const_cast<Slot&>(std::as_const(*this).getSlot(key)); }
+
+    // Fill the slots with the the given range, and then sort by key.
+    template<std::ranges::input_range R, typename F>
+    requires std::convertible_to<std::invoke_result_t<F, std::ranges::range_reference_t<R>>, Slot>
+    Self& fill(R&& rawStream, F&& builder) {
+        std::ranges::move(std::views::transform(builder)(rawStream), std::back_inserter(slots));
+        std::ranges::sort(slots, std::less{}, &Slot::key);
+        return *this;
+    }
+
+    // Add a new slot to the end of slots.
+    Self& append(auto&& slot) {
+        slots.emplace_back(std::forward<decltype(slot)>(slot));
+        if (slots.size() > 1) {
+            KAS_ASSERT(slots.back().key >= slots[slots.size() - 2].key, "Slots must be sorted by key.");
+        }
+        return *this;
+    }
+
+    // Remove all slots that satisfy the predicate.
+    template<typename Pred, typename Callback>
+    requires std::predicate<Pred, Slot> && std::invocable<Callback, Slot>
+    Self& remove(Pred&& pred, Callback&& callback) {
+        auto [first, last] = std::ranges::remove_if(slots, std::forward<Pred>(pred));
+        std::ranges::for_each(first, last, std::forward<Callback>(callback));
+        slots.erase(first, last);
+        return *this;
+    }
+    template<typename Pred>
+    requires std::predicate<Pred, Slot>
+    Self& remove(Pred&& pred) {
+        return remove(std::forward<Pred>(pred), [](const Slot&){});
+    }
+
+    std::vector<Next> toNexts() const {
+        std::vector<Next> nexts;
+        std::ranges::move(slots | std::views::transform(&Slot::toNext), std::back_inserter(nexts));
+        return nexts;
+    }
+};
+
 class TensorView;
 class Sampler;
 class ReductionStage;
@@ -79,7 +162,7 @@ class Node {
         Final = 2, // Finalization performed.
     };
     // This corresponds to the three types.
-    std::variant<ReductionStage *, Stage *, TensorView *> inner;
+    std::variant<ReductionStage *, Stage *, std::shared_ptr<TensorView> > inner;
     Type type() const noexcept {
         return static_cast<Type>(inner.index());
     }
@@ -87,14 +170,14 @@ class Node {
     requires
         std::convertible_to<std::invoke_result_t<FR, ReductionStage *>, R> &&
         std::convertible_to<std::invoke_result_t<FG, Stage *>, R> &&
-        std::convertible_to<std::invoke_result_t<FF, TensorView *>, R>
+        std::convertible_to<std::invoke_result_t<FF, std::shared_ptr<TensorView> >, R>
     R match(FR&& fr, FG&& fg, FF&& ff) const {
         return std::visit([&](auto arg) -> R {
             if constexpr (std::is_same_v<decltype(arg), ReductionStage *>) {
                 return fr(arg);
             } else if constexpr (std::is_same_v<decltype(arg), Stage *>) {
                 return fg(arg);
-            } else if constexpr (std::is_same_v<decltype(arg), TensorView *>) {
+            } else if constexpr (std::is_same_v<decltype(arg), std::shared_ptr<TensorView> >) {
                 return ff(arg);
             } else {
                 KAS_UNREACHABLE();
@@ -107,7 +190,7 @@ public:
         sampler { sampler }, inner { rStage } {}
     Node(Sampler *sampler, Stage *stage):
         sampler { sampler }, inner { stage } {}
-    Node(Sampler *sampler, TensorView *kernel):
+    Node(Sampler *sampler, std::shared_ptr<TensorView> kernel):
         sampler { sampler }, inner { kernel } {}
 
     // For Python.
@@ -117,7 +200,7 @@ public:
         return std::hash<decltype(inner)>{}(inner);
     }
 
-    TensorView *asFinal() const;
+    std::shared_ptr<TensorView> asFinal() const;
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const;
     // Obtain the mappings from Sampler, and do not solve the paddings. We only want to estimate the FLOPs.
     std::size_t estimateTotalFLOPsAsFinal() const;

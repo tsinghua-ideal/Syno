@@ -15,6 +15,7 @@
 
 - [x] Fix hash collision. (If not possible, try finding data structures that tolerate collisions.) (Temporarily this seems fixed?)
 - [ ] Replace `std::hash` with custom hash for better reproducibility.
+- [ ] Use reproducible hash for `Node`.
 
 ## CodeGen
 
@@ -34,7 +35,7 @@
 
 - [x] Before generating an Op, test sizes of new dimensions to make it legal.
 - [x] Redesign generation algorithm for each Op.
-- [ ] Accept FLOPs constraints in Sampler, and generate MapReduceOp's accordingly.
+- [x] Accept FLOPs constraints in Sampler, and generate MapReduceOp's accordingly.
 
 ### Pruning
 
@@ -50,6 +51,7 @@
 - [ ] Allow direct construction of kernel from primitives and parameters, without building the search tree.
 - [ ] Discover full-dead-end subtrees and report to Python.
 - [ ] Multithreaded search tree building.
+- [ ] Compute a Path from a TensorView, to verify searchability.
 
 ## Experiment
 
