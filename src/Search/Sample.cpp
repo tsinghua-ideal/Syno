@@ -154,9 +154,9 @@ std::pair<std::vector<Next>, Node> Sampler::randomNodeWithPrefix(const std::vect
     return { std::move(path), std::move(cur) };
 }
 
-std::vector<Next> Sampler::convertTensorViewToPath(const TensorView& tensorView) const {
+std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<Interface>& tensorView) const {
     Graph::Builder builder;
-    builder.addTopmost(tensorView.getUnderlyingDimensions());
+    builder.addTopmost(tensorView | std::views::join);
     Graph graph = builder.build();
 
     std::vector<Next> result;
@@ -206,8 +206,8 @@ std::vector<Next> Sampler::convertTensorViewToPath(const TensorView& tensorView)
             );
         };
         // The reverse is just a simple fix. We need to generate Next's in canonical order of ShareOp! See ShareOp::IsSharedDimensionCanonical(). TODO.
-        for (const PureTensor& tensor: tensorView.getUnderlyingTensors() | std::views::reverse) {
-            for (const Dimension& dim: tensor.getDimensions()) {
+        for (const auto& tensor: tensorView | std::views::reverse) {
+            for (const Dimension& dim: tensor) {
                 dfs(dfs, dim);
             }
         }
@@ -217,7 +217,7 @@ std::vector<Next> Sampler::convertTensorViewToPath(const TensorView& tensorView)
     {
         // The fixed dimensions should be removed first.
         std::vector<Interface> tensors;
-        std::ranges::copy(tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getDimensions), std::back_inserter(tensors));
+        std::ranges::copy(tensorView, std::back_inserter(tensors));
         auto& inputTensor = tensors.at(0);
         for (const auto& [i, _]: fixedDimensions | std::views::reverse) {
             inputTensor.erase(inputTensor.begin() + i);

@@ -10,6 +10,11 @@ class Assembled:
         self._assembler = assembler
         self._tensors = tensors
 
+    def convert_to_path(self, sampler):
+        """Convert this assembled kernel to a path."""
+        from .Node import Path
+        return Path(self._assembler.convert_assembled_to_path(self._tensors, sampler._sampler))
+
     def _realize(self, all_mappings: List[Dict[str, int]], halide_options: Bindings.CodeGenOptions) -> Bindings.Kernel:
         return self._assembler.build(self._tensors, all_mappings, halide_options)
 

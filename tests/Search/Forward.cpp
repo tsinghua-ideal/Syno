@@ -32,7 +32,7 @@ TEST_F(search_tests, forward) {
 
     Interface input { dimN, dimH, dimW }, weight { dimK1, dimK2 };
     auto tensorView = TensorView { input, weight };
-    auto path = sampler.convertTensorViewToPath(tensorView);
+    auto path = sampler.convertTensorViewToPath({ input, weight });
     fmt::print("A possible path is:\n");
     for (auto&& next: path) {
         fmt::print("{}\n", next.toString());

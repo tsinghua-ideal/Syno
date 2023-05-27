@@ -67,6 +67,7 @@ def perform_trials(manual: bool):
     else:
         assembler = sampler.create_assembler()
         node = manually_design(assembler)
+        print(f"Manually created {node.convert_to_path(sampler)}")
         kernel_packs, _ = sampler.realize(net, node, "test_sampler")
     sampler.replace(net, kernel_packs)
 

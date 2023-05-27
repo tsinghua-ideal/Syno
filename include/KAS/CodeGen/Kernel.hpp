@@ -21,6 +21,7 @@ protected:
 
 public:
     Kernel(const TensorView& tensorView, const BindingContext& ctx, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options);
+    const TensorView& getTensorView() const { return tensorView; }
 
     std::string toNestedLoops() const;
 
