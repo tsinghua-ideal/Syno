@@ -154,4 +154,78 @@ std::pair<std::vector<Next>, Node> Sampler::randomNodeWithPrefix(const std::vect
     return { std::move(path), std::move(cur) };
 }
 
+std::vector<Next> Sampler::convertTensorViewToPath(const TensorView& tensorView) const {
+    Graph::Builder builder;
+    builder.addTopmost(tensorView.getUnderlyingDimensions());
+    Graph graph = builder.build();
+
+    std::vector<Next> result;
+    // To obtain the path, we need to follow the 3 stages of searching.
+
+    // First, ReductionStage.
+    {
+        using Slot = ReductionStage::NextReductionSlot;
+        for (const MapReduceOp *op: graph.getMapReduceIterators()) {
+            result.emplace_back(Slot::SlotType, Slot::GetKey(op));
+        }
+        // Do not forget to add the stop token.
+        result.emplace_back(Slot::SlotType, ReductionStage::StopReductionToken);
+    }
+
+    // Next, Stage.
+    {
+        std::set<Dimension, Dimension::HashLessThan> completed;
+        Graph::AttributeMap<bool> added;
+        // Bottom-up.
+        auto dfs = [&](const auto& self, const Dimension& dim) -> void {
+            if (completed.contains(dim)) return;
+            completed.emplace(dim);
+            graph.visitAlong(dim, Direction::Down).match(
+                [&](const RepeatLikeVertex& v, auto) {
+                    bool& addedV = added[v];
+                    if (addedV) return;
+                    addedV = true;
+                    self(self, v[RepeatLikeOp::Branch::Output]);
+                    result.emplace_back(Next::TypeOf(v.op.getType()), v.op.opHash());
+                },
+                [&](const SplitLikeVertex& v, auto) {
+                    bool& addedV = added[v];
+                    if (addedV) return;
+                    addedV = true;
+                    self(self, v[SplitLikeOp::Branch::OutputLhs]);
+                    self(self, v[SplitLikeOp::Branch::OutputRhs]);
+                    result.emplace_back(Next::TypeOf(v.op.getType()), v.op.opHash());
+                },
+                [&](const MergeLikeVertex& v, auto) {
+                    bool& addedV = added[v];
+                    if (addedV) return;
+                    addedV = true;
+                    self(self, v[MergeLikeOp::Branch::Output]);
+                    result.emplace_back(Next::TypeOf(v.op.getType()), v.op.opHash());
+                }
+            );
+        };
+        // The reverse is just a simple fix. We need to generate Next's in canonical order of ShareOp! See ShareOp::IsSharedDimensionCanonical(). TODO.
+        for (const PureTensor& tensor: tensorView.getUnderlyingTensors() | std::views::reverse) {
+            for (const Dimension& dim: tensor.getDimensions()) {
+                dfs(dfs, dim);
+            }
+        }
+    }
+
+    // Finally, Finalize.
+    {
+        // The fixed dimensions should be removed first.
+        std::vector<Interface> tensors;
+        std::ranges::copy(tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getDimensions), std::back_inserter(tensors));
+        auto& inputTensor = tensors.at(0);
+        for (const auto& [i, _]: fixedDimensions | std::views::reverse) {
+            inputTensor.erase(inputTensor.begin() + i);
+        }
+        result.emplace_back(Next::Type::Finalize, Stage::NextFinalizeSlot::GetKey(tensors));
+    }
+
+    return result;
+}
+
 } // namespace kas

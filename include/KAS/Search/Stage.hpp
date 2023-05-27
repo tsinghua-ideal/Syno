@@ -52,9 +52,7 @@ public:
 };
 
 class Stage {
-    // The interface decides the hash. Other properties are computed.
-    ColoredInterface interface;
-
+public:
     struct NextFinalizeSlot: NextSlot<Next::Type::Finalize> {
         FinalizeOp finalization;
         template<TensorRange TR>
@@ -82,6 +80,10 @@ class Stage {
             return std::get<NextOpStore<Op>>(stores);
         }
     };
+
+private:
+    // The interface decides the hash. Other properties are computed.
+    ColoredInterface interface;
 
     // Lazily generate children.
     bool childrenGenerated = false;

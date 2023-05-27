@@ -11,11 +11,11 @@ class core_size_tests: public ::testing::Test {
 protected:
     using Metadata = BindingContext::Metadata;
     std::vector<Metadata> metaPrimary {
-        { .alias = "H", .estimate = 128 },
-        { .alias = "W", .estimate = 128 },
+        { .alias = "H", .maximumOccurrence = 2, .estimate = 128 },
+        { .alias = "W", .maximumOccurrence = 2, .estimate = 128 },
     };
     std::vector<Metadata> metaCoefficient {
-        { .alias = "c", .estimate = 5 },
+        { .alias = "c", .maximumOccurrence = 2, .estimate = 5 },
     };
     BindingContext ctx = { std::move(metaPrimary), std::move(metaCoefficient) };
     Size sizeH = ctx.getSize("H");
@@ -65,6 +65,16 @@ TEST_F(core_size_tests, divisors_HWC3) {
     }
 }
 
+TEST_F(core_size_tests, allowance) {
+    // Maximum occurences: H -> 2, W -> 2, c -> 2
+    Allowance allowance = { sizeHWc, ctx };
+    // Allowed: H -> [0, 1], W -> [0, 1], c -> [-1, 3]
+    ASSERT_TRUE(allowance.withinAllowance(sizeH / sizeC));
+    ASSERT_TRUE(allowance.withinAllowance(sizeH * sizeW * sizeC * sizeC * sizeC));
+    ASSERT_FALSE(allowance.withinAllowance(sizeH * sizeW * sizeC * sizeC * sizeC * sizeC));
+    ASSERT_FALSE(allowance.withinAllowance(sizeH * sizeH));
+}
+
 TEST_F(core_size_tests, enumerate_HWC) {
     Size query = sizeH * sizeW * sizeC;
     fmt::print("Enumerate {}:\n", query.toString(ctx));
@@ -78,6 +88,18 @@ TEST_F(core_size_tests, enumerate_HWoverC) {
     for (auto size: Size::EnumerateSizes(ctx, lower, sizeHWc)) {
         fmt::print("  {}\n", size.toString(ctx));
     }
+}
+
+TEST_F(core_size_tests, leq) {
+    ASSERT_TRUE(
+        Size::LexicographicalLEQ(sizeC, sizeH)
+        != Size::LexicographicalLEQ(sizeH, sizeC)
+    );
+    ASSERT_TRUE(Size::LexicographicalLEQ(sizeH, sizeH));
+    ASSERT_TRUE(
+        Size::LexicographicalLEQ(sizeH, sizeH * sizeC)
+        != Size::LexicographicalLEQ(sizeH * sizeC, sizeH)
+    );
 }
 
 } // namespace kas

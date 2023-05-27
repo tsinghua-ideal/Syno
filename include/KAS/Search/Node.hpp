@@ -61,6 +61,17 @@ struct Next {
         else if constexpr (std::same_as<Op, ShareOp>) { return Type::Share; }
         else { return static_cast<Type>(-1); }
     }
+    static constexpr Type TypeOf(DimensionType t) {
+        switch (t) {
+        case DimensionType::Shift: return Type::Shift;
+        case DimensionType::Stride: return Type::Stride;
+        case DimensionType::Split: return Type::Split;
+        case DimensionType::Unfold: return Type::Unfold;
+        case DimensionType::Merge: return Type::Merge;
+        case DimensionType::Share: return Type::Share;
+        default: return static_cast<Type>(-1);
+        }
+    }
 };
 
 template<Next::Type _SlotType>

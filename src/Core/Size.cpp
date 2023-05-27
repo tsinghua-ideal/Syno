@@ -356,13 +356,15 @@ bool Size::operator==(const Size& other) const {
 
 bool Size::LexicographicalLEQ(const Size& lhs, const Size& rhs) {
     for (std::size_t i = 0; i < lhs.primaryCount; ++i) {
-        if (lhs.primary[i] > rhs.primary[i]) {
-            return false;
+        auto res = lhs.primary[i] <=> rhs.primary[i];
+        if (res != 0) {
+            return res < 0;
         }
     }
     for (std::size_t i = 0; i < lhs.coefficientCount; ++i) {
-        if (lhs.coefficient[i] > rhs.coefficient[i]) {
-            return false;
+        auto res = lhs.coefficient[i] <=> rhs.coefficient[i];
+        if (res != 0) {
+            return res < 0;
         }
     }
     return true;
@@ -667,7 +669,7 @@ bool Allowance::withinAllowance(const Size& size) const {
 }
 
 Generator<Size> Allowance::enumerateSizes(const BindingContext& ctx) const {
-    constexpr Size::PowerType maxEnumerationsPerVar = 3;
+    constexpr Size::PowerType maxEnumerationsPerVar = 4;
     auto primary = this->primary;
     for (std::size_t i = 0; i < ctx.getPrimaryCount(); ++i) {
         primary[i] = std::clamp(primary[i], static_cast<Size::PowerType>(0), maxEnumerationsPerVar);

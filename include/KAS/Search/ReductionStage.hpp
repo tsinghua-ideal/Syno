@@ -11,14 +11,18 @@
 namespace kas {
 
 class ReductionStage {
-    Sampler& sampler;
-    std::vector<const MapReduceOp *> reductions;
-
+public:
     static constexpr std::size_t StopReductionToken = std::numeric_limits<std::size_t>::max();
     struct NextReductionSlot: NextSlot<Next::Type::MapReduce> {
         std::unique_ptr<ReductionStage> next;
         static std::size_t GetKey(const MapReduceOp *op) { return op->hash(); }
     };
+
+private:
+    Sampler& sampler;
+
+    std::vector<const MapReduceOp *> reductions;
+
     NextSlotStore<NextReductionSlot> nextReductions;
 
     // The stage that is directly constructed, without appending any reduction.
