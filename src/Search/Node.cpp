@@ -41,8 +41,35 @@ std::map<Next::Type, std::size_t> Next::CountTypes(const std::vector<Next>& next
     return result;
 }
 
+bool Node::operator==(const Node& rhs) const {
+    if (inner.index() != rhs.inner.index()) {
+        return false;
+    }
+    return match<bool>(
+        [&](ReductionStage *rStage) { // Because we have uniquified them.
+            return rStage == std::get<ReductionStage *>(rhs.inner);
+        },
+        [&](Stage *stage) { // Because we have uniquified them.
+            return stage == std::get<Stage *>(rhs.inner);
+        },
+        [&](std::shared_ptr<TensorView> tensor) {
+            return *tensor == *std::get<std::shared_ptr<TensorView>>(rhs.inner);
+        }
+    );
+}
+
+std::size_t Node::hash() const {
+    std::size_t h = std::hash<std::size_t>{}(inner.index());
+    auto hashRetriever = [](const auto& content) {
+        return content->hash();
+    };
+    auto contentHash = std::visit(hashRetriever, inner);
+    HashCombine(h, contentHash);
+    return h;
+}
+
 std::shared_ptr<TensorView> Node::asFinal() const {
-    return std::get<std::shared_ptr<TensorView> >(inner);
+    return std::get<std::shared_ptr<TensorView>>(inner);
 }
 
 std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const {

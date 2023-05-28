@@ -205,11 +205,9 @@ public:
         sampler { sampler }, inner { kernel } {}
 
     // For Python.
-    bool operator==(const Node& rhs) const noexcept = default;
+    bool operator==(const Node& rhs) const;
     // For Python.
-    std::size_t hash() const noexcept {
-        return std::hash<decltype(inner)>{}(inner);
-    }
+    std::size_t hash() const;
 
     std::shared_ptr<TensorView> asFinal() const;
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const;

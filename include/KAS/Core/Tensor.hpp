@@ -22,6 +22,9 @@ public:
         name { std::forward<decltype(name)>(name) },
         dims { std::forward<decltype(dims)>(dims) }
     {}
+    bool operator==(const PureTensor& rhs) const {
+        return name == rhs.name && dims == rhs.dims;
+    }
     const std::string& getName() const { return name; }
     const std::vector<Dimension>& getDimensions() const { return dims; }
     ShapeView getShape() const { return ShapeView(dims); }
@@ -88,6 +91,13 @@ public:
         return tensors
             | std::views::transform(&PureTensor::getDimensions)
             | std::views::join;
+    }
+
+    bool operator==(const TensorView& rhs) const {
+        return std::ranges::equal(tensors, rhs.tensors);
+    }
+    std::size_t hash() const {
+        return std::hash<std::vector<Interface>>{}(getUnderlyingTensorRange());
     }
 
     const AbstractAccess& getForwardAccess() const { return forwardAccess; }

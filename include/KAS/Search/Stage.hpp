@@ -29,7 +29,7 @@ class Sampler;
 class Stage;
 
 class StageStore {
-    DimensionStore dimensionStore;
+public:
     struct Hash {
         using is_transparent = void;
         std::size_t operator()(const ColoredInterface& interface) const noexcept;
@@ -42,6 +42,9 @@ class StageStore {
         bool operator()(const Stage *lhs, const ColoredInterface& rhs) const noexcept;
         bool operator()(const Stage *lhs, const Stage *rhs) const noexcept;
     };
+
+private:
+    DimensionStore dimensionStore;
     std::unordered_set<Stage *, Hash, Equal> interfaces;
 
 public:
@@ -157,6 +160,7 @@ public:
     bool possibleToFinalize() const;
 
     const ColoredInterface& getInterface() const { return interface; }
+    std::size_t hash() const { return StageStore::Hash{}(interface); }
     std::size_t countChildren();
     const std::vector<Next>& getChildrenHandles() {
         guard();

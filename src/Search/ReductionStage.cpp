@@ -2,6 +2,7 @@
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/ReductionStage.hpp"
 #include "KAS/Search/Sample.hpp"
+#include "KAS/Utils/Hash.hpp"
 
 
 namespace kas {
@@ -31,6 +32,14 @@ ReductionStage::ReductionStage(Sampler& sampler, std::vector<const MapReduceOp *
     this->nextReductions.fill(nextReductions, [&](const MapReduceOp *op) -> NextReductionSlot {
         return NextReductionSlot({NextReductionSlot::GetKey(op)}, std::make_unique<ReductionStage>(*this, op));
     });
+}
+
+std::size_t ReductionStage::hash() const {
+    std::size_t h = reductions.size();
+    for (const auto *op: reductions) {
+        HashCombine(h, op->hash());
+    }
+    return h;
 }
 
 std::vector<Next> ReductionStage::getChildrenHandles() const {

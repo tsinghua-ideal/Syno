@@ -41,6 +41,8 @@ public:
     ReductionStage(Sampler& sampler):
         ReductionStage(sampler, std::vector<const MapReduceOp *> {}) {}
 
+    std::size_t hash() const;
+
     const MapReduceOp *lastReduction() const { return reductions.size() ? reductions.back() : nullptr; }
 
     std::size_t countChildren() const { return nextReductions.size() + 1; }
