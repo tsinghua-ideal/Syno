@@ -17,7 +17,7 @@ from KAS.Bindings import CodeGenOptions
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
-from utils.models import KASDense as KASConv, ModelBackup
+from utils.models import KASConv, ModelBackup
 from utils.parser import arg_parse
 
 from mp_utils import Handler_server, MCTSTrainer
@@ -42,9 +42,9 @@ if __name__ == '__main__':
     )
 
     sampler_params = dict(
-        input_shape="[N,H,W]",
+        input_shape="[N,C_in,H,W]",
         output_shape="[N,C_out,H,W]",
-        primary_specs=["N=4096: 0", "H=28", "W=28", "C_out=100"],
+        primary_specs=["N=64: 0", "H=28", "W=28"],
         coefficient_specs=["k_1=3: 4", "k_2=5: 4"],
         fixed_io_pairs=[(0, 0)],
         seed=random.SystemRandom().randint(
