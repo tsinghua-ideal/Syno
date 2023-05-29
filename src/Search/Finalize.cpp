@@ -45,6 +45,8 @@ bool FinalizeOp::Prune(const std::vector<Graph::ConnectedComponent>& components,
                     break;
                 }
                 case DimensionType::Split:
+                case DimensionType::Unfold:
+                    // Unfold is not semantically equivalent to Split, but if we substitute it to a Split, we are essentially adding more parameters, so there always exists a valuation of weight such that Split and Unfold is equivalent here. In other words, Split can cover the semantics of Unfold.
                 case DimensionType::Shift:
                     return true;
                 default:

@@ -86,10 +86,7 @@ void Stage::guard() {
     auto add = [&]<typename Op>(const std::vector<const Op *>& newOps) {
         nextOpStores.get<Op>()
             .fill(
-                newOps | std::views::filter([&](const Op *op) {
-                    /* We need to call removeOp for deleted Op's. TODO */
-                    return ShareOp::IsSharedDimensionCanonical(op, graph);
-                }),
+                newOps,
                 [&](const Op *op) {
                     return NextOpSlot<Op>({NextOpSlot<Op>::GetKey(op)}, op, getNextOp<Op>(op));
                 }

@@ -54,91 +54,12 @@ ColoredInterface ShareOp::applyToInterface(const ColoredInterface& interface) co
     return interface.substitute1to2(output, getInputL(), getInputR(), true);
 }
 
-bool ShareOp::IsSharedDimensionCanonical(const PrimitiveOp *op, const Graph& graph) {
-    if (op->getType() == DimensionType::Share) {
-        const ShareOp& self = *static_cast<const ShareOp *>(op);
-        if (auto outputShared = self.output.tryAs<ShareOp::Input>(); outputShared) {
-            KAS_ASSERT(outputShared->getOrder() == Order::Left, "We are only allowed to chain ShareOp's to the left! This requirement should have been enforced in ShareOp::Generate().");
-        }
-        return true;
-    }
-
-    // We need to check whether the output of op is shared, i.e., ShareOp::Input. If so, we need to ensure that the hash is ascending from right to left, which is the canonical form.
-    const ShareOp::Input *shared = nullptr, *sharedAnother = nullptr;
-    if (auto rOp = dynamic_cast<const RepeatLikeOp *>(op); rOp) {
-        shared = rOp->output.tryAs<ShareOp::Input>();
-    } else if (auto sOp = dynamic_cast<const SplitLikeOp *>(op); sOp) {
-        shared = sOp->outputLhs.tryAs<ShareOp::Input>();
-        sharedAnother = sOp->outputRhs.tryAs<ShareOp::Input>();
-    } else if (auto sOp = dynamic_cast<const MergeLikeOp *>(op); sOp) {
-        shared = sOp->output.tryAs<ShareOp::Input>();
-    }
-
-    std::size_t thisHash = op->opHash();
-    // Whether it is canonical to make sharedOutputDim shared.
-    auto canonicalToHaveThisOutputShared = [&](const ShareOp::Input *sharedOutputDim) {
-        if (!sharedOutputDim) {
-            // Not shared, OK.
-            return true;
-        }
-
-        // 2 cases.
-        auto dim = [&]() -> std::optional<Dimension> {
-            if (sharedOutputDim->getOrder() == Order::Left) {
-                // If this outputDim is inputLhs of a ShareOp, then it is the last Dimension to be shared in the ShareOp chain. So we only need to compare with the other side of Share. Moreover, we should assume that the Op above exists.
-                return sharedOutputDim->getOther();
-            } else {
-                // If this outputDim is inputRhs of a SharedOp, we need to dig even one layer deeper to find the previous Op.
-                const auto& nextLayer = sharedOutputDim->getOp()->output;
-                if (auto nextShare = nextLayer.tryAs<ShareOp::Input>(); nextShare) {
-                    // Here it is! And we need to assert its existence.
-                    KAS_ASSERT(nextShare->getOrder() == Order::Left);
-                    return nextShare->getOther();
-                } else {
-                    // Seems no ShareOp beneath. This is the first slot of the Share chain!
-                    return std::nullopt;
-                }
-            }
-        }();
-        if (!dim) {
-            // This is the first Op above the Share chain. OK.
-            return true;
-        }
-
-        std::size_t hash = 0;
-        // Obtain the hash of the op above.
-        auto getHash = [&](const auto& vertex, auto&& fromBranch) {
-            hash = vertex.op.opHash();
-            return true;
-        };
-        // It is possible that there is no op above.
-        bool success = graph.visitAlong(*dim, Direction::Up).match(
-            getHash,
-            getHash,
-            getHash
-        );
-        if (success) {
-            if (thisHash == hash) {
-                KAS_WARNING("Hash collision {} detected during canonicalization!", thisHash);
-            }
-            return thisHash >= hash;
-        } else {
-            // The previous slot is empty! Not canonical!
-            // But it is possible that the previous slot is empty, if it is used as an input Dimension! We temporarily accept this case here, but we need to do more!
-            // return false;
-            return true;
-        }
-    };
-    return canonicalToHaveThisOutputShared(shared) && canonicalToHaveThisOutputShared(sharedAnother);
-}
-
 std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
-    // Canonicalization requires that ShareOp only appears above Merge.
-    // Also, it can be built above ShareL, to enable "chained" Share.
+    // "Chained" Share.
     using enum DimensionTypeWithOrder;
-    std::vector<DimensionTypeWithOrder> disallows { ShareR, Split, Unfold, Stride, Shift };
+    std::vector<DimensionTypeWithOrder> disallows { ShareR };
     auto plausible = interface.filterOut(disallows);
 
     Allowance allowance { Size::Product(interface.getShape()), options.ctx };
