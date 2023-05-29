@@ -124,13 +124,15 @@ bool ShareOp::IsSharedDimensionCanonical(const PrimitiveOp *op, const Graph& gra
             return thisHash >= hash;
         } else {
             // The previous slot is empty! Not canonical!
-            return false;
+            // But it is possible that the previous slot is empty, if it is used as an input Dimension! We temporarily accept this case here, but we need to do more!
+            // return false;
+            return true;
         }
     };
     return canonicalToHaveThisOutputShared(shared) && canonicalToHaveThisOutputShared(sharedAnother);
 }
 
-std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options) {
+std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // Canonicalization requires that ShareOp only appears above Merge.

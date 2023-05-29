@@ -114,6 +114,7 @@ public:
     void storeIterator(std::unique_ptr<Iterator> iterator);
     void storeMapReduce(std::unique_ptr<MapReduceOp> mapReduce);
 
+    static std::vector<std::vector<BackwardDimension>> ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors);
     TensorView& buildTensorView(const std::vector<std::vector<Dimension>>& tensors);
 };
 

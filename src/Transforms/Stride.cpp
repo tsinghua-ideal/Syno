@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <functional>
 
 #include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Stride.hpp"
@@ -37,21 +38,25 @@ ColoredInterface StrideOp::applyToInterface(const ColoredInterface& interface) c
     return interface.substitute1to1(output, getInput(), true);
 }
 
-std::vector<const StrideOp *> StrideOp::Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options) {
+std::vector<const StrideOp *> StrideOp::Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     using enum DimensionTypeWithOrder;
     std::vector<DimensionTypeWithOrder> disallows { Unfold, Stride };
     if (options.disallowStrideAboveSplit) disallows.push_back(Split);
     if (options.disallowStrideAboveMergeR) disallows.push_back(MergeR);
-    auto plausible = interface.filterOut(disallows);
+    std::vector<std::reference_wrapper<const ColoredDimension>> plausible;
+    for (const auto& p: interface.filterOut(disallows)) {
+        plausible.emplace_back(std::cref(p));
+    }
+
+    Allowance allowance { interface.getShape().totalSize(), options.ctx };
 
     std::vector<const StrideOp *> result;
     CountGenerateAttempts += interface.size();
-    std::size_t countPlausible = 0;
-    for (auto&& [dim, color]: plausible) {
-        ++countPlausible;
-        for (Size stride: dim.size().sampleDivisors(options.ctx)) {
+    for (Size stride: allowance.enumerateSizes(options.ctx)) {
+        for (auto&& p: plausible) {
+            auto&& [dim, color] = p.get();
             // Disallow too large strides.
             if ((dim.size() * stride).upperBoundEst(options.ctx) > options.maxStridedDimSize) {
                 ++CountSizeTooLarge;
@@ -61,7 +66,7 @@ std::vector<const StrideOp *> StrideOp::Generate(DimensionStore& store, const Co
             result.emplace_back(store.get<StrideOp>(dim, stride));
         }
     }
-    CountDisallowedAttempts += interface.size() - countPlausible;
+    CountDisallowedAttempts += interface.size() - plausible.size();
     return result;
 }
 

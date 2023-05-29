@@ -104,6 +104,10 @@ class Node:
         """Get the child node of a node with a Next."""
         return Node(self._node.get_child(Path.to_next(next)))
 
+    def get_child_description(self, next: PseudoNext) -> str:
+        """Get the description of Next."""
+        return Path.to_next(next).description(self._node)
+
     def is_final(self) -> bool:
         """Check if a node is final, which means it can be realized as a Halide kernel."""
         return self._node.is_final()

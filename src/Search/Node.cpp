@@ -1,4 +1,5 @@
 #include "KAS/Search/Node.hpp"
+#include "KAS/Search/ReductionStage.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/Stage.hpp"
 
@@ -12,13 +13,9 @@ std::string Next::toString() const {
 std::string Next::description(const Node& node) const {
     const BindingContext& ctx = node.sampler->getBindingContext();
     return node.match<std::string>(
-        [&]() {
-            return fmt::format("{}",
-                fmt::join(node.sampler->getReduce(key)
-                | std::views::transform([&](const MapReduceOp& op) {
-                    return op.description(ctx);
-                }), ", ")
-            );
+        [&](ReductionStage *rStage) {
+            KAS_ASSERT(type == Type::MapReduce);
+            return rStage->getChildDescription(key);
         },
         [&](Stage *stage) {
             switch (type) {
@@ -32,7 +29,7 @@ std::string Next::description(const Node& node) const {
             default: KAS_UNREACHABLE();
             }
         },
-        [](TensorView *tensor) -> std::string { KAS_UNREACHABLE(); }
+        [](std::shared_ptr<TensorView> tensor) -> std::string { KAS_UNREACHABLE(); }
     );
 }
 
@@ -44,8 +41,35 @@ std::map<Next::Type, std::size_t> Next::CountTypes(const std::vector<Next>& next
     return result;
 }
 
-TensorView *Node::asFinal() const {
-    return std::get<TensorView *>(inner);
+bool Node::operator==(const Node& rhs) const {
+    if (inner.index() != rhs.inner.index()) {
+        return false;
+    }
+    return match<bool>(
+        [&](ReductionStage *rStage) { // Because we have uniquified them.
+            return rStage == std::get<ReductionStage *>(rhs.inner);
+        },
+        [&](Stage *stage) { // Because we have uniquified them.
+            return stage == std::get<Stage *>(rhs.inner);
+        },
+        [&](std::shared_ptr<TensorView> tensor) {
+            return *tensor == *std::get<std::shared_ptr<TensorView>>(rhs.inner);
+        }
+    );
+}
+
+std::size_t Node::hash() const {
+    std::size_t h = std::hash<std::size_t>{}(inner.index());
+    auto hashRetriever = [](const auto& content) {
+        return content->hash();
+    };
+    auto contentHash = std::visit(hashRetriever, inner);
+    HashCombine(h, contentHash);
+    return h;
+}
+
+std::shared_ptr<TensorView> Node::asFinal() const {
+    return std::get<std::shared_ptr<TensorView>>(inner);
 }
 
 std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const {
@@ -68,34 +92,34 @@ std::size_t Node::estimateTotalFLOPsAsFinal() const {
 
 std::size_t Node::countChildren() const {
     return match<std::size_t>(
-        [&]() { return sampler->getBaseCount(); },
+        [](ReductionStage *rStage) { return rStage->countChildren(); },
         [](Stage *stage) { return stage->countChildren(); },
-        [](TensorView *tensor) { return 0; }
+        [](std::shared_ptr<TensorView> tensor) { return 0; }
     );
 }
 
 std::vector<Next> Node::getChildrenHandles() const {
     return match<std::vector<Next>>(
-        [&]() { return sampler->getNextBases(); },
+        [](ReductionStage *rStage) { return rStage->getChildrenHandles(); },
         [](Stage *stage) { return stage->getChildrenHandles(); },
-        [](TensorView *tensor) { return std::vector<Next>{}; }
+        [](std::shared_ptr<TensorView> tensor) { return std::vector<Next>{}; }
     );
 }
 
 Node Node::getChild(Next next) const {
     return match<Node>(
-        [&]() { return Node { sampler, sampler->getBase(next.key) }; },
+        [&](ReductionStage *rStage) { return rStage->getChild(next); },
         [&](Stage *stage) { return stage->getChild(next); },
-        [](TensorView *tensor) -> Node { KAS_UNREACHABLE(); }
+        [](std::shared_ptr<TensorView> tensor) -> Node { KAS_UNREACHABLE(); }
     );
 }
 
 std::string Node::toString() const {
     const BindingContext& ctx = sampler->getBindingContext();
     return match<std::string>(
-        [&]() { return sampler->getOutputShape().toString(ctx); },
-        [&](Stage *stage) { return stage->description(ctx); },
-        [&](TensorView *tensor) { return tensor->description(ctx); }
+        [](ReductionStage *rStage) { return rStage->description(); },
+        [](Stage *stage) { return stage->description(); },
+        [&](std::shared_ptr<TensorView> tensor) { return tensor->description(ctx); }
     );
 }
 

@@ -1,12 +1,15 @@
 #pragma once
 
 #include <memory>
+#include <unordered_set>
 
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Utils/Hash.hpp"
 
 
 namespace kas {
+
+class ReductionStore;
 
 class MapReduceOp final: public DimensionImpl {
 public:
@@ -43,14 +46,14 @@ protected:
     ReduceType reduceType;
 
 public:
-    inline MapReduceOp(std::size_t priority, auto&& domain, MapType mapType, ReduceType reduceType):
+    MapReduceOp(std::size_t priority, auto&& domain, MapType mapType, ReduceType reduceType):
         priority { priority },
         domain { std::forward<decltype(domain)>(domain) },
         mapType { mapType },
         reduceType { reduceType }
     {}
-    inline const Size& size() const noexcept override { return domain; }
-    inline std::size_t hash() const noexcept override {
+    const Size& size() const noexcept override { return domain; }
+    std::size_t hash() const noexcept override {
         auto h = static_cast<std::size_t>(DimensionType::MapReduce);
         HashCombine(h, mapType);
         HashCombine(h, reduceType);
@@ -61,11 +64,15 @@ public:
     constexpr DimensionType type() const noexcept override { return DimensionType::MapReduce; }
     void accept(DimVisitor& visitor) const final override;
 
-    inline MapType getMap() const { return mapType; }
-    inline ReduceType getReduce() const { return reduceType; }
+    bool operator==(const MapReduceOp& other) const noexcept {
+        return mapType == other.mapType && reduceType == other.reduceType && priority == other.priority && domain == other.domain;
+    }
 
-    inline std::size_t getPriority() const { return priority; }
-    inline std::string getName() const {
+    MapType getMap() const { return mapType; }
+    ReduceType getReduce() const { return reduceType; }
+
+    std::size_t getPriority() const { return priority; }
+    std::string getName() const {
         return "ri_" + std::to_string(priority);
     }
     std::string whatMap() const;
@@ -77,9 +84,43 @@ public:
     struct GenerateOptions {
         const BindingContext& ctx;
         std::size_t dimUpperBound;
+        Size outputSize;
+        std::size_t maxFLOPs;
     };
-    using Base = std::vector<MapReduceOp>;
-    static std::vector<Base> GenerateLastLevelMapReduces(const Shape& outputShape, GenerateOptions options);
+    static std::vector<const MapReduceOp *> Generate(ReductionStore& store, const std::vector<const MapReduceOp *>& current, const GenerateOptions& options);
+};
+
+class ReductionStore {
+    struct Hash {
+        std::size_t operator()(const MapReduceOp *op) const {
+            return op->hash();
+        }
+    };
+    struct Equal {
+        bool operator()(const MapReduceOp *lhs, const MapReduceOp *rhs) const {
+            return *lhs == *rhs;
+        }
+    };
+    std::unordered_set<MapReduceOp *, Hash, Equal> store;
+public:
+    ReductionStore() = default;
+    ReductionStore(const ReductionStore&) = delete;
+    ReductionStore(ReductionStore&&) = delete;
+    const MapReduceOp *get(auto&&... args) {
+        auto op = std::make_unique<MapReduceOp>(std::forward<decltype(args)>(args)...);
+        auto it = store.find(op.get());
+        if (it != store.end()) {
+            return *it;
+        }
+        auto ptr = op.release();
+        store.insert(ptr);
+        return ptr;
+    }
+    ~ReductionStore() {
+        for (auto *op: store) {
+            delete op;
+        }
+    }
 };
 
 } // namespace kas

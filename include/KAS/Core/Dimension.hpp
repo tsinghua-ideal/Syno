@@ -184,6 +184,19 @@ struct std::hash<DR> {
     }
 };
 
+template<kas::TensorRange TR>
+struct std::hash<TR> {
+    // Since this is a template function, std::hash<std::vector<Interface>> can provide hash for arbitrary TensorRange.
+    template<kas::TensorRange R>
+    std::size_t operator()(R&& tensors) const noexcept {
+        std::size_t h = tensors.size();
+        for (const auto& tensor: tensors) {
+            kas::HashCombine(h, tensor);
+        }
+        return h;
+    }
+};
+
 template<>
 struct fmt::formatter<kas::DimensionType>: formatter<string_view> {
     template<typename FormatContext>

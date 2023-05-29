@@ -29,7 +29,7 @@ class Sampler;
 class Stage;
 
 class StageStore {
-    DimensionStore dimensionStore;
+public:
     struct Hash {
         using is_transparent = void;
         std::size_t operator()(const ColoredInterface& interface) const noexcept;
@@ -42,6 +42,9 @@ class StageStore {
         bool operator()(const Stage *lhs, const ColoredInterface& rhs) const noexcept;
         bool operator()(const Stage *lhs, const Stage *rhs) const noexcept;
     };
+
+private:
+    DimensionStore dimensionStore;
     std::unordered_set<Stage *, Hash, Equal> interfaces;
 
 public:
@@ -52,29 +55,22 @@ public:
 };
 
 class Stage {
-    // The interface decides the hash. Other properties are computed.
-    ColoredInterface interface;
-
-    struct NextFinalizeSlot {
-        std::size_t key;
+public:
+    struct NextFinalizeSlot: NextSlot<Next::Type::Finalize> {
         FinalizeOp finalization;
-        std::unique_ptr<TensorView> kernel;
-        Next toNext() const {
-            return Next { Next::Type::Finalize, key };
-        }
+        template<TensorRange TR>
+        static std::size_t GetKey(TR&& tensors) { return std::hash<std::vector<Interface>>{}(tensors); }
     };
 
     template<typename Op>
-    struct NextOpSlot {
-        std::size_t key;
+    struct NextOpSlot: NextSlot<Next::TypeOf<Op>()> {
         const Op *op;
         Stage *nextStage;
-        Next toNext() const {
-            return Next { Next::TypeOf<Op>(), key };
-        }
+        static std::size_t GetKey(const Op *op) { return op->opHash(); }
     };
+
     template<typename Op>
-    using NextOpStore = std::vector<NextOpSlot<Op>>;
+    using NextOpStore = NextSlotStore<NextOpSlot<Op>>;
     template<typename... Ops>
     struct NextOpStores {
         std::tuple<NextOpStore<Ops>...> stores;
@@ -88,12 +84,16 @@ class Stage {
         }
     };
 
+private:
+    // The interface decides the hash. Other properties are computed.
+    ColoredInterface interface;
+
     // Lazily generate children.
     bool childrenGenerated = false;
     // Children handles.
     std::vector<Next> nexts;
     // Node pointers. The nodes are lazily computed. We are searching bottom-up, so the children are actually closer to the input.
-    std::vector<NextFinalizeSlot> nextFinalizations;
+    NextSlotStore<NextFinalizeSlot> nextFinalizations;
     NextOpStores<ShiftOp, StrideOp, SplitOp, UnfoldOp, MergeOp, ShareOp> nextOpStores;
 
     // Metadata.
@@ -108,7 +108,7 @@ class Stage {
     void guard();
 
     // Execute the finalization to obtain TensorView.
-    TensorView *getFinalize(std::size_t key);
+    std::shared_ptr<TensorView> getFinalize(std::size_t key);
 
     // Apply the Op to obtain Stage.
     template<typename Op>
@@ -160,6 +160,7 @@ public:
     bool possibleToFinalize() const;
 
     const ColoredInterface& getInterface() const { return interface; }
+    std::size_t hash() const { return StageStore::Hash{}(interface); }
     std::size_t countChildren();
     const std::vector<Next>& getChildrenHandles() {
         guard();
@@ -169,13 +170,10 @@ public:
     template<typename Op>
     const NextOpSlot<Op>& getChildSlot(std::size_t key) {
         guard();
-        const auto& ops = nextOpStores.get<Op>();
-        auto it = std::ranges::lower_bound(ops, key, std::less{}, &NextOpSlot<Op>::key);
-        KAS_ASSERT(it != ops.end() && it->key == key, "Specified {} not found.", typeid(Op).name());
-        return *it;
+        return nextOpStores.get<Op>().getSlot(key);
     }
     Node getChild(Next next);
-    std::string description(const BindingContext& ctx) const;
+    std::string description() const;
 };
 
 } // namespace kas

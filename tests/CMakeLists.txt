@@ -9,8 +9,8 @@ endfunction()
 
 # Tests
 add_subdirectory(Core)
+add_subdirectory(Search)
 add_subdirectory(Semantics)
 add_subdirectory(Transforms)
 add_kas_test(codegen-tests CodeGen.cpp)
-add_kas_test(search-tests Search.cpp)
 add_kas_test(utils-tests Utils.cpp)

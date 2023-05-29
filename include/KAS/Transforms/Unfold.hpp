@@ -59,7 +59,7 @@ public:
         CanonicalizedUnfoldChains,
         SuccessfulGenerations,
     )
-    static std::vector<const UnfoldOp *> Generate(DimensionStore& store, const ColoredInterface& interface, GenerateOptions options);
+    static std::vector<const UnfoldOp *> Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options);
 };
 
 } // namespace kas

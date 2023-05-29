@@ -8,7 +8,7 @@
 
 namespace kas {
 
-std::unique_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedDimension>& fixed) const {
+std::shared_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedDimension>& fixed) const {
     if (fixed.empty()) {
         return std::make_unique<TensorView>(tensors);
     }
@@ -104,7 +104,7 @@ struct CollectedTensorFragments {
 
 } // namespace
 
-std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, const Graph& graph, GenerateOptions options) {
+std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, const Graph& graph, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // First we perform a basic check. If any Dimension is data-discarding, then it is not a legal kernel.

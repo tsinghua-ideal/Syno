@@ -4,6 +4,7 @@
 #include <concepts>
 #include <optional>
 #include <set>
+#include <type_traits>
 #include <variant>
 
 #include "KAS/Core/DimVisitor.hpp"
@@ -300,6 +301,30 @@ public:
         std::vector<Dimension> outputs; // Iterator's and MapReduceOp's
     };
     std::vector<ConnectedComponent> computeConnectedComponents() const;
+
+    template<typename Value>
+    class AttributeMap {
+        std::map<const RepeatLikeVertex::OpType *, Value> rAttr;
+        std::map<const SplitLikeVertex::OpType *, Value> sAttr;
+        std::map<const MergeLikeVertex::OpType *, Value> mAttr;
+
+    public:
+        template<typename V>
+        requires Vertex<std::remove_cvref_t<V>>
+        Value& operator[](V&& v) {
+            if constexpr (std::is_same_v<std::remove_cvref_t<V>, RepeatLikeVertex>) {
+                return rAttr[&v.op];
+            } else if constexpr (std::is_same_v<std::remove_cvref_t<V>, SplitLikeVertex>) {
+                return sAttr[&v.op];
+            } else if constexpr (std::is_same_v<std::remove_cvref_t<V>, MergeLikeVertex>) {
+                return mAttr[&v.op];
+            } else {
+                static_assert(std::is_same_v<std::remove_cvref_t<V>, RepeatLikeVertex> ||
+                              std::is_same_v<std::remove_cvref_t<V>, SplitLikeVertex> ||
+                              std::is_same_v<std::remove_cvref_t<V>, MergeLikeVertex>);
+            }
+        }
+    };
 };
 
 } // namespace kas

@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -22,13 +23,15 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<SampleOptions>(m, "SampleOptions")
         .def(
-            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float minimumMergeRatio, bool disallowDiscontinuousView, bool canonicalizeUnfoldOrder, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold) {
+            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float minimumMergeRatio, bool disallowDiscontinuousView, bool canonicalizeUnfoldOrder, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold) {
                 return SampleOptions {
                     .seed = seed,
                     .depth = depth,
                     .dimLowerBound = dimLowerBound,
                     .dimUpperBound = dimUpperBound,
                     .maximumTensors = maximumTensors,
+                    .maximumReductions = maximumReductions,
+                    .maxFLOPs = static_cast<std::size_t>(maxFLOPs),
                     .maxStridedDimSize = maxStridedDimSize,
                     .maxUnfoldKernelSize = maxUnfoldKernelSize,
                     .minimumUnfoldRatio = minimumUnfoldRatio,
@@ -52,6 +55,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("dim_lower") = 1,
             pybind11::arg("dim_upper") = 8,
             pybind11::arg("maximum_tensors") = 2,
+            pybind11::arg("maximum_reductions") = 2,
+            pybind11::arg("max_flops") = std::numeric_limits<std::size_t>::max(),
             pybind11::arg("max_strided_dim_size") = 30,
             pybind11::arg("max_unfold_kernel_size") = 30,
             pybind11::arg("minimum_unfold_ratio") = 2.0f,
@@ -200,6 +205,11 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def_static("create_split", &Forward::SplitOp::Create)
         .def_static("create_stride", &Forward::StrideOp::Create)
         .def_static("create_unfold", &Forward::UnfoldOp::Create)
+        .def(
+            "convert_assembled_to_path", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const Sampler& sampler) -> std::vector<Next> {
+                return sampler.convertTensorViewToPath(Forward::Factory::ForwardDimsToBackwardDims(tensors));
+            }
+        )
         .def(
             "build", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) {
                 TensorView& tensorView = self.buildTensorView(tensors);

@@ -151,7 +151,11 @@ public:
     // Return divisors of this Size. Guarantee that for all consts, the divisor is realizable, and not equal to 1 or this.
     Generator<Size> sampleDivisors(const BindingContext& ctx) const;
 
+    // Excludes 1, including lowerBound and upperBound.
+    static Generator<Size> EnumerateSizes(const BindingContext& ctx, Size lowerBound, Size upperBound);
+
     bool operator==(const Size& other) const;
+    static bool LexicographicalLEQ(const Size& lhs, const Size& rhs);
 
     std::string toString(const BindingContext& ctx) const;
 
@@ -248,6 +252,7 @@ struct Allowance {
     Size::ExprType coefficientUpper;
     Allowance(const Size& shape, const BindingContext& ctx);
     bool withinAllowance(const Size& size) const;
+    Generator<Size> enumerateSizes(const BindingContext& ctx) const;
 };
 
 } // namespace kas

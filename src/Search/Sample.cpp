@@ -117,42 +117,21 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         root.emplace_back(&it);
     }
 
-    // Generate MapReduce's.
-    reduces = MapReduceOp::GenerateLastLevelMapReduces(this->outputShape, { this->ctx, this->options.dimUpperBound });
-    // DO NOT modify reduces and originalBases after this, because Dimension references by address these iterators.
-    for (const auto& r: reduces) {
-        Interface temp = root;
-        std::ranges::move(r | std::views::transform([](const MapReduceOp& m) { return &m; }), std::back_inserter(temp));
-        std::ranges::sort(temp, Dimension::HashLessThan{});
-        originalBases.emplace_back(std::move(temp), *this, 0);
-    }
-    auto hasher = std::hash<Interface>{};
-    std::ranges::move(std::views::iota(static_cast<std::size_t>(0), originalBases.size()) | std::views::transform([&](std::size_t baseIndex) { return std::pair{ hasher(originalBases[baseIndex].getInterface().toDimensions()), baseIndex }; }), std::back_inserter(bases));
-    std::ranges::sort(bases, std::less{}, &std::pair<std::size_t, std::size_t>::first);
+    // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
+    rootStage = std::make_unique<ReductionStage>(*this);
 }
 
-std::vector<Next> Sampler::getNextBases() const {
-    std::vector<Next> result;
-    std::ranges::move(bases | std::views::transform([](const auto& base) { return Next { Next::Type::MapReduce, base.first }; }), std::back_inserter(result));
+Size Sampler::getTotalOutputSize() const {
+    Size result = outputShape.totalSize();
+    if (!fixedDimensions.empty()) {
+        using FixedDimensionsShapeView = AbstractShape<const std::vector<FixedDimension>&, [](const FixedDimension& fd) -> const Size& { return fd.dim.size(); }>;
+        result = result * FixedDimensionsShapeView { fixedDimensions }.totalSize();
+    }
     return result;
 }
 
-std::size_t Sampler::getBaseIndex(std::size_t key) const {
-    auto it = std::ranges::lower_bound(bases, key, std::less{}, &std::pair<std::size_t, std::size_t>::first);
-    KAS_ASSERT(it != bases.end() && it->first == key, "Specified MapReduce not found.");
-    return it->second;
-}
-
-Stage *Sampler::getBase(std::size_t key) {
-    return &originalBases[getBaseIndex(key)];
-}
-
-const MapReduceOp::Base& Sampler::getReduce(std::size_t key) const {
-    return reduces[getBaseIndex(key)];
-}
-
 Node Sampler::visit(const std::vector<Next>& path) {
-    Node n { this };
+    Node n { this, rootStage.get() };
     for (const auto& next: path) {
         n = n.getChild(next);
     }
@@ -173,6 +152,80 @@ std::pair<std::vector<Next>, Node> Sampler::randomNodeWithPrefix(const std::vect
         cur = cur.getChild(next);
     };
     return { std::move(path), std::move(cur) };
+}
+
+std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<Interface>& tensorView) const {
+    Graph::Builder builder;
+    builder.addTopmost(tensorView | std::views::join);
+    Graph graph = builder.build();
+
+    std::vector<Next> result;
+    // To obtain the path, we need to follow the 3 stages of searching.
+
+    // First, ReductionStage.
+    {
+        using Slot = ReductionStage::NextReductionSlot;
+        for (const MapReduceOp *op: graph.getMapReduceIterators()) {
+            result.emplace_back(Slot::SlotType, Slot::GetKey(op));
+        }
+        // Do not forget to add the stop token.
+        result.emplace_back(Slot::SlotType, ReductionStage::StopReductionToken);
+    }
+
+    // Next, Stage.
+    {
+        std::set<Dimension, Dimension::HashLessThan> completed;
+        Graph::AttributeMap<bool> added;
+        // Bottom-up.
+        auto dfs = [&](const auto& self, const Dimension& dim) -> void {
+            if (completed.contains(dim)) return;
+            completed.emplace(dim);
+            graph.visitAlong(dim, Direction::Down).match(
+                [&](const RepeatLikeVertex& v, auto) {
+                    bool& addedV = added[v];
+                    if (addedV) return;
+                    addedV = true;
+                    self(self, v[RepeatLikeOp::Branch::Output]);
+                    result.emplace_back(Next::TypeOf(v.op.getType()), v.op.opHash());
+                },
+                [&](const SplitLikeVertex& v, auto) {
+                    bool& addedV = added[v];
+                    if (addedV) return;
+                    addedV = true;
+                    self(self, v[SplitLikeOp::Branch::OutputLhs]);
+                    self(self, v[SplitLikeOp::Branch::OutputRhs]);
+                    result.emplace_back(Next::TypeOf(v.op.getType()), v.op.opHash());
+                },
+                [&](const MergeLikeVertex& v, auto) {
+                    bool& addedV = added[v];
+                    if (addedV) return;
+                    addedV = true;
+                    self(self, v[MergeLikeOp::Branch::Output]);
+                    result.emplace_back(Next::TypeOf(v.op.getType()), v.op.opHash());
+                }
+            );
+        };
+        // The reverse is just a simple fix. We need to generate Next's in canonical order of ShareOp! See ShareOp::IsSharedDimensionCanonical(). TODO.
+        for (const auto& tensor: tensorView | std::views::reverse) {
+            for (const Dimension& dim: tensor) {
+                dfs(dfs, dim);
+            }
+        }
+    }
+
+    // Finally, Finalize.
+    {
+        // The fixed dimensions should be removed first.
+        std::vector<Interface> tensors;
+        std::ranges::copy(tensorView, std::back_inserter(tensors));
+        auto& inputTensor = tensors.at(0);
+        for (const auto& [i, _]: fixedDimensions | std::views::reverse) {
+            inputTensor.erase(inputTensor.begin() + i);
+        }
+        result.emplace_back(Next::Type::Finalize, Stage::NextFinalizeSlot::GetKey(tensors));
+    }
+
+    return result;
 }
 
 } // namespace kas

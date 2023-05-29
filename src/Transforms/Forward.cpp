@@ -29,13 +29,17 @@ void Factory::storeMapReduce(std::unique_ptr<MapReduceOp> mapReduce) {
     mapReduces.emplace_back(std::move(mapReduce));
 }
 
-TensorView& Factory::buildTensorView(const std::vector<std::vector<Dimension>>& tensors) {
-    KAS_ASSERT(!this->result, "Factory must not be used twice!");
+std::vector<std::vector<BackwardDimension>> Factory::ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors) {
     std::vector<std::vector<BackwardDimension>> backwardTensors(tensors.size());
     for (std::size_t i = 0; i < tensors.size(); ++i) {
         std::ranges::copy(tensors[i], std::back_inserter(backwardTensors[i]));
     }
-    this->result = std::make_unique<TensorView>(std::move(backwardTensors));
+    return backwardTensors;
+}
+
+TensorView& Factory::buildTensorView(const std::vector<std::vector<Dimension>>& tensors) {
+    KAS_ASSERT(!this->result, "Factory must not be used twice!");
+    this->result = std::make_unique<TensorView>(ForwardDimsToBackwardDims(tensors));
     return *this->result;
 }
 

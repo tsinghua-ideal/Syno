@@ -33,7 +33,7 @@ public:
         hash = h;
     }
     // Pass in sorted fixed dimensions.
-    std::unique_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed) const;
+    std::shared_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed) const;
     std::size_t getHash() const noexcept { return hash; }
 
     std::string description(const BindingContext& ctx) const;
@@ -53,7 +53,7 @@ public:
         const Shape& desired;
         std::size_t maximumTensors;
     };
-    static std::vector<FinalizeOp> Generate(const ColoredInterface& interface, const Graph& graph, GenerateOptions options);
+    static std::vector<FinalizeOp> Generate(const ColoredInterface& interface, const Graph& graph, const GenerateOptions& options);
 };
 
 } // namespace kas

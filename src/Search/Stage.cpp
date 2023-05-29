@@ -72,36 +72,33 @@ void Stage::guard() {
     DimensionStore& store = sampler.getDimStore();
     Graph graph = interface.buildGraph();
 
-    auto accumulate = [](const auto& slot) {
-        return slot.toNext();
-    };
-
     // First add finalizations.
-    for (auto g = FinalizeOp::Generate(interface, graph, {
+    nextFinalizations.fill(FinalizeOp::Generate(interface, graph, {
         .ctx = ctx,
         .desired = sampler.getInputShape(),
         .maximumTensors = options.maximumTensors,
-    }); auto& f: g)
-        nextFinalizations.emplace_back(f.getHash(), std::move(f), nullptr);
-    std::ranges::sort(nextFinalizations, std::less{}, &NextFinalizeSlot::key);
-    std::ranges::move(nextFinalizations | std::views::transform(accumulate), std::back_inserter(nexts));
+    }), [](FinalizeOp& f) {
+        return NextFinalizeSlot({NextFinalizeSlot::GetKey(f.tensors)}, std::move(f));
+    });
+    nexts = nextFinalizations.toNexts();
 
     // Wrap the generated Op in a NextOpSlot.
-    auto nextOpProcessor = [&]<typename Op>(const Op *op) -> NextOpSlot<Op> {
-        return { op->opHash(), op, getNextOp<Op>(op) };
-    };
     auto add = [&]<typename Op>(const std::vector<const Op *>& newOps) {
-        std::ranges::move(
-            newOps
-            | std::views::filter([&](const Op *op) { return ShareOp::IsSharedDimensionCanonical(op, graph); }) /* We need to call removeOp for deleted Op's. TODO */
-            | std::views::transform(nextOpProcessor)
-            | std::views::filter([&](const NextOpSlot<Op>& slot) { return slot.nextStage->possibleToFinalize(); }) /* We need to call removeOp for deleted Op's and removeStage for deleted Stage's. TODO */,
-            std::back_inserter(nextOpStores.get<Op>())
-        );
-        // Sort according to keys for binary search.
-        std::ranges::sort(nextOpStores.get<Op>(), std::less{}, &NextOpSlot<Op>::key);
-        // Add to all nexts.
-        std::ranges::move(nextOpStores.get<Op>() | std::views::transform(accumulate), std::back_inserter(nexts));
+        nextOpStores.get<Op>()
+            .fill(
+                newOps | std::views::filter([&](const Op *op) {
+                    /* We need to call removeOp for deleted Op's. TODO */
+                    return ShareOp::IsSharedDimensionCanonical(op, graph);
+                }),
+                [&](const Op *op) {
+                    return NextOpSlot<Op>({NextOpSlot<Op>::GetKey(op)}, op, getNextOp<Op>(op));
+                }
+            )
+            .remove([&](const NextOpSlot<Op>& slot) {
+                /* We need to call removeOp for deleted Op's and removeStage for deleted Stage's. TODO */
+                return !slot.nextStage->possibleToFinalize();
+            });
+        std::ranges::move(nextOpStores.get<Op>().toNexts(), std::back_inserter(nexts));
     };
 
     if (remainingDepth() > 0) {
@@ -164,13 +161,10 @@ void Stage::guard() {
     childrenGenerated = true;
 }
 
-TensorView *Stage::getFinalize(std::size_t key) {
-    auto& [_, op, tensorView] = getChildFinalizeSlot(key);
-    if (!tensorView) {
-        KAS_DEBUG("Building TensorView from Finalization.");
-        tensorView = op.buildTensorView(sampler.getFixedDimensions());
-    }
-    return tensorView.get();
+std::shared_ptr<TensorView> Stage::getFinalize(std::size_t key) {
+    auto& slot = getChildFinalizeSlot(key);
+    KAS_DEBUG("Building TensorView from Finalization.");
+    return slot.finalization.buildTensorView(sampler.getFixedDimensions());
 }
 
 bool Stage::possibleToFinalize() const {
@@ -282,9 +276,7 @@ std::size_t Stage::countChildren() {
 
 Stage::NextFinalizeSlot& Stage::getChildFinalizeSlot(std::size_t key) {
     guard();
-    auto it = std::ranges::lower_bound(nextFinalizations, key, std::less{}, &NextFinalizeSlot::key);
-    KAS_ASSERT(it != nextFinalizations.end() && it->key == key, "Specified Finalization not found.");
-    return *it;
+    return nextFinalizations.getSlot(key);
 }
 
 Node Stage::getChild(Next next) {
@@ -301,8 +293,8 @@ Node Stage::getChild(Next next) {
     }
 }
 
-std::string Stage::description(const BindingContext& ctx) const {
-    return DimensionArrayToString(interface.toDimensions(), ctx);
+std::string Stage::description() const {
+    return DimensionArrayToString(interface.toDimensions(), sampler.getBindingContext());
 }
 
 } // namespace kas

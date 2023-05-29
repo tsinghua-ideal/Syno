@@ -38,7 +38,7 @@ TEST_F(semantics_tests, pool2d) {
     dimW_over_K.output(3);
 
     Interface in { dimN, dimC, dimH, dimW };
-    auto tensorView = TensorView { { in } };
+    auto tensorView = TensorView { in };
     ASSERT_EQ(tensorView.printNestedLoops(ctx, AbstractAccess::Output),
 R"(for (int i_0 = 0; i_0 < N; i_0++) {
     for (int i_1 = 0; i_1 < C; i_1++) {
