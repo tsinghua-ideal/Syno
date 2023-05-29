@@ -45,19 +45,15 @@ public:
         return output == other.output;
     }
 
-    // We require a total order of Op's above a chain of ShareOp's.
+    // Due to canonicalization reasons, we require ShareOp's to be chained, and RHS to be from weight.
     // Just like this:
     //
-    //     Split(345) Stride(234)
+    //     Split(345)   Weight
     //          └────┬────┘
-    //             Share   Unfold(123)
+    //             Share     Weight
     //               └────┬────┘
     //                  Share
     //
-    // We simply sort by the opHash of Op's.
-    // When building, we must build the Op's from right to left, and in increasing order of opHash.
-    static bool IsSharedDimensionCanonical(const PrimitiveOp *op, const Graph& graph);
-
     struct GenerateOptions {
         const BindingContext& ctx;
         std::size_t maximumTensors;

@@ -42,7 +42,7 @@ std::vector<const StrideOp *> StrideOp::Generate(DimensionStore& store, const Co
     ++CountGenerateInvocations;
 
     using enum DimensionTypeWithOrder;
-    std::vector<DimensionTypeWithOrder> disallows { Unfold, Stride };
+    std::vector<DimensionTypeWithOrder> disallows { ShareR, Unfold, Stride };
     if (options.disallowStrideAboveSplit) disallows.push_back(Split);
     if (options.disallowStrideAboveMergeR) disallows.push_back(MergeR);
     std::vector<std::reference_wrapper<const ColoredDimension>> plausible;

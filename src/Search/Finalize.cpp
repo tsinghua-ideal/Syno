@@ -22,6 +22,10 @@ std::shared_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedD
     return std::make_unique<TensorView>(tensors);
 }
 
+std::size_t FinalizeOp::hash() const noexcept {
+    return NextFinalizeSlot::GetKey(tensors);
+}
+
 std::string FinalizeOp::description(const BindingContext& ctx) const {
     return TensorArrayToString(tensors, ctx);
 }
@@ -45,6 +49,8 @@ bool FinalizeOp::Prune(const std::vector<Graph::ConnectedComponent>& components,
                     break;
                 }
                 case DimensionType::Split:
+                case DimensionType::Unfold:
+                    // Unfold is not semantically equivalent to Split, but if we substitute it to a Split, we are essentially adding more parameters, so there always exists a valuation of weight such that Split and Unfold is equivalent here. In other words, Split can cover the semantics of Unfold.
                 case DimensionType::Shift:
                     return true;
                 default:
@@ -81,22 +87,24 @@ namespace {
 
 struct CollectedTensorFragments {
     std::vector<std::size_t> mappings;
+    std::vector<bool> used;
     Color color;
+    CollectedTensorFragments(std::size_t size): used(size, false) {}
     bool canAccept(std::size_t index, const Color& color) const {
         // Collect tags.
-        return std::ranges::find(mappings, index) == mappings.end() && this->color.disjoint(color);
+        return std::ranges::find(mappings, index) == mappings.end() && this->color.disjoint(color) && !used[index];
     }
     void accept(std::size_t index, const Color& color) {
         mappings.emplace_back(index);
+        used[index] = true;
         // Merge tags.
         this->color.merge(color);
     }
-    std::vector<Dimension> toTensor(const ColoredInterface& interface, auto&& callback) const {
+    std::vector<Dimension> toTensor(const ColoredInterface& interface) const {
         std::vector<Dimension> result;
         result.reserve(mappings.size());
         for (auto mapping: mappings) {
             result.emplace_back(interface[mapping].dimension);
-            callback(mapping);
         }
         return result;
     }
@@ -122,10 +130,8 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
     auto buildBesideInputTensor = [&](const CollectedTensorFragments& inputCandidate) {
         std::vector<Interface> tensors { {} };
         auto& inputTensor = tensors.back();
-        auto used = std::vector<bool>(interface.size(), false);
-        inputTensor = inputCandidate.toTensor(interface, [&](std::size_t index) {
-            used[index] = true;
-        });
+        inputTensor = inputCandidate.toTensor(interface);
+        const auto& used = inputCandidate.used;
         if (options.maximumTensors == 1) {
             // Check that there is no excessive dimension.
             for (std::size_t i = 0; i < used.size(); ++i) {
@@ -139,7 +145,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
                 tensors.emplace_back();
                 Color weightColors;
                 auto& weightTensor = tensors.back();
-                for (std::size_t i = 0; i < used.size(); ++i) {
+                for (std::size_t i = 0; i < interface.size(); ++i) {
                     if (!used[i]) {
                         auto& [dim, color] = interface[i];
                         if (!weightColors.disjoint(color)) {
@@ -170,15 +176,33 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
 
     auto collectInputDimensions = [&](const auto& self, std::size_t nextIndex, const CollectedTensorFragments& fragments) -> void {
         if (nextIndex == desired.size()) {
+            // Carry out a simple check of whether all the must-be-input-dims have been collected.
+            // And check if a pair of MergeOp::Input is left to weights.
+            for (std::size_t i = 0; i < interface.size(); ++i) {
+                if (fragments.used[i]) continue;
+                const auto& cDim = interface[i];
+                if (cDim.deduceOrigin() == ColoredDimension::Origin::Input) {
+                    ++CountUncanonicalWeight;
+                    return;
+                } else if (auto merge = cDim.dimension.tryAs<MergeOp::Input>(); merge) {
+                    Dimension other = merge->getOther();
+                    std::size_t index = interface.binarySearchIndexOf(other);
+                    if (index != interface.size() && !fragments.used[index]) {
+                        ++CountUncanonicalWeight;
+                        return;
+                    }
+                }
+            }
             // We have collected the full input shape. Now build the weights.
             buildBesideInputTensor(fragments);
             return;
         }
         const auto& desiredDimSize = desired[nextIndex];
         for (std::size_t i = 0; i < interface.size(); ++i) {
-            auto&& [dim, color] = interface[i];
-            if (color.countRightTags() > 0) {
-                // For canonicalization, we can assume that the input tensor only has left tags.
+            auto&& cDim = interface[i];
+            auto&& [dim, color] = cDim;
+            auto origin = cDim.deduceOrigin();
+            if (origin == ColoredDimension::Origin::Weight) {
                 continue;
             }
             if (dim.size() == desiredDimSize && fragments.canAccept(i, color)) {
@@ -188,7 +212,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
             }
         }
     };
-    collectInputDimensions(collectInputDimensions, 0, {});
+    collectInputDimensions(collectInputDimensions, 0, interface.size());
 
     CountLegalFinalizations += result.size();
     if (result.empty()) {

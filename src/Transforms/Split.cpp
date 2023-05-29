@@ -43,8 +43,8 @@ std::vector<const SplitOp *> SplitOp::Generate(DimensionStore& store, const Colo
 
     // Canonicalization requires SplitOp to be chained.
     using enum DimensionTypeWithOrder;
-    std::vector<DimensionTypeWithOrder> disallowsL { Split, Unfold };
-    std::vector<DimensionTypeWithOrder> disallowsR;
+    std::vector<DimensionTypeWithOrder> disallowsL { ShareR, Split, Unfold };
+    std::vector<DimensionTypeWithOrder> disallowsR { ShareR };
     if (options.disallowSplitRAboveUnfold) disallowsR.push_back(Unfold);
     if (options.disallowSplitRAboveStride) disallowsR.push_back(Stride);
     auto plausibleL = interface.filterOut(disallowsL);

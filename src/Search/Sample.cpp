@@ -222,7 +222,7 @@ std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<Interface>&
         for (const auto& [i, _]: fixedDimensions | std::views::reverse) {
             inputTensor.erase(inputTensor.begin() + i);
         }
-        result.emplace_back(Next::Type::Finalize, Stage::NextFinalizeSlot::GetKey(tensors));
+        result.emplace_back(Next::Type::Finalize, NextFinalizeSlot::GetKey(tensors));
     }
 
     return result;
