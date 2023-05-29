@@ -102,7 +102,8 @@ class MCTSTrainer(MCTS):
         """Search for the best model for iterations times."""
 
         print("Finish searching process. Displaying final result...")
-        node = self.get_results()
+        # node = self.get_results()
+        node, reward = self.best_node
 
         os.makedirs(result_save_loc, exist_ok=True)
         perf_path = os.path.join(result_save_loc, 'perf.json')
@@ -112,9 +113,12 @@ class MCTSTrainer(MCTS):
         }
         json.dump(perf_dict, open(perf_path, 'w'))
         result_path = os.path.join(result_save_loc, 'result.json')
+        eval_result_cache_serial = {
+            k.path.serialize(): v for k, v in self.eval_result_cache.items()}
         result_dict = {
             "best_path": node.path.serialize(),
-            "mcts": self.dump()
+            "mcts": self.dump(),
+            "results": eval_result_cache_serial
         }
         json.dump(result_dict, open(result_path, 'w'))
 

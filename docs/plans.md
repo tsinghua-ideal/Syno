@@ -63,3 +63,7 @@
 - [ ] Early Stopping during training. (Not urgent yet. )
 - [-] Search Result Saving (path, mcts, etc.). 
 - [x] Cache searched nodes. 
+- [ ] Add MNIST MLP models. 
+- [ ] Work out conv search. 
+- [ ] Reward formatting. 
+- [ ] Parametrize filtering and reward returning. 
