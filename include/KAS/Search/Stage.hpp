@@ -53,12 +53,6 @@ public:
 
 class Stage {
 public:
-    struct NextFinalizeSlot: NextSlot<Next::Type::Finalize> {
-        FinalizeOp finalization;
-        template<TensorRange TR>
-        static std::size_t GetKey(TR&& tensors) { return std::hash<std::vector<Interface>>{}(tensors); }
-    };
-
     template<typename Op>
     struct NextOpSlot: NextSlot<Next::TypeOf<Op>()> {
         const Op *op;

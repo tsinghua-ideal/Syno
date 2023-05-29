@@ -271,7 +271,7 @@ std::size_t Stage::countChildren() {
     return nexts.size();
 }
 
-Stage::NextFinalizeSlot& Stage::getChildFinalizeSlot(std::size_t key) {
+NextFinalizeSlot& Stage::getChildFinalizeSlot(std::size_t key) {
     guard();
     return nextFinalizations.getSlot(key);
 }

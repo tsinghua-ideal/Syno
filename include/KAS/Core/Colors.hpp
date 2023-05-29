@@ -135,6 +135,9 @@ public:
         // Amazing trick: https://stackoverflow.com/questions/765148/how-to-remove-constness-of-const-iterator
         return items.erase(it, it);
     }
+    std::size_t binarySearchIndexOf(const Dimension& value) const {
+        return std::distance(items.begin(), binarySearch(value));
+    }
 
     ColoredInterface substitute1to1(const Dimension& fro, const Dimension& to, bool addDataDiscardingFlag = false) const;
     ColoredInterface substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2, bool addConstraint = false) const;
