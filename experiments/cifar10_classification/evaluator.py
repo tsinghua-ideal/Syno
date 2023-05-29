@@ -2,7 +2,7 @@ import logging
 import itertools
 
 from utils.data import get_dataloader
-from utils.models import KASGrayConv as KASConv, ModelBackup
+from utils.models import KASConv, ModelBackup
 from utils.parser import arg_parse
 from utils import device
 from mp_utils import Handler_client, evaluate
@@ -55,7 +55,9 @@ if __name__ == '__main__':
                 break
             elif path_serial == "ENDTOKEN":
                 logging.info("fetched ENDTOKEN. Stopped......")
-                print("Search ended. Stucking to avoid resetup. Press Ctrl-C twice to end. ") # TODO: better way to end worker. 
+                # TODO: better way to end worker.
+                print(
+                    "Search ended. Stucking to avoid resetup. Press Ctrl-C twice to end. ")
                 while True:
                     pass
             path = TreePath.deserialize(path_serial)

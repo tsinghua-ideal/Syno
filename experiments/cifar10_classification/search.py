@@ -20,7 +20,7 @@ from KAS.Bindings import CodeGenOptions
 
 from train import train
 from utils.data import get_dataloader
-from utils.models import KASGrayConv as KASConv, ModelBackup
+from utils.models import KASConv, ModelBackup
 from utils.parser import arg_parse
 
 

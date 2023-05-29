@@ -77,7 +77,7 @@ class Handler(BaseHTTPRequestHandler):
             reward = float(reward)
             assert path not in self.mcts.pending_evaluate_cache
             assert path in self.mcts.waiting_result_cache
-            self.mcts.update_result(path, reward)
+            self.mcts.update_result(path, reward ** 2)
             self.mcts.remain_iterations -= 1
             print(f"Remaining iterations: {self.mcts.remain_iterations}")
             if self.mcts.remain_iterations == 0:
