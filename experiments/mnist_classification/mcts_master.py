@@ -45,15 +45,18 @@ if __name__ == '__main__':
         input_shape="[N,H,W]",
         output_shape="[N,C_out,H,W]",
         primary_specs=["N=4096: 1", "H=256", "W=256", "C_out=100"],
-        coefficient_specs=["s_1=2", "k_1=3", "k_2=5"],
+        coefficient_specs=["s_1=2: 3", "k_1=3: 5", "k_2=5: 5"],
+        fixed_io_pairs=[(0, 0)],
         seed=random.SystemRandom().randint(
             0, 0x7fffffff) if args.kas_seed == 'pure' else args.seed,
         depth=args.kas_depth,
         dim_lower=args.kas_min_dim,
         dim_upper=args.kas_max_dim,
+        maximum_tensors=2,
+        maximum_reductions=3,
+        max_flops=int(args.kas_max_macs * 1e9),
         save_path=args.kas_sampler_save_dir,
         cuda=use_cuda,
-        fixed_io_pairs=[(0, 0)],
         autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021
     )
 
