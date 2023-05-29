@@ -65,7 +65,9 @@ if __name__ == '__main__':
             try:
                 state, reward = evaluate(
                     path, train_data_loader, validation_data_loader, _model, kas_sampler, train_args, extra_args)
-            except:
+            except Exception as e:
+                if isinstance(e, KeyboardInterrupt):
+                    break
                 state = "FAILURE_EVALUATION"
                 traceback.print_exc()
             if state == "SUCCESS":
@@ -73,6 +75,8 @@ if __name__ == '__main__':
             else:
                 web_handler.failure(path_serial, state)
         except Exception as e:
+            if isinstance(e, KeyboardInterrupt):
+                break
             state = "FAILURE_DEATH"
             try:
                 web_handler.failure(path_serial, state)

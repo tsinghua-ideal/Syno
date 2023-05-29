@@ -226,7 +226,7 @@ if __name__ == '__main__':
         val_loader=validation_data_loader,
         criterion=nn.CrossEntropyLoss(),
         lr=0.1,
-        momentum=0.9,
+        # momentum=0.9,
         epochs=30,
         val_period=5,
         use_cuda=use_cuda

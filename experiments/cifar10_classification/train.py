@@ -1,10 +1,12 @@
 import torch
 from torch import nn, optim
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
 import time
 import logging
 from typing import Tuple, List
+from tqdm import tqdm
 
 from utils.models import ConvNet
 from utils.data import get_dataloader
@@ -15,10 +17,8 @@ def train(
     model: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
-    criterion=nn.CrossEntropyLoss(),
-    lr=0.1,
-    momentum=0.9,
-    epochs=50,
+    lr,
+    epochs,
     val_period=1,
     use_cuda=True,
     verbose=False
@@ -27,7 +27,7 @@ def train(
     if use_cuda:
         assert torch.cuda.is_available(), "CUDA is not supported. "
         model.cuda()
-    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum)
+    optimizer = optim.AdamW(model.parameters(), lr=lr)
     best_model_state_dict = {}
 
     model.train()
@@ -41,7 +41,7 @@ def train(
         correct = 0
         total = 0
         train_loss = 0
-        for i, (image, label) in enumerate(train_loader):
+        for i, (image, label) in enumerate(tqdm(train_loader)):
 
             image = image.cuda()
             label = label.cuda()
@@ -49,7 +49,7 @@ def train(
             # inference
             with torch.cuda.amp.autocast():
                 logits = model(image)
-                loss = criterion(logits, label)
+                loss = F.cross_entropy(logits, label)
 
             # statistic
             pred = torch.argmax(logits, -1)
@@ -95,7 +95,7 @@ def train(
             logging.info(
                 f'Epoch {epoch+1}, train loss {train_loss}, train error {train_errors[-1]}, validation error {val_errors[-1]}, elapsed {time.time() - start}')
             start = time.time()
-    
+
     print(f'Training Complete. Accuracy {1-val_errors[-1]}')
 
     return train_errors, val_errors, best_model_state_dict

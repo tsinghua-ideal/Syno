@@ -63,12 +63,12 @@ def conv2d(assembler: Assembler) -> Assembled:
 
     main_H, windows_H = assembler.create_unfold(in_H, k)
     main_W, windows_W = assembler.create_unfold(in_W, k)
-    # [in_N, main_H, windows_H, main_W, windows_W, out_C, w_k_1, w_k_2]
+    # [in_N, main_H, windows_H, main_W, windows_W, in_C, out_C, w_in_C, w_k_1, w_k_2]
 
     shared_k_1 = assembler.create_share(windows_H, w_k_1)
     shared_k_2 = assembler.create_share(windows_W, w_k_2)
     shared_C_in = assembler.create_share(in_C, w_in_C)
-    # [in_N, main_H, main_W, out_C, shared_k_1, shared_k_2]
+    # [in_N, main_H, main_W, shared_C_in, out_C, shared_k_1, shared_k_2]
 
     in_N.output(0)
     out_C.output(1)
@@ -102,9 +102,9 @@ if __name__ == '__main__':
         train_loader=train_data_loader,
         val_loader=validation_data_loader,
         criterion=nn.CrossEntropyLoss(),
-        lr=0.001,
-        momentum=0.9,
-        epochs=50,
+        lr=0.0001,
+        # momentum=0.9,
+        epochs=30,
         val_period=1,
         use_cuda=use_cuda
     )

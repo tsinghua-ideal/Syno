@@ -123,7 +123,7 @@ def arg_parse():
                         type=int, help='kas sampler depth')
     parser.add_argument('--kas-min-dim', default=2,
                         type=int, help='kas sampler minimum dimensions')
-    parser.add_argument('--kas-max-dim', default=8,
+    parser.add_argument('--kas-max-dim', default=12,
                         type=int, help='kas sampler maximum dimensions')
     parser.add_argument('--kas-sampler-save-dir', default='./samples',
                         help='Sampler saving directory')
@@ -142,7 +142,7 @@ def arg_parse():
                         help='virtual-loss-constant of tree parallelization')
     parser.add_argument('--kas-min-macs', default=0, type=float,
                         help='Minimum MACs for searched kernels (in G-unit, only for search)')
-    parser.add_argument('--kas-max-macs', default=50, type=float,
+    parser.add_argument('--kas-max-macs', default=30, type=float,
                         help='Maximum MACs for searched kernels (in G-unit, only for search)')
     parser.add_argument('--kas-min-params', default=0, type=float,
                         help='Minimum params for searched kernels (in M-unit, only for search)')

@@ -34,10 +34,10 @@ if __name__ == '__main__':
     os.makedirs(args.kas_sampler_save_dir, exist_ok=True)
 
     training_params = dict(
-        lr=0.001,
-        momentum=0.9,
-        epochs=50,
-        val_period=5,
+        lr=0.0001,
+        # momentum=0.9,
+        epochs=30,
+        val_period=1,
         use_cuda=use_cuda
     )
     sampler_params = dict(
@@ -53,7 +53,7 @@ if __name__ == '__main__':
         dim_upper=args.kas_max_dim,
         maximum_tensors=2,
         maximum_reductions=4,
-        max_flops=1176494080,  # manual conv size
+        max_flops=16420864000,  # manual conv size
         save_path=args.kas_sampler_save_dir,
         cuda=use_cuda,
         autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021
