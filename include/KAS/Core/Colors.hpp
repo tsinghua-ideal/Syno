@@ -77,6 +77,15 @@ struct ColoredDimension {
     struct Projection {
         const Dimension& operator()(const ColoredDimension& item) const { return item.dimension; }
     };
+
+    enum class Origin {
+        Unfold,
+        Input,
+        Weight,
+        BothPossible,
+    };
+
+    auto deduceOrigin() const -> Origin;
 };
 
 using ColoredInterfaceShapeView = AbstractShape<const std::vector<ColoredDimension>&, [](const ColoredDimension& cDim) -> const Size& { return cDim.dimension.size(); }>;
@@ -134,6 +143,9 @@ public:
         auto it = const_cast<const ColoredInterface&>(*this).binarySearch(value);
         // Amazing trick: https://stackoverflow.com/questions/765148/how-to-remove-constness-of-const-iterator
         return items.erase(it, it);
+    }
+    std::size_t binarySearchIndexOf(const Dimension& value) const {
+        return std::distance(items.begin(), binarySearch(value));
     }
 
     ColoredInterface substitute1to1(const Dimension& fro, const Dimension& to, bool addDataDiscardingFlag = false) const;

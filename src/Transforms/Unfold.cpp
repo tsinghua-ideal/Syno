@@ -52,17 +52,19 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(DimensionStore& store, const Co
 
     // In addition, canonicalization can require that UnfoldOp chain be structured in ascending order of kernel size. This changes semantics but it seems to be fine.
     using enum DimensionTypeWithOrder;
-    std::vector<DimensionTypeWithOrder> disallowsL;
+    std::vector<DimensionTypeWithOrder> disallowsL { ShareR };
+    std::vector<DimensionTypeWithOrder> disallowsR { ShareR };
     if (options.disallowUnfoldLAboveSplit) disallowsL.push_back(Split);
     if (options.disallowUnfoldLAboveShift) disallowsL.push_back(Shift);
     auto plausibleL = interface.filterOut(disallowsL);
+    auto plausibleR = interface.filterOut(disallowsR);
 
     std::vector<const UnfoldOp *> result;
     const auto totalAttempts = interface.size() * interface.size() - interface.size();
     CountGenerateAttempts += totalAttempts;
     std::size_t countPlausible = 0;
     for (auto&& [dimL, colorL]: plausibleL) {
-        for (auto&& [dimR, colorR]: interface) {
+        for (auto&& [dimR, colorR]: plausibleR) {
             if (dimL == dimR) continue;
             ++countPlausible;
             if (!colorL.disjoint(colorR)) {

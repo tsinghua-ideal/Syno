@@ -685,9 +685,14 @@ Generator<Size> Allowance::enumerateSizes(const BindingContext& ctx) const {
             } else if (upper < 0) {
                 lower = upper - maxEnumerationsPerVar + 1;
             } else {
-                auto delta = (enumerations - maxEnumerationsPerVar) / 2;
-                lower += delta;
-                upper -= delta;
+                if (upper < maxEnumerationsPerVar / 2) {
+                    lower = upper - maxEnumerationsPerVar + 1;
+                } else if (lower > -maxEnumerationsPerVar / 2 + 1) {
+                    upper = lower + maxEnumerationsPerVar - 1;
+                } else {
+                    upper = maxEnumerationsPerVar / 2;
+                    lower = -maxEnumerationsPerVar / 2 + 1;
+                }
             }
         }
     }

@@ -134,6 +134,32 @@ bool Color::CheckFinalization(const std::vector<Interface>& tensors) {
     return visitor.pass();
 }
 
+auto ColoredDimension::deduceOrigin() const -> Origin {
+    if (color.countRightTags() > 0) {
+        KAS_ASSERT(!color.isDataDiscarding(), "A weight dimension must not be data discarding!");
+        // As required by canonicalization, rhs of ShareOp is not allowed to be further transformed and must be weight.
+        return Origin::Weight;
+    } else if (color.isDataDiscarding()) {
+        return Origin::Unfold;
+    } else {
+        auto t = dimension.type();
+        switch (t) {
+        case DimensionType::MapReduce:
+        case DimensionType::Shift:
+        case DimensionType::Stride:
+        case DimensionType::Split:
+        case DimensionType::Unfold:
+        case DimensionType::Share: // In this case, always ShareL.
+            return Origin::Input;
+        case DimensionType::Iterator:
+        case DimensionType::Merge: // At most one of the two MergeOp::Input from the same MergeOp is weight.
+            return Origin::BothPossible;
+        default:
+            KAS_UNREACHABLE("Unknown DimensionType");
+        }
+    }
+}
+
 ColoredInterface ColoredInterface::substitute1to1(const Dimension& fro, const Dimension& to, bool addDataDiscardingFlag) const {
     auto newInterface = *this;
     auto coloredFro = (*this)[fro];
