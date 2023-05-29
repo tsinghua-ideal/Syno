@@ -22,13 +22,6 @@ class FinalizeOp {
     friend class Stage;
     std::vector<Interface> tensors;
 
-    enum class DimensionOrigin {
-        Input,
-        Weight,
-        BothPossible,
-    };
-    static DimensionOrigin DeduceOrigin(const ColoredDimension& cDim);
-
 public:
     FinalizeOp(auto&& tensors):
         tensors { std::forward<decltype(tensors)>(tensors) }

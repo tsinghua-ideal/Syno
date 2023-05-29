@@ -8,29 +8,6 @@
 
 namespace kas {
 
-auto FinalizeOp::DeduceOrigin(const ColoredDimension& cDim) -> DimensionOrigin {
-    if (cDim.color.countRightTags() > 0) {
-        // As required by canonicalization, rhs of ShareOp is not allowed to be further transformed and must be weight.
-        return DimensionOrigin::Weight;
-    } else {
-        auto t = cDim.dimension.type();
-        switch (t) {
-        case DimensionType::MapReduce:
-        case DimensionType::Shift:
-        case DimensionType::Stride:
-        case DimensionType::Split:
-        case DimensionType::Unfold:
-        case DimensionType::Share: // In this case, always ShareL.
-            return DimensionOrigin::Input;
-        case DimensionType::Iterator:
-        case DimensionType::Merge: // At most one of the two MergeOp::Input from the same MergeOp is weight.
-            return DimensionOrigin::BothPossible;
-        default:
-            KAS_UNREACHABLE("Unknown DimensionType");
-        }
-    }
-}
-
 std::shared_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedDimension>& fixed) const {
     if (fixed.empty()) {
         return std::make_unique<TensorView>(tensors);
@@ -204,7 +181,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
             for (std::size_t i = 0; i < interface.size(); ++i) {
                 if (fragments.used[i]) continue;
                 const auto& cDim = interface[i];
-                if (DeduceOrigin(cDim) == DimensionOrigin::Input) {
+                if (cDim.deduceOrigin() == ColoredDimension::Origin::Input) {
                     ++CountUncanonicalWeight;
                     return;
                 } else if (auto merge = cDim.dimension.tryAs<MergeOp::Input>(); merge) {
@@ -224,8 +201,8 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
         for (std::size_t i = 0; i < interface.size(); ++i) {
             auto&& cDim = interface[i];
             auto&& [dim, color] = cDim;
-            auto origin = DeduceOrigin(cDim);
-            if (origin == DimensionOrigin::Weight) {
+            auto origin = cDim.deduceOrigin();
+            if (origin == ColoredDimension::Origin::Weight) {
                 continue;
             }
             if (dim.size() == desiredDimSize && fragments.canAccept(i, color)) {

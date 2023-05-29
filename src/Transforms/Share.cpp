@@ -67,6 +67,8 @@ std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const Colo
     CountGenerateAttempts += interface.size();
     std::size_t countPlausible = 0;
     for (auto&& [dim, color]: plausible) {
+        // Since RHS will be a weight dim, we cannot make it data-discarding.
+        if (color.isDataDiscarding()) continue;
         ++countPlausible;
         if (!allowance.withinAllowance(dim.size())) {
             ++CountAllowanceExceeded;

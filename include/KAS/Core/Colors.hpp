@@ -77,6 +77,15 @@ struct ColoredDimension {
     struct Projection {
         const Dimension& operator()(const ColoredDimension& item) const { return item.dimension; }
     };
+
+    enum class Origin {
+        Unfold,
+        Input,
+        Weight,
+        BothPossible,
+    };
+
+    auto deduceOrigin() const -> Origin;
 };
 
 using ColoredInterfaceShapeView = AbstractShape<const std::vector<ColoredDimension>&, [](const ColoredDimension& cDim) -> const Size& { return cDim.dimension.size(); }>;

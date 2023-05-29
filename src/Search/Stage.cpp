@@ -182,7 +182,9 @@ bool Stage::possibleToFinalize() const {
     // Next, check that there exists a coloring for weight tensors. Note that this check is conservative.
     auto weightTensorDims =
         interface
-        | std::views::filter([](const ColoredDimension& cdim) { return cdim.color.countRightTags() > 0 && !cdim.color.isDataDiscarding(); });
+        | std::views::filter([](const ColoredDimension& cDim) {
+            return cDim.deduceOrigin() == ColoredDimension::Origin::Weight;
+        });
     switch (options.maximumTensors) {
     case 1: {
         // There must be exactly 1 weight tensor.
@@ -211,7 +213,7 @@ bool Stage::possibleToFinalize() const {
     // Then, check whether there are enough elements in the input tensor.
     auto inputTensorCandidates =
         interface
-        | std::views::filter([](const ColoredDimension& cdim) { return cdim.color.countRightTags() == 0 && !cdim.color.isDataDiscarding(); })
+        | std::views::filter([](const ColoredDimension& cDim) { return cDim.deduceOrigin() == ColoredDimension::Origin::Input || cDim.deduceOrigin() == ColoredDimension::Origin::BothPossible; })
         | std::views::transform(&ColoredDimension::dimension);
     std::unordered_map<Size, int> counts;
     auto elements = Size::Identity(ctx);
@@ -241,11 +243,11 @@ bool Stage::possibleToFinalize() const {
             unfulfilled.push_back(&required);
         }
     }
-    if (unfulfilled.size() > remainingSteps * 2) {
+    if ((unfulfilled.size() + 1) / 2 + stridedDims > remainingSteps) {
         // Merge can possibly fulfill 2 dimensions per step. So this is most conservative.
         ++CountShapeDeviatesTooMuch;
         return false;
-    } else if (unfulfilled.size() > remainingSteps) {
+    } else if (unfulfilled.size() + stridedDims > remainingSteps) {
         // We need at least 1 Merge tree to make things work. Enumerate.
         auto enumerateSizes = [&](const auto& self, const Size& previousSize, std::size_t nextIndex) -> bool {
             if (nextIndex == unfulfilled.size()) {
