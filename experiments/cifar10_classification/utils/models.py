@@ -104,7 +104,7 @@ class KASModule(nn.Module):
                 assert N2 == N, f"Batch size change detected! {N} -> {N2}. "
                 assert H2 == H and W2 == W, "Not using same padding. "
                 block = Placeholder(
-                    {"N": N, "C_out": C2, "H": H, "W": W})
+                    {"N": N, "C_in": C1, "C_out": C2, "H": H, "W": W})
 
             layers.append(block)
 
@@ -133,29 +133,37 @@ class KASConv(KASModule):
     def __init__(self) -> None:
         super().__init__()
         self.blocks = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=5, padding='valid'),
+            nn.Conv2d(3, 64, kernel_size=5, padding='same'),
             nn.ReLU(),
-            nn.MaxPool2d(3, 2),
-            nn.Conv2d(64, 96, kernel_size=3, padding='valid'),
+            nn.MaxPool2d(3, 2, 1),
+            nn.Conv2d(64, 96, kernel_size=5, padding='same'),
             nn.ReLU(),
-            nn.MaxPool2d(3, 2),
+            nn.MaxPool2d(3, 2, 1),
             nn.Conv2d(96, 128, kernel_size=3, padding='same'),
             nn.ReLU(),
-            nn.MaxPool2d(3, 2),
+            nn.MaxPool2d(3, 2, 1),
         )
         self.dense = nn.Sequential(
-            nn.Linear(3*3*128, 512),
+            nn.Linear(4*4*128, 512),
             nn.ReLU(),
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, 10),
         )
 
-    def forward(self, image):
+    def forward(self, image: Tensor) -> Tensor:
         B = image.size(0)
-        image = image.view(B, 3, 32, 32)
-        feats = self.conv(image)
-        return self.dense(feats.view(B, -1))
+        x = image
+        assert x.shape == (B, 3, 32, 32)
+
+        if self.bootstraped():
+            for layer in self.layers:
+                # print("Passing", layer, x.size())
+                x = layer(x)
+        else:
+            for block in self.blocks:
+                x = block(x)
+        return self.dense(x.view(B, -1))
 
 
 class KASGrayConv(KASModule):

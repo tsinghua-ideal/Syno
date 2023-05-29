@@ -78,7 +78,7 @@ def conv2d(assembler: Assembler) -> Assembled:
     shared_k_2.sum(1)
     shared_C_in.sum(2)
 
-    return assembler.assemble([in_N, in_C, in_H, in_W], [w_in_C, w_k_1, w_k_2])
+    return assembler.assemble([in_N, in_C, in_H, in_W], [out_C, w_in_C, w_k_1, w_k_2])
 
 
 if __name__ == '__main__':
@@ -102,10 +102,10 @@ if __name__ == '__main__':
         train_loader=train_data_loader,
         val_loader=validation_data_loader,
         criterion=nn.CrossEntropyLoss(),
-        lr=0.1,
+        lr=0.001,
         momentum=0.9,
-        epochs=30,
-        val_period=5,
+        epochs=50,
+        val_period=1,
         use_cuda=use_cuda
     )
 
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     kas_sampler = Sampler(
         input_shape="[N,C_in,H,W]",
         output_shape="[N,C_out,H,W]",
-        primary_specs=["N=64: 0", "H=28", "W=28"],
+        primary_specs=["N=64: 0", "H=32", "W=32"],
         coefficient_specs=["k_1=3: 4", "k_2=5: 4"],
         fixed_io_pairs=[(0, 0)],
         seed=random.SystemRandom().randint(
