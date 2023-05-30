@@ -47,7 +47,7 @@ if __name__ == '__main__':
     for i in round_range:
         # Sample a new kernel.
         logging.info('Requesting a new kernel ...')
-        path_serial = TreePath([])
+        path_serial = TreePath([]).serialize()
         try:
             path_serial = web_handler.get_path()
             if not path_serial:

@@ -36,7 +36,7 @@ if __name__ == '__main__':
     training_params = dict(
         lr=0.0001,
         # momentum=0.9,
-        epochs=30,
+        epochs=50,
         val_period=1,
         use_cuda=use_cuda
     )

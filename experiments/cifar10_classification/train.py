@@ -41,7 +41,7 @@ def train(
         correct = 0
         total = 0
         train_loss = 0
-        for i, (image, label) in enumerate(tqdm(train_loader)):
+        for i, (image, label) in enumerate(train_loader):
 
             image = image.cuda()
             label = label.cuda()
@@ -63,6 +63,7 @@ def train(
             # optimizer.step()
 
             scaler.scale(loss).backward()
+            torch.nn.utils.clip_grad_norm_(parameters=model.parameters(), max_norm=5, norm_type=2)
             scaler.step(optimizer)
             scaler.update()
 

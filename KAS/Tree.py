@@ -106,8 +106,8 @@ class MCTS:
             else:
                 logging.debug(
                     f"During rollout, dead end {path} encountered. Retrying...")
-                # This kind of interferes with the evaluation. TODO
-                self.back_propagate((node, path), 0.0)
+                # # This kind of interferes with the evaluation. TODO
+                # self.back_propagate((node, path), 0.0)
 
     def get_results(self, node: VisitedNode = None) -> VisitedNode:
         "Return the best result searched from the tree."

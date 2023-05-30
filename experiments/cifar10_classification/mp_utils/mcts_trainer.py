@@ -22,6 +22,8 @@ class MCTSTrainer(MCTS):
         super().__init__(sampler, virtual_loss_constant,
                          leaf_parallelization_number, simulate_retry_limit, exploration_weight)
 
+        print("MCTS initialized")
+
         # flags
         self.best_node = (0, 0)
         self.reward_list = []
@@ -37,8 +39,6 @@ class MCTSTrainer(MCTS):
 
         # buffer
         self.eval_result_cache = {}  # node -> reward; -1 stands for dead node
-        self.pending_evaluate_cache = {}  # path -> trial, receipt
-        self.waiting_result_cache = {}  # path -> trial, receipt
 
     def has_eval_result(self, node) -> bool:
         return node._node in self.eval_result_cache
@@ -61,9 +61,9 @@ class MCTSTrainer(MCTS):
     def get_args(self):
         return self.args
 
-    def update_result(self, path, reward) -> None:
+    def update_result(self, meta, reward) -> None:
         """preprocess a path after evaluation. """
-        node, receipt = self.waiting_result_cache.pop(path)['meta']
+        node, receipt = meta
         if reward == -1:
             self.set_dead(node)
         else:
@@ -74,6 +74,7 @@ class MCTSTrainer(MCTS):
             self.back_propagate(receipt, reward)
             self.reward_list.append(reward)
             self.time_list.append(time() - self.start_time)
+            print("Successfully updated MCTS. ")
 
     def launch_new_iteration(self) -> None:
         """
@@ -87,9 +88,11 @@ class MCTSTrainer(MCTS):
         while any([self.check_dead(trial) for trial in trials]):
             receipt, trials = self.do_rollout(self._sampler.root())
 
+        new_path = {}
+
         for trial in trials:
             if not self.has_eval_result(trial):
-                self.pending_evaluate_cache[trial.path] = (trial, receipt)
+                new_path[trial.path.serialize()] = (trial, receipt)
             else:
                 reward = self.get_eval_result(trial)
 
@@ -97,6 +100,8 @@ class MCTSTrainer(MCTS):
                 self.back_propagate(receipt, reward)
                 self.reward_list.append(reward)
                 self.time_list.append(time() - self.start_time)
+
+        return new_path
 
     def dump_result(self, result_save_loc: str = './final_result') -> None:
         """Search for the best model for iterations times."""
