@@ -101,10 +101,9 @@ if __name__ == '__main__':
     training_params = dict(
         train_loader=train_data_loader,
         val_loader=validation_data_loader,
-        criterion=nn.CrossEntropyLoss(),
         lr=0.0001,
         # momentum=0.9,
-        epochs=30,
+        epochs=50,
         val_period=1,
         use_cuda=use_cuda
     )

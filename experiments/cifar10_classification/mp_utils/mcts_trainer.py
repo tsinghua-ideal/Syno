@@ -3,10 +3,11 @@ import math
 # Systems
 import os
 import json
+import logging
 from time import time, sleep
 
 # KAS
-from KAS import MCTS, Sampler
+from KAS import MCTS, Sampler, Statistics
 
 
 class MCTSTrainer(MCTS):
@@ -75,6 +76,11 @@ class MCTSTrainer(MCTS):
             self.reward_list.append(reward)
             self.time_list.append(time() - self.start_time)
             print("Successfully updated MCTS. ")
+            print("**************** Logged Summary ******************")
+            Statistics.Print()
+            print("**************** Logged Summary ******************")
+
+        self.remove_virtual_loss(receipt)
 
     def launch_new_iteration(self) -> None:
         """
@@ -83,10 +89,9 @@ class MCTSTrainer(MCTS):
         """
 
         # Selecting a node
-        # TODO: add virtual loss
+        logging.info("launching new iterations")
         receipt, trials = self.do_rollout(self._sampler.root())
-        while any([self.check_dead(trial) for trial in trials]):
-            receipt, trials = self.do_rollout(self._sampler.root())
+        self.add_virtual_loss(receipt)
 
         new_path = {}
 

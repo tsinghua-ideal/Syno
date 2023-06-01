@@ -25,7 +25,7 @@ from mp_utils import Handler_server, MCTSTrainer
 if __name__ == '__main__':
 
     # set logging level
-    logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger().setLevel(logging.DEBUG)
 
     args = arg_parse()
     print(args)
@@ -34,9 +34,9 @@ if __name__ == '__main__':
     os.makedirs(args.kas_sampler_save_dir, exist_ok=True)
 
     training_params = dict(
-        lr=0.0001,
+        lr=1e-4,
         # momentum=0.9,
-        epochs=50,
+        epochs=30,
         val_period=1,
         use_cuda=use_cuda
     )

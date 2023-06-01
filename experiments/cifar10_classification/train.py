@@ -63,7 +63,9 @@ def train(
             # optimizer.step()
 
             scaler.scale(loss).backward()
-            torch.nn.utils.clip_grad_norm_(parameters=model.parameters(), max_norm=5, norm_type=2)
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(
+                parameters=model.parameters(), max_norm=5., norm_type=2)
             scaler.step(optimizer)
             scaler.update()
 
