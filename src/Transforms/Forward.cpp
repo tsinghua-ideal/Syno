@@ -34,6 +34,11 @@ std::vector<std::vector<BackwardDimension>> Factory::ForwardDimsToBackwardDims(c
     for (std::size_t i = 0; i < tensors.size(); ++i) {
         std::ranges::copy(tensors[i], std::back_inserter(backwardTensors[i]));
     }
+    // Sort the dimensions by hash.
+    // TODO: what if we change the order, due to performance considerations?
+    for (std::size_t i = 1; i < tensors.size(); ++i) {
+        std::ranges::sort(backwardTensors[i], BackwardDimension::HashLessThan{});
+    }
     return backwardTensors;
 }
 

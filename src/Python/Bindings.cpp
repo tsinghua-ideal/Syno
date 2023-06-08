@@ -210,7 +210,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def_static("create_unfold", &Forward::UnfoldOp::Create)
         .def(
             "convert_assembled_to_path", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const Sampler& sampler) -> std::vector<Next> {
-                return sampler.convertTensorViewToPath(Forward::Factory::ForwardDimsToBackwardDims(tensors));
+                auto backTensors = Forward::Factory::ForwardDimsToBackwardDims(tensors);
+                return sampler.convertTensorViewToPath(backTensors);
             }
         )
         .def(

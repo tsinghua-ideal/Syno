@@ -57,9 +57,9 @@
 - [ ] Discover full-dead-end subtrees and report to Python.
 - [ ] Multithreaded search tree building.
 - [x] Compute a Path from a TensorView, to verify searchability.
-- [ ] Robustify the TensorView -> Path function.
+- [x] Robustify the TensorView -> Path function.
 - [ ] Add visualization for search space, e.g., draw the DAG interactively.
-- [ ] Node -> Graphviz.
+- [x] Node -> Graphviz.
 
 ## Experiment
 
