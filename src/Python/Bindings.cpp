@@ -164,6 +164,9 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("all_mappings"), pybind11::arg("halide_options")
         )
         .def("estimate_total_flops_as_final", &Node::estimateTotalFLOPsAsFinal)
+        .def("generate_graphviz", &Node::generateGraphviz)
+        .def("generate_graphviz_as_final", &Node::generateGraphvizAsFinal)
+        .def("get_nested_loops_as_final", &Node::getNestedLoopsAsFinal)
         .def("__repr__", &Node::toString);
 
     pybind11::class_<Size>(m, "Size")

@@ -42,6 +42,12 @@ std::size_t ReductionStage::hash() const {
     return h;
 }
 
+Interface ReductionStage::toInterface() const {
+    auto interface = sampler.getRootInterface();
+    std::ranges::copy(reductions, std::back_inserter(interface));
+    return interface;
+}
+
 std::vector<Next> ReductionStage::getChildrenHandles() const {
     std::vector<Next> handles = nextReductions.toNexts();
     handles.emplace_back(Next::Type::MapReduce, StopReductionToken);

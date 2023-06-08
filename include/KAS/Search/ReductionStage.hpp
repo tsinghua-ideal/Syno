@@ -44,6 +44,7 @@ public:
     std::size_t hash() const;
 
     const MapReduceOp *lastReduction() const { return reductions.size() ? reductions.back() : nullptr; }
+    Interface toInterface() const;
 
     std::size_t countChildren() const { return nextReductions.size() + 1; }
     // Aside from slots, return a special Next (with key StopReductionToken).

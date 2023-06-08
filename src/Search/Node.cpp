@@ -1,7 +1,9 @@
 #include "KAS/Search/Node.hpp"
+#include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/Search/ReductionStage.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/Stage.hpp"
+#include "KAS/Utils/Ranges.hpp"
 
 
 namespace kas {
@@ -88,6 +90,36 @@ std::size_t Node::estimateTotalFLOPsAsFinal() const {
         result += final->getFLOPs(consts);
     }
     return result;
+}
+
+void Node::generateGraphviz(const std::string& dir, const std::string& name) const {
+    const auto& ctx = sampler->getBindingContext();
+    match<void>(
+        [&](ReductionStage *rStage) {
+            auto interface = rStage->toInterface();
+            GraphvizGen gen { interface, ctx };
+            gen.generate(dir, name);
+        },
+        [&](Stage *stage) {
+            auto interface = ranges::to<Interface>(stage->getInterface().toDimensions());
+            GraphvizGen gen { interface, ctx };
+            gen.generate(dir, name);
+        },
+        [&](std::shared_ptr<TensorView>) -> void {
+            generateGraphvizAsFinal(dir, name);
+        }
+    );
+}
+
+void Node::generateGraphvizAsFinal(const std::string& dir, const std::string& name) const {
+    auto final = asFinal();
+    GraphvizGen gen { *final, sampler->getBindingContext() };
+    gen.generate(dir, name);
+}
+
+std::string Node::getNestedLoopsAsFinal() const {
+    auto final = asFinal();
+    return final->printNestedLoopsForAll(sampler->getBindingContext());
 }
 
 std::size_t Node::countChildren() const {
