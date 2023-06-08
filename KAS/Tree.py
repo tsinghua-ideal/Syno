@@ -49,31 +49,31 @@ class MCTS:
         return j
 
     def _get_Q(self, node: TreeNode) -> float:
-        return self._Q[hash(node)]
+        return self._Q[node]
 
     def _add_Q(self, node: TreeNode, value: float) -> None:
-        self._Q[hash(node)] += value
+        self._Q[node] += value
 
     def _get_N(self, node: TreeNode) -> int:
-        return self._N[hash(node)]
+        return self._N[node]
 
     def _add_N(self, node: TreeNode, value: int) -> None:
-        self._N[hash(node)] += value
+        self._N[node] += value
 
     def _has_children_nexts(self, node: TreeNode) -> bool:
-        return hash(node) in self._children_nexts
+        return node in self._children_nexts
 
     def _get_children_nexts(self, node: TreeNode) -> List[Any]:
-        return self._children_nexts[hash(node)]
+        return self._children_nexts[node]
 
     def _set_children_nexts(self, node: TreeNode, children_nexts: List[Any]) -> None:
-        self._children_nexts[hash(node)] = children_nexts
+        self._children_nexts[node] = children_nexts
 
     def set_node_dead(self, node: TreeNode) -> None:
-        self.dead_node.append(hash(node))
+        self.dead_node.append(node)
 
     def check_node_dead(self, node: TreeNode) -> bool:
-        return hash(node) in self.dead_node
+        return node in self.dead_node
 
     def check_node_alive(self, node: TreeNode) -> bool:
         return not node.is_dead_end() and not self.check_node_dead(node)
@@ -92,24 +92,24 @@ class MCTS:
         node = TreeNode(node.path, node._node)
         for next in path:
             node = node.get_child(next.type)
-            self.virtual_loss_count[hash(node)] += 1
+            self.virtual_loss_count[node] += 1
             if next.key == 0:
                 break
             node = node.get_child(next.key)
-            self.virtual_loss_count[hash(node)] += 1
+            self.virtual_loss_count[node] += 1
 
     def _decrement_virtual_loss(self, path: TreePath, node: TreeNode):
         node = TreeNode(node.path, node._node)
         for next in path:
             node = node.get_child(next.type)
-            self.virtual_loss_count[hash(node)] -= 1
-            assert self.virtual_loss_count[hash(node)] >= 0
+            self.virtual_loss_count[node] -= 1
+            assert self.virtual_loss_count[node] >= 0
             if next.key == 0:
                 break
             node = node.get_child(next.key)
-            self.virtual_loss_count[hash(node)] -= 1
+            self.virtual_loss_count[node] -= 1
 
-        assert self.virtual_loss_count[hash(node)] >= 0
+        assert self.virtual_loss_count[node] >= 0
 
     # The receipt which is used for back propagation, which is the root node and the path.
     Receipt = Tuple[TreeNode, TreePath]
