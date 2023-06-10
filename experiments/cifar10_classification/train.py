@@ -44,11 +44,18 @@ def train(
         correct = 0
         total = 0
         losses_m = AverageMeter()
-        start = time.time()
+        batch_time = AverageMeter()
+        forward_time = AverageMeter()
+        backward_time = AverageMeter()
+        stats_time = AverageMeter()
         model.train()
+        start = time.time()
         for i, (image, label) in enumerate(train_loader):
             image = image.cuda()
             label = label.cuda()
+
+            batch_time.update(time.time() - start)
+            start = time.time()
 
             # inference
             # TODO: Add FP16 support (KAS part)
@@ -56,10 +63,13 @@ def train(
             logits = model(image)
             loss = criterion(logits, label)
 
+            forward_time.update(time.time() - start)
+            start = time.time()
+
             # backward
             optimizer.zero_grad()
-            # loss.backward()
-            # optimizer.step()
+            loss.backward()
+            optimizer.step()
 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -67,6 +77,9 @@ def train(
                 parameters=model.parameters(), max_norm=5., norm_type=2)
             scaler.step(optimizer)
             scaler.update()
+
+            backward_time.update(time.time() - start)
+            start = time.time()
 
             # statistic
             pred = torch.argmax(logits, 1)
@@ -77,10 +90,14 @@ def train(
             scheduler.step_update(
                 num_updates=epoch * len(train_loader) + i + 1, metric=losses_m.avg)
 
+            stats_time.update(time.time() - start)
+            start = time.time()
+
         train_errors.append(1 - correct / total)
         # scheduler.step()
 
         if (epoch + 1) % val_period == 0:
+            start = time.time()
             with torch.no_grad():
                 model.eval()
                 correct = 0
@@ -101,10 +118,11 @@ def train(
                 val_errors.append(1 - correct / total)
                 if val_errors[-1] == min(val_errors):
                     best_model_state_dict = model.state_dict()
+            validation_time = time.time() - start
 
             if verbose:
                 logging.info(
-                    f'Epoch {epoch+1}, train loss {losses_m.avg}, train error {train_errors[-1]}, validation error {val_errors[-1]}, elapsed {time.time() - start}')
+                    f'Epoch [{epoch+1}/{sched_epochs}]: train loss {losses_m.avg}; train error {train_errors[-1]}; validation error {val_errors[-1]}; elapsed {batch_time.sum+forward_time.sum+backward_time.sum+stats_time.sum+validation_time} (Batch: {batch_time.sum}; Forward: {forward_time.sum}; Backward: {backward_time.sum}; Validation: {validation_time})')
                 start = time.time()
 
         scheduler.step(epoch + 1, 1-val_errors[-1])

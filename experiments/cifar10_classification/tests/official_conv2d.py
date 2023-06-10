@@ -11,8 +11,7 @@ if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
 from train import train
 from utils.data import get_dataloader
-from utils.models import KASConv, ModelBackup
-from tests.resnet import resnet8
+from utils.models import ConvNet, ModelBackup
 from utils.parser import arg_parse
 from utils.config import parameters
 
@@ -26,7 +25,7 @@ if __name__ == '__main__':
 
     training_params, sampler_params, extra_args = parameters(args)
     train_data_loader, validation_data_loader = get_dataloader(args)
-    model_ = ModelBackup(resnet8, torch.randn(
+    model_ = ModelBackup(ConvNet, torch.randn(
         extra_args["sample_input_shape"]), "cpu")
     model = model_.create_instance()
 

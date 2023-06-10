@@ -6,28 +6,31 @@ from KAS import Placeholder, KernelPack, Sampler
 from .models import KASModule, mapping_func_conv, mapping_func_gray_conv, mapping_func_linear
 
 
-class ConvNet(nn.Module):
+class ConvNet(KASModule):
     """CNN architecture follows the implementation of DeepOBS (https://github.com/fsschneider/DeepOBS/blob/master/deepobs/tensorflow/testproblems/cifar10_3c3d.py)"""
 
     def __init__(self) -> None:
         super().__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=5, padding='valid'),
+            nn.Conv2d(3, 64, kernel_size=3, padding='same'),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(3, 2),
-            nn.Conv2d(64, 96, kernel_size=3, padding='valid'),
+            nn.MaxPool2d(3, 2, 1),
+            nn.Conv2d(64, 96, kernel_size=3, padding='same'),
+            nn.BatchNorm2d(96),
             nn.ReLU(),
-            nn.MaxPool2d(3, 2),
+            nn.MaxPool2d(3, 2, 1),
             nn.Conv2d(96, 128, kernel_size=3, padding='same'),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.MaxPool2d(3, 2),
+            nn.MaxPool2d(3, 2, 1),
         )
         self.dense = nn.Sequential(
-            nn.Linear(3*3*128, 512),
+            nn.Linear(4*4*128, 128),
             nn.ReLU(),
-            nn.Linear(512, 256),
+            nn.Linear(128, 128),
             nn.ReLU(),
-            nn.Linear(256, 10),
+            nn.Linear(128, 10),
         )
 
     def forward(self, image):
