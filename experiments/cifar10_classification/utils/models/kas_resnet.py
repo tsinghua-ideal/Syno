@@ -39,7 +39,7 @@ import sys
 from KAS import Placeholder
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
-from utils.models import mapping_func_conv, KASModule
+from .models import mapping_func_conv, KASModule
 
 __all__ = ['KASResNet', 'resnet8', 'resnet20', 'resnet32',
            'resnet44', 'resnet56', 'resnet110', 'resnet1202']

@@ -16,8 +16,7 @@ if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
 from train import train
 from utils.data import get_dataloader
-from utils.models import KASConv, ModelBackup
-from utils.kas_resnet import resnet8
+from utils.models import KASConv, ModelBackup, resnet8
 from utils.parser import arg_parse
 from utils.config import parameters
 
@@ -67,7 +66,7 @@ if __name__ == '__main__':
     train_data_loader, validation_data_loader = get_dataloader(args)
 
     device = torch.device("cuda" if use_cuda else "cpu")
-    model_ = ModelBackup(resnet8, torch.randn(
+    model_ = ModelBackup(KASConv, torch.randn(
         extra_args["sample_input_shape"]), device)
 
     kas_sampler = Sampler(
