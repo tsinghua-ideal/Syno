@@ -11,9 +11,6 @@ def parameters(args):
 
     use_cuda = torch.cuda.is_available()
     training_params = dict(
-        lr=1e-3,
-        momentum=0.9,
-        epochs=30,
         val_period=1,
         use_cuda=use_cuda
     )

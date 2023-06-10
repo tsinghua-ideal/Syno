@@ -1,39 +1,33 @@
 
 import torch
-from torch import nn, Tensor
 
 # Systems
 import time
-import random
-from typing import List
 import os
 import sys
 import logging
-from thop import profile
-
-# KAS
-from KAS import Sampler, KernelPack, Assembled, Assembler
-from KAS.Bindings import CodeGenOptions
-
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
 from train import train
 from utils.data import get_dataloader
 from utils.models import KASConv, ModelBackup
+from tests.resnet import resnet8
 from utils.parser import arg_parse
 from utils.config import parameters
 
 if __name__ == '__main__':
+
+    # set logging level
+    logging.getLogger().setLevel(logging.INFO)
+
     args = arg_parse()
     print(args)
-    use_cuda = torch.cuda.is_available()
 
     training_params, sampler_params, extra_args = parameters(args)
     train_data_loader, validation_data_loader = get_dataloader(args)
-
-    model_ = ModelBackup(KASConv, torch.randn(
-        extra_args["sample_input_shape"]), "cuda")
+    model_ = ModelBackup(resnet8, torch.randn(
+        extra_args["sample_input_shape"]), "cpu", replace=False)
     model = model_.create_instance()
 
     start = time.time()

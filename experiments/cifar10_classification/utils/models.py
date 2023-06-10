@@ -6,7 +6,7 @@ from KAS import Placeholder, KernelPack, Sampler
 
 
 class ModelBackup:
-    def __init__(self, model, sample_input: Tensor, device='cuda:0') -> None:
+    def __init__(self, model, sample_input: Tensor, device='cuda:0', replace=True) -> None:
         self._model_builder = model
         self._sample_input = sample_input.to(device)
 
@@ -15,12 +15,13 @@ class ModelBackup:
             self._sample_input, ), verbose=False)
         print(
             f"Referenced model has {round(macs / 1e9, 3)}G MACs and {round(params / 1e6, 3)}M parameters ")
-        self.base_macs = macs - \
-            self._model.generatePlaceHolder(self._sample_input)
-        print(f"Base MACs is {self.base_macs}")
+        if replace:
+            self.base_macs = macs - \
+                self._model.generatePlaceHolder(self._sample_input)
+            print(f"Base MACs is {self.base_macs}")
 
     def create_instance(self) -> nn.Module:
-        self._model._initialize_weight()
+        # self._model._initialize_weight()
         return self._model
 
     def restore_model_params(self, model, pack: List[KernelPack]):
@@ -118,9 +119,16 @@ class KASModule(nn.Module):
     def init_weights(m):
         if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
-            m.bias.data.fill_(0.)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant_(m.weight, 1)
+            nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.Conv2d):
-            nn.init.xavier_uniform_(m.weight)
+            nn.init.kaiming_normal_(
+                m.weight, mode="fan_in", nonlinearity="relu")
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
 
     def _initialize_weight(self):
         self.apply(self.init_weights)
@@ -134,12 +142,15 @@ class KASConv(KASModule):
         super().__init__()
         self.blocks = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=5, padding='same'),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(3, 2, 1),
             nn.Conv2d(64, 96, kernel_size=5, padding='same'),
+            nn.BatchNorm2d(96),
             nn.ReLU(),
             nn.MaxPool2d(3, 2, 1),
             nn.Conv2d(96, 128, kernel_size=3, padding='same'),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.MaxPool2d(3, 2, 1),
         )

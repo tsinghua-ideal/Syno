@@ -9,11 +9,17 @@ def arg_parse():
     # Dataset.
     parser.add_argument('--seed', type=int, default=42, metavar='S',
                         help='Random seed (default: 42)')
-    parser.add_argument('--batch-size', metavar='N', type=int, default=64,
+    parser.add_argument('--batch-size', metavar='N', type=int, default=100,
                         help='Batch size')
+    parser.add_argument('--num-classes', metavar='N', type=int, default=10,
+                        help='Number of classes')
     parser.add_argument('--input-size', default=(3, 32, 32), nargs=3, type=int, metavar='N N N',
                         help='Input all image dimensions (d h w, e.g. --input-size 3 224 224, '
                              'model default if none)')
+    parser.add_argument('--mean', type=float, nargs='+', default=(0.4914, 0.4822, 0.4465), metavar='MEAN',
+                        help='Override mean pixel value of dataset')
+    parser.add_argument('--std', type=float, nargs='+', default=(0.2023, 0.1994, 0.2010), metavar='STD',
+                        help='Override std deviation of of dataset')
     parser.add_argument('-j', '--num-workers', type=int, default=8, metavar='N',
                         help='How many training processes to use (default: 8)')
     parser.add_argument('--pin-memory', action='store_true', default=True,
@@ -21,7 +27,7 @@ def arg_parse():
     parser.add_argument('--use-multi-epochs-loader', action='store_true', default=False,
                         help='Use the multi-epochs-loader to save time at the beginning of every epoch')
 
-    # Dataset augmentation.
+    # Dataset augmentation. (Unused)
     parser.add_argument('--no-aug', action='store_true', default=False,
                         help='Disable all training augmentation, override other train aug args')
     parser.add_argument('--scale', type=float, nargs='+', default=[0.08, 1.0], metavar='PCT',
@@ -30,7 +36,7 @@ def arg_parse():
                         help='Random resize aspect ratio (default: 0.75 1.33)')
     parser.add_argument('--hflip', type=float, default=0.5,
                         help='Horizontal flip training aug probability')
-    parser.add_argument('--vflip', type=float, default=0.,
+    parser.add_argument('--vflip', type=float, default=0,
                         help='Vertical flip training aug probability')
     parser.add_argument('--color-jitter', type=float, default=0.4, metavar='PCT',
                         help='Color jitter factor (default: 0.4)')
@@ -64,7 +70,7 @@ def arg_parse():
                         help='Test/inference time augmentation (oversampling) factor')
 
     # Optimizer parameters.
-    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='Learning rate (default: 1e-3)')
     parser.add_argument('--opt', default='sgd', type=str, metavar='OPTIMIZER',
                         help='Optimizer (default: "sgd"')
@@ -74,7 +80,7 @@ def arg_parse():
                         help='Optimizer Betas (default: None, use opt default)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='Optimizer momentum (default: 0.9)')
-    parser.add_argument('--weight-decay', type=float, default=0.05,
+    parser.add_argument('--weight-decay', type=float, default=1e-3,
                         help='Weight decay (default: 0.05)')
     parser.add_argument('--clip-grad', type=float, default=None, metavar='NORM',
                         help='Clip gradient norm (default: none, no clipping)')
@@ -82,8 +88,8 @@ def arg_parse():
                         help='Gradient clipping mode, one of ("norm", "value", "agc")')
 
     # Scheduler parameters.
-    parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
-                        help='LR scheduler (default: "step"')
+    parser.add_argument('--sched', default='multistep', type=str, metavar='SCHEDULER',
+                        help='LR scheduler (default: "multistep"')
     parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='PCT, PCT',
                         help='Learning rate noise on/off epoch percentages')
     parser.add_argument('--lr-noise-pct', type=float, default=0.67, metavar='PERCENT',
@@ -98,11 +104,11 @@ def arg_parse():
                         help='Learning rate cycle limit, cycles enabled if > 1')
     parser.add_argument('--lr-k-decay', type=float, default=1.0,
                         help='Learning rate k-decay for cosine/poly (default: 1.0)')
-    parser.add_argument('--warmup-lr', type=float, default=1e-6, metavar='LR',
+    parser.add_argument('--warmup-lr', type=float, default=0.01, metavar='LR',
                         help='Warmup learning rate (default: 1e-6)')
-    parser.add_argument('--min-lr', type=float, default=1e-6, metavar='LR',
+    parser.add_argument('--min-lr', type=float, default=1e-5, metavar='LR',
                         help='Lower lr bound for cyclic schedulers that hit 0 (1e-5)')
-    parser.add_argument('--epochs', type=int, default=300, metavar='N',
+    parser.add_argument('--epochs', type=int, default=100, metavar='N',
                         help='Number of epochs to train (default: 300)')
     parser.add_argument('--decay-epochs', type=float, default=100, metavar='N',
                         help='Epoch interval to decay LR')
@@ -114,6 +120,8 @@ def arg_parse():
                         help='Patience epochs for Plateau LR scheduler (default: 10')
     parser.add_argument('--decay-rate', '--dr', type=float, default=0.1, metavar='RATE',
                         help='LR decay rate (default: 0.1)')
+    parser.add_argument('--decay-milestones', '--dm', default=[
+                        35, 65], nargs='+', metavar='RATE', help='LR decay milestones (default: 100, 150)')
 
     # Misc.
     parser.add_argument('--forbid-eval-nan', action='store_true',
