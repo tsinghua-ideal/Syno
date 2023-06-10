@@ -19,37 +19,9 @@ if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
 from train import train
 from utils.data import get_dataloader
-from utils.models import KASConv
+from utils.models import KASConv, ModelBackup
 from utils.parser import arg_parse
-
-
-class ModelBackup:
-    def __init__(self, model, sample_input: Tensor, device='cuda:0') -> None:
-        self._model_builder = model
-        self._sample_input = sample_input.to(device)
-
-        self._model = self._model_builder().to(device)
-        macs, params = profile(self._model, inputs=(
-            self._sample_input, ), verbose=False)
-        print(
-            f"Referenced model has {round(macs / 1e9, 3)}G MACs and {round(params / 1e6, 3)}M parameters ")
-        self.base_macs = macs - \
-            self._model.generatePlaceHolder(self._sample_input)
-        print(f"Base MACs is {self.base_macs}")
-
-    def create_instance(self) -> nn.Module:
-        self._model._initialize_weight()
-        return self._model
-
-    def restore_model_params(self, model, pack: List[KernelPack]):
-        """
-        Restore model parameters and replace the selected parameters with pack.
-        """
-        assert len(pack) > 0, "Not detected any placeholders! "
-        assert isinstance(pack[0], KernelPack
-                          ), f"elements in pack are not valid! {type(pack[0])}"
-        Sampler.replace(model, pack)
-        return model
+from utils.config import parameters
 
 
 def conv2d(assembler: Assembler) -> Assembled:
@@ -89,27 +61,16 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
 
     args = arg_parse()
+    training_params, sampler_params, extra_args = parameters(args)
     use_cuda = torch.cuda.is_available()
 
     os.makedirs(args.kas_sampler_save_dir, exist_ok=True)
 
     train_data_loader, validation_data_loader = get_dataloader(args)
 
-    sample_input = train_data_loader.dataset[0][0][None, :].repeat(
-        args.batch_size, 1, 1, 1)
-
-    training_params = dict(
-        train_loader=train_data_loader,
-        val_loader=validation_data_loader,
-        lr=0.0001,
-        # momentum=0.9,
-        epochs=50,
-        val_period=1,
-        use_cuda=use_cuda
-    )
-
     device = torch.device("cuda" if use_cuda else "cpu")
-    model_ = ModelBackup(KASConv, sample_input, device)
+    model_ = ModelBackup(KASConv, torch.randn(
+        extra_args["sample_input_shape"]), device)
 
     kas_sampler = Sampler(
         input_shape="[N,C_in,H,W]",

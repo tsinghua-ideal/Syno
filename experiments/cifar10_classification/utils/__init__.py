@@ -1,1 +1,1 @@
-from . import data, models, parser, device
+from . import data, models, parser, device, config

@@ -7,6 +7,7 @@ import time
 import logging
 from typing import Tuple, List
 from tqdm import tqdm
+from timm.optim import create_optimizer_v2, optimizer_kwargs
 
 from utils.models import ConvNet
 from utils.data import get_dataloader
@@ -17,6 +18,7 @@ def train(
     model: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
+    args,
     lr,
     epochs,
     val_period=1,
@@ -27,7 +29,7 @@ def train(
     if use_cuda:
         assert torch.cuda.is_available(), "CUDA is not supported. "
         model.cuda()
-    optimizer = optim.AdamW(model.parameters(), lr=lr)
+    optimizer = create_optimizer_v2(model, **optimizer_kwargs(cfg=args))
     best_model_state_dict = {}
 
     model.train()
