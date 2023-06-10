@@ -38,16 +38,17 @@ def manually_design(assembler: Assembler) -> Assembled:
     # [H, s_2, W, s_2]
 
     # Create a ShareOp.
-    shared_s_2 = assembler.create_share(w_s_2, strided_window_H)
+    shared_s_2 = assembler.create_share(strided_window_H, w_s_2)
     # [H, s_2, W]
 
     # Create a ShiftOp.
-    shifted_W = assembler.create_shift(in_W, 1)
+    # shifted_W = assembler.create_shift(in_W, 1)
     # [H, s_2, W]
 
     main_H.output(0) # Mark the H as output.
-    shifted_W.output(1) # Mark the W as output.
-    shared_s_2.sum(0) # Mark the s_2 as sum reduction.
+    in_W.output(1)
+    # shifted_W.output(1) # Mark the W as output.
+    shared_s_2.mean(0) # Mark the s_2 as sum reduction.
 
     # Specify the input tensors.
     return assembler.assemble([in_H, in_W], [w_s_2])
@@ -56,6 +57,7 @@ def perform_trials(manual: bool):
     net = Model()
     sampler = Sampler("[H,W]", "[H,W]", [], ["s_1=2", "s_2=3"], net=net, seed=42, depth=8,
                       cuda=False, autoscheduler=CodeGenOptions.ComputeRoot)
+    sampler._bind_debug_context()
 
     if not manual:
         while True:
@@ -67,7 +69,9 @@ def perform_trials(manual: bool):
     else:
         assembler = sampler.create_assembler()
         node = manually_design(assembler)
-        print(f"Manually created {node.convert_to_path(sampler)}")
+        plausible_path = node.convert_to_path(sampler)
+        print(f"Manually created {plausible_path}")
+        sampler.visit(plausible_path) # Just to make sure it exists.
         kernel_packs, _ = sampler.realize(net, node, "test_sampler")
     sampler.replace(net, kernel_packs)
 
