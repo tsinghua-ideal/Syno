@@ -23,7 +23,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<SampleOptions>(m, "SampleOptions")
         .def(
-            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float minimumMergeRatio, bool disallowDiscontinuousView, bool canonicalizeUnfoldOrder, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold) {
+            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float minimumMergeRatio, bool disallowDiscontinuousView, bool canonicalizeUnfoldOrder, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, bool disableMerge, bool disableSplit, bool disableShift, bool disableStride, bool disableUnfold, bool disableShare) {
                 return SampleOptions {
                     .seed = seed,
                     .depth = depth,
@@ -48,6 +48,12 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
                     .disallowStrideAboveMergeR = disallowStrideAboveMergeR,
                     .disallowUnfoldLAboveShift = disallowUnfoldLAboveShift,
                     .disallowShiftAboveUnfold = disallowShiftAboveUnfold,
+                    .disableMerge = disableMerge,
+                    .disableSplit = disableSplit,
+                    .disableShift = disableShift,
+                    .disableStride = disableStride,
+                    .disableUnfold = disableUnfold,
+                    .disableShare = disableShare,
                 };
             }),
             pybind11::arg("seed") = 42,
@@ -72,7 +78,13 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("disallow_merge_with_large_block_above_stride") = false,
             pybind11::arg("disallow_stride_above_merge_r") = false,
             pybind11::arg("disallow_unfold_l_above_shift") = true,
-            pybind11::arg("disallow_shift_above_unfold") = false
+            pybind11::arg("disallow_shift_above_unfold") = false,
+            pybind11::arg("disable_merge") = false,
+            pybind11::arg("disable_split") = false,
+            pybind11::arg("disable_shift") = false,
+            pybind11::arg("disable_stride") = false,
+            pybind11::arg("disable_unfold") = false,
+            pybind11::arg("disable_share") = false
         )
         .def_readonly("seed", &SampleOptions::seed)
         .def_readonly("depth", &SampleOptions::depth)

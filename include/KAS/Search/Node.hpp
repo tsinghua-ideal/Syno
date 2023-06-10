@@ -111,7 +111,9 @@ public:
     }
     const Slot& getSlot(std::size_t key) const {
         auto it = findSlot(key);
-        KAS_ASSERT(it != slots.end() && it->key == key, "Slot not found.");
+        if (it == slots.end() || it->key != key) {
+            KAS_CRITICAL("Slot with type {} and key {} not found! Existing: {} slots.", Slot::SlotType, key, slots.size());
+        }
         return *it;
     }
     Slot& getSlot(std::size_t key) { return const_cast<Slot&>(std::as_const(*this).getSlot(key)); }

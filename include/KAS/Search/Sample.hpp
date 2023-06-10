@@ -73,6 +73,15 @@ public:
     bool disallowUnfoldLAboveShift = true;
     bool disallowShiftAboveUnfold = false;
 
+    // Some switches.
+    bool disableMerge = false;
+    bool disableSplit = false;
+    bool disableShift = false;
+    bool disableStride = false;
+    bool disableUnfold = false;
+    // But these switches I suspect you will never use.
+    bool disableShare = false;
+
     void check() const;
 };
 
