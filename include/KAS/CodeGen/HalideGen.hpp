@@ -48,6 +48,9 @@ struct HalideAccess {
     std::vector<std::vector<Halide::Expr>> inputs; // Inner arrays are in reverse order.
     std::vector<Halide::Expr> output; // In reverse order.
 
+    // Description of the expression.
+    std::optional<Halide::Expr> divBy;
+
     // Lower to Halide.
     HalideAccess(const ConcreteConsts& consts, const AbstractAccess& access);
 };

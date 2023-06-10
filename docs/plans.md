@@ -24,7 +24,7 @@
 - [x] Add padding by padding variables that cannot be divided by their denominators.
 - [ ] Optimization: Early reduction to reduce FLOPs.
 - [ ] Early reduction analysis is actually compulsory. Otherwise in autodiff settings, the RDom may be left unmentioned, causing Halide compile errors!
-- [ ] Sum -> Avg.
+- [x] Sum -> Avg.
 - [ ] Perform a trial to see if there are uncanonical case. (1 on weight)
 - [ ] Multiple weights. (Minimumize difference.)
 
@@ -32,6 +32,7 @@
 
 - [ ] Add ReverseOp.
 - [ ] Random shuffle convolution.
+- [ ] What is a MergeOp by the way?
 
 ## Search
 

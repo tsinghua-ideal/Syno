@@ -29,7 +29,7 @@ TEST_F(semantics_tests, pool2d) {
     auto dimH_dot_K_and_dimW_dot_K = Forward::MergeOp::Create(dimH_dot_K, dimW_dot_K);
     // [N, C, H/K, W/K, K^2], where the two K from H and W are merged into K^2.
 
-    dimH_dot_K_and_dimW_dot_K.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+    dimH_dot_K_and_dimW_dot_K.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Mean);
     // [N, C, H/K, W/K], where the K^2 is reduced.
 
     dimN.output(0);
@@ -46,7 +46,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
             for (int i_3 = 0; i_3 < K^-1*W; i_3++) {
                 float temp_ri_0 = 0;
                 for (int ri_0 = 0; ri_0 < K^2; ri_0++) {
-                    temp_ri_0 += in_0[i_0,i_1,((i_2)*(K))+((ri_0)/(K)),((i_3)*(K))+((ri_0)%(K))];
+                    temp_ri_0 += in_0[i_0,i_1,((i_2)*(K))+((ri_0)/(K)),((i_3)*(K))+((ri_0)%(K))] / (K^2);
                 }
                 out[i_0,i_1,i_2,i_3] = temp_ri_0;
             }
@@ -59,7 +59,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     for (int i_1 = 0; i_1 < C; i_1++) {
         for (int i_2 = 0; i_2 < H; i_2++) {
             for (int i_3 = 0; i_3 < W; i_3++) {
-                grad_in_0[i_0,i_1,i_2,i_3] = grad_out[i_0,i_1,(i_2)/(K),(i_3)/(K)];
+                grad_in_0[i_0,i_1,i_2,i_3] = grad_out[i_0,i_1,(i_2)/(K),(i_3)/(K)] / (K^2);
             }
         }
     }
@@ -86,8 +86,8 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
         for (int C = 0; C < c; ++C) {
             for (int H = 0; H < hp / k; ++H) {
                 for (int W = 0; W < wp / k; ++W) {
-                    auto res = k * k * (N + C + k * H + k * W + 2 * (k - 1) / 2);
-                    ASSERT_EQ(trial(N, C, H, W), res);
+                    auto res = N + C + k * H + k * W + 2 * (k - 1) / 2;
+                    ASSERT_FLOAT_EQ(trial(N, C, H, W), res);
                 }
             }
         }
@@ -98,9 +98,9 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
                 for (int W = 0; W < wp; ++W) {
                     bool inBound = H < k * (hp / k) && W < k * (wp / k);
                     if (inBound) {
-                        ASSERT_EQ(backwardTrials[0](N, C, H, W), N + C + H / k + W / k);
+                        ASSERT_FLOAT_EQ(backwardTrials[0](N, C, H, W) * k * k, N + C + H / k + W / k);
                     } else {
-                        ASSERT_EQ(backwardTrials[0](N, C, H, W), 0);
+                        ASSERT_FLOAT_EQ(backwardTrials[0](N, C, H, W), 0);
                     }
                 }
             }

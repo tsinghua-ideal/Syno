@@ -77,8 +77,8 @@ std::vector<const MapReduceOp *> MapReduceOp::Generate(ReductionStore& store, co
     std::vector<const MapReduceOp *> res;
     for (Size size: allowance.enumerateSizes(ctx)) {
         if (canonical(size) && withinFLOPs(size)) {
-            // For simplicity, we only use Identity and Sum. TODO: Add more.
-            res.push_back(store.get(current.size(), std::move(size), MapType::Identity, ReduceType::Sum));
+            // For simplicity, we only use Identity and Mean. TODO: Add more.
+            res.push_back(store.get(current.size(), std::move(size), MapType::Identity, ReduceType::Mean));
         }
     }
 

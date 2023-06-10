@@ -22,6 +22,9 @@ class DimensionEvaluator {
     std::vector<IteratorValue> innerLoops;
     std::vector<Size> innerLoopsShape;
 
+    // Description of the expression.
+    std::optional<Size> divBy;
+
     // Extract the values of branches of this Op.
     template<Vertex V>
     decltype(auto) getBranches(const V& v) {

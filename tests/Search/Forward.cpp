@@ -26,13 +26,15 @@ TEST_F(search_tests, forward) {
     dimN.output(0);
     dimH_over_K.output(1);
     dimW_over_K.output(2);
-    dimK2_shared.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
-    dimK1_shared.reduce(1, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+    dimK2_shared.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Mean);
+    dimK1_shared.reduce(1, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Mean);
     // [N, H, W], the output.
 
     Interface input { dimN, dimH, dimW }, weight { dimK1, dimK2 };
-    auto tensorView = TensorView { input, weight };
-    auto path = sampler.convertTensorViewToPath({ input, weight });
+    std::vector<Interface> tensors { input, weight };
+    Sampler::ConvertTensorViewToSearchableOrder(tensors);
+    auto tensorView = TensorView { tensors };
+    auto path = sampler.convertTensorViewToPath(tensors);
     fmt::print("A possible path is:\n");
     for (auto&& next: path) {
         fmt::print("{}\n", next.toString());

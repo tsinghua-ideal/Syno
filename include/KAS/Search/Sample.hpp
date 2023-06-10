@@ -129,6 +129,7 @@ public:
     // The path is intended to visit a TensorView, but it may fail, in which case we rely on the search algorithm to penalize it.
     std::pair<std::vector<Next>, Node> randomNodeWithPrefix(const std::vector<Next>& prefix);
 
+    static void ConvertTensorViewToSearchableOrder(std::vector<Interface>& tensorView);
     std::vector<Next> convertTensorViewToPath(const std::vector<Interface>& tensorView) const;
 };
 

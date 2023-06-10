@@ -44,6 +44,9 @@ struct AbstractAccess {
     std::vector<std::vector<IteratorValue>> inputs;
     std::vector<IteratorValue> output;
 
+    // Description of the expression.
+    std::optional<Size> divBy;
+
     // The standard interface, i.e., the outer loops.
     std::string outerLoopsIteratorsToString() const;
 

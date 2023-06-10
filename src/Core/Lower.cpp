@@ -1,4 +1,5 @@
 #include "KAS/Core/Lower.hpp"
+#include "KAS/Utils/Algorithm.hpp"
 
 
 namespace kas {
@@ -17,6 +18,14 @@ void DimensionEvaluator::assign(const Dimension& dim, IteratorValue value) {
 DimensionEvaluator::DimensionEvaluator(const Graph& graph):
     graph { graph }
 {
+    // Collect expression info from graph.
+    auto avg = graph.getMapReduceIterators()
+        | std::views::filter([](const MapReduceOp *op) {
+            return op->getReduce() == MapReduceOp::ReduceType::Mean;
+        })
+        | std::views::transform(&MapReduceOp::size);
+    divBy = FoldLeftFirst(avg, std::multiplies<Size>{});
+
     // Initialize the unknown and free set.
     std::ranges::copy(graph.getDimensions(), std::inserter(unknownDimensions, unknownDimensions.end()));
     std::ranges::copy(graph.getDimensions(), std::inserter(freeCandidates, freeCandidates.end()));
@@ -70,6 +79,7 @@ AbstractAccess DimensionEvaluator::toAccess(int position, const std::vector<Pure
         .innerLoopsShape = std::move(innerLoopsShape),
         .inputs = std::move(inputsAccesses),
         .output = extractValues(output),
+        .divBy = std::move(divBy)
     };
 }
 

@@ -154,6 +154,13 @@ std::pair<std::vector<Next>, Node> Sampler::randomNodeWithPrefix(const std::vect
     return { std::move(path), std::move(cur) };
 }
 
+void Sampler::ConvertTensorViewToSearchableOrder(std::vector<Interface>& tensorView) {
+    // First sort the weights in order of hash. This somewhat duplicates the functionality in Forward::buildTensorView(). TODO
+    std::ranges::for_each(tensorView | std::views::drop(1), [](Interface& dims) {
+        std::ranges::sort(dims, Dimension::HashLessThan{});
+    });
+}
+
 std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<Interface>& tensorView) const {
     Graph::Builder builder;
     builder.addTopmost(tensorView | std::views::join);

@@ -32,9 +32,9 @@ def test_pool2d():
 
     t_in = torch.randn([64, 3, 128, 128], device=device)
     with torch.no_grad():
-        t_out = kas_pooling(t_in) / 25
+        t_out = kas_pooling(t_in)
         t_out_expected = torch_pooling(t_in)
-        print("kas:", t_out.view(-1)[:10])
+        print("kas:", t_out.reshape(-1)[:10])
         print("torch:", t_out_expected.view(-1)[:10])
         # Actually we cannot make them close. The padding shifts the tiles by 1.
         print("forward is close:", torch.isclose(t_out[:,:,5:-5,5:-5], t_out_expected[:,:,5:-5,5:-5]).all())
@@ -48,9 +48,9 @@ def test_pool2d():
     grad_torch = t_in.grad.detach()
     torch_pooling.zero_grad()
     t_in.grad = None
-    print("grad_kas:", grad_kas.view(-1)[1500000:1500010])
+    print("grad_kas:", grad_kas.reshape(-1)[1500000:1500010])
     print("grad_torch:", grad_torch.view(-1)[1500000:1500010])
-    backward_is_close = torch.isclose((grad_kas / 25)[:,:,5:-5,5:-5], grad_torch[:,:,5:-5,5:-5]).all()
+    backward_is_close = torch.isclose(grad_kas[:,:,5:-5,5:-5], grad_torch[:,:,5:-5,5:-5]).all()
     print("backward is close:", backward_is_close)
     assert backward_is_close
 

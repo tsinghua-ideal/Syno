@@ -185,6 +185,12 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             },
             pybind11::arg("priority")
         )
+        .def(
+            "mean", [](Forward::Dimension& self, std::size_t priority) {
+                self.reduce(priority, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Mean);
+            },
+            pybind11::arg("priority")
+        )
         .def("size", &Forward::Dimension::sizeToString);
 
     pybind11::class_<Forward::Factory>(m, "Assembler")
