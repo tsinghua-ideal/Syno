@@ -24,10 +24,15 @@
 - [x] Add padding by padding variables that cannot be divided by their denominators.
 - [ ] Optimization: Early reduction to reduce FLOPs.
 - [ ] Early reduction analysis is actually compulsory. Otherwise in autodiff settings, the RDom may be left unmentioned, causing Halide compile errors!
+- [x] Sum -> Avg.
+- [ ] Perform a trial to see if there are uncanonical case. (1 on weight)
+- [ ] Multiple weights. (Minimumize difference.)
 
 ## Transforms
 
 - [ ] Add ReverseOp.
+- [ ] Random shuffle convolution.
+- [ ] What is a MergeOp by the way?
 
 ## Search
 
@@ -42,8 +47,8 @@
 - [x] Add pruning with respect to finalizability criteria.
 - [ ] Add even more pruning with respect to finalizability criteria.
 - [x] Canonicalize by pruning uncanonicalized Ops. (E.g., SplitOp and MergeOp should not be generated above Sum reductions, or below a weight dimension, e.t.c..)
-- [ ] Canonicalize transforms on weight. (E.g., SplitOp and MergeOp should not be generated below a weight dimension.)
-- [ ] `ShareOp::IsSharedDimensionCanonical()` still needs some modifications.
+- [x] Canonicalize transforms on weight. (E.g., SplitOp and MergeOp should not be generated below a weight dimension.)
+- [x] `ShareOp::IsSharedDimensionCanonical()` still needs some modifications.
 - [ ] Add mechanisms to automatically discover equivalent kernels. (TASO-like?)
 
 ### Misc
@@ -52,7 +57,10 @@
 - [ ] Allow direct construction of kernel from primitives and parameters, without building the search tree.
 - [ ] Discover full-dead-end subtrees and report to Python.
 - [ ] Multithreaded search tree building.
-- [ ] Compute a Path from a TensorView, to verify searchability.
+- [x] Compute a Path from a TensorView, to verify searchability.
+- [x] Robustify the TensorView -> Path function.
+- [ ] Add visualization for search space, e.g., draw the DAG interactively.
+- [x] Node -> Graphviz.
 
 ## Experiment
 

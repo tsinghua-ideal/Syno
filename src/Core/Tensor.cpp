@@ -55,7 +55,7 @@ std::string AbstractAccess::accessToString(const BindingContext& ctx, int pos) c
 }
 
 std::string AbstractAccess::statementToString(const BindingContext& ctx) const {
-    return fmt::format("{}", fmt::join(
+    return fmt::format("{}{}", fmt::join(
         std::views::iota(std::size_t{0}, inputs.size())
         | std::views::transform([&](std::size_t pos) {
             if (pos == position) {
@@ -64,7 +64,9 @@ std::string AbstractAccess::statementToString(const BindingContext& ctx) const {
                 return fmt::format("in_{}{}", pos, accessToString(ctx, pos));
             }
         }),
-    " * "));
+    " * "),
+    divBy ? fmt::format(" / ({})", divBy->toString(ctx)) : ""
+    );
 }
 
 std::string AbstractAccess::targetEntryToString() const {
@@ -119,8 +121,9 @@ std::size_t TensorView::getFLOPs(const ConcreteConsts& consts) const {
     std::size_t outerLoopsIterations = getInterfaceShape().totalSize().eval<std::size_t>(consts);
     std::size_t innerLoopsIterations = getManipulations().size() > 0 ? Size::Product(getManipulations() | std::views::transform([](const MapReduceOp *op) -> const Size& { return op->size(); })).eval<std::size_t>(consts) : 1;
     std::size_t mult = getUnderlyingTensors().size() - 1;
-    // Multiplication + Addition
-    return outerLoopsIterations * innerLoopsIterations * mult + outerLoopsIterations * (innerLoopsIterations - 1);
+    bool hasDivBy = forwardAccess.divBy.has_value();
+    // Multiplication + Addition + Division
+    return outerLoopsIterations * innerLoopsIterations * (mult + hasDivBy) + outerLoopsIterations * (innerLoopsIterations - 1);
 }
 
 namespace {

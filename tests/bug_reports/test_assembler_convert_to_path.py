@@ -60,7 +60,7 @@ def test_realize():
         input_shape="[N,H,W]",
         output_shape="[N,C_out,H,W]",
         primary_specs=["N=4096: 1", "H=256", "W=256", "C_out=100"],
-        coefficient_specs=["s_1=2", "k_1=3", "k_2=5"],
+        coefficient_specs=["s_1=2", "k_1=3", "k_2=5: 4"],
         seed=0xdeadbeaf,
         depth=8,
         dim_lower=2,

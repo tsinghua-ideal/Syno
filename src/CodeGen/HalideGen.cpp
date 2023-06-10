@@ -103,6 +103,11 @@ HalideAccess::HalideAccess(const ConcreteConsts& consts, const AbstractAccess& a
         inputs.emplace_back(std::move(lowered));
     }
     std::ranges::reverse(outerLoops); // To adapt to column-major Halide.
+
+    // Handle the expression.
+    if (access.divBy) {
+        divBy = ConcretizeSize(consts, *access.divBy);
+    }
 }
 
 void HalideGen::GuardAutoSchedulers() {
@@ -136,24 +141,26 @@ Halide::Func HalideGen::lower(std::vector<Halide::ImageParam>& inputTensors, Hal
         }
         ++inputId;
     }
+    if (access.divBy) {
+        // Handle the expression.
+        rhs = rhs / *access.divBy;
+    }
 
-    Halide::Expr guardedRhs;
-    if (access.constraints.empty()) {
-        guardedRhs = rhs;
-    } else {
+    // Guard the boundary.
+    if (!access.constraints.empty()) {
         Halide::Expr conditions = access.constraints[0];
         for (std::size_t i = 1; i < access.constraints.size(); ++i) {
             conditions = conditions && access.constraints[i];
         }
-        guardedRhs = Halide::select(conditions, Halide::likely(rhs), 0.0f);
+        rhs = Halide::select(conditions, Halide::likely(rhs), 0.0f);
     }
 
-    if (!access.reductionDomain.defined()) {
-        func(access.outerLoops) = guardedRhs;
-    } else {
+    // Perform reduction.
+    if (access.reductionDomain.defined()) {
         // TODO: In autodiff, guardedRhs may contain no RVar at all, in which case this throws!
-        func(access.outerLoops) = Halide::sum(guardedRhs);
+        rhs = Halide::sum(rhs);
     }
+    func(access.outerLoops) = rhs;
     return func;
 }
 

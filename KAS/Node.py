@@ -127,6 +127,15 @@ class Node:
     def estimate_total_flops_as_final(self) -> int:
         return self._node.estimate_total_flops_as_final()
 
+    def generate_graphviz(self, dir: str, name: str) -> None:
+        self._node.generate_graphviz(dir, name)
+
+    def generate_graphviz_as_final(self, dir: str, name: str) -> None:
+        self._node.generate_graphviz_as_final(dir, name)
+
+    def get_nested_loops_as_final(self) -> str:
+        return self._node.get_nested_loops_as_final()
+
     def to_node(self) -> 'Node':
         return Node(self._node)
 

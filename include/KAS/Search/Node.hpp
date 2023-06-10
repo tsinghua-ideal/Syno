@@ -213,6 +213,11 @@ public:
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const;
     // Obtain the mappings from Sampler, and do not solve the paddings. We only want to estimate the FLOPs.
     std::size_t estimateTotalFLOPsAsFinal() const;
+    // No tensors!
+    void generateGraphviz(const std::string& dir, const std::string& name) const;
+    // With tensors!
+    void generateGraphvizAsFinal(const std::string& dir, const std::string& name) const;
+    std::string getNestedLoopsAsFinal() const;
 
     // The count of children nodes.
     std::size_t countChildren() const;

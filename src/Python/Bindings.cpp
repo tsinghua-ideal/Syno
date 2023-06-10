@@ -164,6 +164,9 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("all_mappings"), pybind11::arg("halide_options")
         )
         .def("estimate_total_flops_as_final", &Node::estimateTotalFLOPsAsFinal)
+        .def("generate_graphviz", &Node::generateGraphviz)
+        .def("generate_graphviz_as_final", &Node::generateGraphvizAsFinal)
+        .def("get_nested_loops_as_final", &Node::getNestedLoopsAsFinal)
         .def("__repr__", &Node::toString);
 
     pybind11::class_<Size>(m, "Size")
@@ -179,6 +182,12 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def(
             "sum", [](Forward::Dimension& self, std::size_t priority) {
                 self.reduce(priority, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+            },
+            pybind11::arg("priority")
+        )
+        .def(
+            "mean", [](Forward::Dimension& self, std::size_t priority) {
+                self.reduce(priority, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Mean);
             },
             pybind11::arg("priority")
         )
@@ -207,7 +216,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def_static("create_unfold", &Forward::UnfoldOp::Create)
         .def(
             "convert_assembled_to_path", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const Sampler& sampler) -> std::vector<Next> {
-                return sampler.convertTensorViewToPath(Forward::Factory::ForwardDimsToBackwardDims(tensors));
+                auto backTensors = Forward::Factory::ForwardDimsToBackwardDims(tensors);
+                return sampler.convertTensorViewToPath(backTensors);
             }
         )
         .def(
