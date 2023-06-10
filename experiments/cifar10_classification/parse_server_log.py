@@ -3,6 +3,8 @@ Parse the log of servers. Useful before the training ends.
 """
 
 import torch
+import numpy as np
+import matplotlib.pyplot as plt
 
 import argparse
 import re
@@ -66,7 +68,7 @@ def main():
         if i < len(log_file) - 1 and log_file[i+1] == "Successfully updated MCTS. \n":
             path_raw = re.search("name=[\d|_]+", line).group()[len("name="):]
             path = TreePath.deserialize(path_raw)
-            reward = re.search("\$[\d|\.]+", line).group()[1:]
+            reward = float(re.search("\$[\d|\.]+", line).group()[1:])
             paths.append(path)
             rewards.append(reward)
         elif line == "**************** Logged Summary ******************\n":
@@ -81,7 +83,22 @@ def main():
     perf = zip(rewards, paths)
     best_reward, best_path = max(perf, key=lambda x: x[0])
 
-    create_sample(args, best_path)
+    # create_sample(args, best_path)
+
+    avgrewards = np.cumsum(rewards) / (np.arange(len(rewards)) + 1)
+    plt.plot(avgrewards, marker='o')
+    plt.xlabel("Iterations")
+    plt.ylabel("Accuracy")
+    plt.title("Average Accuracy w.r.t. time")
+    plt.savefig(os.path.join(args.output_path, 'AverageReward.jpg'))
+    plt.clf()
+
+    maxrewards = [np.max(rewards[:i+1]) for i in range(len(rewards))]
+    plt.plot(maxrewards, marker='o')
+    plt.xlabel("Iterations")
+    plt.ylabel("Accuracy")
+    plt.title("Maximum Accuracy w.r.t. time")
+    plt.savefig(os.path.join(args.output_path, 'MaximumReward.jpg'))
 
     with open(os.path.join(args.output_path, 'parsed.log'), 'w') as f_out:
         f_out.write(
