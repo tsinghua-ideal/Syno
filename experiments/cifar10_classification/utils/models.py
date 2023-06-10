@@ -1,12 +1,12 @@
-from torch import nn, Tensor
+from torch import nn, Tensor, Size
 from thop import profile
-from typing import List
+from typing import List, Callable
 
 from KAS import Placeholder, KernelPack, Sampler
 
 
 class ModelBackup:
-    def __init__(self, model, sample_input: Tensor, device='cuda:0', replace=True) -> None:
+    def __init__(self, model: Callable, sample_input: Tensor, device='cuda:0') -> None:
         self._model_builder = model
         self._sample_input = sample_input.to(device)
 
@@ -15,13 +15,11 @@ class ModelBackup:
             self._sample_input, ), verbose=False)
         print(
             f"Referenced model has {round(macs / 1e9, 3)}G MACs and {round(params / 1e6, 3)}M parameters ")
-        if replace:
-            self.base_macs = macs - \
-                self._model.generatePlaceHolder(self._sample_input)
-            print(f"Base MACs is {self.base_macs}")
+        self.base_macs = macs
+        print(f"Base MACs is {self.base_macs}")
 
     def create_instance(self) -> nn.Module:
-        # self._model._initialize_weight()
+        self._model._initialize_weight()
         return self._model
 
     def restore_model_params(self, model, pack: List[KernelPack]):
@@ -66,6 +64,23 @@ class ConvNet(nn.Module):
         return self.dense(feats.view(B, -1))
 
 
+def mapping_func_conv(in_size: Size, out_size: Size):
+    N, C1, H, W = in_size
+    N2, C2, H2, W2 = out_size
+    assert N2 == N, f"Batch size change detected! {N} -> {N2}. "
+    assert H2 == H and W2 == W, "Not using same padding. "
+    mapping = {"N": N, "C_in": C1, "C_out": C2, "H": H, "W": W}
+    return mapping
+
+
+def mapping_func_linear(in_size: Size, out_size: Size):
+    N, C1 = in_size
+    N2, C2 = out_size
+    assert N2 == N, f"Batch size change detected! {N} -> {N2}. "
+    mapping = {"N": N, "C_in": C1, "C_out": C2}
+    return mapping
+
+
 class KASModule(nn.Module):
     """
     Not Fully Implemented!!!
@@ -84,51 +99,20 @@ class KASModule(nn.Module):
     def bootstraped(self) -> bool:
         return self.layers is not None
 
-    def generatePlaceHolder(self, x: Tensor) -> Tensor:
-        """Replace blocks with Placeholder for search"""
-        assert not self.bootstraped(), "the module has been replaced"
-
-        layers = []
-        replaced_macs = 0
-
-        # record the shape
-        for block in self.blocks:
-
-            if isinstance(block, nn.Conv2d) or isinstance(block, nn.Linear):
-                replaced_macs += profile(block, inputs=(x, ), verbose=False)[0]
-                N, C1, H, W = x.size()
-
-            x = block(x)
-
-            if isinstance(block, nn.Conv2d) or isinstance(block, nn.Linear):
-                N2, C2, H2, W2 = x.size()
-                assert N2 == N, f"Batch size change detected! {N} -> {N2}. "
-                assert H2 == H and W2 == W, "Not using same padding. "
-                block = Placeholder(
-                    {"N": N, "C_in": C1, "C_out": C2, "H": H, "W": W})
-
-            layers.append(block)
-
-        self.layers = nn.ModuleList(layers)
-        assert any([isinstance(block, Placeholder)
-                   for block in layers]), "Placeholder not detected"
-
-        return replaced_macs
-
     @staticmethod
     def init_weights(m):
         if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
             if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.bias, 0.)
         elif isinstance(m, nn.BatchNorm2d):
-            nn.init.constant_(m.weight, 1)
-            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.)
+            nn.init.constant_(m.bias, 0.)
         elif isinstance(m, nn.Conv2d):
             nn.init.kaiming_normal_(
                 m.weight, mode="fan_in", nonlinearity="relu")
             if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.bias, 0.)
 
     def _initialize_weight(self):
         self.apply(self.init_weights)

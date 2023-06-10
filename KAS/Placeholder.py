@@ -5,9 +5,13 @@ from .KernelPack import KernelPack
 
 
 class Placeholder(nn.Module):
-    def __init__(self, mappings: dict[str, int]) -> None:
+    def __init__(self, mappings: dict[str, int] = None, refered_layer: nn.Module = None, mapping_func=None) -> None:
         super(Placeholder, self).__init__()
+        assert mappings is not None or refered_layer is not None
         self.mappings = mappings
+        self.refered_layer = refered_layer
+        # takes in.size() and out.size() and returns the mapping
+        self.mapping_func = mapping_func
         self.kernel = None
         self._flops = 0
 
@@ -23,4 +27,11 @@ class Placeholder(nn.Module):
         return layer._flops * 2
 
     def forward(self, x) -> torch.Tensor:
-        return self.kernel(x)
+        if self.mappings is None:
+            out = self.refered_layer(x)
+            self.mappings = self.mapping_func(
+                x.size(), out.size())
+            print("PlaceHolder initialized.")
+            return out
+        else:
+            return self.kernel(x)

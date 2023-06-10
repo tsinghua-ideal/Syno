@@ -27,7 +27,7 @@ if __name__ == '__main__':
     training_params, sampler_params, extra_args = parameters(args)
     train_data_loader, validation_data_loader = get_dataloader(args)
     model_ = ModelBackup(resnet8, torch.randn(
-        extra_args["sample_input_shape"]), "cpu", replace=False)
+        extra_args["sample_input_shape"]), "cpu")
     model = model_.create_instance()
 
     start = time.time()

@@ -1,17 +1,14 @@
 import torch
-from torch import nn, Tensor
 
 # Systems
 import time
 import random
-from typing import List
 import os
 import sys
 import logging
-from thop import profile
 
 # KAS
-from KAS import Sampler, KernelPack, Assembled, Assembler
+from KAS import Sampler, Assembled, Assembler
 from KAS.Bindings import CodeGenOptions
 
 
@@ -20,6 +17,7 @@ if os.getcwd() not in sys.path:
 from train import train
 from utils.data import get_dataloader
 from utils.models import KASConv, ModelBackup
+from utils.kas_resnet import resnet8
 from utils.parser import arg_parse
 from utils.config import parameters
 
@@ -46,9 +44,9 @@ def conv2d(assembler: Assembler) -> Assembled:
     out_C.output(1)
     main_H.output(2)
     main_W.output(3)
-    shared_k_1.sum(0)
-    shared_k_2.sum(1)
-    shared_C_in.sum(2)
+    shared_k_1.mean(0)
+    shared_k_2.mean(1)
+    shared_C_in.mean(2)
 
     return assembler.assemble([in_N, in_C, in_H, in_W], [out_C, w_in_C, w_k_1, w_k_2])
 
@@ -69,7 +67,7 @@ if __name__ == '__main__':
     train_data_loader, validation_data_loader = get_dataloader(args)
 
     device = torch.device("cuda" if use_cuda else "cpu")
-    model_ = ModelBackup(KASConv, torch.randn(
+    model_ = ModelBackup(resnet8, torch.randn(
         extra_args["sample_input_shape"]), device)
 
     kas_sampler = Sampler(
