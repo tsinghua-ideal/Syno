@@ -33,10 +33,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 
-from torch.autograd import Variable
+import os
+import sys
 
 from KAS import Placeholder
-from models import mapping_func_conv, KASModule
+if os.getcwd() not in sys.path:
+    sys.path.append(os.getcwd())
+from utils.models import mapping_func_conv, KASModule
 
 __all__ = ['KASResNet', 'resnet8', 'resnet20', 'resnet32',
            'resnet44', 'resnet56', 'resnet110', 'resnet1202']
@@ -60,7 +63,8 @@ class KASBasicBlock(nn.Module):
             refered_layer=nn.Conv2d(
                 in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False),
             mapping_func=mapping_func_conv
-        )
+        ) if stride == 1 else nn.Conv2d(
+            in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = Placeholder(
             refered_layer=nn.Conv2d(

@@ -105,7 +105,7 @@ if __name__ == '__main__':
     print("Model size: {}".format(model_size))
 
     train_error, val_error, _ = train(
-        model, **training_params, verbose=True)
+        model, train_data_loader, validation_data_loader, args, **training_params, verbose=True)
     accuracy = 1. - min(val_error)
 
     print("Test Complete, elapsed {} seconds, accuracy {}. ".format(

@@ -31,8 +31,6 @@ def train(
     criterion = nn.CrossEntropyLoss().cuda()
     optimizer = create_optimizer_v2(model, **optimizer_kwargs(cfg=args))
     scheduler, sched_epochs = create_scheduler(args, optimizer)
-    # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
-    # scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100, 150], last_epoch=-1)
 
     best_model_state_dict = {}
 
@@ -53,9 +51,10 @@ def train(
             label = label.cuda()
 
             # inference
-            with torch.cuda.amp.autocast():
-                logits = model(image)
-                loss = criterion(logits, label)
+            # TODO: Add FP16 support (KAS part)
+            # with torch.cuda.amp.autocast():
+            logits = model(image)
+            loss = criterion(logits, label)
 
             # backward
             optimizer.zero_grad()

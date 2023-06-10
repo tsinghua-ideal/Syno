@@ -98,7 +98,7 @@ class KernelPack(nn.Module):
                 grad_output, output_pad_params).contiguous()
             # Call the operator.
             self._loader.backward(index,
-                *ctx.saved_tensors, grad_output, *grad_inputs)
+                                  *ctx.saved_tensors, grad_output, *grad_inputs)
             # Crop if needed.
             return tuple(
                 grad_input if crop_params is None else grad_input[crop_params]
@@ -113,6 +113,8 @@ class KernelPack(nn.Module):
         # TODO: maybe we should add weight initializer?
         self.weights = nn.ParameterList(
             [torch.randn(shape, device=device) for shape in unpadded_inputs_shapes[1:]])
+        self.weights.apply(
+            lambda m: torch.nn.init.kaiming_normal_(m, nonlinearity='relu'))
 
     def forward(self, x):
         return self._Kernel.apply(x, *self.weights)
