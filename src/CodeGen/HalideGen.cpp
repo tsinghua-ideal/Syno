@@ -13,34 +13,31 @@
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Tensor.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
 
-HalideAccess::HalideAccess(const ConcreteConsts& consts, const AbstractAccess& access):
-    position { access.position }
-{
-    // Prepare iterators.
-    for (auto& outerLoop: access.outerLoops) {
-        outerLoops.emplace_back(outerLoop.as<VariableValueNode>().name);
+void HalideGen::GuardAutoSchedulers() {
+    static bool loaded = false;
+    if (!loaded) {
+        Halide::load_plugin("autoschedule_mullapudi2016");
+        Halide::load_plugin("autoschedule_li2018");
+        Halide::load_plugin("autoschedule_adams2019");
+        Halide::load_plugin("autoschedule_anderson2021");
     }
-    auto reductionShape = ConcretizeShape(consts, access.innerLoopsShape, false); // The order of reduction does not matter, because interchanging them does not change the result.
-    std::vector<Halide::RVar> innerLoops;
-    if (reductionShape.size() > 0) {
-        reductionDomain = Halide::RDom(reductionShape);
-        for (std::size_t i = 0; i < reductionDomain.dimensions(); ++i) {
-            innerLoops.emplace_back(reductionDomain[i]);
-        }
-    }
+    loaded = true;
+}
 
+namespace {
     struct Evaluator: public IteratorValueVisitor {
         const ConcreteConsts& consts;
         const std::vector<Halide::Var>& outerLoops;
-        const std::vector<Halide::RVar>& innerLoops;
+        const std::vector<Halide::VarOrRVar>& innerLoops; // Manual rfactor requires Var.
         std::vector<Halide::Expr>& constraints;
         std::map<IteratorValue, Halide::Expr> cache;
-        Evaluator(const ConcreteConsts& consts, const std::vector<Halide::Var>& outerLoops, const std::vector<Halide::RVar>& innerLoops, std::vector<Halide::Expr>& constraints):
+        Evaluator(const ConcreteConsts& consts, const std::vector<Halide::Var>& outerLoops, const std::vector<Halide::VarOrRVar>& innerLoops, std::vector<Halide::Expr>& constraints):
             consts { consts },
             outerLoops { outerLoops },
             innerLoops { innerLoops },
@@ -51,7 +48,12 @@ HalideAccess::HalideAccess(const ConcreteConsts& consts, const AbstractAccess& a
             if (!value.isReduce) {
                 result = outerLoops[value.index];
             } else {
-                result = innerLoops[value.index];
+                const auto& var = innerLoops[value.index];
+                if (var.is_rvar) {
+                    result = var.rvar;
+                } else {
+                    result = var.var;
+                }
             }
         }
         void visit(ConstValueNode& value) override {
@@ -89,6 +91,56 @@ HalideAccess::HalideAccess(const ConcreteConsts& consts, const AbstractAccess& a
             return std::move(result);
         }
     };
+}
+
+HalideAccess HalideGen::lowerToAccess(const ConcreteConsts& consts, const AbstractAccess& access) const {
+    HalideAccess ret;
+    auto& [
+        position,
+        outerLoops,
+        rfactoredInnerLoops,
+        rfactoredDomain,
+        reductionDomain,
+        constraints,
+        inputs,
+        output,
+        divBy
+    ] = ret;
+
+    position = access.position;
+
+    // Prepare iterators.
+    for (auto& outerLoop: access.outerLoops) {
+        outerLoops.emplace_back(outerLoop.as<VariableValueNode>().name);
+    }
+    // The order of reduction does not matter, because interchanging them does not change the result.
+    auto reductionShape = ConcretizeShape(consts, access.innerLoopsShape, false);
+    std::vector<Halide::VarOrRVar> innerLoops;
+    if (reductionShape.size() > 0) {
+        // Check for rfactor.
+        bool rfactor = false;
+        // We only rfactor the outermost dimension, which is usually batch size. TODO: make this more flexible.
+        std::size_t rfactorCandidate = access.innerLoopsShape.sizes.back().eval<std::size_t>(consts);
+        // At least 2 reductions, otherwise rfactor is meaningless.
+        if (reductionShape.size() >= 2) {
+            // We must not rfactor too small a size.
+            if (rfactorCandidate >= options.rfactorThreshold) {
+                rfactor = true;
+                reductionShape.pop_back();
+            }
+        }
+        reductionDomain = Halide::RDom(reductionShape);
+        for (std::size_t i = 0; i < reductionDomain.dimensions(); ++i) {
+            innerLoops.emplace_back(reductionDomain[i]);
+        }
+        if (rfactor) {
+            Halide::Var rfactoredVar("rfactoredVar");
+            rfactoredInnerLoops.emplace_back(rfactoredVar);
+            innerLoops.emplace_back(rfactoredVar);
+            rfactoredDomain = Halide::RDom(0, Halide::Expr(rfactorCandidate));
+        }
+    }
+
     Evaluator eval { consts, outerLoops, innerLoops, constraints };
     for (auto&& out: access.output) {
         output.emplace_back(eval.lower(out));
@@ -108,21 +160,10 @@ HalideAccess::HalideAccess(const ConcreteConsts& consts, const AbstractAccess& a
     if (access.divBy) {
         divBy = ConcretizeSize(consts, *access.divBy);
     }
+    return ret;
 }
 
-void HalideGen::GuardAutoSchedulers() {
-    static bool loaded = false;
-    if (!loaded) {
-        Halide::load_plugin("autoschedule_mullapudi2016");
-        Halide::load_plugin("autoschedule_li2018");
-        Halide::load_plugin("autoschedule_adams2019");
-        Halide::load_plugin("autoschedule_anderson2021");
-    }
-    loaded = true;
-}
-
-Halide::Func HalideGen::lower(std::vector<Halide::ImageParam>& inputTensors, Halide::ImageParam *outputTensor, const HalideAccess& access, std::string_view funcName) {
-    Halide::Func func { std::string(funcName) };
+Halide::Func HalideGen::lowerAccessToFunc(std::vector<Halide::ImageParam>& inputTensors, Halide::ImageParam *outputTensor, const HalideAccess& access, std::string_view funcName) const {
     Halide::Expr rhs;
     auto mult = [&](Halide::Expr what) {
         if (rhs.defined()) {
@@ -160,6 +201,29 @@ Halide::Func HalideGen::lower(std::vector<Halide::ImageParam>& inputTensors, Hal
         // TODO: In autodiff, guardedRhs may contain no RVar at all, in which case this throws!
         rhs = Halide::sum(rhs);
     }
+    
+    // Check for rfactor.
+    if (!access.rfactoredInnerLoops.empty()) {
+        KAS_ASSERT(access.rfactoredInnerLoops.size() == access.rfactoredDomain.dimensions());
+
+        // Create intermediate.
+        Halide::Func intermediate { std::string(funcName) + "_intermediate" };
+        {
+            std::vector<Halide::Var> indices = access.outerLoops;
+            std::ranges::copy(access.rfactoredInnerLoops, std::back_inserter(indices));
+            intermediate(indices) = rhs;
+        }
+
+        // Reduce the intermediate func.
+        std::vector<Halide::Expr> indices;
+        std::ranges::copy(access.outerLoops, std::back_inserter(indices));
+        for (std::size_t rvarId = 0; rvarId < access.rfactoredDomain.dimensions(); ++rvarId) {
+            indices.emplace_back(access.rfactoredDomain[rvarId]);
+        }
+        rhs = Halide::sum(intermediate(indices));
+    }
+
+    Halide::Func func { std::string(funcName) };
     func(access.outerLoops) = rhs;
     return func;
 }
@@ -175,7 +239,7 @@ HalideGen::ConcreteShapes HalideGen::concretizeShapes(const ConcreteConsts& cons
     };
 }
 
-HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts, const ConcreteShapes& shapes, std::string_view funcName) {
+HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts, const ConcreteShapes& shapes, std::string_view funcName) const {
     std::vector<Halide::ImageParam> inputs;
 
     const auto& tensors = tensorView.getUnderlyingTensors();
@@ -185,12 +249,12 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
         ++inputId;
     }
 
-    Halide::Func out = lower(inputs, nullptr, HalideAccess(consts, tensorView.getForwardAccess()), funcName);
+    Halide::Func out = lowerAccessToFunc(inputs, nullptr, lowerToAccess(consts, tensorView.getForwardAccess()), funcName);
     out.set_estimates(shapes.outputShape);
     return { std::move(inputs), std::move(out) };
 }
 
-HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& consts, const ConcreteShapes& shapes, std::string_view funcName) {
+HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& consts, const ConcreteShapes& shapes, std::string_view funcName) const {
     std::vector<Halide::ImageParam> inputs;
     std::vector<Halide::Func> inputsGrads;
 
@@ -204,7 +268,7 @@ HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& 
     outputGrad.set_estimates(shapes.outputShape);
 
     for (auto&& backward: tensorView.getBackwardAccesses()) {
-        inputsGrads.emplace_back(lower(inputs, &outputGrad, HalideAccess(consts, backward), funcName));
+        inputsGrads.emplace_back(lowerAccessToFunc(inputs, &outputGrad, lowerToAccess(consts, backward), funcName));
         inputsGrads.back().set_estimates(shapes.inputShapes[backward.position]);
     }
 
@@ -212,7 +276,7 @@ HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& 
     return { std::move(inputs), std::move(inputsGrads) };
 }
 
-HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const ConcreteConsts& consts, std::string_view funcName) {
+HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const ConcreteConsts& consts, std::string_view funcName) const {
     const auto& tensors = tensorView.getUnderlyingTensors();
 
     auto shapes = concretizeShapes(consts);
@@ -291,19 +355,27 @@ void HalideGen::GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardIn
     // Write to output.
     auto ext = Halide::Internal::get_output_info(target);
     const auto flagsForModule = [&ext](std::filesystem::path filename) -> std::map<Halide::OutputFileType, std::string> {
-        using FileType = Halide::OutputFileType;
-        return {
-            {FileType::stmt, filename.replace_extension(ext.at(FileType::stmt).extension)},
-            {FileType::object, filename.replace_extension(ext.at(FileType::object).extension)},
-            {FileType::pytorch_wrapper, filename.replace_extension(ext.at(FileType::pytorch_wrapper).extension)},
-        };
+        using enum Halide::OutputFileType;
+        std::map<Halide::OutputFileType, std::string> files;
+        for (auto what: {
+            object,
+            stmt,
+            // stmt_html,
+            schedule,
+            pytorch_wrapper
+        }) {
+            auto alteredFilename = filename;
+            alteredFilename.replace_extension(ext.at(what).extension);
+            files[what] = alteredFilename;
+        }
+        return files;
     };
     std::filesystem::create_directories(outputPath);
     forwardModule.compile(flagsForModule(outputPath / funcName));
     backwardModule.compile(flagsForModule(outputPath / backwardName));
 }
 
-void HalideGen::generate(std::filesystem::path outputDir, std::string_view funcName, const ConcreteConsts& consts) {
+void HalideGen::generate(std::filesystem::path outputDir, std::string_view funcName, const ConcreteConsts& consts) const {
     // Create Halide Functions.
     auto [forwardInputs, forwardFunc,
         backwardInputs, backwardFuncs
