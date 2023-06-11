@@ -68,8 +68,8 @@ def train(
 
             # backward
             optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            # loss.backward()
+            # optimizer.step()
 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)

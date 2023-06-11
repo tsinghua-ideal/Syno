@@ -88,8 +88,8 @@ def arg_parse():
                         help='Gradient clipping mode, one of ("norm", "value", "agc")')
 
     # Scheduler parameters.
-    parser.add_argument('--sched', default='multistep', type=str, metavar='SCHEDULER',
-                        help='LR scheduler (default: "multistep"')
+    parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
+                        help='LR scheduler (default: "cosine"')
     parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='PCT, PCT',
                         help='Learning rate noise on/off epoch percentages')
     parser.add_argument('--lr-noise-pct', type=float, default=0.67, metavar='PERCENT',
@@ -108,20 +108,20 @@ def arg_parse():
                         help='Warmup learning rate (default: 1e-6)')
     parser.add_argument('--min-lr', type=float, default=1e-5, metavar='LR',
                         help='Lower lr bound for cyclic schedulers that hit 0 (1e-5)')
-    parser.add_argument('--epochs', type=int, default=100, metavar='N',
+    parser.add_argument('--epochs', type=int, default=45, metavar='N',
                         help='Number of epochs to train (default: 300)')
     parser.add_argument('--decay-epochs', type=float, default=100, metavar='N',
                         help='Epoch interval to decay LR')
-    parser.add_argument('--warmup-epochs', type=int, default=5, metavar='N',
+    parser.add_argument('--warmup-epochs', type=int, default=0, metavar='N',
                         help='Epochs to warmup LR, if scheduler supports')
-    parser.add_argument('--cooldown-epochs', type=int, default=10, metavar='N',
+    parser.add_argument('--cooldown-epochs', type=int, default=5, metavar='N',
                         help='Epochs to cooldown LR at min_lr, after cyclic schedule ends')
     parser.add_argument('--patience-epochs', type=int, default=10, metavar='N',
                         help='Patience epochs for Plateau LR scheduler (default: 10')
     parser.add_argument('--decay-rate', '--dr', type=float, default=0.1, metavar='RATE',
                         help='LR decay rate (default: 0.1)')
     parser.add_argument('--decay-milestones', '--dm', default=[
-                        35, 65], nargs='+', metavar='RATE', help='LR decay milestones (default: 100, 150)')
+                        25, 45], nargs='+', metavar='RATE', help='LR decay milestones (default: 100, 150)')
 
     # Misc.
     parser.add_argument('--forbid-eval-nan', action='store_true',

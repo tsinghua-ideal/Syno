@@ -25,7 +25,7 @@ def dense(assembler: Assembler) -> Assembled:
 
     # Inputs: [N, C_in], [C_in, C_out]
     in_N, in_C, w_in_C, w_out_C = assembler.make_dims_of_sizes(
-        N, C_in, C_out, C_in, C_out)
+        N, C_in, C_in, C_out)
     # [in_N, in_C, w_in_C, w_out_C]
 
     shared_C_in = assembler.create_share(in_C, w_in_C)
@@ -33,7 +33,7 @@ def dense(assembler: Assembler) -> Assembled:
 
     in_N.output(0)
     w_out_C.output(1)
-    shared_C_in.mean(0)
+    shared_C_in.sum(0)
 
     return assembler.assemble([in_N, in_C], [w_in_C, w_out_C])
 
