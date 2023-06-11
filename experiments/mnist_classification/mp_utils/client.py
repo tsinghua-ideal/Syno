@@ -18,9 +18,10 @@ class Handler:
 
     def success(self, name, state, reward):
         assert name is not None
+        print(f'Posting: {self.addr}/success?name={name}${state}${reward}')
         requests.post(f'{self.addr}/success?name={name}${state}${reward}')
 
     def failure(self, name, state):
         assert name is not None
-        print(f'{self.addr}/failure?name={name}${state}')
+        print(f'Posting: {self.addr}/failure?name={name}${state}')
         requests.post(f'{self.addr}/failure?name={name}${state}')

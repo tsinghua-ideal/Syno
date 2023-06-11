@@ -9,24 +9,78 @@ def arg_parse():
     # Dataset.
     parser.add_argument('--seed', type=int, default=42, metavar='S',
                         help='Random seed (default: 42)')
-    parser.add_argument('--batch-size', metavar='N', type=int, default=5000,
+    parser.add_argument('--batch-size', metavar='N', type=int, default=100,
                         help='Batch size')
+    parser.add_argument('--num-classes', metavar='N', type=int, default=10,
+                        help='Number of classes')
     parser.add_argument('--input-size', default=(1, 28, 28), nargs=3, type=int, metavar='N N N',
                         help='Input all image dimensions (d h w, e.g. --input-size 3 224 224, '
                              'model default if none)')
+    parser.add_argument('--mean', type=float, nargs='+', default=0.1307, metavar='MEAN',
+                        help='Override mean pixel value of dataset')
+    parser.add_argument('--std', type=float, nargs='+', default=0.3081, metavar='STD',
+                        help='Override std deviation of of dataset')
+    parser.add_argument('-j', '--num-workers', type=int, default=8, metavar='N',
+                        help='How many training processes to use (default: 8)')
+    parser.add_argument('--pin-memory', action='store_true', default=True,
+                        help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
+    parser.add_argument('--use-multi-epochs-loader', action='store_true', default=False,
+                        help='Use the multi-epochs-loader to save time at the beginning of every epoch')
+
+    # Dataset augmentation. (Unused)
+    parser.add_argument('--no-aug', action='store_true', default=False,
+                        help='Disable all training augmentation, override other train aug args')
+    parser.add_argument('--scale', type=float, nargs='+', default=[0.08, 1.0], metavar='PCT',
+                        help='Random resize scale (default: 0.08 1.0)')
+    parser.add_argument('--ratio', type=float, nargs='+', default=[3./4., 4./3.], metavar='RATIO',
+                        help='Random resize aspect ratio (default: 0.75 1.33)')
+    parser.add_argument('--hflip', type=float, default=0.5,
+                        help='Horizontal flip training aug probability')
+    parser.add_argument('--vflip', type=float, default=0,
+                        help='Vertical flip training aug probability')
+    parser.add_argument('--color-jitter', type=float, default=0.4, metavar='PCT',
+                        help='Color jitter factor (default: 0.4)')
+    parser.add_argument('--aa', type=str, default="rand-m9-mstd0.5-inc1", metavar='NAME',
+                        help='Use AutoAugment policy. "v0" or "original". (default: rand-m9-mstd0.5-inc1)')
+    parser.add_argument('--re-prob', type=float, default=0.25, metavar='PCT',
+                        help='Random erase prob (default: 0.25)')
+    parser.add_argument('--re-mode', type=str, default='pixel',
+                        help='Random erase mode (default: "pixel")')
+    parser.add_argument('--re-count', type=int, default=1,
+                        help='Random erase count (default: 1)')
+    parser.add_argument('--re-split', action='store_true', default=False,
+                        help='Do not random erase first (clean) augmentation split')
+    parser.add_argument('--mixup', type=float, default=0.8,
+                        help='Mixup alpha, mixup enabled if > 0. (default: 0.8)')
+    parser.add_argument('--cutmix', type=float, default=1.0,
+                        help='Cutmix alpha, cutmix enabled if > 0. (default: 1.0)')
+    parser.add_argument('--cutmix-minmax', type=float, nargs='+', default=None,
+                        help='Cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)')
+    parser.add_argument('--mixup-prob', type=float, default=1.0,
+                        help='Probability of performing mixup or cutmix when either/both is enabled')
+    parser.add_argument('--mixup-switch-prob', type=float, default=0.5,
+                        help='Probability of switching to cutmix when both mixup and cutmix enabled')
+    parser.add_argument('--mixup-mode', type=str, default='batch',
+                        help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
+    parser.add_argument('--smoothing', type=float, default=0.1,
+                        help='Label smoothing (default: 0.1)')
+    parser.add_argument('--train-interpolation', type=str, default='random',
+                        help='Training interpolation (random, bilinear, bicubic default: "random")')
+    parser.add_argument('--tta', type=int, default=0, metavar='N',
+                        help='Test/inference time augmentation (oversampling) factor')
 
     # Optimizer parameters.
-    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='Learning rate (default: 1e-3)')
-    parser.add_argument('--opt', default='adamw', type=str, metavar='OPTIMIZER',
-                        help='Optimizer (default: "adamw"')
+    parser.add_argument('--opt', default='sgd', type=str, metavar='OPTIMIZER',
+                        help='Optimizer (default: "sgd"')
     parser.add_argument('--opt-eps', default=None, type=float, metavar='EPSILON',
                         help='Optimizer Epsilon (default: None, use opt default)')
     parser.add_argument('--opt-betas', default=None, type=float, nargs='+', metavar='BETA',
                         help='Optimizer Betas (default: None, use opt default)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='Optimizer momentum (default: 0.9)')
-    parser.add_argument('--weight-decay', type=float, default=0.05,
+    parser.add_argument('--weight-decay', type=float, default=1e-3,
                         help='Weight decay (default: 0.05)')
     parser.add_argument('--clip-grad', type=float, default=None, metavar='NORM',
                         help='Clip gradient norm (default: none, no clipping)')
@@ -34,8 +88,8 @@ def arg_parse():
                         help='Gradient clipping mode, one of ("norm", "value", "agc")')
 
     # Scheduler parameters.
-    parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
-                        help='LR scheduler (default: "step"')
+    parser.add_argument('--sched', default='multistep', type=str, metavar='SCHEDULER',
+                        help='LR scheduler (default: "multistep"')
     parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='PCT, PCT',
                         help='Learning rate noise on/off epoch percentages')
     parser.add_argument('--lr-noise-pct', type=float, default=0.67, metavar='PERCENT',
@@ -50,11 +104,11 @@ def arg_parse():
                         help='Learning rate cycle limit, cycles enabled if > 1')
     parser.add_argument('--lr-k-decay', type=float, default=1.0,
                         help='Learning rate k-decay for cosine/poly (default: 1.0)')
-    parser.add_argument('--warmup-lr', type=float, default=1e-6, metavar='LR',
+    parser.add_argument('--warmup-lr', type=float, default=0.01, metavar='LR',
                         help='Warmup learning rate (default: 1e-6)')
-    parser.add_argument('--min-lr', type=float, default=1e-6, metavar='LR',
+    parser.add_argument('--min-lr', type=float, default=1e-5, metavar='LR',
                         help='Lower lr bound for cyclic schedulers that hit 0 (1e-5)')
-    parser.add_argument('--epochs', type=int, default=300, metavar='N',
+    parser.add_argument('--epochs', type=int, default=100, metavar='N',
                         help='Number of epochs to train (default: 300)')
     parser.add_argument('--decay-epochs', type=float, default=100, metavar='N',
                         help='Epoch interval to decay LR')
@@ -66,6 +120,8 @@ def arg_parse():
                         help='Patience epochs for Plateau LR scheduler (default: 10')
     parser.add_argument('--decay-rate', '--dr', type=float, default=0.1, metavar='RATE',
                         help='LR decay rate (default: 0.1)')
+    parser.add_argument('--decay-milestones', '--dm', default=[
+                        35, 65], nargs='+', metavar='RATE', help='LR decay milestones (default: 100, 150)')
 
     # Misc.
     parser.add_argument('--forbid-eval-nan', action='store_true',
@@ -123,7 +179,7 @@ def arg_parse():
                         type=int, help='kas sampler depth')
     parser.add_argument('--kas-min-dim', default=2,
                         type=int, help='kas sampler minimum dimensions')
-    parser.add_argument('--kas-max-dim', default=8,
+    parser.add_argument('--kas-max-dim', default=12,
                         type=int, help='kas sampler maximum dimensions')
     parser.add_argument('--kas-sampler-save-dir', default='./samples',
                         help='Sampler saving directory')
@@ -133,12 +189,12 @@ def arg_parse():
                         help='Sampler saving directory')
     parser.add_argument('--kas-iterations', default=30, type=int,
                         help='Searcher iterations')
-    parser.add_argument('--kas-simulate-retry-limit', default=10, type=int,
+    parser.add_argument('--kas-simulate-retry-limit', default=10000, type=int,
                         help='simulate max round')
     parser.add_argument('--kas-leaf-parallelization-number', default=1, type=int,
                         help='leaf parallelization')
     # https://github.com/CyCTW/Parallel-MCTS/blob/master/src/MCTS.h
-    parser.add_argument('--kas-tree-parallelization-virtual-loss-constant', default=5.0, type=float,
+    parser.add_argument('--kas-tree-parallelization-virtual-loss-constant', default=1.0, type=float,
                         help='virtual-loss-constant of tree parallelization')
     parser.add_argument('--kas-min-macs', default=0, type=float,
                         help='Minimum MACs for searched kernels (in G-unit, only for search)')
@@ -146,7 +202,7 @@ def arg_parse():
                         help='Maximum MACs for searched kernels (in G-unit, only for search)')
     parser.add_argument('--kas-min-params', default=0, type=float,
                         help='Minimum params for searched kernels (in M-unit, only for search)')
-    parser.add_argument('--kas-max-params', default=0.05, type=float,
+    parser.add_argument('--kas-max-params', default=5, type=float,
                         help='Maximum params for searched kernels (in M-unit, only for search)')
     parser.add_argument('--kas-min-receptive-size', default=1, type=int,
                         help='Minimum receptive size (only for search)')

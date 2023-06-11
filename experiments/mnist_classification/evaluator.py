@@ -2,7 +2,7 @@ import logging
 import itertools
 
 from utils.data import get_dataloader
-from utils.models import KASGrayConv as KASConv, ModelBackup
+from utils.models import KASConv, ModelBackup
 from utils.parser import arg_parse
 from utils import device
 from mp_utils import Handler_client, evaluate
@@ -47,7 +47,7 @@ if __name__ == '__main__':
     for i in round_range:
         # Sample a new kernel.
         logging.info('Requesting a new kernel ...')
-        path_serial = TreePath([])
+        path_serial = TreePath([]).serialize()
         try:
             path_serial = web_handler.get_path()
             if not path_serial:
@@ -55,7 +55,9 @@ if __name__ == '__main__':
                 break
             elif path_serial == "ENDTOKEN":
                 logging.info("fetched ENDTOKEN. Stopped......")
-                print("Search ended. Stucking to avoid resetup. Press Ctrl-C twice to end. ") # TODO: better way to end worker. 
+                # TODO: better way to end worker.
+                print(
+                    "Search ended. Stucking to avoid resetup. Press Ctrl-C twice to end. ")
                 while True:
                     pass
             path = TreePath.deserialize(path_serial)
@@ -63,7 +65,9 @@ if __name__ == '__main__':
             try:
                 state, reward = evaluate(
                     path, train_data_loader, validation_data_loader, _model, kas_sampler, train_args, extra_args)
-            except:
+            except Exception as e:
+                if isinstance(e, KeyboardInterrupt):
+                    break
                 state = "FAILURE_EVALUATION"
                 traceback.print_exc()
             if state == "SUCCESS":
@@ -71,6 +75,8 @@ if __name__ == '__main__':
             else:
                 web_handler.failure(path_serial, state)
         except Exception as e:
+            if isinstance(e, KeyboardInterrupt):
+                break
             state = "FAILURE_DEATH"
             try:
                 web_handler.failure(path_serial, state)

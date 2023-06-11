@@ -18,7 +18,7 @@ function log2 {
 }
 
 # Create windows.
-tmux kill-session -t "KAS"
+# tmux kill-session -t "KAS"
 tmux new -s "KAS" -d
 for ((i = 0; i < $(log2 "$1")-1; i ++)); do
   for ((j = 0; j < 2 ** i; j ++)) do

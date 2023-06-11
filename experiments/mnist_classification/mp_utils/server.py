@@ -5,6 +5,8 @@ from http.server import BaseHTTPRequestHandler
 
 from KAS import TreePath
 
+waiting_result_cache = {}  # path -> trial, receipt
+pending_evaluate_cache = {}  # path -> trial, receipt
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, _, *__):
@@ -20,17 +22,14 @@ class Handler(BaseHTTPRequestHandler):
 
         # Detect timeout kernels.
         timeout_kernels = []
-        for path, pack in self.mcts.waiting_result_cache.items():
+        for path, pack in waiting_result_cache.items():
             # 24 hours: 86400 secs
-            if time.time() - pack['time'] > 1800:
+            if time.time() - pack['time'] > 7200:
                 timeout_kernels.append(path)
         for path in timeout_kernels:
-            assert path not in self.mcts.pending_evaluate_cache
-            assert path in self.mcts.waiting_result_cache
-            # self.mcts.pending_evaluate_cache[path] = self.mcts.waiting_result_cache.pop(
-            #     path)['meta']
-            self.mcts.waiting_result_cache.pop(path)  # throw away the path.
-            self.mcts.update_result(path, -1)
+            assert path not in pending_evaluate_cache
+            assert path in waiting_result_cache
+            self.mcts.update_result(waiting_result_cache.pop(path)['meta'], -1)
             print(f' > Timeout kernel: {path}')
 
         if self.path == '/arguments':
@@ -38,12 +37,12 @@ class Handler(BaseHTTPRequestHandler):
         else:
             response_json = {'path': ''}
             if self.mcts.remain_iterations > 0:
-                while len(self.mcts.pending_evaluate_cache.keys()) == 0:
-                    self.mcts.launch_new_iteration()
-                selected_path, meta_data = self.mcts.pending_evaluate_cache.popitem()
-                print(f' > Response kernel: {selected_path}')
-                response_json = {'path': selected_path.serialize()}
-                self.mcts.waiting_result_cache[selected_path] = dict(
+                while len(pending_evaluate_cache.keys()) == 0:
+                    pending_evaluate_cache.update(self.mcts.launch_new_iteration())
+                selected_path, meta_data = pending_evaluate_cache.popitem()
+                print(f' > Response kernel: {TreePath.deserialize(selected_path)}')
+                response_json = {'path': selected_path}
+                waiting_result_cache[selected_path] = dict(
                     meta=meta_data, time=time.time()
                 )
             else:
@@ -73,28 +72,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path.startswith('/success'):
             path, state, reward = path.split('$')
-            path = TreePath.deserialize(path)
             reward = float(reward)
-            assert path not in self.mcts.pending_evaluate_cache
-            assert path in self.mcts.waiting_result_cache
-            self.mcts.update_result(path, reward)
+            assert path not in pending_evaluate_cache
+            assert path in waiting_result_cache, f"{path} not in {waiting_result_cache}"
+            self.mcts.update_result(waiting_result_cache.pop(path)['meta'], reward ** 2)
             self.mcts.remain_iterations -= 1
             print(f"Remaining iterations: {self.mcts.remain_iterations}")
             if self.mcts.remain_iterations == 0:
                 self.mcts.dump_result()
                 print(f' > MCTS iteration complete. ')
                 return
-            print(f' > Successfully trained: {path}, accuracy {reward}')
+            print(f' > Successfully trained: {TreePath.deserialize(path)}, accuracy {reward}')
         elif self.path.startswith('/failure'):
             path, state = path.split('$')
-            path = TreePath.deserialize(path)
-            assert path not in self.mcts.pending_evaluate_cache
-            assert path in self.mcts.waiting_result_cache
-            if state == 'FAILURE_DEATH':
-                self.mcts.pending_evaluate_cache[path] = self.mcts.waiting_result_cache.pop(
-                    path)
-            else:
-                self.mcts.update_result(path, -1)
+            if path in waiting_result_cache:
+                self.mcts.update_result(waiting_result_cache.pop(path)['meta'], -1)
             print(f' > Failed to train {path} because of {state}')
         else:
             print(f' > Testing message ...')
