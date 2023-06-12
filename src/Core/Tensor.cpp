@@ -219,18 +219,20 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     std::vector<Dimension> interfaceDimensions;
     std::ranges::copy(outputIterators, std::back_inserter(interfaceDimensions));
 
-    auto forwardEval = DimensionEvaluator(graph);
+    auto forwardEval = DimensionEvaluator(graph, this->tensors);
     forwardEval.makeVars(interfaceDimensions);
     for (auto r: mapReduceIterators) {
         forwardEval.reduceAt(r);
     }
-    forwardAccess = forwardEval.toAccess(AbstractAccess::Output, this->tensors, interfaceDimensions);
+    forwardEval.adjustReductionOrder();
+    forwardAccess = forwardEval.toAccess(AbstractAccess::Output, interfaceDimensions);
     for (std::size_t tId = 0; auto&& tensor: this->tensors) {
         KAS_DEBUG("Differentiating input {}...", tId);
-        auto backwardEval = DimensionEvaluator(graph);
+        auto backwardEval = DimensionEvaluator(graph, this->tensors);
         backwardEval.makeVars(tensor.getDimensions());
         backwardEval.fillWithReductions();
-        backwardAccesses.emplace_back(backwardEval.toAccess(tId, this->tensors, interfaceDimensions));
+        backwardEval.adjustReductionOrder();
+        backwardAccesses.emplace_back(backwardEval.toAccess(tId, interfaceDimensions));
         ++tId;
     }
 

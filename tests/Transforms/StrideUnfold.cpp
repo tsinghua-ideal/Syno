@@ -15,7 +15,7 @@ TEST_F(transforms_tests, stride_unfold) {
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c; i_2++) {
-            out[i_0,i_1,i_2] = in_0[restrict(((i_0)+((i_2)*(c)))-(((c^2)-(1))/(2)),0,H),i_1];
+            out[i_0,i_1,i_2] = in_0[restrict(((i_0)+((i_2)*(c)))-((c^2)/(2)),0,H),i_1];
         }
     }
 }
@@ -25,7 +25,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         float temp_ri_0 = 0;
         for (int ri_0 = 0; ri_0 < c; ri_0++) {
-            temp_ri_0 += grad_out[restrict(((i_0)-((ri_0)*(c)))+(((c^2)-(1))/(2)),0,H),i_1,ri_0];
+            temp_ri_0 += grad_out[restrict(((i_0)-((ri_0)*(c)))+((c^2)/(2)),0,H),i_1,ri_0];
         }
         grad_in_0[i_0,i_1] = temp_ri_0;
     }

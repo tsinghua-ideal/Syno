@@ -5,7 +5,7 @@
 ### Autodiff
 
 - [x] Fix propagation of iterator values by adding orientation to dimensions.
-- [ ] Add heuristics for choosing inner loop iterators in backward pipeline to enable loop fusions.
+- [x] Add heuristics for choosing inner loop iterators in backward pipeline to enable loop fusions.
 
 ### Colors
 
@@ -27,6 +27,8 @@
 - [x] Sum -> Avg.
 - [ ] Perform a trial to see if there are uncanonical case. (1 on weight)
 - [ ] Multiple weights. (Minimumize difference.)
+- [ ] Add support for float16.
+- [ ] Manual `rfactor` for up to 3x performance.
 
 ## Transforms
 

@@ -11,7 +11,7 @@ UnfoldOp::Values UnfoldOp::value(const Values& known) const {
     auto& [input, outputLhs, outputRhs] = known.values;
     auto original = ConstValueNode::Create(this->outputLhs.size());
     auto kernel = ConstValueNode::Create(this->outputRhs.size());
-    auto halfKernel = (kernel - ImmediateValueNode::One) / ImmediateValueNode::Two;
+    auto halfKernel = kernel / ImmediateValueNode::Two;
     if (auto outputLV = outputLhs.tryValue(), outputRV = outputRhs.tryValue(); outputLV && outputRV) {
         // Major output and minor output determine input. Typical in forward pipeline.
         if (input.isUnorientedOrOrientedUp()) { // Check.

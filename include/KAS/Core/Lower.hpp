@@ -7,12 +7,14 @@
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Tensor.hpp"
+#include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
 
 class DimensionEvaluator {
     const Graph& graph;
+    const std::vector<PureTensor>& inputTensors;
 
     std::map<Dimension, Valuation, Dimension::AddressLessThan> values;
     std::set<Dimension, Dimension::AddressLessThan> unknownDimensions;
@@ -84,21 +86,26 @@ class DimensionEvaluator {
     };
 
     // Assign a dimension with an iterator value, and propagate this value through the graph.
-    void assign(const Dimension& dim, IteratorValue value);
+    void assign(Dimension dim, IteratorValue value);
+    // Obtain the iterator values for specified dimensions.
+    std::vector<IteratorValue> extractValues(const std::vector<Dimension>& dims) const;
 public:
-    DimensionEvaluator(const Graph& graph);
+    DimensionEvaluator(const Graph& graph, const std::vector<PureTensor>& inputTensors);
     // Assign a dimension with an outer loop iterator.
-    void makeVar(const Dimension& dim);
+    void makeVar(Dimension dim);
     // Do the above for all specified dimensions in the specified order.
     void makeVars(const std::vector<Dimension>& dims);
     // Assign a dimension with an inner loop iterator.
-    void reduceAt(const Dimension& dim);
+    void reduceAt(Dimension dim);
+    KAS_STATISTICS_DEF(
+        CannotFindInputDimensionToReduce
+    )
     // Actually do the differentiation, by evaluating the best inner loops.
     void fillWithReductions();
-    // Obtain the iterator values for specified dimensions.
-    std::vector<IteratorValue> extractValues(const std::vector<Dimension>& dims) const;
+    // Adjust reduction order to speed up. We need to make sure all dimensions are assigned before this.
+    void adjustReductionOrder();
     // Convert this evaluator to an AbstractAccess.
-    AbstractAccess toAccess(int position, const std::vector<PureTensor>& inputs, const std::vector<Dimension>& output);
+    AbstractAccess toAccess(int position, const std::vector<Dimension>& output);
 };
 
 } // namespace kas

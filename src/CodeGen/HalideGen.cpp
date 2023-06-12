@@ -18,9 +18,31 @@
 
 namespace kas {
 
-HalideAccess::HalideAccess(const ConcreteConsts& consts, const AbstractAccess& access):
-    position { access.position }
-{
+void HalideGen::GuardAutoSchedulers() {
+    static bool loaded = false;
+    if (!loaded) {
+        Halide::load_plugin("autoschedule_mullapudi2016");
+        Halide::load_plugin("autoschedule_li2018");
+        Halide::load_plugin("autoschedule_adams2019");
+        Halide::load_plugin("autoschedule_anderson2021");
+    }
+    loaded = true;
+}
+
+HalideAccess HalideGen::lowerToAccess(const ConcreteConsts& consts, const AbstractAccess& access) const {
+    HalideAccess ret;
+    auto& [
+        position,
+        outerLoops,
+        reductionDomain,
+        constraints,
+        inputs,
+        output,
+        divBy
+    ] = ret;
+
+    position = access.position;
+
     // Prepare iterators.
     for (auto& outerLoop: access.outerLoops) {
         outerLoops.emplace_back(outerLoop.as<VariableValueNode>().name);
@@ -108,20 +130,10 @@ HalideAccess::HalideAccess(const ConcreteConsts& consts, const AbstractAccess& a
     if (access.divBy) {
         divBy = ConcretizeSize(consts, *access.divBy);
     }
+    return ret;
 }
 
-void HalideGen::GuardAutoSchedulers() {
-    static bool loaded = false;
-    if (!loaded) {
-        Halide::load_plugin("autoschedule_mullapudi2016");
-        Halide::load_plugin("autoschedule_li2018");
-        Halide::load_plugin("autoschedule_adams2019");
-        Halide::load_plugin("autoschedule_anderson2021");
-    }
-    loaded = true;
-}
-
-Halide::Func HalideGen::lower(std::vector<Halide::ImageParam>& inputTensors, Halide::ImageParam *outputTensor, const HalideAccess& access, std::string_view funcName) {
+Halide::Func HalideGen::lowerAccessToFunc(std::vector<Halide::ImageParam>& inputTensors, Halide::ImageParam *outputTensor, const HalideAccess& access, std::string_view funcName) const {
     Halide::Func func { std::string(funcName) };
     Halide::Expr rhs;
     auto mult = [&](Halide::Expr what) {
@@ -175,7 +187,7 @@ HalideGen::ConcreteShapes HalideGen::concretizeShapes(const ConcreteConsts& cons
     };
 }
 
-HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts, const ConcreteShapes& shapes, std::string_view funcName) {
+HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts, const ConcreteShapes& shapes, std::string_view funcName) const {
     std::vector<Halide::ImageParam> inputs;
 
     const auto& tensors = tensorView.getUnderlyingTensors();
@@ -185,12 +197,12 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
         ++inputId;
     }
 
-    Halide::Func out = lower(inputs, nullptr, HalideAccess(consts, tensorView.getForwardAccess()), funcName);
+    Halide::Func out = lowerAccessToFunc(inputs, nullptr, lowerToAccess(consts, tensorView.getForwardAccess()), funcName);
     out.set_estimates(shapes.outputShape);
     return { std::move(inputs), std::move(out) };
 }
 
-HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& consts, const ConcreteShapes& shapes, std::string_view funcName) {
+HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& consts, const ConcreteShapes& shapes, std::string_view funcName) const {
     std::vector<Halide::ImageParam> inputs;
     std::vector<Halide::Func> inputsGrads;
 
@@ -204,7 +216,7 @@ HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& 
     outputGrad.set_estimates(shapes.outputShape);
 
     for (auto&& backward: tensorView.getBackwardAccesses()) {
-        inputsGrads.emplace_back(lower(inputs, &outputGrad, HalideAccess(consts, backward), funcName));
+        inputsGrads.emplace_back(lowerAccessToFunc(inputs, &outputGrad, lowerToAccess(consts, backward), funcName));
         inputsGrads.back().set_estimates(shapes.inputShapes[backward.position]);
     }
 
@@ -212,7 +224,7 @@ HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& 
     return { std::move(inputs), std::move(inputsGrads) };
 }
 
-HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const ConcreteConsts& consts, std::string_view funcName) {
+HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const ConcreteConsts& consts, std::string_view funcName) const {
     const auto& tensors = tensorView.getUnderlyingTensors();
 
     auto shapes = concretizeShapes(consts);
@@ -291,19 +303,27 @@ void HalideGen::GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardIn
     // Write to output.
     auto ext = Halide::Internal::get_output_info(target);
     const auto flagsForModule = [&ext](std::filesystem::path filename) -> std::map<Halide::OutputFileType, std::string> {
-        using FileType = Halide::OutputFileType;
-        return {
-            {FileType::stmt, filename.replace_extension(ext.at(FileType::stmt).extension)},
-            {FileType::object, filename.replace_extension(ext.at(FileType::object).extension)},
-            {FileType::pytorch_wrapper, filename.replace_extension(ext.at(FileType::pytorch_wrapper).extension)},
-        };
+        using enum Halide::OutputFileType;
+        std::map<Halide::OutputFileType, std::string> files;
+        for (auto what: {
+            object,
+            stmt,
+            // stmt_html,
+            schedule,
+            pytorch_wrapper
+        }) {
+            auto alteredFilename = filename;
+            alteredFilename.replace_extension(ext.at(what).extension);
+            files[what] = alteredFilename;
+        }
+        return files;
     };
     std::filesystem::create_directories(outputPath);
     forwardModule.compile(flagsForModule(outputPath / funcName));
     backwardModule.compile(flagsForModule(outputPath / backwardName));
 }
 
-void HalideGen::generate(std::filesystem::path outputDir, std::string_view funcName, const ConcreteConsts& consts) {
+void HalideGen::generate(std::filesystem::path outputDir, std::string_view funcName, const ConcreteConsts& consts) const {
     // Create Halide Functions.
     auto [forwardInputs, forwardFunc,
         backwardInputs, backwardFuncs

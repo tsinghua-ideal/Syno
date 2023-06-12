@@ -53,12 +53,12 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
         for (int i_2 = 0; i_2 < H; i_2++) {
             for (int i_3 = 0; i_3 < W; i_3++) {
                 float temp_ri_2 = 0;
-                for (int ri_2 = 0; ri_2 < C_in; ri_2++) {
+                for (int ri_2 = 0; ri_2 < K; ri_2++) {
                     float temp_ri_1 = 0;
                     for (int ri_1 = 0; ri_1 < K; ri_1++) {
                         float temp_ri_0 = 0;
-                        for (int ri_0 = 0; ri_0 < K; ri_0++) {
-                            temp_ri_0 += in_0[i_0,ri_2,restrict(((i_2)+(ri_1))-(((K)-(1))/(2)),0,H),restrict(((i_3)+(ri_0))-(((K)-(1))/(2)),0,W)] * in_1[i_1,ri_2,ri_1,ri_0];
+                        for (int ri_0 = 0; ri_0 < C_in; ri_0++) {
+                            temp_ri_0 += in_0[i_0,ri_0,restrict(((i_2)+(ri_2))-((K)/(2)),0,H),restrict(((i_3)+(ri_1))-((K)/(2)),0,W)] * in_1[i_1,ri_0,ri_2,ri_1];
                         }
                         temp_ri_1 += temp_ri_0;
                     }
