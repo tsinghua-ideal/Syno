@@ -43,6 +43,8 @@ struct HalideAccess {
     constexpr static int Output = -1;
     int position; // Still, -1 means output tensor.
     std::vector<Halide::Var> outerLoops; // In reverse order.
+    std::vector<Halide::Var> rfactoredInnerLoops; // In priority order.
+    Halide::RDom rfactoredDomain;
     Halide::RDom reductionDomain;
     std::vector<Halide::Expr> constraints;
     std::vector<std::vector<Halide::Expr>> inputs; // Inner arrays are in reverse order.
@@ -60,6 +62,7 @@ public:
         };
         bool useGPU = true;
         AutoScheduler scheduler = AutoScheduler::Li2018;
+        std::size_t rfactorThreshold = 32;
     };
 
 private:
