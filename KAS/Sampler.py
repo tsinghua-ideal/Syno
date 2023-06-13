@@ -40,7 +40,7 @@ class Sampler:
         for placeholder, kernel_pack in zip(placeholders, kernel_packs):
             placeholder.reload(kernel_pack)
 
-    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_discontinuous_view: bool = True, canonicalize_unfold_order: bool = True, disable_merge: bool = False, disable_split: bool = False, disable_shift: bool = False, disable_stride: bool = False, disable_unfold: bool = False, disable_share: bool = False, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot, rfactor_threshold: int = 32):
+    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_discontinuous_view: bool = True, canonicalize_unfold_order: bool = True, disable_merge: bool = False, disable_split: bool = False, disable_shift: bool = False, disable_stride: bool = False, disable_unfold: bool = False, disable_share: bool = False, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot, rfactor_threshold: int = 32, in_bounds_likely_threshold: float = 0.3):
         options = Bindings.SampleOptions(
             seed=seed,
             depth=depth,
@@ -72,7 +72,11 @@ class Sampler:
         self._sampler = Bindings.Sampler(
             input_shape, output_shape, primary_specs, coefficient_specs, all_mappings, fixed_io_pairs, options)
         self._codegen_options = Bindings.CodeGenOptions(
-            cuda, autoscheduler, rfactor_threshold)
+            use_gpu=cuda,
+            auto_scheduler=autoscheduler,
+            rfactor_threshold=rfactor_threshold,
+            in_bounds_likely_threshold=in_bounds_likely_threshold
+        )
         self._device = torch.device('cuda' if cuda else 'cpu')
 
     def root(self) -> VisitedNode:

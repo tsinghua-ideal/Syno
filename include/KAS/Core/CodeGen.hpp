@@ -117,15 +117,17 @@ struct BinaryOpValueNode final: public IteratorValueImpl {
 // When used as an IteratorValue, this is equivalent to a clamp(input, min, max - 1). When used to implement zero padding, this is equivalent to select(min <= input && input < max && other_clauses..., likely(input_tensor[access]), 0)
 struct IntervalBoundValueNode final: public IteratorValueImpl {
     IteratorValue input;
-    IteratorValue min, max;
-    IntervalBoundValueNode(auto&& input, auto&& min, auto&& max):
+    // min is 0.
+    Size max;
+    Size outOfBoundFraction;
+    IntervalBoundValueNode(auto&& input, auto&& max, auto&& outOfBoundFraction):
         input { std::forward<decltype(input)>(input) },
-        min { std::forward<decltype(min)>(min) },
-        max { std::forward<decltype(max)>(max) }
+        max { std::forward<decltype(max)>(max) },
+        outOfBoundFraction { std::forward<decltype(outOfBoundFraction)>(outOfBoundFraction) }
     {}
     void accept(IteratorValueVisitor& visitor) override { visitor.visit(*this); }
-    static IteratorValue Create(auto&& input, auto&& min, auto&& max) {
-        return IteratorValue(std::make_shared<IntervalBoundValueNode>(std::forward<decltype(input)>(input), std::forward<decltype(min)>(min), std::forward<decltype(max)>(max)));
+    static IteratorValue Create(auto&& input, auto&& max, auto&& outOfBoundFraction) {
+        return IteratorValue(std::make_shared<IntervalBoundValueNode>(std::forward<decltype(input)>(input), std::forward<decltype(max)>(max), std::forward<decltype(outOfBoundFraction)>(outOfBoundFraction)));
     }
 };
 

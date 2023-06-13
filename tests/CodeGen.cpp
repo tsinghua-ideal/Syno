@@ -31,6 +31,7 @@ TEST_F(codegen_tests, generate) {
             .useGPU = false,
             .scheduler = HalideGen::Options::AutoScheduler::ComputeRoot,
             .rfactorThreshold = 32,
+            .inBoundsLikelyThreshold = 0.3,
         } };
         auto consts = ctx.realizeConsts({});
         gen.generate("./kernel_1_" + std::to_string(i), "kernel_1_" + std::to_string(i), consts);

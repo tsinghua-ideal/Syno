@@ -73,10 +73,8 @@ void IteratorValuePrinter::visit(BinaryOpValueNode& value) {
 void IteratorValuePrinter::visit(IntervalBoundValueNode& value) {
     ss << "restrict(";
     value.input.accept(*this);
-    ss << ",";
-    value.min.accept(*this);
-    ss << ",";
-    value.max.accept(*this);
+    ss << ",0,";
+    ss << value.max.toString(ctx);
     ss << ")";
 }
 std::string IteratorValuePrinter::toString(const IteratorValue& value) {

@@ -18,6 +18,7 @@ protected:
         .useGPU = true,
         .scheduler = HalideGen::Options::AutoScheduler::Anderson2021,
         .rfactorThreshold = 32,
+        .inBoundsLikelyThreshold = 0.3,
     };
     const bool doSemanticTests = true;
     const bool createStaticLibrary = true;

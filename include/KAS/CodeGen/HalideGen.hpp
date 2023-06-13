@@ -40,13 +40,18 @@ Halide::Region ConcretizeShape(const ConcreteConsts& consts, R&& shape, bool rev
 }
 
 struct HalideAccess {
+    struct Constraint {
+        Halide::Expr inequality;
+        bool likely;
+    };
+
     constexpr static int Output = -1;
     int position; // Still, -1 means output tensor.
     std::vector<Halide::Var> outerLoops; // In reverse order.
     std::vector<Halide::Var> rfactoredInnerLoops; // In priority order.
     Halide::RDom rfactoredDomain;
     Halide::RDom reductionDomain;
-    std::vector<Halide::Expr> constraints;
+    std::vector<Constraint> constraints;
     std::vector<std::vector<Halide::Expr>> inputs; // Inner arrays are in reverse order.
     std::vector<Halide::Expr> output; // In reverse order.
 
@@ -63,6 +68,7 @@ public:
         bool useGPU = true;
         AutoScheduler scheduler = AutoScheduler::Li2018;
         std::size_t rfactorThreshold = 32;
+        float inBoundsLikelyThreshold = 0.3f;
     };
 
 private:

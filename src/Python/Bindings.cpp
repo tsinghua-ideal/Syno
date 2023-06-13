@@ -101,10 +101,11 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .value("Anderson2021", HalideGen::Options::AutoScheduler::Anderson2021)
         .export_values();
     cgOpts.def(
-        pybind11::init<bool, HalideGen::Options::AutoScheduler, std::size_t>(),
+        pybind11::init<bool, HalideGen::Options::AutoScheduler, std::size_t, float>(),
         pybind11::arg("use_gpu") = false,
         pybind11::arg("auto_scheduler") = HalideGen::Options::AutoScheduler::Li2018,
-        pybind11::arg("rfactor_threshold") = 32
+        pybind11::arg("rfactor_threshold") = 32,
+        pybind11::arg("in_bounds_likely_threshold") = 0.3f
     );
 
     pybind11::class_<Next> next(m, "Next");

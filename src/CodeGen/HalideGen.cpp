@@ -14,6 +14,7 @@
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/Tensor.hpp"
+#include "KAS/Utils/Algorithm.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
@@ -35,13 +36,15 @@ namespace {
         const ConcreteConsts& consts;
         const std::vector<Halide::Var>& outerLoops;
         const std::vector<Halide::VarOrRVar>& innerLoops; // Manual rfactor requires Var.
-        std::vector<Halide::Expr>& constraints;
+        std::vector<HalideAccess::Constraint>& constraints;
+        float likelyThreshold;
         std::map<IteratorValue, Halide::Expr> cache;
-        Evaluator(const ConcreteConsts& consts, const std::vector<Halide::Var>& outerLoops, const std::vector<Halide::VarOrRVar>& innerLoops, std::vector<Halide::Expr>& constraints):
+        Evaluator(const ConcreteConsts& consts, const std::vector<Halide::Var>& outerLoops, const std::vector<Halide::VarOrRVar>& innerLoops, std::vector<HalideAccess::Constraint>& constraints, float likelyThreshold):
             consts { consts },
             outerLoops { outerLoops },
             innerLoops { innerLoops },
-            constraints { constraints }
+            constraints { constraints },
+            likelyThreshold { likelyThreshold }
         {}
         Halide::Expr result;
         void visit(VariableValueNode& value) override {
@@ -77,8 +80,10 @@ namespace {
         // This `visit` produces a `clamp`, along with constraints.
         void visit(IntervalBoundValueNode& value) override {
             Halide::Expr input = lower(value.input);
-            Halide::Expr min = lower(value.min), max = lower(value.max);
-            constraints.emplace_back(min <= input && input < max);
+            Halide::Expr min = 0, max = ConcretizeSize(consts, value.max);
+            // If out-of-bounds access is frequent, do not add `likely` tag to original branch.
+            bool likely = value.outOfBoundFraction.eval<float>(consts) < likelyThreshold;
+            constraints.emplace_back(min <= input && input < max, likely);
             result = Halide::clamp(input, min, max - 1);
         }
         Halide::Expr lower(const IteratorValue& value) {
@@ -141,7 +146,7 @@ HalideAccess HalideGen::lowerToAccess(const ConcreteConsts& consts, const Abstra
         }
     }
 
-    Evaluator eval { consts, outerLoops, innerLoops, constraints };
+    Evaluator eval { consts, outerLoops, innerLoops, constraints, options.inBoundsLikelyThreshold };
     for (auto&& out: access.output) {
         output.emplace_back(eval.lower(out));
     }
@@ -163,7 +168,12 @@ HalideAccess HalideGen::lowerToAccess(const ConcreteConsts& consts, const Abstra
     return ret;
 }
 
-Halide::Func HalideGen::lowerAccessToFunc(std::vector<Halide::ImageParam>& inputTensors, Halide::ImageParam *outputTensor, const HalideAccess& access, std::string_view funcName) const {
+Halide::Func HalideGen::lowerAccessToFunc(std::vector<Halide::ImageParam>& inputTensors, Halide::ImageParam *outputTensor, const HalideAccess& access, std::string_view originalFuncName) const {
+    std::string funcName { originalFuncName };
+    if (access.position != HalideAccess::Output) {
+        funcName += std::to_string(access.position);
+    }
+
     Halide::Expr rhs;
     auto mult = [&](Halide::Expr what) {
         if (rhs.defined()) {
@@ -189,41 +199,53 @@ Halide::Func HalideGen::lowerAccessToFunc(std::vector<Halide::ImageParam>& input
 
     // Guard the boundary.
     if (!access.constraints.empty()) {
-        Halide::Expr conditions = access.constraints[0];
-        for (std::size_t i = 1; i < access.constraints.size(); ++i) {
-            conditions = conditions && access.constraints[i];
+        auto getConstraints = [&](bool likely) {
+            return FoldLeftFirst(
+                access.constraints
+                | std::views::filter([&](const HalideAccess::Constraint& c) {
+                    return likely == c.likely;
+                })
+                | std::views::transform(&HalideAccess::Constraint::inequality),
+                std::logical_and<>{}
+            );
+        };
+        std::optional<Halide::Expr> likelyCondition = getConstraints(true), unlikelyCondition = getConstraints(false);
+        if (unlikelyCondition) {
+            rhs = Halide::select(*unlikelyCondition, rhs, 0.0f);
         }
-        rhs = Halide::select(conditions, Halide::likely(rhs), 0.0f);
+        if (likelyCondition) {
+            rhs = Halide::select(*likelyCondition, Halide::likely(rhs), 0.0f);
+        }
     }
 
     // Perform reduction.
     if (access.reductionDomain.defined()) {
-        // TODO: In autodiff, guardedRhs may contain no RVar at all, in which case this throws!
-        rhs = Halide::sum(rhs);
-    }
-    
-    // Check for rfactor.
-    if (!access.rfactoredInnerLoops.empty()) {
-        KAS_ASSERT(access.rfactoredInnerLoops.size() == access.rfactoredDomain.dimensions());
+        // Check for rfactor.
+        if (!access.rfactoredInnerLoops.empty()) {
+            KAS_ASSERT(access.rfactoredInnerLoops.size() == access.rfactoredDomain.dimensions());
+            // Create intermediate.
+            Halide::Func intermediate { funcName + "_intermediate_reduction" };
+            {
+                std::vector<Halide::Var> indices = access.outerLoops;
+                std::ranges::copy(access.rfactoredInnerLoops, std::back_inserter(indices));
+                intermediate(indices) = Halide::sum(access.reductionDomain, rhs, funcName + "_intermediate_reduction_helper");
+            }
 
-        // Create intermediate.
-        Halide::Func intermediate { std::string(funcName) + "_intermediate" };
-        {
-            std::vector<Halide::Var> indices = access.outerLoops;
-            std::ranges::copy(access.rfactoredInnerLoops, std::back_inserter(indices));
-            intermediate(indices) = rhs;
+            // Reduce the intermediate func.
+            {
+                std::vector<Halide::Expr> indices;
+                std::ranges::copy(access.outerLoops, std::back_inserter(indices));
+                for (std::size_t rvarId = 0; rvarId < access.rfactoredDomain.dimensions(); ++rvarId) {
+                    indices.emplace_back(access.rfactoredDomain[rvarId]);
+                }
+                rhs = Halide::sum(access.rfactoredDomain, intermediate(indices), funcName + "_rfactor_reduction");
+            }
+        } else {
+            rhs = Halide::sum(access.reductionDomain, rhs, funcName + "_direct_reduction");
         }
-
-        // Reduce the intermediate func.
-        std::vector<Halide::Expr> indices;
-        std::ranges::copy(access.outerLoops, std::back_inserter(indices));
-        for (std::size_t rvarId = 0; rvarId < access.rfactoredDomain.dimensions(); ++rvarId) {
-            indices.emplace_back(access.rfactoredDomain[rvarId]);
-        }
-        rhs = Halide::sum(intermediate(indices));
     }
 
-    Halide::Func func { std::string(funcName) };
+    Halide::Func func { funcName };
     func(access.outerLoops) = rhs;
     return func;
 }
@@ -268,7 +290,7 @@ HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& 
     outputGrad.set_estimates(shapes.outputShape);
 
     for (auto&& backward: tensorView.getBackwardAccesses()) {
-        inputsGrads.emplace_back(lowerAccessToFunc(inputs, &outputGrad, lowerToAccess(consts, backward), funcName));
+        inputsGrads.emplace_back(lowerAccessToFunc(inputs, &outputGrad, lowerToAccess(consts, backward), std::string(funcName) + "_grad"));
         inputsGrads.back().set_estimates(shapes.inputShapes[backward.position]);
     }
 

@@ -9,18 +9,20 @@ namespace kas {
 UnfoldOp::Values UnfoldOp::value(const Values& known) const {
     if (known.canSkipDeduction()) return known;
     auto& [input, outputLhs, outputRhs] = known.values;
-    auto original = ConstValueNode::Create(this->outputLhs.size());
-    auto kernel = ConstValueNode::Create(this->outputRhs.size());
+    auto originalSize = this->outputLhs.size();
+    auto kernelSize = this->outputRhs.size();
+    auto outOfBoundFraction = kernelSize / originalSize;
+    auto kernel = ConstValueNode::Create(kernelSize);
     auto halfKernel = kernel / ImmediateValueNode::Two;
     if (auto outputLV = outputLhs.tryValue(), outputRV = outputRhs.tryValue(); outputLV && outputRV) {
         // Major output and minor output determine input. Typical in forward pipeline.
         if (input.isUnorientedOrOrientedUp()) { // Check.
-            return {{ IntervalBoundValueNode::Create(outputLV + outputRV - halfKernel, ImmediateValueNode::Zero, original), outputLV, outputRV }};
+            return {{ IntervalBoundValueNode::Create(outputLV + outputRV - halfKernel, originalSize, outOfBoundFraction), outputLV, outputRV }};
         }
     } else if (auto inputV = input.tryValue(), outputRV = outputRhs.tryValue(); inputV && outputRV) {
         // Input and minor output determine major output. This can convert scatter patttern to gather pattern. Typical in backward pipeline.
         if (outputLhs.isUnorientedOrOrientedDown()) { // Check.
-            return {{ inputV, IntervalBoundValueNode::Create(inputV - outputRV + halfKernel, ImmediateValueNode::Zero, original), outputRV }};
+            return {{ inputV, IntervalBoundValueNode::Create(inputV - outputRV + halfKernel, originalSize, outOfBoundFraction), outputRV }};
         }
     } else if (!outputRhs.isOrientedDown()) { // Only Direction::Down is illegal!
         if (input.isValuedOrOrientedDown()) {
