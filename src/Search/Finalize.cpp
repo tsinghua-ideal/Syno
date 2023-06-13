@@ -83,6 +83,110 @@ bool FinalizeOp::Prune(const std::vector<Graph::ConnectedComponent>& components,
     return false;
 }
 
+bool FinalizeOp::FitIntoWeights(const std::vector<std::reference_wrapper<const ColoredDimension>>& current, const WeightOptions& options) {
+    switch (options.maximumTensors) {
+    case 1: {
+        // There must be exactly 1 weight tensor.
+        if (current.size() > 0) {
+            return false;
+        }
+        break;
+    }
+    case 2: {
+        // We have to check that the colors won't conflict.
+        Color color;
+        for (const ColoredDimension& cDim: current) {
+            if (!color.disjoint(cDim.color)) {
+                return false;
+            }
+            color.merge(cDim.color);
+        }
+        break;
+    }
+    default:
+        KAS_CRITICAL("Unsupported maximumTensors: {}", options.maximumTensors);
+    }
+    return true;
+}
+
+std::size_t FinalizeOp::Distance(const std::vector<std::reference_wrapper<const ColoredDimension>>& current, const Shape& desired, const DistanceOptions& options) {
+    constexpr std::size_t Infinity = std::numeric_limits<std::size_t>::max();
+
+    std::size_t strideDist = 0;
+
+    std::vector<std::reference_wrapper<const ColoredDimension>> mustBeInput, canBeWeight;
+    for (const ColoredDimension& cDim: current) {
+        auto origin = cDim.deduceOrigin();
+        switch (origin) {
+        case ColoredDimension::Origin::Input:
+            mustBeInput.emplace_back(cDim);
+            break;
+        case ColoredDimension::Origin::BothPossible:
+            canBeWeight.emplace_back(cDim);
+            break;
+        case ColoredDimension::Origin::Unfold:
+            ++strideDist; // We need an Unfold to eliminate this.
+            break;
+        default:
+            KAS_CRITICAL("Dimension origin {} not allowed in FinalizeOp::Distance()!", origin);
+        }
+    }
+    if (strideDist > options.remainingUnfolds) {
+        return Infinity; // Early stop.
+    }
+
+    // Then, check whether there are enough elements in the input tensor.
+    std::unordered_map<Size, int> mustBeInputCounts, canBeWeightCounts;
+    auto mustBeInputElements = Size::Identity(options.ctx);
+    for (const ColoredDimension& cDim: mustBeInput) {
+        // Take the product to find the total elements.
+        mustBeInputElements = mustBeInputElements * cDim.size();
+        mustBeInputCounts[cDim.size()] += 1;
+    }
+    auto canBeWeightElements = Size::Identity(options.ctx);
+    for (const ColoredDimension& cDim: canBeWeight) {
+        // Same.
+        canBeWeightElements = canBeWeightElements * cDim.size();
+        canBeWeightCounts[cDim.size()] += 1;
+    }
+    std::unordered_map<Size, int> bothPossibleCounts = mustBeInputCounts;
+    bothPossibleCounts.merge(decltype(canBeWeightCounts)(canBeWeightCounts));
+    // Check whether there are enough elements.
+    const auto desiredElements = desired.totalSize();
+    const auto bothPossibleElements = mustBeInputElements * canBeWeightElements;
+    const auto quotient = bothPossibleElements.canBeDividedBy(desiredElements);
+    if (!quotient || *quotient == Size::Trait::IllegalCoefficient) {
+        // Too few elements in input tensor.
+        return Infinity;
+    }
+
+    // At last, try matching the dimensions, which is just experimental Finalization.
+    std::vector<const Size *> unfulfilled;
+    for (const auto& required: desired) {
+        auto it = bothPossibleCounts.find(required);
+        if (it != bothPossibleCounts.end()) {
+            if (it->second == 1) {
+                bothPossibleCounts.erase(it);
+            } else {
+                it->second -= 1;
+            }
+        } else {
+            unfulfilled.push_back(&required);
+        }
+    }
+    // Merge can possibly fulfill 2 dimensions per step. So this is most conservative.
+    std::size_t mergeDist = (unfulfilled.size() + 1) / 2;
+    std::size_t splitDist = 0;
+    if (mergeDist > options.remainingMerges) {
+        mergeDist = options.remainingMerges;
+        splitDist = unfulfilled.size() - 2 * mergeDist;
+    }
+    if (splitDist > options.remainingSplits) {
+        return Infinity; // Early stop.
+    }
+    return mergeDist + splitDist + strideDist;
+}
+
 namespace {
 
 struct CollectedTensorFragments {
@@ -177,20 +281,13 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
     auto collectInputDimensions = [&](const auto& self, std::size_t nextIndex, const CollectedTensorFragments& fragments) -> void {
         if (nextIndex == desired.size()) {
             // Carry out a simple check of whether all the must-be-input-dims have been collected.
-            // And check if a pair of MergeOp::Input is left to weights.
             for (std::size_t i = 0; i < interface.size(); ++i) {
                 if (fragments.used[i]) continue;
                 const auto& cDim = interface[i];
-                if (cDim.deduceOrigin() == ColoredDimension::Origin::Input) {
+                auto origin = cDim.deduceOrigin();
+                if (origin != ColoredDimension::Origin::Weight && origin != ColoredDimension::Origin::BothPossible) {
                     ++CountUncanonicalWeight;
                     return;
-                } else if (auto merge = cDim.dimension.tryAs<MergeOp::Input>(); merge) {
-                    Dimension other = merge->getOther();
-                    std::size_t index = interface.binarySearchIndexOf(other);
-                    if (index != interface.size() && !fragments.used[index]) {
-                        ++CountUncanonicalWeight;
-                        return;
-                    }
                 }
             }
             // We have collected the full input shape. Now build the weights.
@@ -202,7 +299,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
             auto&& cDim = interface[i];
             auto&& [dim, color] = cDim;
             auto origin = cDim.deduceOrigin();
-            if (origin == ColoredDimension::Origin::Weight) {
+            if (origin != ColoredDimension::Origin::Input && origin != ColoredDimension::Origin::BothPossible) {
                 continue;
             }
             if (dim.size() == desiredDimSize && fragments.canAccept(i, color)) {

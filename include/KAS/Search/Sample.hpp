@@ -28,7 +28,6 @@
 namespace kas {
 
 struct SampleOptions {
-public:
     using Seed = std::mt19937::result_type;
     Seed seed = 42;
     std::size_t depth = 4;
@@ -54,36 +53,37 @@ public:
     bool canonicalizeUnfoldOrder = true;
 
     // Canonicalization rule set 1: at most one is true.
-    bool disallowSplitRAboveUnfold = true;
-    bool disallowUnfoldLAboveSplit = false;
+    bool disallowSplitRAboveUnfold = false;
+    bool disallowUnfoldLAboveSplit = true;
 
     // Canonicalization rule set 2: at most one is true, but since this rule is too aggressive, we disable them by default.
     bool disallowMergeWithLargeBlockAboveUnfold = false;
     bool disallowUnfoldLAboveMergeR = false;
 
     // Canonicalization rule set 3: at most one is true. Since this rule perfectly preserves semantics, you'd better set exactly one of them to true.
-    bool disallowSplitRAboveStride = true;
-    bool disallowStrideAboveSplit = false;
+    bool disallowSplitRAboveStride = false;
+    bool disallowStrideAboveSplit = true;
 
     // Canonicalization rule set 4: at most one is true.
-    bool disallowMergeWithLargeBlockAboveStride = false;
-    bool disallowStrideAboveMergeR = true;
+    bool disallowMergeWithLargeBlockAboveStride = true;
+    bool disallowStrideAboveMergeR = false;
 
     // Canonicalization rule set 5: at most one is true.
     bool disallowUnfoldLAboveShift = true;
     bool disallowShiftAboveUnfold = false;
 
-    // Some switches.
-    bool disableMerge = false;
-    bool disableSplit = false;
-    bool disableShift = false;
-    bool disableStride = false;
-    bool disableUnfold = false;
-    // But these switches I suspect you will never use.
-    bool disableShare = false;
+    // Some limit controls.
+    int maximumMerges = -1;
+    int maximumSplits = -1;
+    int maximumShifts = -1;
+    int maximumStrides = -1;
+    int maximumUnfolds = -1;
+    int maximumShares = -1;
 
     void check() const;
 };
+
+static constexpr SampleOptions DefaultSampleOptions = SampleOptions();
 
 struct FixedDimension {
     std::size_t index;

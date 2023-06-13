@@ -162,3 +162,20 @@ public:
 };
 
 } // namespace kas
+
+template<>
+struct fmt::formatter<kas::ColoredDimension::Origin>: formatter<string_view> {
+    template<typename FormatContext>
+    auto format(kas::ColoredDimension::Origin o, FormatContext& ctx) const {
+        string_view name = "Unknown";
+        switch (o) {
+        using namespace std::string_view_literals;
+        case kas::ColoredDimension::Origin::Input: name = "Input"sv; break;
+        case kas::ColoredDimension::Origin::Weight: name = "Weight"sv; break;
+        case kas::ColoredDimension::Origin::Unfold: name = "Unfold"sv; break;
+        case kas::ColoredDimension::Origin::BothPossible: name = "BothPossible"sv; break;
+        }
+        return formatter<string_view>::format(name, ctx);
+    }
+};
+std::ostream& operator<<(std::ostream& os, kas::Order o);

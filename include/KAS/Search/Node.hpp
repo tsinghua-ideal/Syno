@@ -31,6 +31,7 @@ struct Next {
         // Growing -> Final
         Finalize,
     };
+    static constexpr std::size_t NumTypes = 8;
     Type type;
     // This can be hash, or any arbitrary fixed number, as long as this is invariant between runs.
     std::size_t key;
@@ -239,7 +240,7 @@ struct fmt::formatter<kas::Next::Type>: formatter<string_view> {
     auto format(kas::Next::Type t, FormatContext& ctx) const {
         string_view name = "Unknown";
         switch (t) {
-        using namespace std::literals;
+        using namespace std::string_view_literals;
         case kas::Next::Type::MapReduce: name = "MapReduce"sv; break;
         case kas::Next::Type::Shift: name = "Shift"sv; break;
         case kas::Next::Type::Stride: name = "Stride"sv; break;

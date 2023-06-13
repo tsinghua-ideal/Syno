@@ -329,7 +329,7 @@ struct fmt::formatter<kas::Valuation::Type>: formatter<string_view> {
     auto format(kas::Valuation::Type v, FormatContext& ctx) const {
         string_view name = "Unknown";
         switch (v) {
-        using namespace std::literals;
+        using namespace std::string_view_literals;
         case kas::Valuation::Type::Unoriented: name = "Unoriented"sv; break;
         case kas::Valuation::Type::Oriented: name = "Oriented"sv; break;
         case kas::Valuation::Type::Valued: name = "Valued"sv; break;
@@ -344,7 +344,7 @@ struct fmt::formatter<kas::Valuation>: formatter<string_view> {
     auto format(kas::Valuation v, FormatContext& ctx) const {
         string_view name = "Unknown";
         switch (v.type()) {
-        using namespace std::literals;
+        using namespace std::string_view_literals;
         case kas::Valuation::Type::Unoriented: name = "Unoriented"sv; break;
         case kas::Valuation::Type::Oriented:
             switch (v.extractOrientation()) {

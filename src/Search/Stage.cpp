@@ -98,7 +98,7 @@ void Stage::guard() {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}, TODO
         // Stride^{-1}
-        if (!options.disableStride) {
+        if (options.maximumStrides == -1 || options.maximumStrides > existingOp<StrideOp>()) {
             add(StrideOp::Generate(store, interface, {
                 .ctx = ctx,
                 .maxStridedDimSize = options.maxStridedDimSize,
@@ -110,7 +110,7 @@ void Stage::guard() {
         // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s.
         if (interface.size() > options.dimLowerBound) {
             // Split^{-1}
-            if (!options.disableSplit) {
+            if (options.maximumSplits == -1 || options.maximumSplits > existingOp<SplitOp>()) {
                 add(SplitOp::Generate(store, interface, {
                     .disallowDiscontinuousView = options.disallowDiscontinuousView,
                     .disallowSplitRAboveUnfold = options.disallowSplitRAboveUnfold,
@@ -118,7 +118,7 @@ void Stage::guard() {
                 }));
             }
             // Unfold^{-1}
-            if (!options.disableUnfold) {
+            if (options.maximumUnfolds == -1 || options.maximumUnfolds > existingOp<UnfoldOp>()) {
                 add(UnfoldOp::Generate(store, interface, {
                     .ctx = ctx,
                     .minimumRatio = options.minimumUnfoldRatio,
@@ -134,7 +134,7 @@ void Stage::guard() {
         // Try increasing dimensionality, by applying `MergeLikeOp`^{-1}s.
         if (interface.size() < options.dimUpperBound) {
             // Merge^{-1}
-            if (!options.disableMerge) {
+            if (options.maximumMerges == -1 || options.maximumMerges > existingOp<MergeOp>()) {
                 add(MergeOp::Generate(store, interface, {
                     .ctx = ctx,
                     .minimumRatio = options.minimumMergeRatio,
@@ -143,7 +143,7 @@ void Stage::guard() {
                 }));
             }
             // Share^{-1}
-            if (!options.disableShare) {
+            if (options.maximumShares == -1 || options.maximumShares > existingOp<ShareOp>()) {
                 add(ShareOp::Generate(store, interface, {
                     .ctx = ctx,
                     .maximumTensors = options.maximumTensors,
@@ -170,108 +170,73 @@ std::shared_ptr<TensorView> Stage::getFinalize(std::size_t key) {
     return slot.finalization.buildTensorView(sampler.getFixedDimensions());
 }
 
+Stage::Stage(Sampler& sampler, const std::vector<const MapReduceOp *>& reductions):
+    interface { [&]() {
+        auto interface = sampler.getRootInterface();
+        std::ranges::copy(reductions, std::back_inserter(interface));
+        std::ranges::sort(interface, Dimension::HashLessThan{});
+        return interface;
+    }() },
+    sampler { sampler },
+    depth { reductions.size() }
+{
+    existingOps[static_cast<std::size_t>(Next::Type::MapReduce)] = reductions.size();
+}
+
+Stage::Stage(Sampler& sampler, ColoredInterface&& interface, const Stage& old, Next::Type delta):
+    interface { std::move(interface) },
+    sampler { sampler },
+    depth { old.depth + 1 },
+    existingOps { old.existingOps }
+{
+    existingOps[static_cast<std::size_t>(delta)] += 1;
+}
+
 bool Stage::possibleToFinalize() const {
+    if (possibleToFinalizeCache) {
+        return *possibleToFinalizeCache;
+    }
+
     ++CountFinalizabilityCheckInvocations;
 
-    const auto& ctx = sampler.getBindingContext();
-    const auto& options = sampler.getOptions();
-    const std::size_t remainingSteps = remainingDepth();
+    const SampleOptions& options = sampler.getOptions();
+    const BindingContext& ctx = sampler.getBindingContext();
 
-    // First, check for strided dimensions. They must be absorbed by UnfoldOp before Finalization.
-    std::size_t stridedDims = std::ranges::count_if(interface, [](const ColoredDimension& cdim) { return cdim.color.isDataDiscarding(); });
-    if (stridedDims > remainingSteps) {
-        // We can remove 1 strided dimension per step.
-        ++CountTooManyStridedDims;
-        return false;
-    }
-
-    // Next, check that there exists a coloring for weight tensors. Note that this check is conservative.
-    auto weightTensorDims =
-        interface
-        | std::views::filter([](const ColoredDimension& cDim) {
-            return cDim.deduceOrigin() == ColoredDimension::Origin::Weight;
-        });
-    switch (options.maximumTensors) {
-    case 1: {
-        // There must be exactly 1 weight tensor.
-        if (std::ranges::distance(weightTensorDims) > 0) {
-            ++CountTooManyWeights;
-            return false;
-        }
-        break;
-    }
-    case 2: {
-        // We have to check that the colors won't conflict.
-        Color color;
-        for (const auto& cDim: weightTensorDims) {
-            if (!color.disjoint(cDim.color)) {
-                ++CountTooManyWeights;
-                return false;
-            }
-            color.merge(cDim.color);
-        }
-        break;
-    }
-    default:
-        KAS_CRITICAL("Unsupported maximumTensors: {}", options.maximumTensors);
-    }
-
-    // Then, check whether there are enough elements in the input tensor.
-    auto inputTensorCandidates =
-        interface
-        | std::views::filter([](const ColoredDimension& cDim) { return cDim.deduceOrigin() == ColoredDimension::Origin::Input || cDim.deduceOrigin() == ColoredDimension::Origin::BothPossible; })
-        | std::views::transform(&ColoredDimension::dimension);
-    std::unordered_map<Size, int> counts;
-    auto elements = Size::Identity(ctx);
-    for (const auto& dim: inputTensorCandidates) {
-        // Take the product to find the total elements.
-        elements = elements * dim.size();
-        counts[dim.size()] += 1;
-    }
-    // Check whether there are enough elements.
-    auto quotient = elements.testDividedBy(sampler.getInputShape().totalSize());
-    if (!quotient || *quotient == Size::Trait::IllegalCoefficient) {
-        ++CountTooFewElementsInInputTensor;
-        return false;
-    }
-
-    // At last, try matching the dimensions, which is just experimental Finalization.
-    std::vector<const Size *> unfulfilled;
-    for (const auto& required: sampler.getInputShape()) {
-        auto it = counts.find(required);
-        if (it != counts.end()) {
-            if (it->second == 1) {
-                counts.erase(it);
-            } else {
-                it->second -= 1;
-            }
+    std::vector<std::reference_wrapper<const ColoredDimension>> onlyWeights, weightsExcluded;
+    for (const ColoredDimension& cDim : interface) {
+        if (cDim.deduceOrigin() == ColoredDimension::Origin::Weight) {
+            onlyWeights.emplace_back(std::cref(cDim));
         } else {
-            unfulfilled.push_back(&required);
+            weightsExcluded.emplace_back(std::cref(cDim));
         }
     }
-    if ((unfulfilled.size() + 1) / 2 + stridedDims > remainingSteps) {
-        // Merge can possibly fulfill 2 dimensions per step. So this is most conservative.
-        ++CountShapeDeviatesTooMuch;
+
+    if (!FinalizeOp::FitIntoWeights(onlyWeights, {
+        .maximumTensors = options.maximumTensors,
+    })) {
+        ++CountTooManyWeights;
+        possibleToFinalizeCache = false;
         return false;
-    } else if (unfulfilled.size() + stridedDims > remainingSteps) {
-        // We need at least 1 Merge tree to make things work. Enumerate.
-        auto enumerateSizes = [&](const auto& self, const Size& previousSize, std::size_t nextIndex) -> bool {
-            if (nextIndex == unfulfilled.size()) {
-                return counts.contains(previousSize);
-            } else {
-                return self(self, previousSize, nextIndex + 1)
-                    || self(self, previousSize * *unfulfilled[nextIndex], nextIndex + 1);
-            }
-        };
-        if (enumerateSizes(enumerateSizes, Size::Identity(ctx), 0)) {
-            return true;
-        }
-        ++CountShapeDeviatesTooMuch;
-        return false;
-    } else {
-        // We still have enough steps.
-        return true;
     }
+
+    auto remaining = [&](int maximum, Next::Type existingType) {
+        int existing = existingOps[static_cast<std::size_t>(existingType)];
+        return maximum == -1 ? static_cast<int>(options.depth) : std::max(maximum - existing, 0);
+    };
+    const std::size_t distance = FinalizeOp::Distance(weightsExcluded, sampler.getInputShape(), {
+        .ctx = ctx,
+        .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
+        .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),
+        .remainingUnfolds = remaining(options.maximumUnfolds, Next::Type::Unfold),
+    });
+    if (distance > remainingDepth()) {
+        ++CountShapeDeviatesTooMuch;
+        possibleToFinalizeCache = false;
+        return false;
+    }
+
+    possibleToFinalizeCache = true;
+    return true;
 }
 
 std::size_t Stage::countChildren() {

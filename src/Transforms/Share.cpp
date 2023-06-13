@@ -59,7 +59,7 @@ std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const Colo
 
     // "Chained" Share.
     using enum DimensionTypeWithOrder;
-    std::vector<DimensionTypeWithOrder> disallows { ShareR };
+    std::vector<DimensionTypeWithOrder> disallows { ShareR, Split, Shift };
     auto plausible = interface.filterOut(disallows);
 
     Allowance allowance { Size::Product(interface.getShape()), options.ctx };

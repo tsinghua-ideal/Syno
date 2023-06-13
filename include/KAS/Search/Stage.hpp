@@ -93,8 +93,13 @@ private:
     // Metadata.
     Sampler& sampler;
     StageStore& getStageStore();
-    // std::vector<std::reference_wrapper<const Size>> missingSizes;
     std::size_t depth; // Stages with identical interfaces must be of the same depth.
+    std::array<int, Next::NumTypes> existingOps {};
+
+    template<typename Op>
+    int existingOp() const {
+        return existingOps[static_cast<std::size_t>(Next::TypeOf<Op>())];
+    }
 
     std::size_t remainingDepth() const;
 
@@ -112,7 +117,7 @@ private:
         if (Stage *found = store.find(newInterface); found) {
             return found;
         } else {
-            auto tempStage = std::make_unique<Stage>(std::move(newInterface), sampler, depth + 1);
+            auto tempStage = std::make_unique<Stage>(sampler, std::move(newInterface), *this, Next::TypeOf<Op>());
             if(store.insert(tempStage.get())) {
                 return tempStage.release();
             } else {
@@ -127,13 +132,8 @@ private:
     }
 
 public:
-    Stage(auto&& interface, Sampler& sampler, std::size_t depth):
-        interface { std::forward<decltype(interface)>(interface) },
-        sampler { std::forward<decltype(sampler)>(sampler) },
-        depth { depth }
-    {
-        // Compute missing sizes. TODO.
-    }
+    Stage(Sampler& sampler, const std::vector<const MapReduceOp *>& reductions);
+    Stage(Sampler& sampler, ColoredInterface&& interface, const Stage& old, Next::Type delta);
 
     KAS_STATISTICS_DEF(
         Creations,
@@ -150,6 +150,7 @@ public:
         TooFewElementsInInputTensor,
         ShapeDeviatesTooMuch,
     );
+    mutable std::optional<bool> possibleToFinalizeCache;
     // This is for pruning. We experimentally finalize this stage, and conservatively exclude the stage if it is not possible to finalize.
     bool possibleToFinalize() const;
 

@@ -34,6 +34,21 @@ public:
 
     static bool Prune(const std::vector<Graph::ConnectedComponent>& components, const std::vector<Interface>& trial);
 
+    struct WeightOptions {
+        std::size_t maximumTensors;
+    };
+
+    static bool FitIntoWeights(const std::vector<std::reference_wrapper<const ColoredDimension>>& current, const WeightOptions& options);
+
+    struct DistanceOptions {
+        const BindingContext& ctx;
+        int remainingMerges;
+        int remainingSplits;
+        int remainingUnfolds;
+    };
+
+    static std::size_t Distance(const std::vector<std::reference_wrapper<const ColoredDimension>>& current, const Shape& desired, const DistanceOptions& options);
+
     KAS_STATISTICS_DEF(
         GenerateInvocations,
         SuccessfulInvocations,
@@ -48,6 +63,7 @@ public:
         const Shape& desired;
         std::size_t maximumTensors;
     };
+
     static std::vector<FinalizeOp> Generate(const ColoredInterface& interface, const Graph& graph, const GenerateOptions& options);
 };
 
