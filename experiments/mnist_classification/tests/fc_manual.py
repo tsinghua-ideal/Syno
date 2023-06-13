@@ -29,7 +29,7 @@ def dense(assembler: Assembler) -> Assembled:
     # [in_N, in_C, w_in_C, w_out_C]
 
     shared_C_in = assembler.create_share(in_C, w_in_C)
-    # [in_N, main_H, main_W, out_C, shared_k_1, shared_k_2]
+    # [in_N, shared_C_in, w_out_C]
 
     in_N.output(0)
     w_out_C.output(1)

@@ -30,10 +30,10 @@ class MCTS:
 
     def dump(self) -> dict:
         """Dump the tree into a json file. """
-        Q_sel = {k.path.serialize(): v for k, v in self._Q.items()}
-        N_sel = {k.path.serialize(): v for k, v in self._N.items()}
+        Q_sel = {hash(k): v for k, v in self._Q.items()}
+        N_sel = {hash(k): v for k, v in self._N.items()}
         node_expanded = list(self._children_nexts.keys())
-        node_expanded_sel = [n.path.serialize() for n in node_expanded]
+        node_expanded_sel = [hash(n) for n in node_expanded]
         packed_args = dict(
             virtual_loss_constant=self.virtual_loss_constant,
             leaf_num=self.leaf_num,
@@ -202,6 +202,7 @@ class MCTS:
             """
             Two step random selection. First, randomly select a primitive type. Then, randomly select a child of that type.
             """
+            assert isinstance(node, TreeNode)
             selected_child = random.choice(node.get_children_handles())
             return node.get_child(selected_child)
 

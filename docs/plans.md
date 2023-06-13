@@ -14,7 +14,7 @@
 ### Hash
 
 - [x] Fix hash collision. (If not possible, try finding data structures that tolerate collisions.) (Temporarily this seems fixed?)
-- [x] Replace `std::hash` with custom hash for better reproducibility.
+- [ ] Replace `std::hash` with custom hash for better reproducibility.
 - [x] Use reproducible hash for `Node`.
 
 ## CodeGen
@@ -23,12 +23,12 @@
 - [ ] Add auto scheduler options to reduce tuning time.
 - [x] Add padding by padding variables that cannot be divided by their denominators.
 - [ ] Optimization: Early reduction to reduce FLOPs.
-- [x] Early reduction analysis is actually compulsory. Otherwise in autodiff settings, the RDom may be left unmentioned, causing Halide compile errors!
+- [ ] Early reduction analysis is actually compulsory. Otherwise in autodiff settings, the RDom may be left unmentioned, causing Halide compile errors!
 - [x] Sum -> Avg.
 - [ ] Perform a trial to see if there are uncanonical case. (1 on weight)
 - [ ] Multiple weights. (Minimumize difference.)
 - [ ] Add support for float16.
-- [x] Manual `rfactor` for up to 3x performance.
+- [ ] Manual `rfactor` for up to 3x performance.
 
 ## Transforms
 
@@ -83,3 +83,4 @@
 - [x] Add MNIST MLP models. 
 - [ ] Speed up data loading
 - [ ] Early Stopping and NaN filtering during training. 
+- [ ] Filter by Fisher Potential. 

@@ -17,8 +17,8 @@ def parameters(args):
     sampler_params = dict(
         input_shape="[N,C_in]",
         output_shape="[N,C_out]",
-        primary_specs=["N=64: 0", "C_in=20", "C_out=20"],
-        coefficient_specs=["k_1=3: 4", "k_2=5: 4"],
+        primary_specs=["N=64: 0", "C_in=200: 2", "C_out=20: 1"],
+        coefficient_specs=["k=3: 1"],
         fixed_io_pairs=[(0, 0)],
         seed=random.SystemRandom().randint(
             0, 0x7fffffff) if args.kas_seed == 'pure' else args.seed,
@@ -26,8 +26,8 @@ def parameters(args):
         dim_lower=args.kas_min_dim,
         dim_upper=args.kas_max_dim,
         maximum_tensors=2,
-        maximum_reductions=4,
-        max_flops=16420864000,  # manual conv size
+        maximum_reductions=1,
+        max_flops=int(args.kas_max_macs * 1e9) * 2,
         save_path=args.kas_sampler_save_dir,
         cuda=use_cuda,
         autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021

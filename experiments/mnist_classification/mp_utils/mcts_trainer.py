@@ -124,9 +124,9 @@ class MCTSTrainer(MCTS):
         json.dump(perf_dict, open(perf_path, 'w'))
         result_path = os.path.join(result_save_loc, 'result.json')
         eval_result_cache_serial = {
-            k.path.serialize(): v for k, v in self.eval_result_cache.items()}
+            hash(k): v for k, v in self.eval_result_cache.items()}
         result_dict = {
-            "best_path": node.path.serialize(),
+            "best_path": hash(node),
             "mcts": self.dump(),
             "results": eval_result_cache_serial
         }

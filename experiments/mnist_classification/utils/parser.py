@@ -175,9 +175,9 @@ def arg_parse():
                         help='Proxy dataset threshold for real training (only for search)')
     parser.add_argument('--kas-kernel', default='', type=str,
                         help='Path to the replaced kernel (only for training)')
-    parser.add_argument('--kas-depth', default=4,
+    parser.add_argument('--kas-depth', default=3,
                         type=int, help='kas sampler depth')
-    parser.add_argument('--kas-min-dim', default=2,
+    parser.add_argument('--kas-min-dim', default=1,
                         type=int, help='kas sampler minimum dimensions')
     parser.add_argument('--kas-max-dim', default=8,
                         type=int, help='kas sampler maximum dimensions')
@@ -198,7 +198,7 @@ def arg_parse():
                         help='virtual-loss-constant of tree parallelization')
     parser.add_argument('--kas-min-macs', default=0, type=float,
                         help='Minimum MACs for searched kernels (in G-unit, only for search)')
-    parser.add_argument('--kas-max-macs', default=1, type=float,
+    parser.add_argument('--kas-max-macs', default=0.2, type=float,
                         help='Maximum MACs for searched kernels (in G-unit, only for search)')
     parser.add_argument('--kas-min-params', default=0, type=float,
                         help='Minimum params for searched kernels (in M-unit, only for search)')
