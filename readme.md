@@ -40,6 +40,15 @@ pytest
 
 See all the tests in `tests/`.
 
+## Scripts for Experiments
+
+Experiments' codes for searching kernels on MNIST and CIFAR10 are provided under the `experiments` folder. To launch an experiment using 8 GPUs, run
+
+```bash
+bash ./run_server.sh $SEARCH_ITERATIONS
+bash ./run_tmux.sh 8 python -u evaluator.py
+```
+
 ## Notes
 
 To run `tests/Semantics/test_semantics_*.py`, you need to first run `ctest` to generate the kernels. Then you can either manually run it to observe the performance or just run `pytest` to check correctness.

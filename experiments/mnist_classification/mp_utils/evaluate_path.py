@@ -16,7 +16,7 @@ if os.getcwd() not in sys.path:
 from utils.models import ModelBackup
 
 
-def evaluate(path: TreePath, train_loader: DataLoader, val_loader: DataLoader, _model: ModelBackup, kas_sampler: Sampler, train_args: dict, extra_args: dict) -> Tuple[str, float]:
+def evaluate(path: TreePath, train_loader: DataLoader, val_loader: DataLoader, args, _model: ModelBackup, kas_sampler: Sampler, train_args: dict, extra_args: dict) -> Tuple[str, float]:
     """
     Evaluate a serialized path. 
     Steps: deserialize -> realize -> train -> evaluate
@@ -82,7 +82,7 @@ def evaluate(path: TreePath, train_loader: DataLoader, val_loader: DataLoader, _
         return "FAILED_small_model_size.", 0
 
     _, val_error, _ = train(model, train_loader,
-                            val_loader, **train_args, verbose=True)
+                            val_loader, args, **train_args, verbose=True)
     accuracy = 1. - min(val_error)
     assert 0 <= accuracy <= 1
     return "SUCCESS", accuracy

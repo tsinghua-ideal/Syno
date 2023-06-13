@@ -111,10 +111,11 @@ class KernelPack(nn.Module):
 
         # Initialize weights. Note that the first item is the input.
         # TODO: maybe we should add weight initializer?
-        self.weights = nn.ParameterList(
-            [torch.randn(shape, device=device) for shape in unpadded_inputs_shapes[1:]])
-        self.weights.apply(
-            lambda m: torch.nn.init.kaiming_normal_(m, nonlinearity='relu'))
+        self.weights = nn.ParameterList([
+            torch.nn.init.xavier_uniform_(
+                torch.randn(shape, device=device)
+            ) for shape in unpadded_inputs_shapes[1:]
+        ])
 
     def forward(self, x):
         return self._Kernel.apply(x, *self.weights)

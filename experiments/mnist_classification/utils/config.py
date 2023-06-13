@@ -39,7 +39,7 @@ def parameters(args):
         max_model_size=int(args.kas_max_params * 1e6),
         min_model_size=int(args.kas_min_params * 1e6),
         prefix="",
-        model_type="KASConv",  # TODO: dynamically load the module
+        model_type="KASFC",  # TODO: dynamically load the module
         batch_size=args.batch_size,
         sample_input_shape=(args.batch_size, *args.input_size),
         device="cuda" if use_cuda else "cpu"

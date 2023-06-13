@@ -2,7 +2,7 @@ import logging
 import itertools
 
 from utils.data import get_dataloader
-from utils.models import KASConv, ModelBackup
+from utils.models import KASFC, ModelBackup
 from utils.parser import arg_parse
 from utils import device
 from mp_utils import Handler_client, evaluate
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     sampler_args['autoscheduler'] = getattr(
         CodeGenOptions.AutoScheduler, sampler_args['autoscheduler'])
 
-    _model = ModelBackup(KASConv, torch.randn(
+    _model = ModelBackup(KASFC, torch.randn(
         extra_args["sample_input_shape"]), extra_args["device"])
     kas_sampler = Sampler(net=_model.create_instance(), **sampler_args)
 
@@ -64,7 +64,7 @@ if __name__ == '__main__':
             logging.info(f"Received {path}")
             try:
                 state, reward = evaluate(
-                    path, train_data_loader, validation_data_loader, _model, kas_sampler, train_args, extra_args)
+                    path, train_data_loader, validation_data_loader, args, _model, kas_sampler, train_args, extra_args)
             except Exception as e:
                 if isinstance(e, KeyboardInterrupt):
                     break

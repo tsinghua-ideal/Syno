@@ -17,7 +17,7 @@ from KAS.Bindings import CodeGenOptions
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
-from utils.models import KASConv, ModelBackup
+from utils.models import KASFC, ModelBackup
 from utils.parser import arg_parse
 from utils.config import parameters
 
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     arguments['sampler_args']['autoscheduler'] = str(
         arguments['sampler_args']['autoscheduler'])[14:]  # HACK: serialize the enum
 
-    _model = ModelBackup(KASConv, torch.randn(
+    _model = ModelBackup(KASFC, torch.randn(
         extra_args["sample_input_shape"]), "cpu")
     kas_sampler = Sampler(net=_model.create_instance(), **sampler_params)
 

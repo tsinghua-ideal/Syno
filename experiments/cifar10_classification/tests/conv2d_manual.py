@@ -23,7 +23,7 @@ from utils.config import parameters
 
 def conv2d(assembler: Assembler) -> Assembled:
     N, H, W, k, C_in, C_out = assembler.get_sizes(
-        "N", "H", "W", "k_2", "C_in", "C_out")
+        "N", "H", "W", "k_1", "C_in", "C_out")
 
     # Inputs: [N, H, W], [C_out, k_1, k_2]
     in_N, in_H, in_W, in_C, out_C, w_in_C, w_k_1, w_k_2 = assembler.make_dims_of_sizes(
