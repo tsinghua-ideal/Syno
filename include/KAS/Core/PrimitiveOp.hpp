@@ -176,7 +176,7 @@ public:
     RepeatLikeOp(RepeatLikeOp&&) = delete; // Do not move! Same reason.
     std::size_t opHash() const noexcept final override {
         std::size_t h = initialHash();
-        HashCombine(h, output.hash());
+        HashCombineRaw(h, output.hash());
         return h;
     }
     // We would like to store the DimensionImpl inside this class, so we can just return a reference to part of this object.
@@ -236,8 +236,8 @@ public:
     SplitLikeOp(SplitLikeOp&&) = delete;
     std::size_t opHash() const noexcept final override {
         std::size_t h = initialHash();
-        HashCombine(h, outputLhs.hash());
-        HashCombine(h, outputRhs.hash());
+        HashCombineRaw(h, outputLhs.hash());
+        HashCombineRaw(h, outputRhs.hash());
         return h;
     }
     virtual Dimension getInput() const = 0;
@@ -302,7 +302,7 @@ public:
     MergeLikeOp(MergeLikeOp&&) = delete;
     std::size_t opHash() const noexcept final override {
         std::size_t h = initialHash();
-        HashCombine(h, output.hash());
+        HashCombineRaw(h, output.hash());
         return h;
     }
     virtual Dimension getInputL() const = 0;

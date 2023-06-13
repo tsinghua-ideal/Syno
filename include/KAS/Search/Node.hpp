@@ -39,7 +39,9 @@ struct Next {
     bool operator==(const Next& rhs) const noexcept = default;
     // For Python.
     std::size_t hash() const noexcept {
-        std::size_t h = static_cast<std::size_t>(type);
+        using namespace std::string_view_literals;
+        auto h = std::hash<std::string_view>{}("Next"sv);
+        HashCombine(h, type);
         HashCombine(h, key);
         return h;
     }

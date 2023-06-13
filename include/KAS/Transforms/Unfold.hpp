@@ -27,7 +27,7 @@ public:
         input { this }
     {}
     constexpr DimensionType getType() const noexcept override { return Type; }
-    constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
+    std::size_t initialHash() const noexcept override { return std::hash<DimensionType>{}(Type); }
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 

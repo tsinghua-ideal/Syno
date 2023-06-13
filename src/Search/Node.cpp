@@ -61,12 +61,14 @@ bool Node::operator==(const Node& rhs) const {
 }
 
 std::size_t Node::hash() const {
-    std::size_t h = std::hash<std::size_t>{}(inner.index());
+    using namespace std::string_view_literals;
+    auto h = std::hash<std::string_view>{}("Node"sv);
+    HashCombine(h, inner.index());
     auto hashRetriever = [](const auto& content) {
         return content->hash();
     };
     auto contentHash = std::visit(hashRetriever, inner);
-    HashCombine(h, contentHash);
+    HashCombineRaw(h, contentHash);
     return h;
 }
 

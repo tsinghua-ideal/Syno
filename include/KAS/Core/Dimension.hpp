@@ -176,9 +176,11 @@ struct std::hash<DR> {
     // Since this is a template function, std::hash<Interface> can provide hash for arbitrary DimensionRange.
     template<kas::DimensionRange R>
     std::size_t operator()(R&& interface) const noexcept {
-        std::size_t h = interface.size();
-        for (const auto& dim: interface) {
-            kas::HashCombine(h, dim.hash());
+        using namespace std::string_view_literals;
+        std::size_t h = std::hash<std::string_view>{}("DimensionRange"sv);
+        kas::HashCombine(h, interface.size());
+        for (const kas::Dimension& dim: interface) {
+            kas::HashCombineRaw(h, dim.hash());
         }
         return h;
     }
@@ -189,7 +191,9 @@ struct std::hash<TR> {
     // Since this is a template function, std::hash<std::vector<Interface>> can provide hash for arbitrary TensorRange.
     template<kas::TensorRange R>
     std::size_t operator()(R&& tensors) const noexcept {
-        std::size_t h = tensors.size();
+        using namespace std::string_view_literals;
+        std::size_t h = std::hash<std::string_view>{}("TensorRange"sv);
+        kas::HashCombine(h, tensors.size());
         for (const auto& tensor: tensors) {
             kas::HashCombine(h, tensor);
         }

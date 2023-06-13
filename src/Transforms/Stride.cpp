@@ -8,7 +8,7 @@
 namespace kas {
 
 std::size_t StrideOp::initialHash() const noexcept {
-    std::size_t h = static_cast<std::size_t>(Type);
+    std::size_t h = std::hash<DimensionType>{}(Type);
     HashCombine(h, stride);
     return h;
 }

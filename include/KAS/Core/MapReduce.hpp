@@ -54,7 +54,7 @@ public:
     {}
     const Size& size() const noexcept override { return domain; }
     std::size_t hash() const noexcept override {
-        auto h = static_cast<std::size_t>(DimensionType::MapReduce);
+        std::size_t h = std::hash<DimensionType>{}(DimensionType::MapReduce);
         HashCombine(h, mapType);
         HashCombine(h, reduceType);
         HashCombine(h, priority);

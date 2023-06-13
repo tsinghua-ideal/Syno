@@ -12,11 +12,7 @@
 namespace kas {
 
 std::size_t StageStore::Hash::operator()(const ColoredInterface& interface) const noexcept {
-    std::size_t h = interface.size();
-    for (const auto& dim: interface.toDimensions()) {
-        HashCombine(h, dim.hash());
-    }
-    return h;
+    return std::hash<Interface>{}(interface.toDimensions());
 }
 
 std::size_t StageStore::Hash::operator()(const Stage * stage) const noexcept {

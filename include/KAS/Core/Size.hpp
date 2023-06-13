@@ -257,24 +257,20 @@ struct Allowance {
 
 } // namespace kas
 
-template<typename T>
-struct std::hash<std::span<T>> {
-    std::size_t operator()(const std::span<T>& span) const noexcept {
-        std::size_t seed = span.size();
-        for (const auto& item: span) {
-            kas::HashCombine(seed, item);
-        }
-        return seed;
-    }
-};
-
 template<>
 struct std::hash<kas::Size> {
     std::size_t operator()(const kas::Size& size) const noexcept {
-        using namespace std::literals;
+        using namespace std::string_view_literals;
         auto h = std::hash<std::string_view>{}("Size"sv);
-        kas::HashCombine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getPrimary()));
-        kas::HashCombine(h, std::hash<std::span<const kas::Size::PowerType>>{}(size.getCoefficient()));
+        std::span<const kas::Size::PowerType> ps = size.getPrimary(), cs = size.getCoefficient();
+        kas::HashCombine(h, ps.size());
+        for (auto p: ps) {
+            kas::HashCombine(h, p);
+        }
+        kas::HashCombine(h, cs.size());
+        for (auto c: cs) {
+            kas::HashCombine(h, c);
+        }
         return h;
     }
 };

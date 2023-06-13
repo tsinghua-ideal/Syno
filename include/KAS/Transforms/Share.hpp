@@ -32,7 +32,7 @@ public:
         inputRhs { this, Order::Right }
     {}
     constexpr DimensionType getType() const noexcept override { return Type; }
-    constexpr std::size_t initialHash() const noexcept override { return static_cast<std::size_t>(Type); }
+    std::size_t initialHash() const noexcept override { return std::hash<DimensionType>{}(Type); }
     Dimension getInputL() const override { return &inputLhs; }
     Dimension getInputR() const override { return &inputRhs; }
     Values value(const Values& known) const override;

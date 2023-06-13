@@ -35,9 +35,11 @@ ReductionStage::ReductionStage(Sampler& sampler, std::vector<const MapReduceOp *
 }
 
 std::size_t ReductionStage::hash() const {
-    std::size_t h = reductions.size();
+    using namespace std::string_view_literals;
+    auto h = std::hash<std::string_view>{}("ReductionStage"sv);
+    HashCombine(h, reductions.size());
     for (const auto *op: reductions) {
-        HashCombine(h, op->hash());
+        HashCombineRaw(h, op->hash());
     }
     return h;
 }

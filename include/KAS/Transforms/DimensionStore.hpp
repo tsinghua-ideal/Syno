@@ -35,7 +35,7 @@ struct SingleRepeatLikeOpDimensionStore {
     struct Hash {
         std::size_t operator()(Pointer<Op> op) const noexcept {
             auto h = op->initialHash();
-            HashCombine(h, op->output.hash());
+            HashCombineRaw(h, op->output.hash());
             return h;
         }
     };
@@ -56,8 +56,8 @@ struct SingleSplitLikeOpDimensionStore {
     struct Hash {
         std::size_t operator()(Pointer<Op> op) const noexcept {
             auto h = op->initialHash();
-            HashCombine(h, op->outputLhs.hash());
-            HashCombine(h, op->outputRhs.hash());
+            HashCombineRaw(h, op->outputLhs.hash());
+            HashCombineRaw(h, op->outputRhs.hash());
             return h;
         }
     };
@@ -78,7 +78,7 @@ struct SingleMergeLikeOpDimensionStore {
     struct Hash {
         std::size_t operator()(Pointer<Op> op) const noexcept {
             auto h = op->initialHash();
-            HashCombine(h, op->output.hash());
+            HashCombineRaw(h, op->output.hash());
             return h;
         }
     };
