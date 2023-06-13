@@ -67,17 +67,19 @@
 
 ## Experiment
 
-- [x] Build framework for MNIST experiments. 
+### MCTS
+
 - [x] Multi-process support for MCTS. (Tree parallelization)
-    - [x] server
-    - [x] client
-    - [x] Tree parallelization
-    - [x] setup script
 - [x] Two-step primitive selection. 
-- [ ] Early Stopping during training. (Not urgent yet. )
-- [-] Search Result Saving (path, mcts, etc.). 
 - [x] Cache searched nodes. 
-- [ ] Add MNIST MLP models. 
-- [ ] Work out conv search. 
-- [ ] Reward formatting. 
 - [ ] Parametrize filtering and reward returning. 
+- [ ] Search State and Result Saving (path, mcts, etc.). 
+- [ ] Experiment on MNIST. 
+- [ ] Experiment on CIFAR10. 
+- [ ] Reward formatting. 
+
+### Train
+
+- [x] Add MNIST MLP models. 
+- [ ] Speed up data loading
+- [ ] Early Stopping and NaN filtering during training. 
