@@ -63,12 +63,14 @@ if __name__ == '__main__':
     )
 
     assembler = kas_sampler.create_assembler()
+    assembled = dense(assembler)
+    print("The path is", assembled.convert_to_path(kas_sampler))
 
     # Analyze a sample
     model = model_.create_instance()
 
     kernelPacks, total_flops = kas_sampler.realize(
-        model, dense(assembler), "test_manual_fc")
+        model, assembled, "test_manual_fc")
     model = model_.restore_model_params(model, kernelPacks)
 
     model_macs = model_.base_macs + total_flops * 2
