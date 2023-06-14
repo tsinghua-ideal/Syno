@@ -70,10 +70,10 @@ class MCTS:
         self._children_nexts[node] = children_nexts
 
     def set_node_dead(self, node: TreeNode) -> None:
-        self.dead_node.append(node)
+        self.dead_node.append(node.to_node())
 
     def check_node_dead(self, node: TreeNode) -> bool:
-        return node in self.dead_node
+        return node.to_node() in self.dead_node
 
     def check_node_alive(self, node: TreeNode) -> bool:
         return not node.is_dead_end() and not self.check_node_dead(node)
@@ -84,7 +84,6 @@ class MCTS:
         if any([not self.check_node_alive(node.get_child(nxt)) for nxt in nexts]):
             nexts = [nxt for nxt in nexts if self.check_node_alive(
                 node.get_child(nxt))]
-        assert len(nexts) > 0, node.path
         self._set_children_nexts(node, nexts)
         return nexts
 
@@ -144,7 +143,9 @@ class MCTS:
         node = TreeNode(node.path, node._node, is_mid=True, type=node.path[-1].type) if len(
             node.path) > 0 and node.path[-1] == 0 else TreeNode(node.path, node._node)
         path, leaf = self._select(node)
-        assert self.check_node_alive(leaf)
+        if leaf is None:
+            return path, leaf, False
+        # assert self.check_node_alive(leaf)
         self._expand(leaf)
         leaves = []
         for _ in range(self.simulate_retry_limit):
@@ -168,6 +169,10 @@ class MCTS:
                 # node is either terminal or unexplored
                 return path, node
             nexts = self.get_alive_children(node)
+            if len(nexts) == 0:
+                # This node has no children, we shall set the node to be dead and call for another try.
+                self.set_node_dead(node)
+                return None, None
             for next in nexts:
                 augmented = node.get_child(next)
                 if not self._has_children_nexts(augmented):

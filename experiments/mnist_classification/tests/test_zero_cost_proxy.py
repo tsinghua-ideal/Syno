@@ -9,14 +9,15 @@ import logging
 # KAS
 from KAS import Sampler, Assembled, Assembler
 
+# from foresight.pruners.predictive import find_measures
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
-from train import train
 from utils.data import get_dataloader
 from utils.models import KASFC, ModelBackup
 from utils.parser import arg_parse
 from utils.config import parameters
+from utils.pruners import syn_flow, naswot
 
 
 def dense(assembler: Assembler) -> Assembled:
@@ -78,9 +79,8 @@ if __name__ == '__main__':
     model_size = sum([p.numel() for p in model.parameters()])
     print("Model size: {}".format(model_size))
 
-    train_error, val_error, _ = train(
-        model, train_data_loader, validation_data_loader, args, **training_params, verbose=True)
-    accuracy = 1. - min(val_error)
+    result = syn_flow(model, extra_args["sample_input_shape"]), naswot(
+        model, train_data_loader, device)
 
-    print("Test Complete, elapsed {} seconds, accuracy {}. ".format(
-        time.time() - start, accuracy))
+    print("Test Complete, elapsed {} seconds, proxies {}. ".format(
+        time.time() - start, result))

@@ -70,7 +70,7 @@ def arg_parse():
                         help='Test/inference time augmentation (oversampling) factor')
 
     # Optimizer parameters.
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
+    parser.add_argument('--lr', type=float, default=5., metavar='LR',
                         help='Learning rate (default: 1e-3)')
     parser.add_argument('--opt', default='sgd', type=str, metavar='OPTIMIZER',
                         help='Optimizer (default: "sgd"')
@@ -198,11 +198,11 @@ def arg_parse():
                         help='virtual-loss-constant of tree parallelization')
     parser.add_argument('--kas-min-macs', default=0, type=float,
                         help='Minimum MACs for searched kernels (in G-unit, only for search)')
-    parser.add_argument('--kas-max-macs', default=0.2, type=float,
+    parser.add_argument('--kas-max-macs', default=0.8, type=float,
                         help='Maximum MACs for searched kernels (in G-unit, only for search)')
     parser.add_argument('--kas-min-params', default=0, type=float,
                         help='Minimum params for searched kernels (in M-unit, only for search)')
-    parser.add_argument('--kas-max-params', default=1, type=float,
+    parser.add_argument('--kas-max-params', default=3, type=float,
                         help='Maximum params for searched kernels (in M-unit, only for search)')
     parser.add_argument('--kas-min-receptive-size', default=1, type=int,
                         help='Minimum receptive size (only for search)')

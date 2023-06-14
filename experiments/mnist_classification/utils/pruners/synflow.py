@@ -1,20 +1,17 @@
 import torch
-from torch import nn
-from torch.utils.data import DataLoader
+from torch import nn, Tensor
 
-from typing import List
+from typing import List, Literal
+import math
 
 # KAS
 from KAS import Placeholder
 
-
-def get_batch(dataloader):
-    images, labels = next(iter(dataloader))
-    return images, labels
-
-
 def syn_flow(net: nn.Module, input_shape: List[int], divide_count: bool = True,
-             device: str = 'cuda', threshold: float = 0, only_kernel: bool = False):
+             device: str = 'cuda', threshold: float = 0, only_kernel: bool = False) -> float | Literal[0]:
+
+    net = net.to(device)
+
     @torch.no_grad()
     def linearize(net: nn.Module):
         signs = {}
@@ -29,15 +26,12 @@ def syn_flow(net: nn.Module, input_shape: List[int], divide_count: bool = True,
             if 'weight_mask' not in name:
                 param.mul_(signs[name])
 
-    input_shape[0] = 1
-
     # Linearize
     signs = linearize(net)
     net.zero_grad()
-    net = net.double().to(device)
-    images = torch.ones(input_shape).double().to(device)
-    out = net(images)
-    torch.sum(out).backward()
+    images = torch.ones(input_shape).to(device)
+    out: Tensor = net(images)
+    out.mean(0).sum().backward()
 
     # Calculate syn-flow (averaging by batch)
     syn_flow, count = 0, 0
@@ -58,7 +52,7 @@ def syn_flow(net: nn.Module, input_shape: List[int], divide_count: bool = True,
     # Restore and return
     assert count > 0
     non_linearize(net, signs)
-    if torch.isnan(syn_flow):
+    if math.isnan(syn_flow):
         return 0
     syn_flow = syn_flow / count if divide_count else syn_flow
     if threshold == 0:
