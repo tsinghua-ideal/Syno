@@ -77,6 +77,7 @@
 - [ ] Experiment on MNIST. 
 - [ ] Experiment on CIFAR10. 
 - [ ] Reward formatting. 
+- [ ] Stop automatically when the space is exhausted. 
 
 ### Train
 
