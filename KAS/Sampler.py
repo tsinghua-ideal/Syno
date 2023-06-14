@@ -40,7 +40,7 @@ class Sampler:
         for placeholder, kernel_pack in zip(placeholders, kernel_packs):
             placeholder.reload(kernel_pack)
 
-    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_discontinuous_view: bool = True, canonicalize_unfold_order: bool = True, disable_merge: bool = False, disable_split: bool = False, disable_shift: bool = False, disable_stride: bool = False, disable_unfold: bool = False, disable_share: bool = False, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot, rfactor_threshold: int = 32, in_bounds_likely_threshold: float = 0.3):
+    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_discontinuous_view: bool = True, canonicalize_unfold_order: bool = True, maximum_merges: int = -1, maximum_splits: int = -1, maximum_shifts: int = -1, maximum_strides: int = -1, maximum_unfolds: int = -1, maximum_shares: int = -1, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot, rfactor_threshold: int = 32, in_bounds_likely_threshold: float = 0.3):
         options = Bindings.SampleOptions(
             seed=seed,
             depth=depth,
@@ -55,12 +55,12 @@ class Sampler:
             minimum_merge_ratio=minimum_merge_ratio,
             disallow_discontinuous_view=disallow_discontinuous_view,
             canonicalize_unfold_order=canonicalize_unfold_order,
-            disable_merge=disable_merge,
-            disable_split=disable_split,
-            disable_shift=disable_shift,
-            disable_stride=disable_stride,
-            disable_unfold=disable_unfold,
-            disable_share=disable_share,
+            maximum_merges=maximum_merges,
+            maximum_splits=maximum_splits,
+            maximum_shifts=maximum_shifts,
+            maximum_strides=maximum_strides,
+            maximum_unfolds=maximum_unfolds,
+            maximum_shares=maximum_shares,
         )
         self._seed = seed
         self._save_path = save_path

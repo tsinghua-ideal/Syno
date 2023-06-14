@@ -53,6 +53,7 @@
 - [x] `ShareOp::IsSharedDimensionCanonical()` still needs some modifications.
 - [ ] Add mechanisms to automatically discover equivalent kernels. (TASO-like?)
 - [ ] Unfolding some dimensions to output iterators seems to be not a good idea.
+- [ ] Make dead ends propagate. (By storing parent nodes.)
 
 ### Misc
 

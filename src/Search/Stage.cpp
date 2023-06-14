@@ -1,4 +1,3 @@
-#include <fmt/core.h>
 #include <unordered_map>
 
 #include "KAS/Search/Stage.hpp"
@@ -55,12 +54,91 @@ StageStore& Stage::getStageStore() {
     return sampler.getStageStore();
 }
 
+void Stage::determineFinalizability(Finalizability yesOrNo) {
+    KAS_ASSERT(finalizability == Finalizability::Maybe, "Finalizability is already determined.");
+    switch (yesOrNo) {
+    case Finalizability::Yes:
+        --CountFinalizabilityMaybe;
+        ++CountFinalizabilityYes;
+        finalizability = Finalizability::Yes;
+        break;
+    case Finalizability::No:
+        --CountFinalizabilityMaybe;
+        ++CountFinalizabilityNo;
+        finalizability = Finalizability::No;
+        break;
+    default:
+        KAS_CRITICAL("Invalid Finalizability.");
+    }
+}
+
+void Stage::updateFinalizability() {
+    // It would also be nice to remove all the dead-ends (Finalizability::No).
+    auto removeDeadEnds = [&]() {
+        // TODO: After API overhaul, remove dead-end children!
+        // nextOpStores.forEach([&](auto& store) {
+        //     store.remove([&](const auto& slot) {
+        //         return slot.nextStage->finalizability == Finalizability::No;
+        //     });
+        // });
+    };
+    auto removeAllStageChildren = [&]() {
+        nextOpStores.forEach([&](auto& store) {
+            store.clear();
+        });
+    };
+
+    if (finalizability == Finalizability::Yes) {
+        removeDeadEnds();
+        return;
+    } else if (finalizability == Finalizability::No) {
+        removeAllStageChildren();
+        return;
+    }
+    // We need to check if this is finalizable.
+    // If there are FinalizeOp, of course this is.
+    if (nextFinalizations.size()) {
+        determineFinalizability(Finalizability::Yes);
+        removeDeadEnds();
+        return;
+    }
+    // Otherwise, check children. Yes if any Yes, No if all No.
+    bool allNo = true;
+    bool foundYes = false;
+    nextOpStores.forEach([&](auto& store) {
+        store.forEach([&](const auto& slot) {
+            if (foundYes) {
+                return;
+            }
+            Stage *child = slot.nextStage;
+            if (child->finalizability == Finalizability::Yes) {
+                foundYes = true;
+                allNo = false;
+            } else if (child->finalizability == Finalizability::Maybe) {
+                allNo = false;
+            }
+        });
+    });
+    if (foundYes) {
+        determineFinalizability(Finalizability::Yes);
+        removeDeadEnds();
+        return;
+    } else if (allNo) {
+        determineFinalizability(Finalizability::No);
+        removeAllStageChildren();
+        return;
+    }
+    removeDeadEnds();
+    return;
+}
+
 std::size_t Stage::remainingDepth() const {
     return sampler.getOptions().depth - depth;
 }
 
 void Stage::guard() {
     if (childrenGenerated) {
+        updateFinalizability();
         return;
     }
     const BindingContext& ctx = sampler.getBindingContext();
@@ -76,7 +154,6 @@ void Stage::guard() {
     }), [](FinalizeOp& f) {
         return NextFinalizeSlot({NextFinalizeSlot::GetKey(f.tensors)}, std::move(f));
     });
-    nexts = nextFinalizations.toNexts();
 
     // Wrap the generated Op in a NextOpSlot.
     auto add = [&]<typename Op>(const std::vector<const Op *>& newOps) {
@@ -89,16 +166,15 @@ void Stage::guard() {
             )
             .remove([&](const NextOpSlot<Op>& slot) {
                 /* We need to call removeOp for deleted Op's and removeStage for deleted Stage's. TODO */
-                return !slot.nextStage->possibleToFinalize();
+                return slot.nextStage->finalizability == Finalizability::No;
             });
-        std::ranges::move(nextOpStores.get<Op>().toNexts(), std::back_inserter(nexts));
     };
 
     if (remainingDepth() > 0) {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}, TODO
         // Stride^{-1}
-        if (!options.disableStride) {
+        if (options.maximumStrides == -1 || options.maximumStrides > existingOp<StrideOp>()) {
             add(StrideOp::Generate(store, interface, {
                 .ctx = ctx,
                 .maxStridedDimSize = options.maxStridedDimSize,
@@ -110,7 +186,7 @@ void Stage::guard() {
         // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s.
         if (interface.size() > options.dimLowerBound) {
             // Split^{-1}
-            if (!options.disableSplit) {
+            if (options.maximumSplits == -1 || options.maximumSplits > existingOp<SplitOp>()) {
                 add(SplitOp::Generate(store, interface, {
                     .disallowDiscontinuousView = options.disallowDiscontinuousView,
                     .disallowSplitRAboveUnfold = options.disallowSplitRAboveUnfold,
@@ -118,7 +194,7 @@ void Stage::guard() {
                 }));
             }
             // Unfold^{-1}
-            if (!options.disableUnfold) {
+            if (options.maximumUnfolds == -1 || options.maximumUnfolds > existingOp<UnfoldOp>()) {
                 add(UnfoldOp::Generate(store, interface, {
                     .ctx = ctx,
                     .minimumRatio = options.minimumUnfoldRatio,
@@ -134,7 +210,7 @@ void Stage::guard() {
         // Try increasing dimensionality, by applying `MergeLikeOp`^{-1}s.
         if (interface.size() < options.dimUpperBound) {
             // Merge^{-1}
-            if (!options.disableMerge) {
+            if (options.maximumMerges == -1 || options.maximumMerges > existingOp<MergeOp>()) {
                 add(MergeOp::Generate(store, interface, {
                     .ctx = ctx,
                     .minimumRatio = options.minimumMergeRatio,
@@ -143,7 +219,7 @@ void Stage::guard() {
                 }));
             }
             // Share^{-1}
-            if (!options.disableShare) {
+            if (options.maximumShares == -1 || options.maximumShares > existingOp<ShareOp>()) {
                 add(ShareOp::Generate(store, interface, {
                     .ctx = ctx,
                     .maximumTensors = options.maximumTensors,
@@ -162,140 +238,131 @@ void Stage::guard() {
     CountChildrenShare += nextOpStores.get<ShareOp>().size();
 
     childrenGenerated = true;
+    updateFinalizability();
 }
 
-std::shared_ptr<TensorView> Stage::getFinalize(std::size_t key) {
-    auto& slot = getChildFinalizeSlot(key);
+std::shared_ptr<TensorView> Stage::getFinalize(std::size_t key) const {
+    const auto& slot = uncheckedGetChildFinalizeSlot(key);
     KAS_DEBUG("Building TensorView from Finalization.");
     return slot.finalization.buildTensorView(sampler.getFixedDimensions());
 }
 
-bool Stage::possibleToFinalize() const {
+bool Stage::possibleToFinalizeByExperimenting() const {
     ++CountFinalizabilityCheckInvocations;
 
-    const auto& ctx = sampler.getBindingContext();
-    const auto& options = sampler.getOptions();
-    const std::size_t remainingSteps = remainingDepth();
+    const SampleOptions& options = sampler.getOptions();
+    const BindingContext& ctx = sampler.getBindingContext();
 
-    // First, check for strided dimensions. They must be absorbed by UnfoldOp before Finalization.
-    std::size_t stridedDims = std::ranges::count_if(interface, [](const ColoredDimension& cdim) { return cdim.color.isDataDiscarding(); });
-    if (stridedDims > remainingSteps) {
-        // We can remove 1 strided dimension per step.
-        ++CountTooManyStridedDims;
-        return false;
-    }
-
-    // Next, check that there exists a coloring for weight tensors. Note that this check is conservative.
-    auto weightTensorDims =
-        interface
-        | std::views::filter([](const ColoredDimension& cDim) {
-            return cDim.deduceOrigin() == ColoredDimension::Origin::Weight;
-        });
-    switch (options.maximumTensors) {
-    case 1: {
-        // There must be exactly 1 weight tensor.
-        if (std::ranges::distance(weightTensorDims) > 0) {
-            ++CountTooManyWeights;
-            return false;
-        }
-        break;
-    }
-    case 2: {
-        // We have to check that the colors won't conflict.
-        Color color;
-        for (const auto& cDim: weightTensorDims) {
-            if (!color.disjoint(cDim.color)) {
-                ++CountTooManyWeights;
-                return false;
-            }
-            color.merge(cDim.color);
-        }
-        break;
-    }
-    default:
-        KAS_CRITICAL("Unsupported maximumTensors: {}", options.maximumTensors);
-    }
-
-    // Then, check whether there are enough elements in the input tensor.
-    auto inputTensorCandidates =
-        interface
-        | std::views::filter([](const ColoredDimension& cDim) { return cDim.deduceOrigin() == ColoredDimension::Origin::Input || cDim.deduceOrigin() == ColoredDimension::Origin::BothPossible; })
-        | std::views::transform(&ColoredDimension::dimension);
-    std::unordered_map<Size, int> counts;
-    auto elements = Size::Identity(ctx);
-    for (const auto& dim: inputTensorCandidates) {
-        // Take the product to find the total elements.
-        elements = elements * dim.size();
-        counts[dim.size()] += 1;
-    }
-    // Check whether there are enough elements.
-    auto quotient = elements.testDividedBy(sampler.getInputShape().totalSize());
-    if (!quotient || *quotient == Size::Trait::IllegalCoefficient) {
-        ++CountTooFewElementsInInputTensor;
-        return false;
-    }
-
-    // At last, try matching the dimensions, which is just experimental Finalization.
-    std::vector<const Size *> unfulfilled;
-    for (const auto& required: sampler.getInputShape()) {
-        auto it = counts.find(required);
-        if (it != counts.end()) {
-            if (it->second == 1) {
-                counts.erase(it);
-            } else {
-                it->second -= 1;
-            }
+    std::vector<std::reference_wrapper<const ColoredDimension>> onlyWeights, weightsExcluded;
+    for (const ColoredDimension& cDim : interface) {
+        if (cDim.deduceOrigin() == ColoredDimension::Origin::Weight) {
+            onlyWeights.emplace_back(std::cref(cDim));
         } else {
-            unfulfilled.push_back(&required);
+            weightsExcluded.emplace_back(std::cref(cDim));
         }
     }
-    if ((unfulfilled.size() + 1) / 2 + stridedDims > remainingSteps) {
-        // Merge can possibly fulfill 2 dimensions per step. So this is most conservative.
+
+    if (!FinalizeOp::FitIntoWeights(onlyWeights, {
+        .maximumTensors = options.maximumTensors,
+    })) {
+        ++CountTooManyWeights;
+        return false;
+    }
+
+    auto remaining = [&](int maximum, Next::Type existingType) {
+        int existing = existingOps[static_cast<std::size_t>(existingType)];
+        return maximum == -1 ? static_cast<int>(options.depth) : std::max(maximum - existing, 0);
+    };
+    const std::size_t distance = FinalizeOp::Distance(weightsExcluded, sampler.getInputShape(), {
+        .ctx = ctx,
+        .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
+        .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),
+        .remainingUnfolds = remaining(options.maximumUnfolds, Next::Type::Unfold),
+    });
+    if (distance > remainingDepth()) {
         ++CountShapeDeviatesTooMuch;
         return false;
-    } else if (unfulfilled.size() + stridedDims > remainingSteps) {
-        // We need at least 1 Merge tree to make things work. Enumerate.
-        auto enumerateSizes = [&](const auto& self, const Size& previousSize, std::size_t nextIndex) -> bool {
-            if (nextIndex == unfulfilled.size()) {
-                return counts.contains(previousSize);
-            } else {
-                return self(self, previousSize, nextIndex + 1)
-                    || self(self, previousSize * *unfulfilled[nextIndex], nextIndex + 1);
-            }
-        };
-        if (enumerateSizes(enumerateSizes, Size::Identity(ctx), 0)) {
-            return true;
-        }
-        ++CountShapeDeviatesTooMuch;
-        return false;
-    } else {
-        // We still have enough steps.
-        return true;
+    }
+
+    return true;
+}
+
+std::size_t Stage::uncheckedCountChildren() const {
+    return nextFinalizations.size() + nextOpStores.size();
+}
+
+std::vector<Next> Stage::uncheckedGetChildrenHandles() const {
+    auto nextF = nextFinalizations.toNexts();
+    auto nexts = nextOpStores.toNexts();
+    nexts.insert(nexts.begin(), nextF.begin(), nextF.end());
+    return nexts;
+}
+
+const NextFinalizeSlot& Stage::uncheckedGetChildFinalizeSlot(std::size_t key) const {
+    return nextFinalizations.getSlot(key);
+}
+
+Node Stage::uncheckedGetChild(Next next) const {
+    switch (next.type) {
+    case Next::Type::Shift: return { &sampler, uncheckedGetChildSlot<ShiftOp>(next.key).nextStage };
+    case Next::Type::Stride: return { &sampler, uncheckedGetChildSlot<StrideOp>(next.key).nextStage };
+    case Next::Type::Split: return { &sampler, uncheckedGetChildSlot<SplitOp>(next.key).nextStage };
+    case Next::Type::Unfold: return { &sampler, uncheckedGetChildSlot<UnfoldOp>(next.key).nextStage };
+    case Next::Type::Merge: return { &sampler, uncheckedGetChildSlot<MergeOp>(next.key).nextStage };
+    case Next::Type::Share: return { &sampler, uncheckedGetChildSlot<ShareOp>(next.key).nextStage };
+    case Next::Type::Finalize: return { &sampler, getFinalize(next.key) };
+    default: KAS_UNREACHABLE("Invalid Next {}.", next.toString());
+    }
+}
+
+Stage::Stage(Sampler& sampler, const std::vector<const MapReduceOp *>& reductions):
+    interface { [&]() {
+        auto interface = sampler.getRootInterface();
+        std::ranges::copy(reductions, std::back_inserter(interface));
+        std::ranges::sort(interface, Dimension::HashLessThan{});
+        return interface;
+    }() },
+    sampler { sampler },
+    depth { reductions.size() }
+{
+    existingOps[static_cast<std::size_t>(Next::Type::MapReduce)] = reductions.size();
+    ++CountFinalizabilityMaybe;
+    if (!possibleToFinalizeByExperimenting()) {
+        determineFinalizability(Finalizability::No);
+    }
+}
+
+Stage::Stage(Sampler& sampler, ColoredInterface&& interface, const Stage& old, Next::Type delta):
+    interface { std::move(interface) },
+    sampler { sampler },
+    depth { old.depth + 1 },
+    existingOps { old.existingOps }
+{
+    existingOps[static_cast<std::size_t>(delta)] += 1;
+    ++CountFinalizabilityMaybe;
+    if (!possibleToFinalizeByExperimenting()) {
+        determineFinalizability(Finalizability::No);
     }
 }
 
 std::size_t Stage::countChildren() {
     guard();
-    return nexts.size();
+    return uncheckedCountChildren();
 }
 
-NextFinalizeSlot& Stage::getChildFinalizeSlot(std::size_t key) {
+std::vector<Next> Stage::getChildrenHandles() {
     guard();
-    return nextFinalizations.getSlot(key);
+    return uncheckedGetChildrenHandles();
+}
+
+const NextFinalizeSlot& Stage::getChildFinalizeSlot(std::size_t key) {
+    guard();
+    return uncheckedGetChildFinalizeSlot(key);
 }
 
 Node Stage::getChild(Next next) {
     guard();
-    switch (next.type) {
-    case Next::Type::Shift: return { &sampler, getChildSlot<ShiftOp>(next.key).nextStage };
-    case Next::Type::Stride: return { &sampler, getChildSlot<StrideOp>(next.key).nextStage };
-    case Next::Type::Split: return { &sampler, getChildSlot<SplitOp>(next.key).nextStage };
-    case Next::Type::Unfold: return { &sampler, getChildSlot<UnfoldOp>(next.key).nextStage };
-    case Next::Type::Merge: return { &sampler, getChildSlot<MergeOp>(next.key).nextStage };
-    case Next::Type::Share: return { &sampler, getChildSlot<ShareOp>(next.key).nextStage };
-    case Next::Type::Finalize: return { &sampler, getFinalize(next.key) };
-    default: KAS_UNREACHABLE("Invalid Next {}.", next.toString());
-    }
+    return uncheckedGetChild(next);
 }
 
 std::string Stage::description() const {

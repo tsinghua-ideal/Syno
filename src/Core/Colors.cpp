@@ -144,16 +144,16 @@ auto ColoredDimension::deduceOrigin() const -> Origin {
     } else {
         auto t = dimension.type();
         switch (t) {
+        case DimensionType::Iterator:
+            return Origin::BothPossible;
         case DimensionType::MapReduce:
         case DimensionType::Shift:
         case DimensionType::Stride:
         case DimensionType::Split:
         case DimensionType::Unfold:
+        case DimensionType::Merge:
         case DimensionType::Share: // In this case, always ShareL.
             return Origin::Input;
-        case DimensionType::Iterator:
-        case DimensionType::Merge: // At most one of the two MergeOp::Input from the same MergeOp is weight.
-            return Origin::BothPossible;
         default:
             KAS_UNREACHABLE("Unknown DimensionType");
         }

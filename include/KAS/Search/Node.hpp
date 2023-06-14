@@ -31,6 +31,7 @@ struct Next {
         // Growing -> Final
         Finalize,
     };
+    static constexpr std::size_t NumTypes = 8;
     Type type;
     // This can be hash, or any arbitrary fixed number, as long as this is invariant between runs.
     std::size_t key;
@@ -153,6 +154,18 @@ public:
         return remove(std::forward<Pred>(pred), [](const Slot&){});
     }
 
+    Self& clear() {
+        slots.clear();
+        return *this;
+    }
+
+    template<typename F>
+    requires std::invocable<F, Slot&>
+    Self& forEach(F&& f) {
+        std::ranges::for_each(slots, std::forward<F>(f));
+        return *this;
+    }
+
     std::vector<Next> toNexts() const {
         std::vector<Next> nexts;
         std::ranges::move(slots | std::views::transform(&Slot::toNext), std::back_inserter(nexts));
@@ -213,6 +226,7 @@ public:
     // For Python.
     std::size_t hash() const;
 
+    Stage *asStage() const;
     std::shared_ptr<TensorView> asFinal() const;
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const;
     // Obtain the mappings from Sampler, and do not solve the paddings. We only want to estimate the FLOPs.
@@ -239,7 +253,7 @@ struct fmt::formatter<kas::Next::Type>: formatter<string_view> {
     auto format(kas::Next::Type t, FormatContext& ctx) const {
         string_view name = "Unknown";
         switch (t) {
-        using namespace std::literals;
+        using namespace std::string_view_literals;
         case kas::Next::Type::MapReduce: name = "MapReduce"sv; break;
         case kas::Next::Type::Shift: name = "Shift"sv; break;
         case kas::Next::Type::Stride: name = "Stride"sv; break;

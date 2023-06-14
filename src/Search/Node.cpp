@@ -72,6 +72,10 @@ std::size_t Node::hash() const {
     return h;
 }
 
+Stage *Node::asStage() const {
+    return std::get<Stage *>(inner);
+}
+
 std::shared_ptr<TensorView> Node::asFinal() const {
     return std::get<std::shared_ptr<TensorView>>(inner);
 }

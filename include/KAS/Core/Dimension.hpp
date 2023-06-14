@@ -208,7 +208,7 @@ struct fmt::formatter<kas::DimensionType>: formatter<string_view> {
         string_view name = "Unknown";
         switch (t) {
         using enum kas::DimensionType;
-        using namespace std::literals;
+        using namespace std::string_view_literals;
         case Shift:     name = "Shift"sv; break;
         case Stride:    name = "Stride"sv; break;
         case Split:     name = "Split"sv; break;
@@ -229,7 +229,7 @@ struct fmt::formatter<kas::Direction>: formatter<string_view> {
     auto format(kas::Direction d, FormatContext& ctx) const {
         string_view name = "Unknown";
         switch (d) {
-        using namespace std::literals;
+        using namespace std::string_view_literals;
         case kas::Direction::Down: name = "Down"sv; break;
         case kas::Direction::Up: name = "Up"sv; break;
         }
@@ -244,7 +244,7 @@ struct fmt::formatter<kas::Order>: formatter<string_view> {
     auto format(kas::Order o, FormatContext& ctx) const {
         string_view name = "Unknown";
         switch (o) {
-        using namespace std::literals;
+        using namespace std::string_view_literals;
         case kas::Order::Left: name = "Left"sv; break;
         case kas::Order::Right: name = "Right"sv; break;
         }

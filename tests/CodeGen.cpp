@@ -13,7 +13,7 @@ namespace kas {
 
 class codegen_tests: public ::testing::Test {
 protected:
-    Sampler sampler = Sampler("[H,W]", "[N,C,H,W]", {"N=8", "C=3", "H=16", "W=16"}, {"k=5", "s=2"}, {}, {});
+    Sampler sampler = Sampler("[N,H,W]", "[N,H,W]", {"N=8", "H=16", "W=16"}, {"k=5", "s=2"}, {{}}, {{0, 0}});
     BindingContext& ctx = sampler.getBindingContext();
 };
 
@@ -27,12 +27,7 @@ TEST_F(codegen_tests, generate) {
         }
         auto sample = node.asFinal();
         std::cout << sample->printNestedLoopsForAll(ctx);
-        HalideGen gen { ctx, *sample, {
-            .useGPU = false,
-            .scheduler = HalideGen::Options::AutoScheduler::ComputeRoot,
-            .rfactorThreshold = 32,
-            .inBoundsLikelyThreshold = 0.3,
-        } };
+        HalideGen gen { ctx, *sample, HalideGen::Options() };
         auto consts = ctx.realizeConsts({});
         gen.generate("./kernel_1_" + std::to_string(i), "kernel_1_" + std::to_string(i), consts);
         break;

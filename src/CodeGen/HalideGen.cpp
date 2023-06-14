@@ -383,7 +383,6 @@ void HalideGen::GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardIn
             object,
             stmt,
             // stmt_html,
-            schedule,
             pytorch_wrapper
         }) {
             auto alteredFilename = filename;

@@ -18,11 +18,11 @@ protected:
     SampleOptions options = []() {
         SampleOptions options;
         options.seed = 42;
-        options.depth = 10;
+        options.depth = 6;
         options.dimLowerBound = 2;
         options.dimUpperBound = 6;
         options.maximumTensors = 2;
-        options.maximumReductions = 3;
+        options.maximumReductions = 2;
         options.maxFLOPs = 1e7;
         return options;
     }();

@@ -14,10 +14,7 @@ ReductionStage::ReductionStage(Sampler& sampler, std::vector<const MapReduceOp *
     const auto& options = sampler.getOptions();
 
     // First create the corresponding Stage.
-    auto interface = sampler.getRootInterface();
-    std::ranges::copy(this->reductions, std::back_inserter(interface));
-    std::ranges::sort(interface, Dimension::HashLessThan{});
-    stage = std::make_unique<Stage>(std::move(interface), sampler, this->reductions.size());
+    stage = std::make_unique<Stage>(sampler, this->reductions);
 
     // Then attempt to generate new reductions.
     if (this->reductions.size() == options.maximumReductions) {

@@ -55,7 +55,8 @@ def manually_design(assembler: Assembler) -> Assembled:
 
 def perform_trials(manual: bool):
     net = Model()
-    sampler = Sampler("[H,W]", "[H,W]", [], ["s_1=2", "s_2=3"], net=net, seed=42, depth=8,
+    sampler = Sampler("[H,W]", "[H,W]", [], ["s_1=2", "s_2=3"], net=net, seed=42, depth=10,
+                      maximum_reductions=3,
                       cuda=False, autoscheduler=CodeGenOptions.ComputeRoot)
     sampler._bind_debug_context()
 
@@ -64,7 +65,7 @@ def perform_trials(manual: bool):
             node = sampler.random_node_with_prefix(Path([]))
             if node.is_final():
                 kernel_packs, total_flops = sampler.realize(net, node, "test_sampler")
-                if total_flops > 0:
+                if len(kernel_packs[0]._unpadded_inputs_shapes) > 0:
                     break
     else:
         assembler = sampler.create_assembler()
