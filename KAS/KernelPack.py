@@ -59,6 +59,10 @@ class KernelPack(nn.Module):
 
         self._loader = loader
         self._index = index
+        self._unpadded_inputs_shapes = unpadded_inputs_shapes
+        self._padded_inputs_shapes = padded_inputs_shapes
+        self._unpadded_output_shape = unpadded_output_shape
+        self._padded_output_shape = padded_output_shape
 
         # Collect inputs paddings.
         inputs_paddings = [self.get_paddings_from_shapes(
