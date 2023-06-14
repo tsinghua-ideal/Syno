@@ -159,6 +159,13 @@ public:
         return *this;
     }
 
+    template<typename F>
+    requires std::invocable<F, Slot&>
+    Self& forEach(F&& f) {
+        std::ranges::for_each(slots, std::forward<F>(f));
+        return *this;
+    }
+
     std::vector<Next> toNexts() const {
         std::vector<Next> nexts;
         std::ranges::move(slots | std::views::transform(&Slot::toNext), std::back_inserter(nexts));

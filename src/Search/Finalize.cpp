@@ -3,6 +3,7 @@
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Search/Sample.hpp"
+#include "KAS/Utils/Algorithm.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
@@ -109,20 +110,307 @@ bool FinalizeOp::FitIntoWeights(const std::vector<std::reference_wrapper<const C
     return true;
 }
 
+FinalizeOp::ReshapeGroup::ReshapeGroup(const Size& provision, const Size& consumption):
+    remainder { provision / consumption },
+    hasNoInput { false },
+    splits { 0 },
+    merges { 0 }
+{}
+
+FinalizeOp::ReshapeGroup::ReshapeGroup(const Size& provision):
+    remainder { provision },
+    hasNoInput { true },
+    splits { 0 },
+    merges { 0 }
+{}
+
+const Size& FinalizeOp::ReshapeGroup::getRemainder() const {
+    return remainder;
+}
+
+void FinalizeOp::ReshapeGroup::addConsumption(const Size& consumption) {
+    if (hasNoInput) {
+        hasNoInput = false;
+    } else {
+        ++merges;
+    }
+    remainder = remainder / consumption;
+}
+
+void FinalizeOp::ReshapeGroup::addProvision(const Size& provision) {
+    ++splits;
+    remainder = remainder * provision;
+}
+
+bool FinalizeOp::ReshapeGroup::isLegal() const {
+    auto trait = remainder.getTrait();
+    return trait.value() != Size::Trait::IllegalCoefficient;
+}
+
+int FinalizeOp::ReshapeGroup::countSplits() const {
+    return splits;
+}
+
+int FinalizeOp::ReshapeGroup::countTrivialMerges() const {
+    return merges;
+}
+
+int FinalizeOp::ReshapeGroup::countFinalAdditionalMerges() const {
+    if (hasNoInput) {
+        return 0;
+    }
+    auto trait = remainder.getTrait();
+    return static_cast<int>(trait.value() != Size::Trait::One);
+}
+
+int FinalizeOp::ReshapeGroup::countFinalUnfolds() const {
+    if (hasNoInput) {
+        return 1;
+    }
+    auto trait = remainder.getTrait();
+    return static_cast<int>(trait.value() != Size::Trait::One);
+}
+
+FinalizeOp::ReshapeGroups::ReshapeGroups(const Shape& desired, const std::vector<Size>& current):
+    desired { desired }, current { current },
+    desiredToGroupId(desired.size(), NoGroup),
+    currentToGroupId(current.size(), NoGroup),
+    vacantCurrents { static_cast<int>(current.size()) }
+{}
+
+void FinalizeOp::ReshapeGroups::createGroup(std::size_t indexDesired, std::size_t indexCurrent) {
+    KAS_ASSERT(!desiredAssigned(indexDesired) && !currentAssigned(indexCurrent));
+    desiredToGroupId[indexDesired] = groups.size();
+    currentToGroupId[indexCurrent] = groups.size();
+    --vacantCurrents;
+    groups.emplace_back(current[indexCurrent], desired[indexDesired]);
+}
+
+void FinalizeOp::ReshapeGroups::createGroup(std::size_t indexCurrent) {
+    KAS_ASSERT(!currentAssigned(indexCurrent));
+    currentToGroupId[indexCurrent] = groups.size();
+    --vacantCurrents;
+    groups.emplace_back(current[indexCurrent]);
+}
+
+void FinalizeOp::ReshapeGroups::addDesiredToGroup(std::size_t indexDesired, std::size_t indexGroup) {
+    KAS_ASSERT(!desiredAssigned(indexDesired) && countGroups() > indexGroup);
+    desiredToGroupId[indexDesired] = indexGroup;
+    auto& group = groups[indexGroup];
+    group.addConsumption(desired[indexDesired]);
+}
+
+void FinalizeOp::ReshapeGroups::addCurrentToGroup(std::size_t indexCurrent, std::size_t indexGroup) {
+    KAS_ASSERT(!currentAssigned(indexCurrent) && countGroups() > indexGroup);
+    currentToGroupId[indexCurrent] = indexGroup;
+    --vacantCurrents;
+    auto& group = groups[indexGroup];
+    group.addProvision(current[indexCurrent]);
+}
+
+bool FinalizeOp::ReshapeGroups::desiredAssigned(std::size_t indexDesired) const {
+    return desiredToGroupId[indexDesired] != NoGroup;
+}
+bool FinalizeOp::ReshapeGroups::currentAssigned(std::size_t indexCurrent) const {
+    return currentToGroupId[indexCurrent] != NoGroup;
+}
+int FinalizeOp::ReshapeGroups::countVacantCurrents() const {
+    return vacantCurrents;
+}
+int FinalizeOp::ReshapeGroups::countGroups() const {
+    return groups.size();
+}
+int FinalizeOp::ReshapeGroups::countTrivialMerges() const {
+    return FoldLeftFirst(groups | std::views::transform(&ReshapeGroup::countTrivialMerges), std::plus<>{}).value_or(0);
+}
+int FinalizeOp::ReshapeGroups::countSplits() const {
+    return FoldLeftFirst(groups | std::views::transform(&ReshapeGroup::countSplits), std::plus<>{}).value_or(0);
+}
+
+auto FinalizeOp::ReshapeGroups::assignDesired(std::size_t indexDesired) const -> Generator<ReshapeGroups> {
+    const Size& desiredSize = desired[indexDesired];
+    KAS_ASSERT(desiredSize.getPrimaryPowersSum() == 1, "Input dimension sizes must be a single primary variable! TODO: support other shapes.");
+    std::size_t varId = std::numeric_limits<std::size_t>::max();
+    for (std::size_t pId = 0; auto p: desiredSize.getPrimary()) {
+        if (p == 1) {
+            varId = pId;
+        }
+        ++pId;
+    }
+
+    // First check for new sizes.
+    for (std::size_t i = 0; i < current.size(); ++i) {
+        if (currentAssigned(i)) continue;
+        if (current[i].getPrimary()[varId] > 0) {
+            auto copy = *this;
+            copy.createGroup(indexDesired, i);
+            co_yield std::move(copy);
+        }
+    }
+
+    // Then check for provisions in existing groups.
+    for (std::size_t i = 0; i < countGroups(); ++i) {
+        if (groups[i].getRemainder().getPrimary()[varId] > 0) {
+            auto copy = *this;
+            copy.addDesiredToGroup(indexDesired, i);
+            co_yield std::move(copy);
+        }
+    }
+    co_return;
+}
+
+auto FinalizeOp::ReshapeGroups::assignCurrent(std::size_t indexCurrent) const -> Generator<ReshapeGroups> {
+    // First add to existing groups.
+    for (std::size_t gId = 0; gId < countGroups(); ++gId) {
+        auto copy = *this;
+        copy.addCurrentToGroup(indexCurrent, gId);
+        co_yield std::move(copy);
+    }
+
+    // Then create new groups.
+    auto copy = *this;
+    copy.createGroup(indexCurrent);
+    co_yield std::move(copy);
+    co_return;
+}
+
+int FinalizeOp::ReshapeGroups::countIllegalGroups() const {
+    return static_cast<int>(groups.size()) - static_cast<int>(std::ranges::count_if(groups, &ReshapeGroup::isLegal));
+}
+
+bool FinalizeOp::ReshapeGroups::isLegal() const {
+    KAS_ASSERT(countVacantCurrents() == 0, "Must assign all sizes before calling isLegal()!");
+    return std::ranges::all_of(groups, &ReshapeGroup::isLegal);
+}
+
+int FinalizeOp::ReshapeGroups::countFinalAdditionalMerges() const {
+    KAS_ASSERT(countVacantCurrents() == 0, "Must assign all sizes before calling countFinalAdditionalMerges()!");
+    return FoldLeftFirst(groups | std::views::transform(&ReshapeGroup::countFinalAdditionalMerges), std::plus<>{}).value_or(0);
+}
+
+int FinalizeOp::ReshapeGroups::countFinalUnfolds() const {
+    KAS_ASSERT(countVacantCurrents() == 0, "Must assign all sizes before calling countFinalUnfolds()!");
+    return FoldLeftFirst(groups | std::views::transform(&ReshapeGroup::countFinalUnfolds), std::plus<>{}).value_or(0);
+}
+
+std::size_t FinalizeOp::ReshapeGroups::countSteps() const {
+    KAS_ASSERT(countVacantCurrents() == 0, "Must assign all sizes before calling countSteps()!");
+    return countSplits() + countTrivialMerges() + countFinalAdditionalMerges() + countFinalUnfolds();
+}
+
+std::size_t FinalizeOp::ShapeComplexity(const Shape& desired, const std::vector<Size>& current, const FinalizeOp::DistanceOptions& options) {
+    constexpr std::size_t Infinity = std::numeric_limits<std::size_t>::max();
+
+    // First, check whether there are enough elements in the input tensor.
+    if (current.empty()) {
+        return Infinity;
+    }
+    Size desiredElements = desired.totalSize(), currentElements = Size::Product(current);
+    auto totalQuotient = currentElements.canBeDividedBy(desiredElements);
+    if (!totalQuotient || *totalQuotient == Size::Trait::IllegalCoefficient) {
+        // Not enough elements.
+        return Infinity;
+    }
+
+    // int numCurrent = static_cast<int>(current.size()), numDesired = static_cast<int>(desired.size());
+    // Ideally, the groups are merge-split towers, i.e., reshapes.
+    // Let there be N groups. Then the waist is N sizes.
+    // N + #Splits = #current.
+    // N + #Merges = #desired + #Unfolds.
+    // N >= #Unfolds.
+    // const int minGroups = std::max({
+    //     0,
+    //     numCurrent - options.remainingSplits,
+    //     numDesired - options.remainingMerges,
+    // });
+
+    // Then group the dimensions recursively.
+    ReshapeGroups root { desired, current };
+    // Returns required steps or std::nullopt.
+    auto currentMatchingRecursion = [&](const auto& self, const ReshapeGroups& groups, std::size_t currentIndex) -> std::optional<std::size_t> {
+        if (
+            groups.countTrivialMerges() > options.remainingMerges ||
+            groups.countSplits() > options.remainingSplits
+        ) {
+            return std::nullopt;
+        }
+        // Need at least one current size to make a group legal.
+        if (groups.countIllegalGroups() > groups.countVacantCurrents()) {
+            return std::nullopt;
+        }
+        if (currentIndex != current.size()) {
+            if (groups.currentAssigned(currentIndex)) {
+                return self(self, groups, currentIndex + 1);
+            }
+            std::optional<std::size_t> result;
+            for (ReshapeGroups newGroups: groups.assignCurrent(currentIndex)) {
+                std::optional<std::size_t> newResult = self(self, newGroups, currentIndex + 1);
+                if (newResult) {
+                    if (result) {
+                        result = std::min(*result, *newResult);
+                    } else {
+                        result = newResult;
+                    }
+                }
+            }
+            return result;
+        } else { // We have grouped all sizes.
+            if (!groups.isLegal()) {
+                return std::nullopt;
+            }
+            if (groups.countFinalUnfolds() > options.remainingUnfolds || groups.countTrivialMerges() + groups.countFinalAdditionalMerges() > options.remainingMerges) {
+                return std::nullopt;
+            }
+            return groups.countSteps();
+        }
+    };
+    // Returns required steps or std::nullopt.
+    auto desiredMatchingRecursion = [&](const auto& self, const ReshapeGroups& groups, std::size_t desiredIndex) -> std::optional<std::size_t> {
+        if (
+            groups.countTrivialMerges() > options.remainingMerges ||
+            groups.countSplits() > options.remainingSplits
+        ) {
+            return std::nullopt;
+        }
+        if (desiredIndex != desired.size()) {
+            std::optional<std::size_t> result;
+            for (ReshapeGroups newGroups: groups.assignDesired(desiredIndex)) {
+                std::optional<std::size_t> newResult = self(self, newGroups, desiredIndex + 1);
+                if (newResult) {
+                    if (result) {
+                        result = std::min(*result, *newResult);
+                    } else {
+                        result = newResult;
+                    }
+                }
+            }
+            return result;
+        } else { // We have assigned all desired sizes.
+            return currentMatchingRecursion(currentMatchingRecursion, groups, 0);
+        }
+    };
+    auto dist = desiredMatchingRecursion(desiredMatchingRecursion, root, 0);
+    if (dist) {
+        return *dist;
+    } else {
+        return Infinity;
+    }
+}
+
 std::size_t FinalizeOp::Distance(const std::vector<std::reference_wrapper<const ColoredDimension>>& current, const Shape& desired, const DistanceOptions& options) {
     constexpr std::size_t Infinity = std::numeric_limits<std::size_t>::max();
 
-    std::size_t strideDist = 0;
+    int strideDist = 0;
 
-    std::vector<std::reference_wrapper<const ColoredDimension>> mustBeInput, canBeWeight;
+    std::vector<Size> mustBeInput, canBeWeight;
     for (const ColoredDimension& cDim: current) {
         auto origin = cDim.deduceOrigin();
         switch (origin) {
         case ColoredDimension::Origin::Input:
-            mustBeInput.emplace_back(cDim);
+            mustBeInput.emplace_back(cDim.size());
             break;
         case ColoredDimension::Origin::BothPossible:
-            canBeWeight.emplace_back(cDim);
+            canBeWeight.emplace_back(cDim.size());
             break;
         case ColoredDimension::Origin::Unfold:
             ++strideDist; // We need an Unfold to eliminate this.
@@ -135,56 +423,36 @@ std::size_t FinalizeOp::Distance(const std::vector<std::reference_wrapper<const 
         return Infinity; // Early stop.
     }
 
-    // Then, check whether there are enough elements in the input tensor.
-    std::unordered_map<Size, int> mustBeInputCounts, canBeWeightCounts;
-    auto mustBeInputElements = Size::Identity(options.ctx);
-    for (const ColoredDimension& cDim: mustBeInput) {
-        // Take the product to find the total elements.
-        mustBeInputElements = mustBeInputElements * cDim.size();
-        mustBeInputCounts[cDim.size()] += 1;
-    }
-    auto canBeWeightElements = Size::Identity(options.ctx);
-    for (const ColoredDimension& cDim: canBeWeight) {
-        // Same.
-        canBeWeightElements = canBeWeightElements * cDim.size();
-        canBeWeightCounts[cDim.size()] += 1;
-    }
-    std::unordered_map<Size, int> bothPossibleCounts = mustBeInputCounts;
-    bothPossibleCounts.merge(decltype(canBeWeightCounts)(canBeWeightCounts));
-    // Check whether there are enough elements.
-    const auto desiredElements = desired.totalSize();
-    const auto bothPossibleElements = mustBeInputElements * canBeWeightElements;
-    const auto quotient = bothPossibleElements.canBeDividedBy(desiredElements);
-    if (!quotient || *quotient == Size::Trait::IllegalCoefficient) {
-        // Too few elements in input tensor.
-        return Infinity;
-    }
-
-    // At last, try matching the dimensions, which is just experimental Finalization.
-    std::vector<const Size *> unfulfilled;
-    for (const auto& required: desired) {
-        auto it = bothPossibleCounts.find(required);
-        if (it != bothPossibleCounts.end()) {
-            if (it->second == 1) {
-                bothPossibleCounts.erase(it);
-            } else {
-                it->second -= 1;
-            }
-        } else {
-            unfulfilled.push_back(&required);
+    // Then, experimentally finalize.
+    std::size_t minimumComplexity = Infinity;
+    int newStrideDist = strideDist;
+    std::vector<Size> newCurrent = mustBeInput;
+    auto recursion = [&](const auto& self, std::size_t trialIndex) {
+        if (newStrideDist > options.remainingUnfolds) {
+            return;
         }
+        auto trial = ShapeComplexity(desired, newCurrent, {
+            .ctx = options.ctx,
+            .remainingMerges = options.remainingMerges,
+            .remainingSplits = options.remainingSplits,
+            .remainingUnfolds = options.remainingUnfolds - newStrideDist,
+        });
+        minimumComplexity = std::min(minimumComplexity, trial);
+        if (trialIndex < canBeWeight.size()) {
+            self(self, trialIndex + 1);
+            newStrideDist += 1;
+            newCurrent.emplace_back(canBeWeight[trialIndex]);
+            self(self, trialIndex + 1);
+            newCurrent.pop_back();
+            newStrideDist -= 1;
+        }
+    };
+    recursion(recursion, 0);
+    if (minimumComplexity == Infinity) {
+        return Infinity;
+    } else {
+        return minimumComplexity + strideDist;
     }
-    // Merge can possibly fulfill 2 dimensions per step. So this is most conservative.
-    std::size_t mergeDist = (unfulfilled.size() + 1) / 2;
-    std::size_t splitDist = 0;
-    if (mergeDist > options.remainingMerges) {
-        mergeDist = options.remainingMerges;
-        splitDist = unfulfilled.size() - 2 * mergeDist;
-    }
-    if (splitDist > options.remainingSplits) {
-        return Infinity; // Early stop.
-    }
-    return mergeDist + splitDist + strideDist;
 }
 
 namespace {

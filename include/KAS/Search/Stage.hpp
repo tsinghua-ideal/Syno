@@ -137,7 +137,7 @@ private:
     std::size_t depth; // Stages with identical interfaces must be of the same depth.
     std::array<int, Next::NumTypes> existingOps {};
 
-    Finalizability finalizability;
+    Finalizability finalizability = Finalizability::Maybe;
     void determineFinalizability(Finalizability yesOrNo);
 
     void updateFinalizability();

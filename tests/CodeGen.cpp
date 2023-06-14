@@ -13,7 +13,7 @@ namespace kas {
 
 class codegen_tests: public ::testing::Test {
 protected:
-    Sampler sampler = Sampler("[H,W]", "[N,C,H,W]", {"N=8", "C=3", "H=16", "W=16"}, {"k=5", "s=2"}, {}, {});
+    Sampler sampler = Sampler("[N,C,H,W]", "[N,C,H,W]", {"N=8", "C=3", "H=16", "W=16"}, {"k=5", "s=2"}, {}, {{0, 0}});
     BindingContext& ctx = sampler.getBindingContext();
 };
 

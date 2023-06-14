@@ -22,7 +22,7 @@ protected:
         options.dimLowerBound = 2;
         options.dimUpperBound = 6;
         options.maximumTensors = 2;
-        options.maximumReductions = 1;
+        options.maximumReductions = 2;
         options.maxFLOPs = 1e7;
         return options;
     }();

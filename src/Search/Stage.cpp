@@ -55,6 +55,7 @@ StageStore& Stage::getStageStore() {
 }
 
 void Stage::determineFinalizability(Finalizability yesOrNo) {
+    KAS_ASSERT(finalizability == Finalizability::Maybe, "Finalizability is already determined.");
     switch (yesOrNo) {
     case Finalizability::Yes:
         --CountFinalizabilityMaybe;
@@ -76,7 +77,7 @@ void Stage::updateFinalizability() {
     auto removeDeadEnds = [&]() {
         nextOpStores.forEach([&](auto& store) {
             store.remove([&](const auto& slot) {
-                return uncheckedGetChild(slot.toNext()).asStage()->finalizability == Finalizability::No;
+                return slot.nextStage->finalizability == Finalizability::No;
             });
         });
     };
@@ -100,21 +101,28 @@ void Stage::updateFinalizability() {
         removeDeadEnds();
         return;
     }
-    auto nexts = uncheckedGetChildrenHandles();
     // Otherwise, check children. Yes if any Yes, No if all No.
     bool allNo = true;
-    for (auto& next: nexts) {
-        // We can be sure that the child is a Stage.
-        Stage *child = uncheckedGetChild(next).asStage();
-        if (child->finalizability == Finalizability::Yes) {
-            determineFinalizability(Finalizability::Yes);
-            removeDeadEnds();
-            return;
-        } else if (child->finalizability == Finalizability::Maybe) {
-            allNo = false;
-        }
-    }
-    if (allNo) {
+    bool foundYes = false;
+    nextOpStores.forEach([&](auto& store) {
+        store.forEach([&](const auto& slot) {
+            if (foundYes) {
+                return;
+            }
+            Stage *child = slot.nextStage;
+            if (child->finalizability == Finalizability::Yes) {
+                foundYes = true;
+                allNo = false;
+            } else if (child->finalizability == Finalizability::Maybe) {
+                allNo = false;
+            }
+        });
+    });
+    if (foundYes) {
+        determineFinalizability(Finalizability::Yes);
+        removeDeadEnds();
+        return;
+    } else if (allNo) {
         determineFinalizability(Finalizability::No);
         removeAllStageChildren();
         return;
