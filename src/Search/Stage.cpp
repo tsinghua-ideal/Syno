@@ -75,11 +75,12 @@ void Stage::determineFinalizability(Finalizability yesOrNo) {
 void Stage::updateFinalizability() {
     // It would also be nice to remove all the dead-ends (Finalizability::No).
     auto removeDeadEnds = [&]() {
-        nextOpStores.forEach([&](auto& store) {
-            store.remove([&](const auto& slot) {
-                return slot.nextStage->finalizability == Finalizability::No;
-            });
-        });
+        // TODO: After API overhaul, remove dead-end children!
+        // nextOpStores.forEach([&](auto& store) {
+        //     store.remove([&](const auto& slot) {
+        //         return slot.nextStage->finalizability == Finalizability::No;
+        //     });
+        // });
     };
     auto removeAllStageChildren = [&]() {
         nextOpStores.forEach([&](auto& store) {

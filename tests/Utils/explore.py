@@ -29,8 +29,8 @@ model = KASGrayConv().cuda()
 sampler = Sampler(
     input_shape="[N,H,W]",
     output_shape="[N,C_out,H,W]",
-    primary_specs=["N=4096: 1", "H=256", "W=256", "C_out=100"],
-    coefficient_specs=["s_1=2", "k_1=3", "k_2=5"],
+    primary_specs=["N=4096:0", "H=256:1", "W=256:1", "C_out=100:1"],
+    coefficient_specs=["s_1=2:1", "k_1=3:1", "k_2=5:1"],
     seed=0xdeadbeaf,
     depth=8,
     dim_lower=2,
