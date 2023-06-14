@@ -89,6 +89,11 @@ class MCTSTrainer(MCTS):
         Tasks: Tree parallelization, Leaf parallelization
         """
 
+        if self.check_node_dead(self._sampler.root()):
+            logging.info("The tree is exhausted......")
+            while True:
+                pass
+
         # Selecting a node
         logging.info("launching new iterations")
         receipt, trials = self.do_rollout(self._sampler.root())

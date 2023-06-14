@@ -175,7 +175,7 @@ def arg_parse():
                         help='Proxy dataset threshold for real training (only for search)')
     parser.add_argument('--kas-kernel', default='', type=str,
                         help='Path to the replaced kernel (only for training)')
-    parser.add_argument('--kas-depth', default=3,
+    parser.add_argument('--kas-depth', default=4,
                         type=int, help='kas sampler depth')
     parser.add_argument('--kas-min-dim', default=1,
                         type=int, help='kas sampler minimum dimensions')

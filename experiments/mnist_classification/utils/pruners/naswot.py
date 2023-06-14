@@ -27,7 +27,7 @@ def add_hooks(net: nn.Module) -> list:
 
     handles = []
     for name, module in net.named_modules():
-        if isinstance(module, nn.ReLU) and 'kernel_relu' in name:
+        if isinstance(module, nn.ReLU):
             handles.append(module.register_forward_hook(counting_forward_hook))
             handles.append(module.register_backward_hook(
                 counting_backward_hook))
@@ -42,15 +42,18 @@ def naswot(net: nn.Module, dataloader: DataLoader, device: str = 'cuda') -> Tens
     net.K = torch.zeros((batch_size, batch_size))
     handles = add_hooks(net)
 
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        net.zero_grad()
-        y = net(torch.zeros_like(images))
-        y.backward(torch.ones_like(y))
-        net(images)
+    # with warnings.catch_warnings():
+    # warnings.simplefilter('ignore')
+    net.zero_grad()
+    y = net(torch.zeros_like(images))
+    y.backward(torch.ones_like(y))
+    net(images)
 
     for handle in handles:
         handle.remove()
+
+    net.K = net.K[:8, :8]
+    net.K /= torch.diag(net.K)
     score = torch.logdet(net.K)
     del net.K
     return score

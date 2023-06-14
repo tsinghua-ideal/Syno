@@ -14,7 +14,7 @@ from train import train
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
 from utils.models import ModelBackup
-from utils.pruners.synflow import syn_flow, naswot
+from utils.pruners import syn_flow, naswot
 
 
 def evaluate(path: TreePath, train_loader: DataLoader, val_loader: DataLoader, args, _model: ModelBackup, kas_sampler: Sampler, train_args: dict, extra_args: dict) -> Tuple[str, float]:
@@ -88,7 +88,7 @@ def evaluate(path: TreePath, train_loader: DataLoader, val_loader: DataLoader, a
         "syn_flow": proxy_syn,
         "naswot": proxy_naswot
     }
-    
+
     _, val_error, _ = train(model, train_loader,
                             val_loader, args, **train_args, verbose=True)
     accuracy = 1. - min(val_error)
