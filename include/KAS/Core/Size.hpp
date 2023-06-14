@@ -107,7 +107,7 @@ public:
     Size identity() const;
     static Size Identity(const BindingContext& ctx);
 
-    Trait getTrait() const;
+    std::optional<Trait> getTrait() const;
     bool is1() const;
     // Returns whether there are no primary variables.
     bool isLegalCoefficient() const;

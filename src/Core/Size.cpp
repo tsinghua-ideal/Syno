@@ -74,9 +74,10 @@ Size Size::Identity(const BindingContext& ctx) {
     return { ctx.getPrimaryCount(), ctx.getCoefficientCount() };
 }
 
-Size::Trait Size::getTrait() const {
+std::optional<Size::Trait> Size::getTrait() const {
     bool hasPrimary = false;
     for (auto P = getPrimary(); auto p: P) {
+        if (p < 0) return std::nullopt;
         hasPrimary |= p > 0;
     }
     bool hasCoefficient = false;
@@ -248,7 +249,9 @@ bool NextSize(Size::ExprType& powers, const std::vector<std::size_t>& basesIndic
 }
 
 Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
-    auto trait = getTrait();
+    auto optTrait = getTrait();
+    if (!optTrait) co_return;
+    Trait trait = *optTrait;
     switch (trait) {
     case Trait::One:
         co_return;
@@ -295,7 +298,7 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
                 auto quotient = *this;
                 auto qTrait = quotient.testDividedBy(divisor);
                 if (
-                    dTrait != Trait::IllegalCoefficient && dTrait != Trait::One
+                    dTrait && *dTrait != Trait::IllegalCoefficient && *dTrait != Trait::One
                     && qTrait && *qTrait != Trait::IllegalCoefficient && *qTrait != Trait::One
                     && divisor.lowerBoundEst(ctx) > 1.0f && quotient.lowerBoundEst(ctx) > 1.0f
                 ) {
@@ -335,7 +338,7 @@ Generator<Size> Size::EnumerateSizes(const BindingContext& ctx, Size lowerBound,
         while (true) {
             auto trait = size.getTrait();
             if (
-                trait != Trait::IllegalCoefficient && trait != Trait::One
+                trait && *trait != Trait::IllegalCoefficient && *trait != Trait::One
                 && size.lowerBoundEst(ctx) > 1.0f
             ) {
                 co_yield size;
@@ -556,7 +559,7 @@ LabeledSize::LabeledSize(std::size_t primaryCount, std::size_t coefficientCount)
 
 LabeledSize::LabeledSize(const Size& size):
     Size { size },
-    trait { size.getTrait() }
+    trait { *size.getTrait() }
 {}
 
 LabeledSize LabeledSize::identity() const {

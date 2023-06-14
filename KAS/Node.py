@@ -52,6 +52,9 @@ class Path:
     def append(self, next: PseudoNext):
         self.abs_path.append(Path.to_next(next))
 
+    def pop(self):
+        self.abs_path.pop()
+
     def concat(self, next: PseudoNext) -> 'Path':
         return Path(self.abs_path + [Path.to_next(next)])
 
