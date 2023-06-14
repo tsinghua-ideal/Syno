@@ -2,3 +2,4 @@ thop
 timm
 oss2
 matplotlib
+foresight @ git+https://github.com/SamsungLabs/zero-cost-nas@main
