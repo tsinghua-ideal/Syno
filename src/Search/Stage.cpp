@@ -1,4 +1,3 @@
-#include <fmt/core.h>
 #include <unordered_map>
 
 #include "KAS/Search/Stage.hpp"
@@ -55,12 +54,82 @@ StageStore& Stage::getStageStore() {
     return sampler.getStageStore();
 }
 
+void Stage::determineFinalizability(Finalizability yesOrNo) {
+    switch (yesOrNo) {
+    case Finalizability::Yes:
+        --CountFinalizabilityMaybe;
+        ++CountFinalizabilityYes;
+        finalizability = Finalizability::Yes;
+        break;
+    case Finalizability::No:
+        --CountFinalizabilityMaybe;
+        ++CountFinalizabilityNo;
+        finalizability = Finalizability::No;
+        break;
+    default:
+        KAS_CRITICAL("Invalid Finalizability.");
+    }
+}
+
+void Stage::updateFinalizability() {
+    // It would also be nice to remove all the dead-ends (Finalizability::No).
+    auto removeDeadEnds = [&]() {
+        nextOpStores.forEach([&](auto& store) {
+            store.remove([&](const auto& slot) {
+                return uncheckedGetChild(slot.toNext()).asStage()->finalizability == Finalizability::No;
+            });
+        });
+    };
+    auto removeAllStageChildren = [&]() {
+        nextOpStores.forEach([&](auto& store) {
+            store.clear();
+        });
+    };
+
+    if (finalizability == Finalizability::Yes) {
+        removeDeadEnds();
+        return;
+    } else if (finalizability == Finalizability::No) {
+        removeAllStageChildren();
+        return;
+    }
+    // We need to check if this is finalizable.
+    // If there are FinalizeOp, of course this is.
+    if (nextFinalizations.size()) {
+        determineFinalizability(Finalizability::Yes);
+        removeDeadEnds();
+        return;
+    }
+    auto nexts = uncheckedGetChildrenHandles();
+    // Otherwise, check children. Yes if any Yes, No if all No.
+    bool allNo = true;
+    for (auto& next: nexts) {
+        // We can be sure that the child is a Stage.
+        Stage *child = uncheckedGetChild(next).asStage();
+        if (child->finalizability == Finalizability::Yes) {
+            determineFinalizability(Finalizability::Yes);
+            removeDeadEnds();
+            return;
+        } else if (child->finalizability == Finalizability::Maybe) {
+            allNo = false;
+        }
+    }
+    if (allNo) {
+        determineFinalizability(Finalizability::No);
+        removeAllStageChildren();
+        return;
+    }
+    removeDeadEnds();
+    return;
+}
+
 std::size_t Stage::remainingDepth() const {
     return sampler.getOptions().depth - depth;
 }
 
 void Stage::guard() {
     if (childrenGenerated) {
+        updateFinalizability();
         return;
     }
     const BindingContext& ctx = sampler.getBindingContext();
@@ -76,7 +145,6 @@ void Stage::guard() {
     }), [](FinalizeOp& f) {
         return NextFinalizeSlot({NextFinalizeSlot::GetKey(f.tensors)}, std::move(f));
     });
-    nexts = nextFinalizations.toNexts();
 
     // Wrap the generated Op in a NextOpSlot.
     auto add = [&]<typename Op>(const std::vector<const Op *>& newOps) {
@@ -89,9 +157,8 @@ void Stage::guard() {
             )
             .remove([&](const NextOpSlot<Op>& slot) {
                 /* We need to call removeOp for deleted Op's and removeStage for deleted Stage's. TODO */
-                return !slot.nextStage->possibleToFinalize();
+                return slot.nextStage->finalizability == Finalizability::No;
             });
-        std::ranges::move(nextOpStores.get<Op>().toNexts(), std::back_inserter(nexts));
     };
 
     if (remainingDepth() > 0) {
@@ -162,41 +229,16 @@ void Stage::guard() {
     CountChildrenShare += nextOpStores.get<ShareOp>().size();
 
     childrenGenerated = true;
+    updateFinalizability();
 }
 
-std::shared_ptr<TensorView> Stage::getFinalize(std::size_t key) {
-    auto& slot = getChildFinalizeSlot(key);
+std::shared_ptr<TensorView> Stage::getFinalize(std::size_t key) const {
+    const auto& slot = uncheckedGetChildFinalizeSlot(key);
     KAS_DEBUG("Building TensorView from Finalization.");
     return slot.finalization.buildTensorView(sampler.getFixedDimensions());
 }
 
-Stage::Stage(Sampler& sampler, const std::vector<const MapReduceOp *>& reductions):
-    interface { [&]() {
-        auto interface = sampler.getRootInterface();
-        std::ranges::copy(reductions, std::back_inserter(interface));
-        std::ranges::sort(interface, Dimension::HashLessThan{});
-        return interface;
-    }() },
-    sampler { sampler },
-    depth { reductions.size() }
-{
-    existingOps[static_cast<std::size_t>(Next::Type::MapReduce)] = reductions.size();
-}
-
-Stage::Stage(Sampler& sampler, ColoredInterface&& interface, const Stage& old, Next::Type delta):
-    interface { std::move(interface) },
-    sampler { sampler },
-    depth { old.depth + 1 },
-    existingOps { old.existingOps }
-{
-    existingOps[static_cast<std::size_t>(delta)] += 1;
-}
-
-bool Stage::possibleToFinalize() const {
-    if (possibleToFinalizeCache) {
-        return *possibleToFinalizeCache;
-    }
-
+bool Stage::possibleToFinalizeByExperimenting() const {
     ++CountFinalizabilityCheckInvocations;
 
     const SampleOptions& options = sampler.getOptions();
@@ -215,7 +257,6 @@ bool Stage::possibleToFinalize() const {
         .maximumTensors = options.maximumTensors,
     })) {
         ++CountTooManyWeights;
-        possibleToFinalizeCache = false;
         return false;
     }
 
@@ -231,36 +272,88 @@ bool Stage::possibleToFinalize() const {
     });
     if (distance > remainingDepth()) {
         ++CountShapeDeviatesTooMuch;
-        possibleToFinalizeCache = false;
         return false;
     }
 
-    possibleToFinalizeCache = true;
     return true;
+}
+
+std::size_t Stage::uncheckedCountChildren() const {
+    return nextFinalizations.size() + nextOpStores.size();
+}
+
+std::vector<Next> Stage::uncheckedGetChildrenHandles() const {
+    auto nextF = nextFinalizations.toNexts();
+    auto nexts = nextOpStores.toNexts();
+    nexts.insert(nexts.begin(), nextF.begin(), nextF.end());
+    return nexts;
+}
+
+const NextFinalizeSlot& Stage::uncheckedGetChildFinalizeSlot(std::size_t key) const {
+    return nextFinalizations.getSlot(key);
+}
+
+Node Stage::uncheckedGetChild(Next next) const {
+    switch (next.type) {
+    case Next::Type::Shift: return { &sampler, uncheckedGetChildSlot<ShiftOp>(next.key).nextStage };
+    case Next::Type::Stride: return { &sampler, uncheckedGetChildSlot<StrideOp>(next.key).nextStage };
+    case Next::Type::Split: return { &sampler, uncheckedGetChildSlot<SplitOp>(next.key).nextStage };
+    case Next::Type::Unfold: return { &sampler, uncheckedGetChildSlot<UnfoldOp>(next.key).nextStage };
+    case Next::Type::Merge: return { &sampler, uncheckedGetChildSlot<MergeOp>(next.key).nextStage };
+    case Next::Type::Share: return { &sampler, uncheckedGetChildSlot<ShareOp>(next.key).nextStage };
+    case Next::Type::Finalize: return { &sampler, getFinalize(next.key) };
+    default: KAS_UNREACHABLE("Invalid Next {}.", next.toString());
+    }
+}
+
+Stage::Stage(Sampler& sampler, const std::vector<const MapReduceOp *>& reductions):
+    interface { [&]() {
+        auto interface = sampler.getRootInterface();
+        std::ranges::copy(reductions, std::back_inserter(interface));
+        std::ranges::sort(interface, Dimension::HashLessThan{});
+        return interface;
+    }() },
+    sampler { sampler },
+    depth { reductions.size() }
+{
+    existingOps[static_cast<std::size_t>(Next::Type::MapReduce)] = reductions.size();
+    ++CountFinalizabilityMaybe;
+    if (!possibleToFinalizeByExperimenting()) {
+        determineFinalizability(Finalizability::No);
+    }
+}
+
+Stage::Stage(Sampler& sampler, ColoredInterface&& interface, const Stage& old, Next::Type delta):
+    interface { std::move(interface) },
+    sampler { sampler },
+    depth { old.depth + 1 },
+    existingOps { old.existingOps }
+{
+    existingOps[static_cast<std::size_t>(delta)] += 1;
+    ++CountFinalizabilityMaybe;
+    if (!possibleToFinalizeByExperimenting()) {
+        determineFinalizability(Finalizability::No);
+    }
 }
 
 std::size_t Stage::countChildren() {
     guard();
-    return nexts.size();
+    return uncheckedCountChildren();
 }
 
-NextFinalizeSlot& Stage::getChildFinalizeSlot(std::size_t key) {
+std::vector<Next> Stage::getChildrenHandles() {
     guard();
-    return nextFinalizations.getSlot(key);
+    return uncheckedGetChildrenHandles();
+}
+
+const NextFinalizeSlot& Stage::getChildFinalizeSlot(std::size_t key) {
+    guard();
+    return uncheckedGetChildFinalizeSlot(key);
 }
 
 Node Stage::getChild(Next next) {
     guard();
-    switch (next.type) {
-    case Next::Type::Shift: return { &sampler, getChildSlot<ShiftOp>(next.key).nextStage };
-    case Next::Type::Stride: return { &sampler, getChildSlot<StrideOp>(next.key).nextStage };
-    case Next::Type::Split: return { &sampler, getChildSlot<SplitOp>(next.key).nextStage };
-    case Next::Type::Unfold: return { &sampler, getChildSlot<UnfoldOp>(next.key).nextStage };
-    case Next::Type::Merge: return { &sampler, getChildSlot<MergeOp>(next.key).nextStage };
-    case Next::Type::Share: return { &sampler, getChildSlot<ShareOp>(next.key).nextStage };
-    case Next::Type::Finalize: return { &sampler, getFinalize(next.key) };
-    default: KAS_UNREACHABLE("Invalid Next {}.", next.toString());
-    }
+    return uncheckedGetChild(next);
 }
 
 std::string Stage::description() const {

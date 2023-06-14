@@ -154,6 +154,11 @@ public:
         return remove(std::forward<Pred>(pred), [](const Slot&){});
     }
 
+    Self& clear() {
+        slots.clear();
+        return *this;
+    }
+
     std::vector<Next> toNexts() const {
         std::vector<Next> nexts;
         std::ranges::move(slots | std::views::transform(&Slot::toNext), std::back_inserter(nexts));
@@ -214,6 +219,7 @@ public:
     // For Python.
     std::size_t hash() const;
 
+    Stage *asStage() const;
     std::shared_ptr<TensorView> asFinal() const;
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const;
     // Obtain the mappings from Sampler, and do not solve the paddings. We only want to estimate the FLOPs.
