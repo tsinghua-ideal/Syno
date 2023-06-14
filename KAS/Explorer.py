@@ -1,7 +1,7 @@
 import os
 
 from .Bindings import Next
-from .Node import Path
+from .Node import Path, Node
 from .Sampler import Sampler
 from .Utils import NextSerializer
 
@@ -10,6 +10,18 @@ class Explorer:
     def __init__(self, sampler: Sampler):
         self._sampler = sampler
         self._serializer = NextSerializer()
+        self._collected = set()
+
+    def _add_node(self, node):
+        self._collected.add(node.to_node())
+
+    def _expand(self, fro: Node, depth: int) -> None:
+        if depth <= 0:
+            return
+        for next in fro.get_children_handles():
+            to = fro.get_child(next)
+            self._add_node(to)
+            self._expand(to, depth - 1)
 
     def interactive(self, working_dir: str = '.') -> None:
         """
@@ -18,6 +30,9 @@ class Explorer:
         Several commands:
         - `info`: print the description of the node.
         - `children [<ty>]`: list all children of the current node. You can also specify a type filter. Example: `children Share`
+        - `collected`: print statistics of collected nodes.
+        - `deadend`: print the number of dead ends.
+        - `expand <depth>`: expand the current node for given layers.
         - `graphviz`: generate a graphviz file and print it for the current node.
         - `visit <ty>(<key>)`: go to the child `Next(ty, key)` with the given type and key. Example: `visit Share(0)`
         - `back`: go back to the parent.
@@ -28,6 +43,7 @@ class Explorer:
         while True:
             print()
             current_node = self._sampler.visit(path)
+            self._add_node(current_node)
             print(f"{path}")
             children_handles = current_node.get_children_handles()
             command = input(">>> ")
@@ -49,6 +65,27 @@ class Explorer:
                 to_print = filter(lambda x: ty is None or x.type == ty, children_handles)
                 for child in to_print:
                     print(f"\t{child}:\t{current_node.get_child_description(child)}")
+                    self._add_node(current_node.get_child(child))
+            elif command == "collected":
+                print(f"Collected in total {len(self._collected)} nodes.")
+                print(f"Among which,")
+                final = list(filter(lambda x: x.is_final(), self._collected))
+                print(f"\t{len(final)} are final.")
+            elif command == "deadend":
+                dead_ends = list(filter(lambda x: x.is_dead_end(), self._collected))
+                print(f"\t{len(dead_ends)} are dead ends.")
+            elif command.startswith("expand"):
+                # expand the current node
+                depth = 1
+                segments = command.split()
+                if len(segments) > 1:
+                    try:
+                        depth = int(segments[1])
+                    except:
+                        print("Invalid depth.")
+                        continue
+                self._expand(current_node, depth)
+                print(f"Expanded {depth} layers from current node.")
             elif command == "graphviz":
                 # generate graphviz file and print it
                 current_node.generate_graphviz(working_dir, "preview")
