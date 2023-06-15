@@ -86,7 +86,7 @@ def evaluate(path: TreePath, train_loader: DataLoader, val_loader: DataLoader, a
     proxy_naswot = naswot(model, train_loader)
     proxy_val = {
         "syn_flow": proxy_syn,
-        "naswot": proxy_naswot
+        "naswot": proxy_naswot.item()
     }
 
     _, val_error, _ = train(model, train_loader,

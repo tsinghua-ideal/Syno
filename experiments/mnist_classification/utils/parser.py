@@ -70,7 +70,7 @@ def arg_parse():
                         help='Test/inference time augmentation (oversampling) factor')
 
     # Optimizer parameters.
-    parser.add_argument('--lr', type=float, default=5., metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='Learning rate (default: 1e-3)')
     parser.add_argument('--opt', default='sgd', type=str, metavar='OPTIMIZER',
                         help='Optimizer (default: "sgd"')

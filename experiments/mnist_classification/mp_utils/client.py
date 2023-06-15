@@ -22,7 +22,7 @@ class Handler:
         print(
             f'Posting: {self.addr}/success?name={name}${state}${reward}${proxy_val["syn_flow"]}${proxy_val["naswot"]}')
         requests.post(
-            f'{self.addr}/success?name={name}${state}${reward}${proxy_val}')
+            f'{self.addr}/success?name={name}${state}${reward}${proxy_val["syn_flow"]}${proxy_val["naswot"]}')
 
     def failure(self, name, state):
         assert name is not None
