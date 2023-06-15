@@ -14,7 +14,7 @@
 ### Hash
 
 - [x] Fix hash collision. (If not possible, try finding data structures that tolerate collisions.) (Temporarily this seems fixed?)
-- [ ] Replace `std::hash` with custom hash for better reproducibility.
+- [x] Replace `std::hash` with custom hash for better reproducibility.
 - [x] Use reproducible hash for `Node`.
 
 ## CodeGen
@@ -23,12 +23,12 @@
 - [ ] Add auto scheduler options to reduce tuning time.
 - [x] Add padding by padding variables that cannot be divided by their denominators.
 - [ ] Optimization: Early reduction to reduce FLOPs.
-- [ ] Early reduction analysis is actually compulsory. Otherwise in autodiff settings, the RDom may be left unmentioned, causing Halide compile errors!
+- [x] Early reduction analysis is actually compulsory. Otherwise in autodiff settings, the RDom may be left unmentioned, causing Halide compile errors!
 - [x] Sum -> Avg.
 - [ ] Perform a trial to see if there are uncanonical case. (1 on weight)
 - [ ] Multiple weights. (Minimumize difference.)
 - [ ] Add support for float16.
-- [ ] Manual `rfactor` for up to 3x performance.
+- [x] Manual `rfactor` for up to 3x performance.
 
 ## Transforms
 
@@ -47,7 +47,7 @@
 ### Pruning
 
 - [x] Add pruning with respect to finalizability criteria.
-- [ ] Add even more pruning with respect to finalizability criteria.
+- [x] Add even more pruning with respect to finalizability criteria.
 - [x] Canonicalize by pruning uncanonicalized Ops. (E.g., SplitOp and MergeOp should not be generated above Sum reductions, or below a weight dimension, e.t.c..)
 - [x] Canonicalize transforms on weight. (E.g., SplitOp and MergeOp should not be generated below a weight dimension.)
 - [x] `ShareOp::IsSharedDimensionCanonical()` still needs some modifications.
