@@ -33,10 +33,7 @@ class KASFC(KASModule):
             ),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            Placeholder(
-                refered_layer=nn.Linear(64, 10),
-                mapping_func=mapping_func_linear
-            ),
+            refered_layer=nn.Linear(64, 10)
         )
 
     def forward(self, image: Tensor) -> Tensor:
