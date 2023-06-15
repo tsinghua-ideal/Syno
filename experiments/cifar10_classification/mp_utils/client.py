@@ -6,7 +6,7 @@ class Handler:
         self.addr = args.kas_selector_address
 
     def get_args(self):
-        """TODO: get args"""
+        """get arguments"""
         j = requests.get(f'{self.addr}/arguments').json()
         assert 'sampler_args' in j and 'train_args' in j and 'extra_args' in j
         return j['sampler_args'], j['train_args'], j['extra_args']
@@ -18,8 +18,11 @@ class Handler:
 
     def success(self, name, state, reward):
         assert name is not None
-        print(f'Posting: {self.addr}/success?name={name}${state}${reward}')
-        requests.post(f'{self.addr}/success?name={name}${state}${reward}')
+        reward, proxy_val = reward
+        print(
+            f'Posting: {self.addr}/success?name={name}${state}${reward}${proxy_val["syn_flow"]}${proxy_val["naswot"]}')
+        requests.post(
+            f'{self.addr}/success?name={name}${state}${reward}${proxy_val["syn_flow"]}${proxy_val["naswot"]}')
 
     def failure(self, name, state):
         assert name is not None

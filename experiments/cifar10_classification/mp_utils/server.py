@@ -8,6 +8,7 @@ from KAS import TreePath
 waiting_result_cache = {}  # path -> trial, receipt
 pending_evaluate_cache = {}  # path -> trial, receipt
 
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, _, *__):
         pass
@@ -38,9 +39,11 @@ class Handler(BaseHTTPRequestHandler):
             response_json = {'path': ''}
             if self.mcts.remain_iterations > 0:
                 while len(pending_evaluate_cache.keys()) == 0:
-                    pending_evaluate_cache.update(self.mcts.launch_new_iteration())
+                    pending_evaluate_cache.update(
+                        self.mcts.launch_new_iteration())
                 selected_path, meta_data = pending_evaluate_cache.popitem()
-                print(f' > Response kernel: {TreePath.deserialize(selected_path)}')
+                print(
+                    f' > Response kernel: {TreePath.deserialize(selected_path)}')
                 response_json = {'path': selected_path}
                 waiting_result_cache[selected_path] = dict(
                     meta=meta_data, time=time.time()
@@ -71,22 +74,25 @@ class Handler(BaseHTTPRequestHandler):
             print("> Search ended, not receiving new inputs")
             return
         if self.path.startswith('/success'):
-            path, state, reward = path.split('$')
+            path, state, reward, proxy_syn, proxy_naswot = path.split('$')
             reward = float(reward)
             assert path not in pending_evaluate_cache
             assert path in waiting_result_cache, f"{path} not in {waiting_result_cache}"
-            self.mcts.update_result(waiting_result_cache.pop(path)['meta'], reward ** 2)
+            self.mcts.update_result(waiting_result_cache.pop(path)[
+                                    'meta'], reward ** 2)
             self.mcts.remain_iterations -= 1
             print(f"Remaining iterations: {self.mcts.remain_iterations}")
             if self.mcts.remain_iterations == 0:
                 self.mcts.dump_result()
                 print(f' > MCTS iteration complete. ')
                 return
-            print(f' > Successfully trained: {TreePath.deserialize(path)}, accuracy {reward}')
+            print(
+                f' > Successfully trained: {TreePath.deserialize(path)}, accuracy {reward}, proxy_syn {proxy_syn}, proxy_naswot {proxy_naswot}')
         elif self.path.startswith('/failure'):
             path, state = path.split('$')
             if path in waiting_result_cache:
-                self.mcts.update_result(waiting_result_cache.pop(path)['meta'], -1)
+                self.mcts.update_result(
+                    waiting_result_cache.pop(path)['meta'], -1)
             print(f' > Failed to train {path} because of {state}')
         else:
             print(f' > Testing message ...')

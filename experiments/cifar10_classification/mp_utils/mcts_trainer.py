@@ -52,6 +52,7 @@ class MCTSTrainer(MCTS):
         return self.eval_result_cache[node._node]
 
     def set_dead(self, node) -> None:
+        self.set_node_dead(node)
         self.eval_result_cache[node._node] = -1
 
     def set_eval_result(self, node, val: float) -> None:
@@ -88,6 +89,11 @@ class MCTSTrainer(MCTS):
         Tasks: Tree parallelization, Leaf parallelization
         """
 
+        if self.check_node_dead(self._sampler.root()):
+            logging.info("The tree is exhausted......")
+            while True:
+                pass
+
         # Selecting a node
         logging.info("launching new iterations")
         receipt, trials = self.do_rollout(self._sampler.root())
@@ -98,13 +104,15 @@ class MCTSTrainer(MCTS):
         for trial in trials:
             if not self.has_eval_result(trial):
                 new_path[trial.path.serialize()] = (trial, receipt)
-            else:
+            elif not self.check_dead(trial):
                 reward = self.get_eval_result(trial)
 
                 # update
                 self.back_propagate(receipt, reward)
                 self.reward_list.append(reward)
                 self.time_list.append(time() - self.start_time)
+            else:
+                logging.warning("Encountered dead trial. Is that desired? ")
 
         return new_path
 
@@ -124,9 +132,9 @@ class MCTSTrainer(MCTS):
         json.dump(perf_dict, open(perf_path, 'w'))
         result_path = os.path.join(result_save_loc, 'result.json')
         eval_result_cache_serial = {
-            k.path.serialize(): v for k, v in self.eval_result_cache.items()}
+            hash(k): v for k, v in self.eval_result_cache.items()}
         result_dict = {
-            "best_path": node.path.serialize(),
+            "best_path": hash(node),
             "mcts": self.dump(),
             "results": eval_result_cache_serial
         }

@@ -33,7 +33,7 @@ class KASFC(KASModule):
             ),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            refered_layer=nn.Linear(64, 10)
+            nn.Linear(64, 10)
         )
 
     def forward(self, image: Tensor) -> Tensor:

@@ -10,10 +10,12 @@ import argparse
 import re
 import os
 from tqdm.contrib import tzip
+import math
 
 from utils.parser import arg_parse
 from mp_utils import Handler_client
-from utils.models import KASConv, ModelBackup
+from utils.config import parameters
+from utils.models import KASFC, ModelBackup
 
 from KAS import Sampler, TreePath
 from KAS.Bindings import CodeGenOptions
@@ -32,24 +34,28 @@ def arg_parse_logger():
     return args
 
 
-def create_sample(args_logger, path):
+def create_sample(args_logger, path, perf):
     args = arg_parse()
 
-    web_handler = Handler_client(args)
-    sampler_args, train_args, extra_args = web_handler.get_args()
+    # try:
+    #     web_handler = Handler_client(args)
+    #     sampler_args, train_args, extra_args = web_handler.get_args()
+    # except:
+    #     print("The server is down. Using default parameters. ")
+    train_args, sampler_args, extra_args = parameters(args)
 
-    sampler_args['autoscheduler'] = getattr(
-        CodeGenOptions.AutoScheduler, sampler_args['autoscheduler'])
+    if not isinstance(sampler_args['autoscheduler'], CodeGenOptions.AutoScheduler):
+        sampler_args['autoscheduler'] = getattr(
+            CodeGenOptions.AutoScheduler, sampler_args['autoscheduler'])
     sampler_args['save_path'] = os.path.join(
         args_logger.output_path, 'samples')
 
-    _model = ModelBackup(KASConv, torch.randn(
+    _model = ModelBackup(KASFC, torch.randn(
         extra_args["sample_input_shape"]), extra_args["device"])
     kas_sampler = Sampler(net=_model.create_instance(), **sampler_args)
     node = kas_sampler.visit(path)
-    kernelPacks, total_flops = kas_sampler.realize(
-        _model.create_instance(), node, extra_args["prefix"])
-    print(f"Total FLOPS: {total_flops}")
+    node.generate_graphviz_as_final(os.path.join(
+        args_logger.output_path, 'samples'), f"{perf}")
 
 
 def main():
@@ -60,6 +66,8 @@ def main():
 
     paths = []
     rewards = []
+    proxy_syns = []
+    proxy_naswots = []
     summary = []
     summary_flag = False
 
@@ -68,9 +76,14 @@ def main():
         if i < len(log_file) - 1 and log_file[i+1] == "Successfully updated MCTS. \n":
             path_raw = re.search("name=[\d|_]+", line).group()[len("name="):]
             path = TreePath.deserialize(path_raw)
-            reward = float(re.search("\$[\d|\.]+", line).group()[1:])
+            suffix = re.search("SUCCESS\$.+", line).group()[len("SUCCESS$"):]
+            # print(suffix)
+            reward, proxy_syn, proxy_naswot = suffix.split('$')
+            # proxy_naswot = 0
             paths.append(path)
-            rewards.append(reward)
+            rewards.append(float(reward))
+            proxy_syns.append(float(proxy_syn))
+            proxy_naswots.append(float(proxy_naswot))
         elif line == "**************** Logged Summary ******************\n":
             summary_flag = not summary_flag
             if summary_flag:
@@ -78,12 +91,25 @@ def main():
         elif summary_flag:
             summary[-1].append(line)
 
+    rewards = np.array(rewards)
+    proxy_syns = np.array(proxy_syns)
+    proxy_naswots = np.array(proxy_naswots)
+
     assert len(paths) == len(rewards) == len(
         summary), f"{len(paths)} {len(rewards)} {len(summary)}"
-    perf = zip(rewards, paths)
+    perf = list(zip(rewards, paths))
     best_reward, best_path = max(perf, key=lambda x: x[0])
+    perf_sorted = sorted(perf, key=lambda x: x[0], reverse=True)
 
-    # create_sample(args, best_path)
+    for reward, path in perf_sorted[:5]:
+        create_sample(args, path, reward)
+
+    plt.plot(rewards, marker='o')
+    plt.xlabel("Iterations")
+    plt.ylabel("Accuracy")
+    plt.title("Accuracy w.r.t. time")
+    plt.savefig(os.path.join(args.output_path, 'Reward.jpg'))
+    plt.clf()
 
     avgrewards = np.cumsum(rewards) / (np.arange(len(rewards)) + 1)
     plt.plot(avgrewards, marker='o')
@@ -99,6 +125,22 @@ def main():
     plt.ylabel("Accuracy")
     plt.title("Maximum Accuracy w.r.t. time")
     plt.savefig(os.path.join(args.output_path, 'MaximumReward.jpg'))
+    plt.clf()
+
+    syn_mask = proxy_syns != 0
+    plt.scatter(proxy_syns[syn_mask], rewards[syn_mask], marker='o')
+    plt.xlabel("Syn Flow")
+    plt.ylabel("Accuracy")
+    plt.title("Accuracy w.r.t. Syn Flow")
+    plt.savefig(os.path.join(args.output_path, 'syn_proxy.jpg'))
+    plt.clf()
+
+    naswot_mask = np.abs(proxy_naswots) != np.inf
+    plt.scatter(proxy_naswots[naswot_mask], rewards[naswot_mask], marker='o')
+    plt.xlabel("Naswot")
+    plt.ylabel("Accuracy")
+    plt.title("Accuracy w.r.t. Naswot")
+    plt.savefig(os.path.join(args.output_path, 'naswot_proxy.jpg'))
 
     with open(os.path.join(args.output_path, 'parsed.log'), 'w') as f_out:
         f_out.write(

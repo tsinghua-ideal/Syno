@@ -64,7 +64,7 @@ if __name__ == '__main__':
             logging.info(f"Received {path}")
             try:
                 state, reward = evaluate(
-                    path, train_data_loader, validation_data_loader, _model, kas_sampler, train_args, extra_args)
+                    path, train_data_loader, validation_data_loader, args, _model, kas_sampler, train_args, extra_args)
             except Exception as e:
                 if isinstance(e, KeyboardInterrupt):
                     break

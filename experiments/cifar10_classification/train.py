@@ -127,7 +127,7 @@ def train(
 
         scheduler.step(epoch + 1, 1-val_errors[-1])
 
-    print(f'Training Complete. Accuracy {1-val_errors[-1]}')
+    print(f'Training Complete. Accuracy {1-min(val_errors)}')
 
     return train_errors, val_errors, best_model_state_dict
 

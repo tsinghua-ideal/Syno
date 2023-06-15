@@ -101,36 +101,3 @@ class KASGrayConv(KASModule):
         B = image.size(0)
         x = self.conv(image.squeeze(1))
         return self.linear(x.view(B, -1))
-
-
-class KASDense(KASModule):
-    def __init__(self) -> None:
-        super().__init__()
-
-        self.layers = nn.Sequential([
-            Placeholder(
-                refered_layer=nn.Linear(28 * 28, 1000),
-                mapping_func=mapping_func_linear
-            ),
-            nn.ReLU(),
-            Placeholder(
-                refered_layer=nn.Linear(1000, 500),
-                mapping_func=mapping_func_linear
-            ),
-            nn.ReLU(),
-            Placeholder(
-                refered_layer=nn.Linear(500, 100),
-                mapping_func=mapping_func_linear
-            ),
-            nn.ReLU(),
-            Placeholder(
-                refered_layer=nn.Linear(100, 10),
-                mapping_func=mapping_func_linear
-            )
-        ])
-
-    def forward(self, image: Tensor) -> Tensor:
-        B = image.size(0)
-        image = image.view(B, -1)
-        x = self.layers(x)
-        return x
