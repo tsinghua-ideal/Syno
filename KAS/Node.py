@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from . import Bindings
 from .Bindings import Next
@@ -103,7 +103,7 @@ class Node:
             result[str(handle.type)] += 1
         return result
 
-    def get_child(self, next: PseudoNext) -> 'Node':
+    def get_child(self, next: PseudoNext) -> Optional['Node']:
         """Get the child node of a node with a Next."""
         return Node(self._node.get_child(Path.to_next(next)))
 

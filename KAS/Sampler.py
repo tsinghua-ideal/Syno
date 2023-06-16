@@ -3,7 +3,7 @@ import shutil
 import logging
 import torch
 from torch import nn
-from typing import List, Dict, Tuple, Union
+from typing import List, Dict, Optional, Tuple, Union
 
 from . import Bindings
 from .Assembler import Assembled, Assembler
@@ -83,12 +83,12 @@ class Sampler:
         """Get the root node."""
         return self.visit([])
 
-    def visit(self, path: Path) -> VisitedNode:
+    def visit(self, path: Path) -> Optional[VisitedNode]:
         """Visit a node via a path."""
         path = Path(path)
         return VisitedNode(path, self._sampler.visit(path.abs_path))
 
-    def random_node_with_prefix(self, prefix: Path) -> VisitedNode:
+    def random_node_with_prefix(self, prefix: Path) -> Optional[VisitedNode]:
         """Find a leaf node with specified prefix. Note that the Node is not necessarily final."""
         prefix = Path(prefix)
         path, node = self._sampler.random_node_with_prefix(prefix.abs_path)

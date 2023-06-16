@@ -29,12 +29,15 @@
 - [ ] Multiple weights. (Minimumize difference.)
 - [ ] Add support for float16.
 - [x] Manual `rfactor` for up to 3x performance.
+- [ ] Add support for more arithmetic operations, other than product.
 
 ## Transforms
 
+- [ ] Implement generation for ShiftOp.
 - [ ] Add ReverseOp.
 - [ ] Random shuffle convolution.
 - [ ] What is a MergeOp by the way?
+- [ ] To support Attention, what can we do?
 
 ## Search
 
@@ -55,11 +58,17 @@
 - [ ] Unfolding some dimensions to output iterators seems to be not a good idea.
 - [ ] Make dead ends propagate. (By storing parent nodes.)
 
+### Bindings
+
+- [ ] Enable Explorer to visit a path.
+- [ ] Make Explorer more command line friendly.
+- [ ] Enable Explorer to print a tree.
+- [ ] Report dead ends to Python.
+
 ### Misc
 
 - [x] Index the search tree by hashes for reproducibility.
-- [ ] Allow direct construction of kernel from primitives and parameters, without building the search tree.
-- [ ] Discover full-dead-end subtrees and report to Python.
+- [ ] Allow direct construction of kernel from primitives and parameters, without building the search tree. Also save these data to files.
 - [ ] Multithreaded search tree building.
 - [x] Compute a Path from a TensorView, to verify searchability.
 - [x] Robustify the TensorView -> Path function.

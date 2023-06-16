@@ -3,6 +3,7 @@ import os
 from .Bindings import Next
 from .Node import Path, Node
 from .Sampler import Sampler
+from .Statistics import Statistics
 from .Utils import NextSerializer
 
 
@@ -36,6 +37,7 @@ class Explorer:
         - `graphviz`: generate a graphviz file and print it for the current node.
         - `visit <ty>(<key>)`: go to the child `Next(ty, key)` with the given type and key. Example: `visit Share(0)`
         - `back`: go back to the parent.
+        - `statistics`: print statistics of the sampler.
         - `exit`: exit the interactive mode.
         """
         print("Type `help` for help.")
@@ -104,6 +106,9 @@ class Explorer:
             elif command == "back":
                 # go back to parent node
                 path.pop()
+            elif command == "statistics":
+                # print statistics
+                Statistics.Print()
             elif command == "exit":
                 # exit interactive mode
                 break
