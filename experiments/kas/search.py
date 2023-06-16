@@ -1,3 +1,7 @@
+"""
+Out-of-dated. Single thread search.
+"""
+
 import torch
 from torch import nn, Tensor
 
@@ -24,7 +28,7 @@ from utils.models import KASGrayConv as KASConv, ModelBackup
 from utils.parser import arg_parse
 
 
-class MCTSTrainer(MCTS):
+class Searcher(MCTS):
     def __init__(self,
                  model: ModelBackup,
                  train_params: dict,
@@ -54,7 +58,6 @@ class MCTSTrainer(MCTS):
         self.search_start_timestamp = 0
 
         self.eval_result_cache = {}  # -1 stands for dead node
-        self.pending_evaluate_cache = {}  # path -> node, receipt*,
 
     def has_eval_result(self, node) -> bool:
         return node._node in self.eval_result_cache
@@ -74,26 +77,20 @@ class MCTSTrainer(MCTS):
         assert not self.has_eval_result(node), "Node already has eval result!"
         self.eval_result_cache[node._node] = val
 
-    def update_result(self, path, reward) -> None:
-        if self.type == 'mcts':
-            node, receipt = self.pending_evaluate_cache[path]
-        else:
-            node = self.pending_evaluate_cache[path]
-        self.set_eval_result(node, reward)
-        # update
-        if self.best_node[1] < reward:
-            self.best_node = (node, reward)
-        if self.type == 'mcts':
-            self.back_propagate(receipt, reward)
-        self.reward_list.append(reward)
+    def _eval_model(self, model: nn.Module) -> float:
+        train_error, val_error, _ = train(
+            model, **self._train_params, verbose=True)
+        accuracy = 1. - min(val_error)
+        assert 0 <= accuracy <= 1
+        return accuracy
 
     def update(self, prefix="") -> str:
 
         # Selecting a node
         if self.type == 'mcts':
-            receipt, node = self.do_rollout(kas_sampler.root())
+            receipt, node = self.do_rollout(self._sampler.root())
             while self.check_dead(node):
-                receipt, node = self.do_rollout(kas_sampler.root())
+                receipt, node = self.do_rollout(self._sampler.root())
         elif self.type == 'random':
             while True:
                 node = self._sampler.random_node_with_prefix(Path([]))
@@ -219,9 +216,18 @@ if __name__ == '__main__':
     args = arg_parse()
     use_cuda = torch.cuda.is_available()
 
+    # if os.path.exists(args.kas_sampler_save_dir):
+    #     shutil.rmtree(args.kas_sampler_save_dir)
     os.makedirs(args.kas_sampler_save_dir, exist_ok=True)
 
+    train_data_loader, validation_data_loader = get_dataloader(args)
+
+    sample_input = train_data_loader.dataset[0][0][None, :].repeat(
+        args.batch_size, 1, 1, 1)
+
     training_params = dict(
+        train_loader=train_data_loader,
+        val_loader=validation_data_loader,
         criterion=nn.CrossEntropyLoss(),
         lr=0.1,
         momentum=0.9,
@@ -230,7 +236,10 @@ if __name__ == '__main__':
         use_cuda=use_cuda
     )
 
-    sampler_params = dict(
+    device = torch.device("cuda" if use_cuda else "cpu")
+    model = ModelBackup(KASConv, sample_input, device)
+
+    kas_sampler = Sampler(
         input_shape="[N,H,W]",
         output_shape="[N,C_out,H,W]",
         primary_specs=["N=4096: 1", "H=256", "W=256", "C_out=100"],
@@ -242,29 +251,13 @@ if __name__ == '__main__':
         dim_upper=args.kas_max_dim,
         save_path=args.kas_sampler_save_dir,
         cuda=use_cuda,
+        net=model.create_instance(),
         fixed_io_pairs=[(0, 0)],
         autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021
     )
 
-    # TODO: Set up 8 evaluators.
-
-    extra_args = dict(
-        max_macs=args.kas_max_macs,
-        min_macs=args.kas_min_macs,
-        max_model_size=args.kas_max_params,
-        min_model_size=args.kas_min_params,
-        prefix="",
-        model_type="KASConv",  # TODO: dynamically load the module
-        batch_size=args.batch_size,
-        device=torch.device("cuda" if use_cuda else "cpu")
-    )
-
-    _model = ModelBackup(KASConv, torch.randn(
-        extra_args["sample_input_shape"]), extra_args["device"])
-    kas_sampler = Sampler(net=_model.create_instance(), **sampler_args)
-
-    searcher = MCTSTrainer(model, training_params,
-                           kas_sampler, args.kas_searcher_type, min_model_size=args.kas_min_params, max_model_size=args.kas_max_params, min_macs=args.kas_min_macs, max_macs=args.kas_max_macs)
+    searcher = Searcher(model, training_params,
+                        kas_sampler, args.kas_searcher_type, min_model_size=args.kas_min_params, max_model_size=args.kas_max_params, min_macs=args.kas_min_macs, max_macs=args.kas_max_macs)
 
     searcher.search(iterations=args.kas_iterations,
                     result_save_loc=args.result_save_dir)
