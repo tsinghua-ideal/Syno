@@ -259,6 +259,12 @@ def arg_parse():
 
     # Parse program arguments, add timestamp information, and checks.
     args = parser.parse_args()
+
+    default_dict = default_parser(args.dataset)
+    for key, value in default_dict.items():
+        if getattr(args, key, None) is None:
+            setattr(args, key, value)
+
     setattr(args, 'timestamp', time.time_ns())
     assert args.kas_min_macs <= args.kas_max_macs, 'Minimum FLOPs should be lower than maximum'
     assert args.kas_min_params <= args.kas_max_params, 'Minimum params should be lower than maximum'
@@ -267,10 +273,5 @@ def arg_parse():
         args.apex_amp and args.native_amp), 'Can not enable both native/Apex AMP'
     if args.apex_amp_loss_scale == 0:
         args.apex_amp_loss_scale = None
-
-    default_dict = default_parser(args.dataset)
-    for key, value in default_dict.items():
-        if getattr(args, key, None) is None:
-            setattr(args, key, value)
 
     return args

@@ -10,12 +10,12 @@ import argparse
 import re
 import os
 from tqdm.contrib import tzip
-import importlib
 
 from utils.parser import arg_parse
 from mp_utils import Handler_client
 from utils.config import parameters
 from utils.models import ModelBackup
+import utils.models as model_factory
 
 from KAS import Sampler, TreePath
 from KAS.Bindings import CodeGenOptions
@@ -50,7 +50,7 @@ def create_sample(args_logger, path, perf):
     sampler_args['save_path'] = os.path.join(
         args_logger.output_path, 'samples')
 
-    model_type = importlib.import_module(extra_args['model_type'])
+    model_type = getattr(model_factory, extra_args['model_type'])
     _model = ModelBackup(model_type, torch.randn(
         extra_args["sample_input_shape"]), extra_args["device"])
     kas_sampler = Sampler(net=_model.create_instance(), **sampler_args)

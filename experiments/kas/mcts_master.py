@@ -10,7 +10,6 @@ import logging
 import traceback
 import json
 from copy import deepcopy
-import importlib
 
 # KAS
 from KAS import Sampler
@@ -19,6 +18,7 @@ from KAS.Bindings import CodeGenOptions
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
 from utils.models import ModelBackup
+import utils.models as model_factory
 from utils.parser import arg_parse
 from utils.config import parameters
 
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     arguments['sampler_args']['autoscheduler'] = str(
         arguments['sampler_args']['autoscheduler'])[14:]  # HACK: serialize the enum
 
-    model_type = importlib.import_module(extra_args['model_type'])
+    model_type = getattr(model_factory, extra_args['model_type'])
     _model = ModelBackup(model_type, torch.randn(
         extra_args["sample_input_shape"]), "cpu")
     kas_sampler = Sampler(net=_model.create_instance(), **sampler_params)

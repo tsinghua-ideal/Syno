@@ -3,7 +3,7 @@ import itertools
 
 from utils.data import get_dataloader
 from utils.models import ModelBackup
-import importlib
+import utils.models as model_factory
 from utils.parser import arg_parse
 from utils import device
 from mp_utils import Handler_client, evaluate
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     sampler_args['autoscheduler'] = getattr(
         CodeGenOptions.AutoScheduler, sampler_args['autoscheduler'])
 
-    model_type = importlib.import_module(extra_args['model_type'])
+    model_type = getattr(model_factory, extra_args['model_type'])
     _model = ModelBackup(model_type, torch.randn(
         extra_args["sample_input_shape"]), extra_args["device"])
     kas_sampler = Sampler(net=_model.create_instance(), **sampler_args)
