@@ -26,40 +26,40 @@
 namespace kas {
 
 class Sampler;
-class Stage;
+class NormalStage;
 
-class StageStore {
+class NormalStageStore {
 public:
     struct Hash {
         using is_transparent = void;
         std::size_t operator()(const ColoredInterface& interface) const noexcept;
-        std::size_t operator()(const Stage * stage) const noexcept;
+        std::size_t operator()(const NormalStage * nStage) const noexcept;
     };
     struct Equal {
         using is_transparent = void;
         bool operator()(const ColoredInterface& lhs, const ColoredInterface& rhs) const noexcept;
-        bool operator()(const ColoredInterface& lhs, const Stage *rhs) const noexcept;
-        bool operator()(const Stage *lhs, const ColoredInterface& rhs) const noexcept;
-        bool operator()(const Stage *lhs, const Stage *rhs) const noexcept;
+        bool operator()(const ColoredInterface& lhs, const NormalStage *rhs) const noexcept;
+        bool operator()(const NormalStage *lhs, const ColoredInterface& rhs) const noexcept;
+        bool operator()(const NormalStage *lhs, const NormalStage *rhs) const noexcept;
     };
 
 private:
     DimensionStore dimensionStore;
-    std::unordered_set<Stage *, Hash, Equal> interfaces;
+    std::unordered_set<NormalStage *, Hash, Equal> interfaces;
 
 public:
     DimensionStore& dimStore() { return dimensionStore; }
-    Stage *find(const ColoredInterface& interface) const;
-    bool insert(Stage *stage);
-    ~StageStore();
+    NormalStage *find(const ColoredInterface& interface) const;
+    bool insert(NormalStage *nStage);
+    ~NormalStageStore();
 };
 
-class Stage {
+class NormalStage {
 public:
     template<typename Op>
     struct NextOpSlot: NextSlot<Next::TypeOf<Op>()> {
         const Op *op;
-        Stage *nextStage;
+        NormalStage *nextStage;
         static std::size_t GetKey(const Op *op) { return op->opHash(); }
     };
 
@@ -133,7 +133,7 @@ private:
 
     // Metadata.
     Sampler& sampler;
-    StageStore& getStageStore();
+    NormalStageStore& getNormalStageStore();
     std::size_t depth; // Stages with identical interfaces must be of the same depth.
     std::array<int, Next::NumTypes> existingOps {};
 
@@ -145,7 +145,7 @@ private:
     template<typename Op>
     const int& existingOp() const { return existingOps[static_cast<std::size_t>(Next::TypeOf<Op>())]; }
     template<typename Op>
-    int& existingOp() { return const_cast<int&>(const_cast<const Stage *>(this)->existingOp<Op>()); }
+    int& existingOp() { return const_cast<int&>(const_cast<const NormalStage *>(this)->existingOp<Op>()); }
 
     std::size_t remainingDepth() const;
 
@@ -155,19 +155,19 @@ private:
     // Execute the finalization to obtain TensorView.
     std::shared_ptr<TensorView> getFinalize(std::size_t key) const;
 
-    // Apply the Op to obtain Stage.
+    // Apply the Op to obtain NormalStage.
     template<typename Op>
-    Stage *getNextOp(const Op *op) {
-        StageStore& store = getStageStore();
+    NormalStage *getNextOp(const Op *op) {
+        NormalStageStore& store = getNormalStageStore();
         auto newInterface = op->applyToInterface(interface);
-        if (Stage *found = store.find(newInterface); found) {
+        if (NormalStage *found = store.find(newInterface); found) {
             return found;
         } else {
-            auto tempStage = std::make_unique<Stage>(sampler, std::move(newInterface), *this, Next::TypeOf<Op>());
+            auto tempStage = std::make_unique<NormalStage>(sampler, std::move(newInterface), *this, Next::TypeOf<Op>());
             if(store.insert(tempStage.get())) {
                 return tempStage.release();
             } else {
-                KAS_CRITICAL("StageStore::insert() failed.");
+                KAS_CRITICAL("NormalStageStore::insert() failed.");
             }
         }
     }
@@ -190,8 +190,8 @@ private:
     Node uncheckedGetChild(Next next) const;
 
 public:
-    Stage(Sampler& sampler, const std::vector<const MapReduceOp *>& reductions);
-    Stage(Sampler& sampler, ColoredInterface&& interface, const Stage& old, Next::Type delta);
+    NormalStage(Sampler& sampler, const std::vector<const MapReduceOp *>& reductions);
+    NormalStage(Sampler& sampler, ColoredInterface&& interface, const NormalStage& old, Next::Type delta);
 
     KAS_STATISTICS_DEF(
         Creations,
@@ -211,7 +211,7 @@ public:
     );
 
     const ColoredInterface& getInterface() const { return interface; }
-    std::size_t hash() const { return StageStore::Hash{}(interface); }
+    std::size_t hash() const { return NormalStageStore::Hash{}(interface); }
     std::size_t countChildren();
     std::vector<Next> getChildrenHandles();
     const NextFinalizeSlot& getChildFinalizeSlot(std::size_t key);

@@ -179,7 +179,7 @@ std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<Interface>&
         result.emplace_back(Slot::SlotType, ReductionStage::StopReductionToken);
     }
 
-    // Next, Stage.
+    // Next, NormalStage.
     {
         std::set<Dimension, Dimension::HashLessThan> completed;
         Graph::AttributeMap<bool> added;

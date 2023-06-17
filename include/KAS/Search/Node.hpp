@@ -176,7 +176,7 @@ public:
 class TensorView;
 class Sampler;
 class ReductionStage;
-class Stage;
+class NormalStage;
 
 class Node {
     friend struct Next;
@@ -190,20 +190,20 @@ class Node {
         Final = 2, // Finalization performed.
     };
     // This corresponds to the three types.
-    std::variant<ReductionStage *, Stage *, std::shared_ptr<TensorView> > inner;
+    std::variant<ReductionStage *, NormalStage *, std::shared_ptr<TensorView> > inner;
     Type type() const noexcept {
         return static_cast<Type>(inner.index());
     }
     template<typename R, typename FR, typename FG, typename FF>
     requires
         std::convertible_to<std::invoke_result_t<FR, ReductionStage *>, R> &&
-        std::convertible_to<std::invoke_result_t<FG, Stage *>, R> &&
+        std::convertible_to<std::invoke_result_t<FG, NormalStage *>, R> &&
         std::convertible_to<std::invoke_result_t<FF, std::shared_ptr<TensorView> >, R>
     R match(FR&& fr, FG&& fg, FF&& ff) const {
         return std::visit([&](auto arg) -> R {
             if constexpr (std::is_same_v<decltype(arg), ReductionStage *>) {
                 return fr(arg);
-            } else if constexpr (std::is_same_v<decltype(arg), Stage *>) {
+            } else if constexpr (std::is_same_v<decltype(arg), NormalStage *>) {
                 return fg(arg);
             } else if constexpr (std::is_same_v<decltype(arg), std::shared_ptr<TensorView> >) {
                 return ff(arg);
@@ -216,8 +216,8 @@ class Node {
 public:
     Node(Sampler *sampler, ReductionStage *rStage):
         sampler { sampler }, inner { rStage } {}
-    Node(Sampler *sampler, Stage *stage):
-        sampler { sampler }, inner { stage } {}
+    Node(Sampler *sampler, NormalStage *nStage):
+        sampler { sampler }, inner { nStage } {}
     Node(Sampler *sampler, std::shared_ptr<TensorView> kernel):
         sampler { sampler }, inner { kernel } {}
 
@@ -226,7 +226,7 @@ public:
     // For Python.
     std::size_t hash() const;
 
-    Stage *asStage() const;
+    NormalStage *asNormalStage() const;
     std::shared_ptr<TensorView> asFinal() const;
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const;
     // Obtain the mappings from Sampler, and do not solve the paddings. We only want to estimate the FLOPs.

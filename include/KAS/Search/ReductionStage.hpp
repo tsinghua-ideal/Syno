@@ -5,7 +5,7 @@
 
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Search/Node.hpp"
-#include "KAS/Search/Stage.hpp"
+#include "KAS/Search/NormalStage.hpp"
 
 
 namespace kas {
@@ -26,7 +26,7 @@ private:
     NextSlotStore<NextReductionSlot> nextReductions;
 
     // The stage that is directly constructed, without appending any reduction.
-    std::unique_ptr<Stage> stage;
+    std::unique_ptr<NormalStage> nStage;
 
     ReductionStage(Sampler& sampler, std::vector<const MapReduceOp *>&& reductions);
 
@@ -50,7 +50,7 @@ public:
     // Aside from slots, return a special Next (with key StopReductionToken).
     std::vector<Next> getChildrenHandles() const;
     const NextReductionSlot& getChildSlot(std::size_t key) const;
-    // Use a special Next (with key StopReductionToken) to transition to the normal Stage.
+    // Use a special Next (with key StopReductionToken) to transition to the normal NormalStage.
     Node getChild(Next next) const;
     std::string getChildDescription(std::size_t key) const;
     std::string description() const;

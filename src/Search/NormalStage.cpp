@@ -1,37 +1,37 @@
 #include <unordered_map>
 
-#include "KAS/Search/Stage.hpp"
 #include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Search/NormalStage.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
 
-std::size_t StageStore::Hash::operator()(const ColoredInterface& interface) const noexcept {
+std::size_t NormalStageStore::Hash::operator()(const ColoredInterface& interface) const noexcept {
     return std::hash<Interface>{}(interface.toDimensions());
 }
 
-std::size_t StageStore::Hash::operator()(const Stage * stage) const noexcept {
-    return (*this)(stage->getInterface());
+std::size_t NormalStageStore::Hash::operator()(const NormalStage * nStage) const noexcept {
+    return (*this)(nStage->getInterface());
 }
 
-bool StageStore::Equal::operator()(const ColoredInterface& lhs, const ColoredInterface& rhs) const noexcept {
+bool NormalStageStore::Equal::operator()(const ColoredInterface& lhs, const ColoredInterface& rhs) const noexcept {
     return std::ranges::equal(lhs.toDimensions(), rhs.toDimensions());
 }
-bool StageStore::Equal::operator()(const ColoredInterface& lhs, const Stage *rhs) const noexcept {
+bool NormalStageStore::Equal::operator()(const ColoredInterface& lhs, const NormalStage *rhs) const noexcept {
     return (*this)(lhs, rhs->getInterface());
 }
-bool StageStore::Equal::operator()(const Stage *lhs, const ColoredInterface& rhs) const noexcept {
+bool NormalStageStore::Equal::operator()(const NormalStage *lhs, const ColoredInterface& rhs) const noexcept {
     return (*this)(lhs->getInterface(), rhs);
 }
-bool StageStore::Equal::operator()(const Stage *lhs, const Stage *rhs) const noexcept {
+bool NormalStageStore::Equal::operator()(const NormalStage *lhs, const NormalStage *rhs) const noexcept {
     return (*this)(lhs->getInterface(), rhs->getInterface());
 }
 
-Stage *StageStore::find(const ColoredInterface& interface) const {
+NormalStage *NormalStageStore::find(const ColoredInterface& interface) const {
     KAS_ASSERT(std::ranges::is_sorted(interface.toDimensions(), Dimension::HashLessThan{}), "Interface is not sorted.");
     if (auto it = interfaces.find(interface); it != interfaces.end()) {
         return *it;
@@ -40,21 +40,21 @@ Stage *StageStore::find(const ColoredInterface& interface) const {
     }
 }
 
-bool StageStore::insert(Stage *stage) {
-    return interfaces.insert(stage).second;
+bool NormalStageStore::insert(NormalStage *nStage) {
+    return interfaces.insert(nStage).second;
 }
 
-StageStore::~StageStore() {
+NormalStageStore::~NormalStageStore() {
     for (auto interface: interfaces) {
         delete interface;
     }
 }
 
-StageStore& Stage::getStageStore() {
-    return sampler.getStageStore();
+NormalStageStore& NormalStage::getNormalStageStore() {
+    return sampler.getNormalStageStore();
 }
 
-void Stage::determineFinalizability(Finalizability yesOrNo) {
+void NormalStage::determineFinalizability(Finalizability yesOrNo) {
     KAS_ASSERT(finalizability == Finalizability::Maybe, "Finalizability is already determined.");
     switch (yesOrNo) {
     case Finalizability::Yes:
@@ -72,7 +72,7 @@ void Stage::determineFinalizability(Finalizability yesOrNo) {
     }
 }
 
-void Stage::updateFinalizability() {
+void NormalStage::updateFinalizability() {
     // It would also be nice to remove all the dead-ends (Finalizability::No).
     auto removeDeadEnds = [&]() {
         // TODO: After API overhaul, remove dead-end children!
@@ -110,7 +110,7 @@ void Stage::updateFinalizability() {
             if (foundYes) {
                 return;
             }
-            Stage *child = slot.nextStage;
+            NormalStage *child = slot.nextStage;
             if (child->finalizability == Finalizability::Yes) {
                 foundYes = true;
                 allNo = false;
@@ -132,11 +132,11 @@ void Stage::updateFinalizability() {
     return;
 }
 
-std::size_t Stage::remainingDepth() const {
+std::size_t NormalStage::remainingDepth() const {
     return sampler.getOptions().depth - depth;
 }
 
-void Stage::guard() {
+void NormalStage::guard() {
     if (childrenGenerated) {
         updateFinalizability();
         return;
@@ -165,7 +165,7 @@ void Stage::guard() {
                 }
             )
             .remove([&](const NextOpSlot<Op>& slot) {
-                /* We need to call removeOp for deleted Op's and removeStage for deleted Stage's. TODO */
+                /* We need to call removeOp for deleted Op's and removeStage for deleted NormalStage's. TODO */
                 return slot.nextStage->finalizability == Finalizability::No;
             });
     };
@@ -241,13 +241,13 @@ void Stage::guard() {
     updateFinalizability();
 }
 
-std::shared_ptr<TensorView> Stage::getFinalize(std::size_t key) const {
+std::shared_ptr<TensorView> NormalStage::getFinalize(std::size_t key) const {
     const auto& slot = uncheckedGetChildFinalizeSlot(key);
     KAS_DEBUG("Building TensorView from Finalization.");
     return slot.finalization.buildTensorView(sampler.getFixedDimensions());
 }
 
-bool Stage::possibleToFinalizeByExperimenting() const {
+bool NormalStage::possibleToFinalizeByExperimenting() const {
     ++CountFinalizabilityCheckInvocations;
 
     const SampleOptions& options = sampler.getOptions();
@@ -287,22 +287,22 @@ bool Stage::possibleToFinalizeByExperimenting() const {
     return true;
 }
 
-std::size_t Stage::uncheckedCountChildren() const {
+std::size_t NormalStage::uncheckedCountChildren() const {
     return nextFinalizations.size() + nextOpStores.size();
 }
 
-std::vector<Next> Stage::uncheckedGetChildrenHandles() const {
+std::vector<Next> NormalStage::uncheckedGetChildrenHandles() const {
     auto nextF = nextFinalizations.toNexts();
     auto nexts = nextOpStores.toNexts();
     nexts.insert(nexts.begin(), nextF.begin(), nextF.end());
     return nexts;
 }
 
-const NextFinalizeSlot& Stage::uncheckedGetChildFinalizeSlot(std::size_t key) const {
+const NextFinalizeSlot& NormalStage::uncheckedGetChildFinalizeSlot(std::size_t key) const {
     return nextFinalizations.getSlot(key);
 }
 
-Node Stage::uncheckedGetChild(Next next) const {
+Node NormalStage::uncheckedGetChild(Next next) const {
     switch (next.type) {
     case Next::Type::Shift: return { &sampler, uncheckedGetChildSlot<ShiftOp>(next.key).nextStage };
     case Next::Type::Stride: return { &sampler, uncheckedGetChildSlot<StrideOp>(next.key).nextStage };
@@ -315,7 +315,7 @@ Node Stage::uncheckedGetChild(Next next) const {
     }
 }
 
-Stage::Stage(Sampler& sampler, const std::vector<const MapReduceOp *>& reductions):
+NormalStage::NormalStage(Sampler& sampler, const std::vector<const MapReduceOp *>& reductions):
     interface { [&]() {
         auto interface = sampler.getRootInterface();
         std::ranges::copy(reductions, std::back_inserter(interface));
@@ -332,7 +332,7 @@ Stage::Stage(Sampler& sampler, const std::vector<const MapReduceOp *>& reduction
     }
 }
 
-Stage::Stage(Sampler& sampler, ColoredInterface&& interface, const Stage& old, Next::Type delta):
+NormalStage::NormalStage(Sampler& sampler, ColoredInterface&& interface, const NormalStage& old, Next::Type delta):
     interface { std::move(interface) },
     sampler { sampler },
     depth { old.depth + 1 },
@@ -345,27 +345,27 @@ Stage::Stage(Sampler& sampler, ColoredInterface&& interface, const Stage& old, N
     }
 }
 
-std::size_t Stage::countChildren() {
+std::size_t NormalStage::countChildren() {
     guard();
     return uncheckedCountChildren();
 }
 
-std::vector<Next> Stage::getChildrenHandles() {
+std::vector<Next> NormalStage::getChildrenHandles() {
     guard();
     return uncheckedGetChildrenHandles();
 }
 
-const NextFinalizeSlot& Stage::getChildFinalizeSlot(std::size_t key) {
+const NextFinalizeSlot& NormalStage::getChildFinalizeSlot(std::size_t key) {
     guard();
     return uncheckedGetChildFinalizeSlot(key);
 }
 
-Node Stage::getChild(Next next) {
+Node NormalStage::getChild(Next next) {
     guard();
     return uncheckedGetChild(next);
 }
 
-std::string Stage::description() const {
+std::string NormalStage::description() const {
     return DimensionArrayToString(interface.toDimensions(), sampler.getBindingContext());
 }
 

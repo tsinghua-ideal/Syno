@@ -1,8 +1,8 @@
 #include "KAS/Search/Node.hpp"
 #include "KAS/CodeGen/GraphvizGen.hpp"
+#include "KAS/Search/NormalStage.hpp"
 #include "KAS/Search/ReductionStage.hpp"
 #include "KAS/Search/Sample.hpp"
-#include "KAS/Search/Stage.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
 
@@ -19,15 +19,15 @@ std::string Next::description(const Node& node) const {
             KAS_ASSERT(type == Type::MapReduce);
             return rStage->getChildDescription(key);
         },
-        [&](Stage *stage) {
+        [&](NormalStage *nStage) {
             switch (type) {
-            case Type::Shift: return stage->getChildSlot<ShiftOp>(key).op->description(ctx);
-            case Type::Stride: return stage->getChildSlot<StrideOp>(key).op->description(ctx);
-            case Type::Split: return stage->getChildSlot<SplitOp>(key).op->description(ctx);
-            case Type::Unfold: return stage->getChildSlot<UnfoldOp>(key).op->description(ctx);
-            case Type::Merge: return stage->getChildSlot<MergeOp>(key).op->description(ctx);
-            case Type::Share: return stage->getChildSlot<ShareOp>(key).op->description(ctx);
-            case Type::Finalize: return stage->getChildFinalizeSlot(key).finalization.description(ctx);
+            case Type::Shift: return nStage->getChildSlot<ShiftOp>(key).op->description(ctx);
+            case Type::Stride: return nStage->getChildSlot<StrideOp>(key).op->description(ctx);
+            case Type::Split: return nStage->getChildSlot<SplitOp>(key).op->description(ctx);
+            case Type::Unfold: return nStage->getChildSlot<UnfoldOp>(key).op->description(ctx);
+            case Type::Merge: return nStage->getChildSlot<MergeOp>(key).op->description(ctx);
+            case Type::Share: return nStage->getChildSlot<ShareOp>(key).op->description(ctx);
+            case Type::Finalize: return nStage->getChildFinalizeSlot(key).finalization.description(ctx);
             default: KAS_UNREACHABLE();
             }
         },
@@ -51,8 +51,8 @@ bool Node::operator==(const Node& rhs) const {
         [&](ReductionStage *rStage) { // Because we have uniquified them.
             return rStage == std::get<ReductionStage *>(rhs.inner);
         },
-        [&](Stage *stage) { // Because we have uniquified them.
-            return stage == std::get<Stage *>(rhs.inner);
+        [&](NormalStage *nStage) { // Because we have uniquified them.
+            return nStage == std::get<NormalStage *>(rhs.inner);
         },
         [&](std::shared_ptr<TensorView> tensor) {
             return *tensor == *std::get<std::shared_ptr<TensorView>>(rhs.inner);
@@ -72,8 +72,8 @@ std::size_t Node::hash() const {
     return h;
 }
 
-Stage *Node::asStage() const {
-    return std::get<Stage *>(inner);
+NormalStage *Node::asNormalStage() const {
+    return std::get<NormalStage *>(inner);
 }
 
 std::shared_ptr<TensorView> Node::asFinal() const {
@@ -106,8 +106,8 @@ void Node::generateGraphviz(const std::string& dir, const std::string& name) con
             GraphvizGen gen { interface, ctx };
             gen.generate(dir, name);
         },
-        [&](Stage *stage) {
-            auto interface = ranges::to<Interface>(stage->getInterface().toDimensions());
+        [&](NormalStage *nStage) {
+            auto interface = ranges::to<Interface>(nStage->getInterface().toDimensions());
             GraphvizGen gen { interface, ctx };
             gen.generate(dir, name);
         },
@@ -131,7 +131,7 @@ std::string Node::getNestedLoopsAsFinal() const {
 std::size_t Node::countChildren() const {
     return match<std::size_t>(
         [](ReductionStage *rStage) { return rStage->countChildren(); },
-        [](Stage *stage) { return stage->countChildren(); },
+        [](NormalStage *nStage) { return nStage->countChildren(); },
         [](std::shared_ptr<TensorView> tensor) { return 0; }
     );
 }
@@ -139,7 +139,7 @@ std::size_t Node::countChildren() const {
 std::vector<Next> Node::getChildrenHandles() const {
     return match<std::vector<Next>>(
         [](ReductionStage *rStage) { return rStage->getChildrenHandles(); },
-        [](Stage *stage) { return stage->getChildrenHandles(); },
+        [](NormalStage *nStage) { return nStage->getChildrenHandles(); },
         [](std::shared_ptr<TensorView> tensor) { return std::vector<Next>{}; }
     );
 }
@@ -147,7 +147,7 @@ std::vector<Next> Node::getChildrenHandles() const {
 Node Node::getChild(Next next) const {
     return match<Node>(
         [&](ReductionStage *rStage) { return rStage->getChild(next); },
-        [&](Stage *stage) { return stage->getChild(next); },
+        [&](NormalStage *nStage) { return nStage->getChild(next); },
         [](std::shared_ptr<TensorView> tensor) -> Node { KAS_UNREACHABLE(); }
     );
 }
@@ -156,7 +156,7 @@ std::string Node::toString() const {
     const BindingContext& ctx = sampler->getBindingContext();
     return match<std::string>(
         [](ReductionStage *rStage) { return rStage->description(); },
-        [](Stage *stage) { return stage->description(); },
+        [](NormalStage *nStage) { return nStage->description(); },
         [&](std::shared_ptr<TensorView> tensor) { return tensor->description(ctx); }
     );
 }

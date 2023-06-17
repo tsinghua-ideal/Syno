@@ -21,8 +21,8 @@
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Node.hpp"
+#include "KAS/Search/NormalStage.hpp"
 #include "KAS/Search/ReductionStage.hpp"
-#include "KAS/Search/Stage.hpp"
 
 
 namespace kas {
@@ -108,7 +108,7 @@ class Sampler final {
     Interface root;
 
     ReductionStore reductionStore;
-    StageStore store;
+    NormalStageStore store;
 
     std::unique_ptr<ReductionStage> rootStage;
 
@@ -126,7 +126,7 @@ public:
     const SampleOptions& getOptions() const { return options; }
     DimensionStore& getDimStore() { return store.dimStore(); }
     ReductionStore& getReductionStore() { return reductionStore; }
-    StageStore& getStageStore() { return store; }
+    NormalStageStore& getNormalStageStore() { return store; }
     const Interface& getRootInterface() const { return root; }
 
     const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }

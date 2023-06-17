@@ -64,6 +64,7 @@
 - [ ] Make Explorer more command line friendly.
 - [ ] Enable Explorer to print a tree.
 - [ ] Report dead ends to Python.
+- [ ] Add mocks for Node and Sampler.
 
 ### Misc
 

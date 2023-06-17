@@ -13,8 +13,8 @@ ReductionStage::ReductionStage(Sampler& sampler, std::vector<const MapReduceOp *
 {
     const auto& options = sampler.getOptions();
 
-    // First create the corresponding Stage.
-    stage = std::make_unique<Stage>(sampler, this->reductions);
+    // First create the corresponding NormalStage.
+    nStage = std::make_unique<NormalStage>(sampler, this->reductions);
 
     // Then attempt to generate new reductions.
     if (this->reductions.size() == options.maximumReductions) {
@@ -60,7 +60,7 @@ const ReductionStage::NextReductionSlot& ReductionStage::getChildSlot(std::size_
 Node ReductionStage::getChild(Next next) const {
     KAS_ASSERT(next.type == Next::Type::MapReduce);
     if (next.key == StopReductionToken) {
-        return Node { &sampler, stage.get() };
+        return Node { &sampler, nStage.get() };
     }
     return Node { &sampler, getChildSlot(next.key).next.get() };
 }
@@ -73,7 +73,7 @@ std::string ReductionStage::getChildDescription(std::size_t key) const {
 }
 
 std::string ReductionStage::description() const {
-    return stage->description();
+    return nStage->description();
 }
 
 } // namespace kas

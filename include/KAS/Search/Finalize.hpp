@@ -20,7 +20,7 @@ struct FixedDimension;
 
 // Contains multiple finalization options.
 class FinalizeOp {
-    friend class Stage;
+    friend class NormalStage;
     std::vector<Interface> tensors;
 
 public:
