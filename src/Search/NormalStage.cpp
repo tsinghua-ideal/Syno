@@ -54,91 +54,54 @@ NormalStageStore& NormalStage::getNormalStageStore() {
     return sampler.getNormalStageStore();
 }
 
-void NormalStage::determineFinalizability(Finalizability yesOrNo) {
-    KAS_ASSERT(finalizability == Finalizability::Maybe, "Finalizability is already determined.");
-    switch (yesOrNo) {
-    case Finalizability::Yes:
-        --CountFinalizabilityMaybe;
-        ++CountFinalizabilityYes;
-        finalizability = Finalizability::Yes;
-        break;
-    case Finalizability::No:
-        --CountFinalizabilityMaybe;
-        ++CountFinalizabilityNo;
-        finalizability = Finalizability::No;
-        break;
-    default:
-        KAS_CRITICAL("Invalid Finalizability.");
-    }
+void NormalStage::removeDeadChildrenFromSlots() {
+    nextOpStores.forEach([&](auto& store) {
+        store.remove([&](const auto& slot) {
+            // Even if the stage is removed, we had better keep it in memory so we avoid redundant computation.
+            return slot.nextStage->getFinalizability() == Finalizability::No;
+        });
+    });
 }
 
-void NormalStage::updateFinalizability() {
-    // It would also be nice to remove all the dead-ends (Finalizability::No).
-    auto removeDeadEnds = [&]() {
-        // TODO: After API overhaul, remove dead-end children!
-        // nextOpStores.forEach([&](auto& store) {
-        //     store.remove([&](const auto& slot) {
-        //         return slot.nextStage->finalizability == Finalizability::No;
-        //     });
-        // });
-    };
-    auto removeAllStageChildren = [&]() {
-        nextOpStores.forEach([&](auto& store) {
-            store.clear();
-        });
-    };
+void NormalStage::removeAllChildrenFromSlots() {
+    nextOpStores.forEach([&](auto& store) {
+        store.clear();
+    });
+}
 
-    if (finalizability == Finalizability::Yes) {
-        removeDeadEnds();
-        return;
-    } else if (finalizability == Finalizability::No) {
-        removeAllStageChildren();
-        return;
-    }
-    // We need to check if this is finalizable.
-    // If there are FinalizeOp, of course this is.
+AbstractStage::Finalizability NormalStage::checkForFinalizableChildren() const {
+    // If there are FinalizeOp's, of course this is finalizable.
     if (nextFinalizations.size()) {
-        determineFinalizability(Finalizability::Yes);
-        removeDeadEnds();
-        return;
+        return Finalizability::Yes;
     }
     // Otherwise, check children. Yes if any Yes, No if all No.
     bool allNo = true;
     bool foundYes = false;
-    nextOpStores.forEach([&](auto& store) {
+    nextOpStores.forEach([&](const auto& store) {
         store.forEach([&](const auto& slot) {
             if (foundYes) {
                 return;
             }
             NormalStage *child = slot.nextStage;
-            if (child->finalizability == Finalizability::Yes) {
+            if (child->getFinalizability() == Finalizability::Yes) {
                 foundYes = true;
                 allNo = false;
-            } else if (child->finalizability == Finalizability::Maybe) {
+            } else if (child->getFinalizability() == Finalizability::Maybe) {
                 allNo = false;
             }
         });
     });
     if (foundYes) {
-        determineFinalizability(Finalizability::Yes);
-        removeDeadEnds();
-        return;
+        return Finalizability::Yes;
     } else if (allNo) {
-        determineFinalizability(Finalizability::No);
-        removeAllStageChildren();
-        return;
+        return Finalizability::No;
+    } else {
+        return Finalizability::Maybe;
     }
-    removeDeadEnds();
-    return;
 }
 
-std::size_t NormalStage::remainingDepth() const {
-    return sampler.getOptions().depth - depth;
-}
-
-void NormalStage::guard() {
+void NormalStage::guardGeneratedChildren() {
     if (childrenGenerated) {
-        updateFinalizability();
         return;
     }
     const BindingContext& ctx = sampler.getBindingContext();
@@ -157,17 +120,12 @@ void NormalStage::guard() {
 
     // Wrap the generated Op in a NextOpSlot.
     auto add = [&]<typename Op>(const std::vector<const Op *>& newOps) {
-        nextOpStores.get<Op>()
-            .fill(
-                newOps,
-                [&](const Op *op) {
-                    return NextOpSlot<Op>({NextOpSlot<Op>::GetKey(op)}, op, getNextOp<Op>(op));
-                }
-            )
-            .remove([&](const NextOpSlot<Op>& slot) {
-                /* We need to call removeOp for deleted Op's and removeStage for deleted NormalStage's. TODO */
-                return slot.nextStage->finalizability == Finalizability::No;
-            });
+        nextOpStores.get<Op>().fill(
+            newOps,
+            [&](const Op *op) {
+                return NextOpSlot<Op>({NextOpSlot<Op>::GetKey(op)}, op, getNextOp<Op>(op));
+            }
+        );
     };
 
     if (remainingDepth() > 0) {
@@ -228,21 +186,13 @@ void NormalStage::guard() {
         }
     }
 
-    ++CountCreations;
-    CountChildrenFinalize += nextFinalizations.size();
-    CountChildrenShift += nextOpStores.get<ShiftOp>().size();
-    CountChildrenStride += nextOpStores.get<StrideOp>().size();
-    CountChildrenSplit += nextOpStores.get<SplitOp>().size();
-    CountChildrenUnfold += nextOpStores.get<UnfoldOp>().size();
-    CountChildrenMerge += nextOpStores.get<MergeOp>().size();
-    CountChildrenShare += nextOpStores.get<ShareOp>().size();
-
     childrenGenerated = true;
-    updateFinalizability();
+    // Report to parents if determined.
+    updateFinalizabilityOnRequest();
 }
 
 std::shared_ptr<TensorView> NormalStage::getFinalize(std::size_t key) const {
-    const auto& slot = uncheckedGetChildFinalizeSlot(key);
+    const auto& slot = getChildFinalizeSlot(key);
     KAS_DEBUG("Building TensorView from Finalization.");
     return slot.finalization.buildTensorView(sampler.getFixedDimensions());
 }
@@ -270,7 +220,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     }
 
     auto remaining = [&](int maximum, Next::Type existingType) {
-        int existing = existingOps[static_cast<std::size_t>(existingType)];
+        int existing = existingOps[existingType];
         return maximum == -1 ? static_cast<int>(options.depth) : std::max(maximum - existing, 0);
     };
     const std::size_t distance = FinalizeOp::Distance(weightsExcluded, sampler.getInputShape(), {
@@ -298,71 +248,62 @@ std::vector<Next> NormalStage::uncheckedGetChildrenHandles() const {
     return nexts;
 }
 
-const NextFinalizeSlot& NormalStage::uncheckedGetChildFinalizeSlot(std::size_t key) const {
+const NextFinalizeSlot& NormalStage::getChildFinalizeSlot(std::size_t key) const {
     return nextFinalizations.getSlot(key);
 }
 
 Node NormalStage::uncheckedGetChild(Next next) const {
     switch (next.type) {
-    case Next::Type::Shift: return { &sampler, uncheckedGetChildSlot<ShiftOp>(next.key).nextStage };
-    case Next::Type::Stride: return { &sampler, uncheckedGetChildSlot<StrideOp>(next.key).nextStage };
-    case Next::Type::Split: return { &sampler, uncheckedGetChildSlot<SplitOp>(next.key).nextStage };
-    case Next::Type::Unfold: return { &sampler, uncheckedGetChildSlot<UnfoldOp>(next.key).nextStage };
-    case Next::Type::Merge: return { &sampler, uncheckedGetChildSlot<MergeOp>(next.key).nextStage };
-    case Next::Type::Share: return { &sampler, uncheckedGetChildSlot<ShareOp>(next.key).nextStage };
+    case Next::Type::Shift: return { &sampler, getChildSlot<ShiftOp>(next.key).nextStage };
+    case Next::Type::Stride: return { &sampler, getChildSlot<StrideOp>(next.key).nextStage };
+    case Next::Type::Split: return { &sampler, getChildSlot<SplitOp>(next.key).nextStage };
+    case Next::Type::Unfold: return { &sampler, getChildSlot<UnfoldOp>(next.key).nextStage };
+    case Next::Type::Merge: return { &sampler, getChildSlot<MergeOp>(next.key).nextStage };
+    case Next::Type::Share: return { &sampler, getChildSlot<ShareOp>(next.key).nextStage };
     case Next::Type::Finalize: return { &sampler, getFinalize(next.key) };
     default: KAS_UNREACHABLE("Invalid Next {}.", next.toString());
     }
 }
 
-NormalStage::NormalStage(Sampler& sampler, const std::vector<const MapReduceOp *>& reductions):
-    interface { [&]() {
-        auto interface = sampler.getRootInterface();
-        std::ranges::copy(reductions, std::back_inserter(interface));
-        std::ranges::sort(interface, Dimension::HashLessThan{});
-        return interface;
-    }() },
-    sampler { sampler },
-    depth { reductions.size() }
-{
-    existingOps[static_cast<std::size_t>(Next::Type::MapReduce)] = reductions.size();
-    ++CountFinalizabilityMaybe;
-    if (!possibleToFinalizeByExperimenting()) {
-        determineFinalizability(Finalizability::No);
+std::string NormalStage::uncheckedGetChildDescription(Next next) {
+    const auto& [type, key] = next;
+    const BindingContext& ctx = sampler.getBindingContext();
+    switch (type) {
+    case Next::Type::Shift: return getChildSlot<ShiftOp>(key).op->description(ctx);
+    case Next::Type::Stride: return getChildSlot<StrideOp>(key).op->description(ctx);
+    case Next::Type::Split: return getChildSlot<SplitOp>(key).op->description(ctx);
+    case Next::Type::Unfold: return getChildSlot<UnfoldOp>(key).op->description(ctx);
+    case Next::Type::Merge: return getChildSlot<MergeOp>(key).op->description(ctx);
+    case Next::Type::Share: return getChildSlot<ShareOp>(key).op->description(ctx);
+    case Next::Type::Finalize: return getChildFinalizeSlot(key).finalization.description(ctx);
+    default: KAS_UNREACHABLE();
     }
 }
 
-NormalStage::NormalStage(Sampler& sampler, ColoredInterface&& interface, const NormalStage& old, Next::Type delta):
-    interface { std::move(interface) },
-    sampler { sampler },
-    depth { old.depth + 1 },
-    existingOps { old.existingOps }
+NormalStage::NormalStage(ColoredInterface&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp):
+    AbstractStage { creator, deltaOp },
+    interface { std::move(interface) }
 {
-    existingOps[static_cast<std::size_t>(delta)] += 1;
-    ++CountFinalizabilityMaybe;
     if (!possibleToFinalizeByExperimenting()) {
+        childrenGenerated = true;
         determineFinalizability(Finalizability::No);
     }
 }
 
 std::size_t NormalStage::countChildren() {
-    guard();
-    return uncheckedCountChildren();
+    return guarded([this] { return uncheckedCountChildren(); });
 }
 
 std::vector<Next> NormalStage::getChildrenHandles() {
-    guard();
-    return uncheckedGetChildrenHandles();
-}
-
-const NextFinalizeSlot& NormalStage::getChildFinalizeSlot(std::size_t key) {
-    guard();
-    return uncheckedGetChildFinalizeSlot(key);
+    return guarded([this] { return uncheckedGetChildrenHandles(); });
 }
 
 Node NormalStage::getChild(Next next) {
-    guard();
-    return uncheckedGetChild(next);
+    return guarded([=, this] { return uncheckedGetChild(next); });
+}
+
+std::string NormalStage::getChildDescription(Next next) {
+    return guarded([=, this] { return uncheckedGetChildDescription(next); });
 }
 
 std::string NormalStage::description() const {

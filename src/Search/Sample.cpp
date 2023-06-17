@@ -175,8 +175,6 @@ std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<Interface>&
         for (const MapReduceOp *op: graph.getMapReduceIterators()) {
             result.emplace_back(Slot::SlotType, Slot::GetKey(op));
         }
-        // Do not forget to add the stop token.
-        result.emplace_back(Slot::SlotType, ReductionStage::StopReductionToken);
     }
 
     // Next, NormalStage.

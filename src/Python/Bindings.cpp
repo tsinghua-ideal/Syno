@@ -124,6 +124,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::init<Next::Type, std::size_t>(),
             pybind11::arg("type"), pybind11::arg("key")
         )
+        .def_readonly_static("NumTypes", &Next::NumTypes)
         .def_readwrite("type", &Next::type)
         .def_readwrite("key", &Next::key)
         .def("__eq__", &Next::operator==)

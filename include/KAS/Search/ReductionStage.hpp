@@ -4,23 +4,21 @@
 #include <variant>
 
 #include "KAS/Core/MapReduce.hpp"
+#include "KAS/Search/AbstractStage.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/NormalStage.hpp"
 
 
 namespace kas {
 
-class ReductionStage {
+class ReductionStage final: public AbstractStage {
 public:
-    static constexpr std::size_t StopReductionToken = std::numeric_limits<std::size_t>::max();
     struct NextReductionSlot: NextSlot<Next::Type::MapReduce> {
         std::unique_ptr<ReductionStage> next;
         static std::size_t GetKey(const MapReduceOp *op) { return op->hash(); }
     };
 
 private:
-    Sampler& sampler;
-
     std::vector<const MapReduceOp *> reductions;
 
     NextSlotStore<NextReductionSlot> nextReductions;
@@ -28,31 +26,32 @@ private:
     // The stage that is directly constructed, without appending any reduction.
     std::unique_ptr<NormalStage> nStage;
 
-    ReductionStage(Sampler& sampler, std::vector<const MapReduceOp *>&& reductions);
+    void expand();
+
+    void removeDeadChildrenFromSlots() override;
+    void removeAllChildrenFromSlots() override;
+    Finalizability checkForFinalizableChildren() const override;
+
+    std::size_t uncheckedCountChildren();
+    std::vector<Next> uncheckedGetChildrenHandles();
+    const NextReductionSlot& getChildSlot(std::size_t key);
+    Node uncheckedGetChild(Next next);
+    std::string uncheckedGetChildDescription(Next next);
 
 public:
-    ReductionStage(const ReductionStage& current, const MapReduceOp *nextReduction):
-        ReductionStage(current.sampler, [&]{
-            auto newReductions = current.reductions;
-            newReductions.emplace_back(nextReduction);
-            return newReductions;
-        }()) {}
+    ReductionStage(ReductionStage& current, const MapReduceOp *nextReduction);
     // This is the root.
-    ReductionStage(Sampler& sampler):
-        ReductionStage(sampler, std::vector<const MapReduceOp *> {}) {}
+    ReductionStage(Sampler& sampler);
 
     std::size_t hash() const;
 
     const MapReduceOp *lastReduction() const { return reductions.size() ? reductions.back() : nullptr; }
     Interface toInterface() const;
 
-    std::size_t countChildren() const { return nextReductions.size() + 1; }
-    // Aside from slots, return a special Next (with key StopReductionToken).
-    std::vector<Next> getChildrenHandles() const;
-    const NextReductionSlot& getChildSlot(std::size_t key) const;
-    // Use a special Next (with key StopReductionToken) to transition to the normal NormalStage.
-    Node getChild(Next next) const;
-    std::string getChildDescription(std::size_t key) const;
+    std::size_t countChildren();
+    std::vector<Next> getChildrenHandles();
+    Node getChild(Next next);
+    std::string getChildDescription(Next next);
     std::string description() const;
 };
 

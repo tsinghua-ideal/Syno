@@ -27,9 +27,9 @@
 - [x] Sum -> Avg.
 - [ ] Perform a trial to see if there are uncanonical case. (1 on weight)
 - [ ] Multiple weights. (Minimumize difference.)
-- [ ] Add support for float16.
 - [x] Manual `rfactor` for up to 3x performance.
 - [ ] Add support for more arithmetic operations, other than product.
+- [ ] Generate metadata along with kernels.
 
 ## Transforms
 
@@ -56,7 +56,7 @@
 - [x] `ShareOp::IsSharedDimensionCanonical()` still needs some modifications.
 - [ ] Add mechanisms to automatically discover equivalent kernels. (TASO-like?)
 - [ ] Unfolding some dimensions to output iterators seems to be not a good idea.
-- [ ] Make dead ends propagate. (By storing parent nodes.)
+- [x] Make dead ends propagate. (By storing parent nodes.)
 
 ### Bindings
 

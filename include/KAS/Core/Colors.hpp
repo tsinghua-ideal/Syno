@@ -133,14 +133,14 @@ public:
         return *it;
     }
     ColoredDimension& operator[](const Dimension& dim) {
-        return const_cast<ColoredDimension&>(const_cast<const ColoredInterface&>(*this)[dim]);
+        return const_cast<ColoredDimension&>(std::as_const(*this)[dim]);
     }
     Dimension& operator[](std::size_t index) { return items[index].dimension; }
     std::vector<ColoredDimension>::const_iterator binarySearch(const Dimension& value) const {
         return WeakOrderedBinarySearch(items, value, Dimension::HashLessThan{}, ColoredDimension::Projection{});
     }
     std::vector<ColoredDimension>::iterator binarySearch(const Dimension& value) {
-        auto it = const_cast<const ColoredInterface&>(*this).binarySearch(value);
+        auto it = std::as_const(*this).binarySearch(value);
         // Amazing trick: https://stackoverflow.com/questions/765148/how-to-remove-constness-of-const-iterator
         return items.erase(it, it);
     }

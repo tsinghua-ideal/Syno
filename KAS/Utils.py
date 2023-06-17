@@ -3,7 +3,7 @@ from .Bindings import Next
 
 class NextSerializer:
     def __init__(self):
-        next_type_cnt = 8
+        next_type_cnt = Next.NumTypes
         self._next_type_to_str = {}
         self._str_to_next_type = {}
         for i in range(next_type_cnt):

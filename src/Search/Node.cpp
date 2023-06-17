@@ -13,25 +13,16 @@ std::string Next::toString() const {
 }
 
 std::string Next::description(const Node& node) const {
-    const BindingContext& ctx = node.sampler->getBindingContext();
     return node.match<std::string>(
         [&](ReductionStage *rStage) {
-            KAS_ASSERT(type == Type::MapReduce);
-            return rStage->getChildDescription(key);
+            return rStage->getChildDescription(*this);
         },
         [&](NormalStage *nStage) {
-            switch (type) {
-            case Type::Shift: return nStage->getChildSlot<ShiftOp>(key).op->description(ctx);
-            case Type::Stride: return nStage->getChildSlot<StrideOp>(key).op->description(ctx);
-            case Type::Split: return nStage->getChildSlot<SplitOp>(key).op->description(ctx);
-            case Type::Unfold: return nStage->getChildSlot<UnfoldOp>(key).op->description(ctx);
-            case Type::Merge: return nStage->getChildSlot<MergeOp>(key).op->description(ctx);
-            case Type::Share: return nStage->getChildSlot<ShareOp>(key).op->description(ctx);
-            case Type::Finalize: return nStage->getChildFinalizeSlot(key).finalization.description(ctx);
-            default: KAS_UNREACHABLE();
-            }
+            return nStage->getChildDescription(*this);
         },
-        [](std::shared_ptr<TensorView> tensor) -> std::string { KAS_UNREACHABLE(); }
+        [](std::shared_ptr<TensorView> tensor) -> std::string {
+            KAS_UNREACHABLE();
+        }
     );
 }
 

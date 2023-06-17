@@ -16,6 +16,7 @@
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Tensor.hpp"
+#include "KAS/Search/AbstractStage.hpp"
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Transforms/DimensionStore.hpp"
@@ -54,7 +55,7 @@ public:
     ~NormalStageStore();
 };
 
-class NormalStage {
+class NormalStage final: public AbstractStage {
 public:
     template<typename Op>
     struct NextOpSlot: NextSlot<Next::TypeOf<Op>()> {
@@ -85,6 +86,13 @@ public:
         }
         template<typename F>
         requires std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...>
+        void forEach(F&& f) const {
+            std::apply([&f](auto&... store) {
+                (f(store), ...);
+            }, stores);
+        }
+        template<typename F>
+        requires std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...>
         auto heterogeneousMap(F&& f) {
             return std::apply([&f](auto&... store) {
                 return std::tuple<std::invoke_result_t<F, Ops>...> { f(store)... };
@@ -108,17 +116,11 @@ public:
             }, stores);
         }
         std::vector<Next> toNexts() const {
-            auto results = const_cast<NextOpStores<Ops...> *>(this)->homogeneousMap([](const auto& store) { return store.toNexts(); });
+            auto results = const_cast<NextOpStores<Ops...>&>(*this).homogeneousMap([](const auto& store) { return store.toNexts(); });
             std::vector<Next> flattened;
             std::ranges::move(results | std::views::join, std::back_inserter(flattened));
             return flattened;
         }
-    };
-
-    enum class Finalizability {
-        Maybe, // Default state.
-        Yes, // Determined by expanding subtrees, and see if there are final nodes.
-        No, // Determined by expanding all subtrees or conservative experiments.
     };
 
 private:
@@ -132,25 +134,14 @@ private:
     NextOpStores<ShiftOp, StrideOp, SplitOp, UnfoldOp, MergeOp, ShareOp> nextOpStores;
 
     // Metadata.
-    Sampler& sampler;
     NormalStageStore& getNormalStageStore();
-    std::size_t depth; // Stages with identical interfaces must be of the same depth.
-    std::array<int, Next::NumTypes> existingOps {};
 
-    Finalizability finalizability = Finalizability::Maybe;
-    void determineFinalizability(Finalizability yesOrNo);
-
-    void updateFinalizability();
-
-    template<typename Op>
-    const int& existingOp() const { return existingOps[static_cast<std::size_t>(Next::TypeOf<Op>())]; }
-    template<typename Op>
-    int& existingOp() { return const_cast<int&>(const_cast<const NormalStage *>(this)->existingOp<Op>()); }
-
-    std::size_t remainingDepth() const;
+    void removeDeadChildrenFromSlots() override;
+    void removeAllChildrenFromSlots() override;
+    Finalizability checkForFinalizableChildren() const override;
 
     // This checks whether the nexts are evaluated. If not, it evaluates them.
-    void guard();
+    void guardGeneratedChildren();
 
     // Execute the finalization to obtain TensorView.
     std::shared_ptr<TensorView> getFinalize(std::size_t key) const;
@@ -161,9 +152,10 @@ private:
         NormalStageStore& store = getNormalStageStore();
         auto newInterface = op->applyToInterface(interface);
         if (NormalStage *found = store.find(newInterface); found) {
+            found->addParent(*this);
             return found;
         } else {
-            auto tempStage = std::make_unique<NormalStage>(sampler, std::move(newInterface), *this, Next::TypeOf<Op>());
+            auto tempStage = std::make_unique<NormalStage>(std::move(newInterface), *this, Next::TypeOf<Op>());
             if(store.insert(tempStage.get())) {
                 return tempStage.release();
             } else {
@@ -172,55 +164,40 @@ private:
         }
     }
 
-    // Remove the Op from store, deleting its enclosing dimensions as well.
-    void removeOp(const PrimitiveOp *op) {
-        // TODO
-    }
-
     // This is for pruning. We experimentally finalize this stage, and conservatively exclude the stage if it is not possible to finalize.
     bool possibleToFinalizeByExperimenting() const;
 
     std::size_t uncheckedCountChildren() const;
     std::vector<Next> uncheckedGetChildrenHandles() const;
-    const NextFinalizeSlot& uncheckedGetChildFinalizeSlot(std::size_t key) const;
+    const NextFinalizeSlot& getChildFinalizeSlot(std::size_t key) const;
     template<typename Op>
-    const NextOpSlot<Op>& uncheckedGetChildSlot(std::size_t key) const {
+    const NextOpSlot<Op>& getChildSlot(std::size_t key) const {
         return nextOpStores.get<Op>().getSlot(key);
     }
     Node uncheckedGetChild(Next next) const;
+    std::string uncheckedGetChildDescription(Next next);
+
+    template<typename F>
+    auto guarded(F&& f) -> decltype(f()) {
+        guardGeneratedChildren();
+        return AbstractStage::guarded(std::forward<F>(f));
+    }
 
 public:
-    NormalStage(Sampler& sampler, const std::vector<const MapReduceOp *>& reductions);
-    NormalStage(Sampler& sampler, ColoredInterface&& interface, const NormalStage& old, Next::Type delta);
+    NormalStage(ColoredInterface&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp);
 
     KAS_STATISTICS_DEF(
-        Creations,
-        ChildrenFinalize,
-        ChildrenShift,
-        ChildrenStride,
-        ChildrenSplit,
-        ChildrenUnfold,
-        ChildrenMerge,
-        ChildrenShare,
         FinalizabilityCheckInvocations,
         TooManyWeights,
         ShapeDeviatesTooMuch,
-        FinalizabilityMaybe,
-        FinalizabilityYes,
-        FinalizabilityNo,
     );
 
     const ColoredInterface& getInterface() const { return interface; }
     std::size_t hash() const { return NormalStageStore::Hash{}(interface); }
     std::size_t countChildren();
     std::vector<Next> getChildrenHandles();
-    const NextFinalizeSlot& getChildFinalizeSlot(std::size_t key);
-    template<typename Op>
-    const NextOpSlot<Op>& getChildSlot(std::size_t key) {
-        guard();
-        return uncheckedGetChildSlot<Op>(key);
-    }
     Node getChild(Next next);
+    std::string getChildDescription(Next next);
     std::string description() const;
 };
 

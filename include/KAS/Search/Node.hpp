@@ -32,6 +32,15 @@ struct Next {
         Finalize,
     };
     static constexpr std::size_t NumTypes = 8;
+    using OpCounterType = std::uint8_t;
+    struct OpTypeCounter: std::array<OpCounterType, Next::NumTypes> {
+        const OpCounterType& operator[](Type t) const noexcept {
+            return std::array<OpCounterType, Next::NumTypes>::operator[](static_cast<std::size_t>(t));
+        }
+        OpCounterType& operator[](Type t) noexcept {
+            return const_cast<OpCounterType&>(std::as_const(*this)[t]);
+        }
+    };
     Type type;
     // This can be hash, or any arbitrary fixed number, as long as this is invariant between runs.
     std::size_t key;
@@ -62,7 +71,7 @@ struct Next {
         else if constexpr (std::same_as<Op, UnfoldOp>) { return Type::Unfold; }
         else if constexpr (std::same_as<Op, MergeOp>) { return Type::Merge; }
         else if constexpr (std::same_as<Op, ShareOp>) { return Type::Share; }
-        else { return static_cast<Type>(-1); }
+        else { KAS_CRITICAL("Unknown type of Op."); }
     }
     static constexpr Type TypeOf(DimensionType t) {
         switch (t) {
@@ -72,7 +81,7 @@ struct Next {
         case DimensionType::Unfold: return Type::Unfold;
         case DimensionType::Merge: return Type::Merge;
         case DimensionType::Share: return Type::Share;
-        default: return static_cast<Type>(-1);
+        default: KAS_CRITICAL("Unknown type of DimensionType.");
         }
     }
 };
@@ -162,6 +171,12 @@ public:
     template<typename F>
     requires std::invocable<F, Slot&>
     Self& forEach(F&& f) {
+        std::ranges::for_each(slots, std::forward<F>(f));
+        return *this;
+    }
+    template<typename F>
+    requires std::invocable<F, Slot&>
+    const Self& forEach(F&& f) const {
         std::ranges::for_each(slots, std::forward<F>(f));
         return *this;
     }
