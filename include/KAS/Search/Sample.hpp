@@ -134,9 +134,9 @@ public:
     Size getTotalOutputSize() const;
 
     // The following APIs can be provided for Python bindings.
-    Node visit(const std::vector<Next>& path);
+    std::optional<Node> visit(const std::vector<Next>& path);
     // The path is intended to visit a TensorView, but it may fail, in which case we rely on the search algorithm to penalize it.
-    std::pair<std::vector<Next>, Node> randomNodeWithPrefix(const std::vector<Next>& prefix);
+    std::optional<std::pair<std::vector<Next>, Node>> randomNodeWithPrefix(const std::vector<Next>& prefix);
 
     static void ConvertTensorViewToSearchableOrder(std::vector<Interface>& tensorView);
     std::vector<Next> convertTensorViewToPath(const std::vector<Interface>& tensorView) const;

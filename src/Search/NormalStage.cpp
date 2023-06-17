@@ -55,6 +55,7 @@ NormalStageStore& NormalStage::getNormalStageStore() {
 }
 
 void NormalStage::removeDeadChildrenFromSlots() {
+    KAS_ASSERT(childrenGenerated);
     nextOpStores.forEach([&](auto& store) {
         store.remove([&](const auto& slot) {
             // Even if the stage is removed, we had better keep it in memory so we avoid redundant computation.
@@ -64,12 +65,14 @@ void NormalStage::removeDeadChildrenFromSlots() {
 }
 
 void NormalStage::removeAllChildrenFromSlots() {
+    KAS_ASSERT(childrenGenerated);
     nextOpStores.forEach([&](auto& store) {
         store.clear();
     });
 }
 
 AbstractStage::Finalizability NormalStage::checkForFinalizableChildren() const {
+    KAS_ASSERT(childrenGenerated);
     // If there are FinalizeOp's, of course this is finalizable.
     if (nextFinalizations.size()) {
         return Finalizability::Yes;
@@ -186,15 +189,18 @@ void NormalStage::guardGeneratedChildren() {
         }
     }
 
+    CountChildrenFinalize += nextFinalizations.size();
+
     childrenGenerated = true;
     // Report to parents if determined.
     updateFinalizabilityOnRequest();
 }
 
 std::shared_ptr<TensorView> NormalStage::getFinalize(std::size_t key) const {
-    const auto& slot = getChildFinalizeSlot(key);
-    KAS_DEBUG("Building TensorView from Finalization.");
-    return slot.finalization.buildTensorView(sampler.getFixedDimensions());
+    auto slot = getChildFinalizeSlot(key);
+    if (!slot) return nullptr;
+    // KAS_DEBUG("Building TensorView from Finalization.");
+    return slot->finalization.buildTensorView(sampler.getFixedDimensions());
 }
 
 bool NormalStage::possibleToFinalizeByExperimenting() const {
@@ -248,34 +254,51 @@ std::vector<Next> NormalStage::uncheckedGetChildrenHandles() const {
     return nexts;
 }
 
-const NextFinalizeSlot& NormalStage::getChildFinalizeSlot(std::size_t key) const {
+const NextFinalizeSlot *NormalStage::getChildFinalizeSlot(std::size_t key) const {
     return nextFinalizations.getSlot(key);
 }
 
-Node NormalStage::uncheckedGetChild(Next next) const {
-    switch (next.type) {
-    case Next::Type::Shift: return { &sampler, getChildSlot<ShiftOp>(next.key).nextStage };
-    case Next::Type::Stride: return { &sampler, getChildSlot<StrideOp>(next.key).nextStage };
-    case Next::Type::Split: return { &sampler, getChildSlot<SplitOp>(next.key).nextStage };
-    case Next::Type::Unfold: return { &sampler, getChildSlot<UnfoldOp>(next.key).nextStage };
-    case Next::Type::Merge: return { &sampler, getChildSlot<MergeOp>(next.key).nextStage };
-    case Next::Type::Share: return { &sampler, getChildSlot<ShareOp>(next.key).nextStage };
-    case Next::Type::Finalize: return { &sampler, getFinalize(next.key) };
+std::optional<Node> NormalStage::uncheckedGetChild(Next next) const {
+    const auto& [type, key] = next;
+    auto box = [&](auto slot) -> std::optional<Node> {
+        if (!slot) { return std::nullopt; }
+        return std::optional<Node>(std::in_place, &sampler, slot->nextStage);
+    };
+    switch (type) {
+    case Next::Type::Shift: return box(getChildSlot<ShiftOp>(key));
+    case Next::Type::Stride: return box(getChildSlot<StrideOp>(key));
+    case Next::Type::Split: return box(getChildSlot<SplitOp>(key));
+    case Next::Type::Unfold: return box(getChildSlot<UnfoldOp>(key));
+    case Next::Type::Merge: return box(getChildSlot<MergeOp>(key));
+    case Next::Type::Share: return box(getChildSlot<ShareOp>(key));
+    case Next::Type::Finalize: {
+        auto res = getFinalize(key);
+        if (!res) return std::nullopt;
+        return std::optional<Node>(std::in_place, &sampler, std::move(res));
+    }
     default: KAS_UNREACHABLE("Invalid Next {}.", next.toString());
     }
 }
 
-std::string NormalStage::uncheckedGetChildDescription(Next next) {
+std::optional<std::string> NormalStage::uncheckedGetChildDescription(Next next) {
     const auto& [type, key] = next;
     const BindingContext& ctx = sampler.getBindingContext();
+    auto box = [&](auto slot) -> std::optional<std::string> {
+        if (!slot) { return std::nullopt; }
+        return slot->op->description(ctx);
+    };
     switch (type) {
-    case Next::Type::Shift: return getChildSlot<ShiftOp>(key).op->description(ctx);
-    case Next::Type::Stride: return getChildSlot<StrideOp>(key).op->description(ctx);
-    case Next::Type::Split: return getChildSlot<SplitOp>(key).op->description(ctx);
-    case Next::Type::Unfold: return getChildSlot<UnfoldOp>(key).op->description(ctx);
-    case Next::Type::Merge: return getChildSlot<MergeOp>(key).op->description(ctx);
-    case Next::Type::Share: return getChildSlot<ShareOp>(key).op->description(ctx);
-    case Next::Type::Finalize: return getChildFinalizeSlot(key).finalization.description(ctx);
+    case Next::Type::Shift: return box(getChildSlot<ShiftOp>(key));
+    case Next::Type::Stride: return box(getChildSlot<StrideOp>(key));
+    case Next::Type::Split: return box(getChildSlot<SplitOp>(key));
+    case Next::Type::Unfold: return box(getChildSlot<UnfoldOp>(key));
+    case Next::Type::Merge: return box(getChildSlot<MergeOp>(key));
+    case Next::Type::Share: return box(getChildSlot<ShareOp>(key));
+    case Next::Type::Finalize: {
+        auto res = getChildFinalizeSlot(key);
+        if (!res) return std::nullopt;
+        return res->finalization.description(ctx);
+    }
     default: KAS_UNREACHABLE();
     }
 }
@@ -286,7 +309,7 @@ NormalStage::NormalStage(ColoredInterface&& interface, AbstractStage& creator, s
 {
     if (!possibleToFinalizeByExperimenting()) {
         childrenGenerated = true;
-        determineFinalizability(Finalizability::No);
+        determineFinalizability(Finalizability::No, false);
     }
 }
 
@@ -298,11 +321,11 @@ std::vector<Next> NormalStage::getChildrenHandles() {
     return guarded([this] { return uncheckedGetChildrenHandles(); });
 }
 
-Node NormalStage::getChild(Next next) {
+std::optional<Node> NormalStage::getChild(Next next) {
     return guarded([=, this] { return uncheckedGetChild(next); });
 }
 
-std::string NormalStage::getChildDescription(Next next) {
+std::optional<std::string> NormalStage::getChildDescription(Next next) {
     return guarded([=, this] { return uncheckedGetChildDescription(next); });
 }
 

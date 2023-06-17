@@ -76,21 +76,29 @@ std::vector<Next> ReductionStage::uncheckedGetChildrenHandles() {
     return handles;
 }
 
-const ReductionStage::NextReductionSlot& ReductionStage::getChildSlot(std::size_t key) {
+const ReductionStage::NextReductionSlot *ReductionStage::getChildSlot(std::size_t key) {
     return nextReductions.getSlot(key);
 }
 
-Node ReductionStage::uncheckedGetChild(Next next) {
+std::optional<Node> ReductionStage::uncheckedGetChild(Next next) {
     if(next.type == Next::Type::MapReduce) {
-        return Node { &sampler, getChildSlot(next.key).next.get() };
+        auto slot = getChildSlot(next.key);
+        if (!slot) {
+            return std::nullopt;
+        }
+        return Node { &sampler, getChildSlot(next.key)->next.get() };
     } else {
         return nStage->getChild(next);
     }
 }
 
-std::string ReductionStage::uncheckedGetChildDescription(Next next) {
+std::optional<std::string> ReductionStage::uncheckedGetChildDescription(Next next) {
     if (next.type == Next::Type::MapReduce) {
-        return getChildSlot(next.key).next->lastReduction()->description(sampler.getBindingContext());
+        auto slot = getChildSlot(next.key);
+        if (!slot) {
+            return std::nullopt;
+        }
+        return slot->next->lastReduction()->description(sampler.getBindingContext());
     } else {
         return nStage->getChildDescription(next);
     }
@@ -110,6 +118,13 @@ ReductionStage::ReductionStage(Sampler& sampler):
     expand();
 }
 
+Interface ReductionStage::toInterface() const {
+    auto interface = sampler.getRootInterface();
+    std::ranges::copy(reductions, std::back_inserter(interface));
+    std::ranges::sort(interface, Dimension::HashLessThan{});
+    return interface;
+}
+
 std::size_t ReductionStage::hash() const {
     using namespace std::string_view_literals;
     auto h = std::hash<std::string_view>{}("ReductionStage"sv);
@@ -120,13 +135,6 @@ std::size_t ReductionStage::hash() const {
     return h;
 }
 
-Interface ReductionStage::toInterface() const {
-    auto interface = sampler.getRootInterface();
-    std::ranges::copy(reductions, std::back_inserter(interface));
-    std::ranges::sort(interface, Dimension::HashLessThan{});
-    return interface;
-}
-
 std::size_t ReductionStage::countChildren() {
     return guarded([this] { return uncheckedCountChildren(); });
 }
@@ -135,11 +143,11 @@ std::vector<Next> ReductionStage::getChildrenHandles() {
     return guarded([this] { return uncheckedGetChildrenHandles(); });
 }
 
-Node ReductionStage::getChild(Next next) {
+std::optional<Node> ReductionStage::getChild(Next next) {
     return guarded([=, this] { return uncheckedGetChild(next); });
 }
 
-std::string ReductionStage::getChildDescription(Next next) {
+std::optional<std::string> ReductionStage::getChildDescription(Next next) {
     return guarded([=, this] { return uncheckedGetChildDescription(next); });
 }
 

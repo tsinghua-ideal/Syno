@@ -123,6 +123,13 @@ public:
         }
     };
 
+    KAS_STATISTICS_DEF(
+        ChildrenFinalize,
+        FinalizabilityCheckInvocations,
+        TooManyWeights,
+        ShapeDeviatesTooMuch,
+    );
+
 private:
     // The interface decides the hash. Other properties are computed.
     ColoredInterface interface;
@@ -169,13 +176,13 @@ private:
 
     std::size_t uncheckedCountChildren() const;
     std::vector<Next> uncheckedGetChildrenHandles() const;
-    const NextFinalizeSlot& getChildFinalizeSlot(std::size_t key) const;
+    const NextFinalizeSlot *getChildFinalizeSlot(std::size_t key) const;
     template<typename Op>
-    const NextOpSlot<Op>& getChildSlot(std::size_t key) const {
+    const NextOpSlot<Op> *getChildSlot(std::size_t key) const {
         return nextOpStores.get<Op>().getSlot(key);
     }
-    Node uncheckedGetChild(Next next) const;
-    std::string uncheckedGetChildDescription(Next next);
+    std::optional<Node> uncheckedGetChild(Next next) const;
+    std::optional<std::string> uncheckedGetChildDescription(Next next);
 
     template<typename F>
     auto guarded(F&& f) -> decltype(f()) {
@@ -186,19 +193,14 @@ private:
 public:
     NormalStage(ColoredInterface&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp);
 
-    KAS_STATISTICS_DEF(
-        FinalizabilityCheckInvocations,
-        TooManyWeights,
-        ShapeDeviatesTooMuch,
-    );
-
     const ColoredInterface& getInterface() const { return interface; }
-    std::size_t hash() const { return NormalStageStore::Hash{}(interface); }
-    std::size_t countChildren();
-    std::vector<Next> getChildrenHandles();
-    Node getChild(Next next);
-    std::string getChildDescription(Next next);
-    std::string description() const;
+
+    std::size_t hash() const override { return NormalStageStore::Hash{}(interface); }
+    std::size_t countChildren() override;
+    std::vector<Next> getChildrenHandles() override;
+    std::optional<Node> getChild(Next next) override;
+    std::optional<std::string> getChildDescription(Next next) override;
+    std::string description() const override;
 };
 
 } // namespace kas

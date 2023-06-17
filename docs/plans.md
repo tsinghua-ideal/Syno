@@ -63,7 +63,7 @@
 - [ ] Enable Explorer to visit a path.
 - [ ] Make Explorer more command line friendly.
 - [ ] Enable Explorer to print a tree.
-- [ ] Report dead ends to Python.
+- [x] Report dead ends to Python.
 - [ ] Add mocks for Node and Sampler.
 
 ### Misc

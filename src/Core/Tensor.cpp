@@ -227,7 +227,7 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     forwardEval.adjustReductionOrder();
     forwardAccess = forwardEval.toAccess(AbstractAccess::Output, interfaceDimensions);
     for (std::size_t tId = 0; auto&& tensor: this->tensors) {
-        KAS_DEBUG("Differentiating input {}...", tId);
+        // KAS_DEBUG("Differentiating input {}...", tId);
         auto backwardEval = DimensionEvaluator(graph, this->tensors);
         backwardEval.makeVars(tensor.getDimensions());
         backwardEval.fillWithReductions();

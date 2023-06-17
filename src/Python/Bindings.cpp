@@ -174,6 +174,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("next")
         )
         .def("is_final", &Node::isFinal)
+        .def("is_dead_end", &Node::isDeadEnd)
+        .def("discovered_final_descendant", &Node::discoveredFinalDescendant)
         .def(
             "realize_as_final", &Node::realizeAsFinal,
             pybind11::arg("all_mappings"), pybind11::arg("halide_options")

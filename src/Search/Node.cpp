@@ -12,13 +12,10 @@ std::string Next::toString() const {
     return fmt::format("{}({})", type, key);
 }
 
-std::string Next::description(const Node& node) const {
-    return node.match<std::string>(
-        [&](ReductionStage *rStage) {
-            return rStage->getChildDescription(*this);
-        },
-        [&](NormalStage *nStage) {
-            return nStage->getChildDescription(*this);
+std::optional<std::string> Next::description(const Node& node) const {
+    return node.match<std::optional<std::string>>(
+        [&](AbstractStage *stage) {
+            return stage->getChildDescription(*this);
         },
         [](std::shared_ptr<TensorView> tensor) -> std::string {
             KAS_UNREACHABLE();
@@ -61,6 +58,17 @@ std::size_t Node::hash() const {
     auto contentHash = std::visit(hashRetriever, inner);
     HashCombineRaw(h, contentHash);
     return h;
+}
+
+AbstractStage *Node::tryAsStage() const {
+    return match<AbstractStage *>(
+        [](AbstractStage *stage) {
+            return stage;
+        },
+        [](std::shared_ptr<TensorView> tensor) -> AbstractStage * {
+            return nullptr;
+        }
+    );
 }
 
 NormalStage *Node::asNormalStage() const {
@@ -121,33 +129,43 @@ std::string Node::getNestedLoopsAsFinal() const {
 
 std::size_t Node::countChildren() const {
     return match<std::size_t>(
-        [](ReductionStage *rStage) { return rStage->countChildren(); },
-        [](NormalStage *nStage) { return nStage->countChildren(); },
+        [](AbstractStage *stage) { return stage->countChildren(); },
         [](std::shared_ptr<TensorView> tensor) { return 0; }
     );
 }
 
 std::vector<Next> Node::getChildrenHandles() const {
     return match<std::vector<Next>>(
-        [](ReductionStage *rStage) { return rStage->getChildrenHandles(); },
-        [](NormalStage *nStage) { return nStage->getChildrenHandles(); },
+        [](AbstractStage *stage) { return stage->getChildrenHandles(); },
         [](std::shared_ptr<TensorView> tensor) { return std::vector<Next>{}; }
     );
 }
 
-Node Node::getChild(Next next) const {
-    return match<Node>(
-        [&](ReductionStage *rStage) { return rStage->getChild(next); },
-        [&](NormalStage *nStage) { return nStage->getChild(next); },
-        [](std::shared_ptr<TensorView> tensor) -> Node { KAS_UNREACHABLE(); }
+std::optional<Node> Node::getChild(Next next) const {
+    return match<std::optional<Node>>(
+        [&](AbstractStage *stage) { return stage->getChild(next); },
+        [](std::shared_ptr<TensorView> tensor) -> std::optional<Node> { return std::nullopt; }
+    );
+}
+
+bool Node::isDeadEnd() const {
+    return match<bool>(
+        [](AbstractStage *stage) { return stage->getFinalizability() == AbstractStage::Finalizability::No; },
+        [](std::shared_ptr<TensorView> tensor) { return false; }
+    );
+}
+
+bool Node::discoveredFinalDescendant() const {
+    return match<bool>(
+        [](AbstractStage *stage) { return stage->getFinalizability() == AbstractStage::Finalizability::Yes; },
+        [](std::shared_ptr<TensorView> tensor) { return true; }
     );
 }
 
 std::string Node::toString() const {
     const BindingContext& ctx = sampler->getBindingContext();
     return match<std::string>(
-        [](ReductionStage *rStage) { return rStage->description(); },
-        [](NormalStage *nStage) { return nStage->description(); },
+        [](AbstractStage *stage) { return stage->description(); },
         [&](std::shared_ptr<TensorView> tensor) { return tensor->description(ctx); }
     );
 }

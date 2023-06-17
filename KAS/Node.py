@@ -105,7 +105,10 @@ class Node:
 
     def get_child(self, next: PseudoNext) -> Optional['Node']:
         """Get the child node of a node with a Next."""
-        return Node(self._node.get_child(Path.to_next(next)))
+        child_node = self._node.get_child(Path.to_next(next))
+        if child_node is None:
+            return None
+        return Node(child_node)
 
     def get_child_description(self, next: PseudoNext) -> str:
         """Get the description of Next."""
@@ -117,12 +120,15 @@ class Node:
 
     def is_dead_end(self) -> bool:
         """Check if a node is a dead end, which means it has no children and is not final."""
-        return (not self.is_final()) and self.children_count() == 0
+        return self._node.is_dead_end()
+
+    def discovered_final_descendant(self) -> bool:
+        """Check if a node has a final descendant."""
+        return self._node.discovered_final_descendant()
 
     def is_terminal(self) -> bool:
         """Check if a node is terminal, which means it is either final or a dead end."""
-        # Either a final node, or a dead end.
-        return self.is_final() or self.children_count() == 0
+        return self.is_final() or self.is_dead_end()
 
     def _realize_as_final(self, all_mappings: List[Dict[str, int]], halide_options: Bindings.CodeGenOptions) -> Bindings.Kernel:
         return self._node.realize_as_final(all_mappings, halide_options)
@@ -157,9 +163,12 @@ class VisitedNode(Node):
     def __hash__(self) -> int:
         raise ValueError("VisitedNode should not be hashed.")
 
-    def get_child(self, next: PseudoNext) -> 'VisitedNode':
+    def get_child(self, next: PseudoNext) -> Optional['VisitedNode']:
         """Get the child node of a node with a Next."""
-        return VisitedNode(self.path.concat(next), self._node.get_child(Path.to_next(next)))
+        child_node = self._node.get_child(Path.to_next(next))
+        if child_node is None:
+            return None
+        return VisitedNode(self.path.concat(next), child_node)
 
     def __repr__(self) -> str:
         return f"VisitedNode({self.path}, {self._node})"

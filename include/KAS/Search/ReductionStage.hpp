@@ -34,25 +34,24 @@ private:
 
     std::size_t uncheckedCountChildren();
     std::vector<Next> uncheckedGetChildrenHandles();
-    const NextReductionSlot& getChildSlot(std::size_t key);
-    Node uncheckedGetChild(Next next);
-    std::string uncheckedGetChildDescription(Next next);
+    const NextReductionSlot *getChildSlot(std::size_t key);
+    std::optional<Node> uncheckedGetChild(Next next);
+    std::optional<std::string> uncheckedGetChildDescription(Next next);
 
 public:
     ReductionStage(ReductionStage& current, const MapReduceOp *nextReduction);
     // This is the root.
     ReductionStage(Sampler& sampler);
 
-    std::size_t hash() const;
-
     const MapReduceOp *lastReduction() const { return reductions.size() ? reductions.back() : nullptr; }
     Interface toInterface() const;
 
-    std::size_t countChildren();
-    std::vector<Next> getChildrenHandles();
-    Node getChild(Next next);
-    std::string getChildDescription(Next next);
-    std::string description() const;
+    std::size_t hash() const override;
+    std::size_t countChildren() override;
+    std::vector<Next> getChildrenHandles() override;
+    std::optional<Node> getChild(Next next) override;
+    std::optional<std::string> getChildDescription(Next next) override;
+    std::string description() const override;
 };
 
 } // namespace kas

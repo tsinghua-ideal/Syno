@@ -59,7 +59,7 @@ struct Next {
     // <type>(<key>)
     std::string toString() const;
     // Detailed descriptions of this Op, based on the node.
-    std::string description(const Node& node) const;
+    std::optional<std::string> description(const Node& node) const;
 
     static std::map<Type, std::size_t> CountTypes(const std::vector<Next>& nexts);
 
@@ -121,14 +121,14 @@ public:
     std::vector<Slot>::iterator findSlot(std::size_t key) {
         return std::ranges::lower_bound(slots, key, std::less{}, &Slot::key);;
     }
-    const Slot& getSlot(std::size_t key) const {
+    const Slot *getSlot(std::size_t key) const {
         auto it = findSlot(key);
         if (it == slots.end() || it->key != key) {
-            KAS_CRITICAL("Slot with type {} and key {} not found! Existing: {} slots.", Slot::SlotType, key, slots.size());
+            return nullptr;
         }
-        return *it;
+        return &*it;
     }
-    Slot& getSlot(std::size_t key) { return const_cast<Slot&>(std::as_const(*this).getSlot(key)); }
+    Slot *getSlot(std::size_t key) { return const_cast<Slot *>(std::as_const(*this).getSlot(key)); }
 
     // Fill the slots with the the given range, and then sort by key.
     template<std::ranges::input_range R, typename F>
@@ -190,6 +190,7 @@ public:
 
 class TensorView;
 class Sampler;
+class AbstractStage;
 class ReductionStage;
 class NormalStage;
 
@@ -209,17 +210,34 @@ class Node {
     Type type() const noexcept {
         return static_cast<Type>(inner.index());
     }
-    template<typename R, typename FR, typename FG, typename FF>
+    template<typename R, typename FR, typename FN, typename FF>
     requires
         std::convertible_to<std::invoke_result_t<FR, ReductionStage *>, R> &&
-        std::convertible_to<std::invoke_result_t<FG, NormalStage *>, R> &&
+        std::convertible_to<std::invoke_result_t<FN, NormalStage *>, R> &&
         std::convertible_to<std::invoke_result_t<FF, std::shared_ptr<TensorView> >, R>
-    R match(FR&& fr, FG&& fg, FF&& ff) const {
+    R match(FR&& fr, FN&& fn, FF&& ff) const {
         return std::visit([&](auto arg) -> R {
             if constexpr (std::is_same_v<decltype(arg), ReductionStage *>) {
                 return fr(arg);
             } else if constexpr (std::is_same_v<decltype(arg), NormalStage *>) {
-                return fg(arg);
+                return fn(arg);
+            } else if constexpr (std::is_same_v<decltype(arg), std::shared_ptr<TensorView> >) {
+                return ff(arg);
+            } else {
+                KAS_UNREACHABLE();
+            }
+        }, inner);
+    }
+    template<typename R, typename FS, typename FF>
+    requires
+        std::convertible_to<std::invoke_result_t<FS, AbstractStage *>, R> &&
+        std::convertible_to<std::invoke_result_t<FF, std::shared_ptr<TensorView> >, R>
+    R match(FS&& fs, FF&& ff) const {
+        return std::visit([&](auto arg) -> R {
+            if constexpr (std::is_same_v<decltype(arg), ReductionStage *>) {
+                return fs(arg);
+            } else if constexpr (std::is_same_v<decltype(arg), NormalStage *>) {
+                return fs(arg);
             } else if constexpr (std::is_same_v<decltype(arg), std::shared_ptr<TensorView> >) {
                 return ff(arg);
             } else {
@@ -241,6 +259,7 @@ public:
     // For Python.
     std::size_t hash() const;
 
+    AbstractStage *tryAsStage() const;
     NormalStage *asNormalStage() const;
     std::shared_ptr<TensorView> asFinal() const;
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const;
@@ -255,8 +274,10 @@ public:
     // The count of children nodes.
     std::size_t countChildren() const;
     std::vector<Next> getChildrenHandles() const;
-    Node getChild(Next next) const;
+    std::optional<Node> getChild(Next next) const;
     bool isFinal() const { return type() == Type::Final; }
+    bool isDeadEnd() const;
+    bool discoveredFinalDescendant() const;
     std::string toString() const;
 };
 

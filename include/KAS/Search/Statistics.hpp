@@ -3,6 +3,7 @@
 #include <array>
 #include <iterator>
 
+#include "KAS/Search/AbstractStage.hpp"
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Search/NormalStage.hpp"
 #include "KAS/Transforms.hpp"
@@ -15,17 +16,18 @@ struct StatisticsCollector {
         auto it = [&]() {
             return std::ostreambuf_iterator<char>(os);
         };
-#define COLLECT_STATS_FOR_OP(Op) \
+#define KAS_COLLECT_STATS_FOR_OP(Op) \
         fmt::format_to(it(), "Summary for " #Op ":\n"); \
         Op::PrintStatistics(os);
-        COLLECT_STATS_FOR_OP(MergeOp)
-        COLLECT_STATS_FOR_OP(ShareOp)
-        COLLECT_STATS_FOR_OP(SplitOp)
-        COLLECT_STATS_FOR_OP(StrideOp)
-        COLLECT_STATS_FOR_OP(UnfoldOp)
-        COLLECT_STATS_FOR_OP(FinalizeOp)
-        COLLECT_STATS_FOR_OP(NormalStage)
-#undef COLLECT_STATS_FOR_OP
+        KAS_COLLECT_STATS_FOR_OP(MergeOp)
+        KAS_COLLECT_STATS_FOR_OP(ShareOp)
+        KAS_COLLECT_STATS_FOR_OP(SplitOp)
+        KAS_COLLECT_STATS_FOR_OP(StrideOp)
+        KAS_COLLECT_STATS_FOR_OP(UnfoldOp)
+        KAS_COLLECT_STATS_FOR_OP(FinalizeOp)
+        KAS_COLLECT_STATS_FOR_OP(AbstractStage)
+        KAS_COLLECT_STATS_FOR_OP(NormalStage)
+#undef KAS_COLLECT_STATS_FOR_OP
     }
 };
 

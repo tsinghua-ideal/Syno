@@ -86,12 +86,18 @@ class Sampler:
     def visit(self, path: Path) -> Optional[VisitedNode]:
         """Visit a node via a path."""
         path = Path(path)
-        return VisitedNode(path, self._sampler.visit(path.abs_path))
+        visited_node = self._sampler.visit(path.abs_path)
+        if visited_node is None:
+            return None
+        return VisitedNode(path, visited_node)
 
     def random_node_with_prefix(self, prefix: Path) -> Optional[VisitedNode]:
         """Find a leaf node with specified prefix. Note that the Node is not necessarily final."""
         prefix = Path(prefix)
-        path, node = self._sampler.random_node_with_prefix(prefix.abs_path)
+        visited_node = self._sampler.random_node_with_prefix(prefix.abs_path)
+        if visited_node is None:
+            return None
+        path, node = visited_node
         return VisitedNode(Path(path), node)
 
     def path_to_strs(self, path: Path) -> List[str]:

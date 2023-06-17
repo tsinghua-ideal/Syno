@@ -39,17 +39,17 @@ TEST_F(search_tests, forward) {
     for (auto&& next: path) {
         fmt::print("{}\n", next.toString());
     }
-    auto node = sampler.visit({});
+    auto node = *sampler.visit({});
     for (auto next: path) {
         fmt::print("Trying {}...\n", next.toString());
         fmt::print("The children are:\n");
         for (auto handles = node.getChildrenHandles(); auto handle: handles) {
-            fmt::print("  {}\n", handle.description(node));
+            fmt::print("  {}\n", *handle.description(node));
         }
         fmt::print("Getting child...\n");
         auto old = node;
-        node = node.getChild(next);
-        fmt::print("Got child. BTW, it is {}.\n", next.description(old));
+        node = *node.getChild(next);
+        fmt::print("Got child. BTW, it is {}.\n", *next.description(old));
     }
     ASSERT_EQ(
         node.asFinal()->printNestedLoopsForAll(ctx),

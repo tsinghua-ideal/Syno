@@ -33,6 +33,9 @@ protected:
 private:
     bool finalizabilityUpdateRequested = false;
 
+    // A child of this stage calls this to signal that its finalizability has been updated.
+    void requestUpdateForFinalizability(bool propagate);
+
 public:
     KAS_STATISTICS_DEF(
         Creations,
@@ -43,7 +46,6 @@ public:
         ChildrenUnfold,
         ChildrenMerge,
         ChildrenShare,
-        ChildrenFinalize,
         FinalizabilityMaybe,
         FinalizabilityYes,
         FinalizabilityNo,
@@ -67,9 +69,17 @@ public:
     Finalizability getFinalizability() const;
     void updateFinalizabilityOnRequest();
 
+    // Python.
+    virtual std::size_t hash() const = 0;
+    virtual std::size_t countChildren() = 0;
+    virtual std::vector<Next> getChildrenHandles() = 0;
+    virtual std::optional<Node> getChild(Next next) = 0;
+    virtual std::optional<std::string> getChildDescription(Next next) = 0;
+    virtual std::string description() const = 0;
+
 protected:
     // When the finalizability is determined, call parents to update their finalizability.
-    void determineFinalizability(Finalizability yesOrNo);
+    void determineFinalizability(Finalizability yesOrNo, bool propagate);
 
     virtual void removeDeadChildrenFromSlots() = 0;
     virtual void removeAllChildrenFromSlots() = 0;
@@ -89,9 +99,6 @@ protected:
             }
         }
     }
-
-    // A child of this stage calls this to signal that its finalizability has been updated.
-    void requestUpdateForFinalizability();
 };
 
 } // namespace kas

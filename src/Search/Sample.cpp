@@ -130,28 +130,42 @@ Size Sampler::getTotalOutputSize() const {
     return result;
 }
 
-Node Sampler::visit(const std::vector<Next>& path) {
+std::optional<Node> Sampler::visit(const std::vector<Next>& path) {
     Node n { this, rootStage.get() };
     for (const auto& next: path) {
-        n = n.getChild(next);
+        auto nextNode = n.getChild(next);
+        if (!nextNode) {
+            return std::nullopt;
+        }
+        n = *nextNode;
     }
     return n;
 }
 
-std::pair<std::vector<Next>, Node> Sampler::randomNodeWithPrefix(const std::vector<Next>& prefix) {
+std::optional<std::pair<std::vector<Next>, Node>> Sampler::randomNodeWithPrefix(const std::vector<Next>& prefix) {
     std::vector<Next> path = prefix;
-    Node cur = visit(prefix);
+    std::optional<Node> optCur = visit(prefix);
+    if (!optCur) {
+        return std::nullopt;
+    }
+    Node cur = *optCur;
     // Recursively visit children.
     while (true) {
         auto cnt = cur.countChildren();
         if (cnt == 0) {
+            auto stage = cur.tryAsStage();
+            KAS_ASSERT(!stage || stage->getFinalizability() == AbstractStage::Finalizability::No);
             break;
         }
         auto next = cur.getChildrenHandles()[random(cnt)];
         path.emplace_back(next);
-        cur = cur.getChild(next);
+        auto nextNode = cur.getChild(next);
+        if (!nextNode) {
+            return std::nullopt;
+        }
+        cur = *nextNode;
     };
-    return { std::move(path), std::move(cur) };
+    return std::optional<std::pair<std::vector<Next>, Node>>(std::in_place, std::move(path), std::move(cur));
 }
 
 void Sampler::ConvertTensorViewToSearchableOrder(std::vector<Interface>& tensorView) {

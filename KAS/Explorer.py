@@ -21,6 +21,8 @@ class Explorer:
             return
         for next in fro.get_children_handles():
             to = fro.get_child(next)
+            if to is None:
+                continue
             self._add_node(to)
             self._expand(to, depth - 1)
 
@@ -45,15 +47,26 @@ class Explorer:
         while True:
             print()
             current_node = self._sampler.visit(path)
-            self._add_node(current_node)
             print(f"{path}")
-            children_handles = current_node.get_children_handles()
+            if current_node is not None:
+                self._add_node(current_node)
+            else:
+                print("Warning: this node does not exist.")
             command = input(">>> ")
             if command == "info":
+                if current_node is None:
+                    print("Error: this node does not exist.")
+                    continue
                 print(f"Node: {current_node.to_node()}")
-                print(f"is_terminal: {current_node.is_terminal()}, is_final: {current_node.is_final()}, is_dead_end: {current_node.is_dead_end()}")
+                print(f"\tis_terminal: {current_node.is_terminal()}")
+                print(f"\tis_final: {current_node.is_final()}")
+                print(f"\tis_dead_end: {current_node.is_dead_end()}")
+                print(f"\tdiscovered_final_descendant: {current_node.discovered_final_descendant()}")
                 print(f"Children summary: {current_node.get_children_types()}")
             elif command.startswith("children"):
+                if current_node is None:
+                    print("Error: this node does not exist.")
+                    continue
                 ty = None
                 segments = command.split()
                 if len(segments) > 1:
@@ -64,10 +77,13 @@ class Explorer:
                         continue
                 # list all children
                 print("Children:")
-                to_print = filter(lambda x: ty is None or x.type == ty, children_handles)
+                to_print = filter(lambda x: ty is None or x.type == ty, current_node.get_children_handles())
                 for child in to_print:
+                    child_node = current_node.get_child(child)
+                    if child_node is None:
+                        continue
+                    self._add_node(child_node)
                     print(f"\t{child}:\t{current_node.get_child_description(child)}")
-                    self._add_node(current_node.get_child(child))
             elif command == "collected":
                 print(f"Collected in total {len(self._collected)} nodes.")
                 print(f"Among which,")
@@ -78,6 +94,9 @@ class Explorer:
                 print(f"\t{len(dead_ends)} are dead ends.")
             elif command.startswith("expand"):
                 # expand the current node
+                if current_node is None:
+                    print("Error: this node does not exist.")
+                    continue
                 depth = 1
                 segments = command.split()
                 if len(segments) > 1:
@@ -89,10 +108,16 @@ class Explorer:
                 self._expand(current_node, depth)
                 print(f"Expanded {depth} layers from current node.")
             elif command == "graphviz":
+                if current_node is None:
+                    print("Error: this node does not exist.")
+                    continue
                 # generate graphviz file and print it
                 current_node.generate_graphviz(working_dir, "preview")
                 print(f"Generated as {os.path.join(working_dir, 'preview.dot')}.")
             elif command.startswith("visit"):
+                if current_node is None:
+                    print("Error: this node does not exist.")
+                    continue
                 # go to child node
                 try:
                     next_type, key = command.split()[1].split('(')
@@ -101,7 +126,7 @@ class Explorer:
                     path.append(next)
                 except:
                     print("Invalid command.")
-                if next not in children_handles:
+                if next not in current_node.get_children_handles():
                     print("This child does not exist.")
             elif command == "back":
                 # go back to parent node

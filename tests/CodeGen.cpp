@@ -20,11 +20,13 @@ protected:
 TEST_F(codegen_tests, generate) {
     std::size_t i = 0;
     while (true) {
-        auto [_, node] = sampler.randomNodeWithPrefix({});
-        if (!node.isFinal()) {
+        auto randomLeaf = sampler.randomNodeWithPrefix({});
+        if (!randomLeaf || !randomLeaf->second.isFinal()) {
+            KAS_ASSERT(!randomLeaf);
             ++i;
             continue;
         }
+        auto [_, node] = *randomLeaf;
         auto sample = node.asFinal();
         std::cout << sample->printNestedLoopsForAll(ctx);
         HalideGen gen { ctx, *sample, HalideGen::Options() };

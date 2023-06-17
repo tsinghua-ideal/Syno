@@ -3,6 +3,13 @@
 
 namespace kas {
 
+void AbstractStage::requestUpdateForFinalizability(bool propagate) {
+    finalizabilityUpdateRequested = true;
+    if (propagate) {
+        updateFinalizabilityOnRequest();
+    }
+}
+
 AbstractStage::AbstractStage(Sampler& sampler):
     sampler { sampler },
     parents {},
@@ -28,7 +35,6 @@ AbstractStage::AbstractStage(AbstractStage& creator, std::optional<Next::Type> o
         case Next::Type::Unfold: ++CountChildrenUnfold; break;
         case Next::Type::Merge: ++CountChildrenMerge; break;
         case Next::Type::Share: ++CountChildrenShare; break;
-        case Next::Type::Finalize: ++CountChildrenFinalize; break;
         default: KAS_UNREACHABLE();
         }
     }
@@ -49,7 +55,7 @@ AbstractStage::Finalizability AbstractStage::getFinalizability() const {
     return finalizability;
 }
 
-void AbstractStage::determineFinalizability(Finalizability yesOrNo) {
+void AbstractStage::determineFinalizability(Finalizability yesOrNo, bool propagate) {
     KAS_ASSERT(finalizability == Finalizability::Maybe, "Finalizability has already been determined.");
     switch (yesOrNo) {
     case Finalizability::Yes:
@@ -67,7 +73,7 @@ void AbstractStage::determineFinalizability(Finalizability yesOrNo) {
     }
     // Signal parents.
     for (AbstractStage *parent : parents) {
-        parent->requestUpdateForFinalizability();
+        parent->requestUpdateForFinalizability(propagate);
     }
 }
 
@@ -85,14 +91,10 @@ void AbstractStage::updateFinalizabilityOnRequest() {
     // Next, we need to check if this is finalizable. If we determine the Finalizability, we must propagate it.
     Finalizability newFinalizability = checkForFinalizableChildren();
     if (newFinalizability != Finalizability::Maybe) {
-        determineFinalizability(newFinalizability);
+        determineFinalizability(newFinalizability, true);
     }
     removeDeadChildrenFromSlots();
     return;
-}
-
-void AbstractStage::requestUpdateForFinalizability() {
-    finalizabilityUpdateRequested = true;
 }
 
 } // namespace kas
