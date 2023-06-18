@@ -4,13 +4,13 @@
 
 #include <fmt/core.h>
 
-#define KAS_ASSERT(expr, ...) ((expr) ? ((void)(0)) : ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE_NAME__, __LINE__, "Assertion failed: " #expr __VA_OPT__(,) __VA_ARGS__))
+#define KAS_ASSERT(expr, ...) ((expr) ? ((void)(0)) : ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE__, __LINE__, "Assertion failed: " #expr __VA_OPT__(,) __VA_ARGS__))
 
-#define KAS_DEBUG(...) ::kas::detail::FormatAndLog<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Green>(__FILE_NAME__, __LINE__, "Debug" __VA_OPT__(,) __VA_ARGS__)
-#define KAS_WARNING(...) ::kas::detail::FormatAndLog<::kas::detail::ConsoleType::Out, ::kas::detail::ColorType::Green>(__FILE_NAME__, __LINE__, "Warning" __VA_OPT__(,) __VA_ARGS__)
-#define KAS_UNREACHABLE(...) ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE_NAME__, __LINE__, "Unreachable" __VA_OPT__(,) __VA_ARGS__)
-#define KAS_CRITICAL(...) ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE_NAME__, __LINE__, "Error" __VA_OPT__(,) __VA_ARGS__)
-#define KAS_UNIMPLEMENTED(...) ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE_NAME__, __LINE__, "Unimplemented" __VA_OPT__(,) __VA_ARGS__)
+#define KAS_DEBUG(...) ::kas::detail::FormatAndLog<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Green>(__FILE__, __LINE__, "Debug" __VA_OPT__(,) __VA_ARGS__)
+#define KAS_WARNING(...) ::kas::detail::FormatAndLog<::kas::detail::ConsoleType::Out, ::kas::detail::ColorType::Green>(__FILE__, __LINE__, "Warning" __VA_OPT__(,) __VA_ARGS__)
+#define KAS_UNREACHABLE(...) ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE__, __LINE__, "Unreachable" __VA_OPT__(,) __VA_ARGS__)
+#define KAS_CRITICAL(...) ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE__, __LINE__, "Error" __VA_OPT__(,) __VA_ARGS__)
+#define KAS_UNIMPLEMENTED(...) ::kas::detail::FormatAndLogAndThrow<::kas::detail::ConsoleType::Error, ::kas::detail::ColorType::Red>(__FILE__, __LINE__, "Unimplemented" __VA_OPT__(,) __VA_ARGS__)
 
 namespace kas {
 
