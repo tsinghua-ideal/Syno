@@ -171,8 +171,8 @@ std::string TensorArrayToString(R&& tensors, const BindingContext& ctx) {
         : ""); \
 } while (false)
 
-template<kas::DimensionRange DR>
-struct std::hash<DR> {
+template<>
+struct std::hash<kas::Interface> {
     // Since this is a template function, std::hash<Interface> can provide hash for arbitrary DimensionRange.
     template<kas::DimensionRange R>
     std::size_t operator()(R&& interface) const noexcept {
@@ -186,16 +186,17 @@ struct std::hash<DR> {
     }
 };
 
-template<kas::TensorRange TR>
-struct std::hash<TR> {
+template<>
+struct std::hash<std::vector<kas::Interface>> {
     // Since this is a template function, std::hash<std::vector<Interface>> can provide hash for arbitrary TensorRange.
     template<kas::TensorRange R>
     std::size_t operator()(R&& tensors) const noexcept {
         using namespace std::string_view_literals;
         std::size_t h = std::hash<std::string_view>{}("TensorRange"sv);
         kas::HashCombine(h, tensors.size());
+        auto hasher = std::hash<kas::Interface>{};
         for (const auto& tensor: tensors) {
-            kas::HashCombine(h, tensor);
+            kas::HashCombineRaw(h, hasher(tensor));
         }
         return h;
     }
