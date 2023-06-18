@@ -185,7 +185,7 @@ private:
     std::optional<std::string> uncheckedGetChildDescription(Next next);
 
     template<typename F>
-    auto guarded(F&& f) -> decltype(f()) {
+    inline auto guarded(F&& f) -> decltype(f()) {
         guardGeneratedChildren();
         return AbstractStage::guarded(std::forward<F>(f));
     }

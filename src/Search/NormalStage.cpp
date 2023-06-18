@@ -193,7 +193,7 @@ void NormalStage::guardGeneratedChildren() {
 
     childrenGenerated = true;
     // Report to parents if determined.
-    updateFinalizabilityOnRequest();
+    requestUpdateForFinalizability(true);
 }
 
 std::shared_ptr<TensorView> NormalStage::getFinalize(std::size_t key) const {

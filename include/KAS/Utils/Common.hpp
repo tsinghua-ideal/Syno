@@ -76,6 +76,17 @@ template<ConsoleType consoleType, ColorType consoleColor>
     throw std::runtime_error(caption);
 }
 
+template<typename F>
+struct Deferred {
+    Deferred(F&& f) : f(std::forward<F>(f)) {}
+    ~Deferred() { f(); }
+    F f;
+};
+
+#define KAS_DEFER_CONCAT_IMPL(x, y) x##y
+#define KAS_DEFER_CONCAT(x, y) KAS_DEFER_CONCAT_IMPL(x, y)
+#define KAS_DEFER ::kas::detail::Deferred KAS_DEFER_CONCAT(_kas_deferred_, __LINE__) = [&]()
+
 } // namespace detail
 
 } // namespace kas

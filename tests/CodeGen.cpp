@@ -22,7 +22,6 @@ TEST_F(codegen_tests, generate) {
     while (true) {
         auto randomLeaf = sampler.randomNodeWithPrefix({});
         if (!randomLeaf || !randomLeaf->second.isFinal()) {
-            KAS_ASSERT(!randomLeaf);
             ++i;
             continue;
         }

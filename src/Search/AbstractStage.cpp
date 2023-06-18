@@ -3,11 +3,27 @@
 
 namespace kas {
 
-void AbstractStage::requestUpdateForFinalizability(bool propagate) {
-    finalizabilityUpdateRequested = true;
-    if (propagate) {
-        updateFinalizabilityOnRequest();
+void AbstractStage::updateFinalizabilityOnRequest() {
+    // After exiting this function, we need to unset finalizabilityUpdateRequested.
+    KAS_DEFER { finalizabilityUpdateRequested = false; };
+
+    // If finalizability is determined, still need to remove dead ends!
+    if (getFinalizability() == Finalizability::Yes) {
+        removeDeadChildrenFromSlots();
+        return;
+    } else if (getFinalizability() == Finalizability::No) {
+        // Usually this is not needed, becase when we determined Finalizability::No, we would have removed all children.
+        removeAllChildrenFromSlots();
+        return;
     }
+
+    // Next, we need to check if this is finalizable. If we determine the Finalizability, we must propagate it.
+    Finalizability newFinalizability = checkForFinalizableChildren();
+    if (newFinalizability != Finalizability::Maybe) {
+        determineFinalizability(newFinalizability, true);
+    }
+    removeDeadChildrenFromSlots();
+    return;
 }
 
 AbstractStage::AbstractStage(Sampler& sampler):
@@ -77,24 +93,11 @@ void AbstractStage::determineFinalizability(Finalizability yesOrNo, bool propaga
     }
 }
 
-void AbstractStage::updateFinalizabilityOnRequest() {
-    // If finalizability is determined, still need to remove dead ends!
-    if (getFinalizability() == Finalizability::Yes) {
-        removeDeadChildrenFromSlots();
-        return;
-    } else if (getFinalizability() == Finalizability::No) {
-        // Usually this is not needed, becase when we determined Finalizability::No, we would have removed all children.
-        removeAllChildrenFromSlots();
-        return;
+void AbstractStage::requestUpdateForFinalizability(bool propagate) {
+    finalizabilityUpdateRequested = true;
+    if (propagate) {
+        updateFinalizabilityOnRequest();
     }
-
-    // Next, we need to check if this is finalizable. If we determine the Finalizability, we must propagate it.
-    Finalizability newFinalizability = checkForFinalizableChildren();
-    if (newFinalizability != Finalizability::Maybe) {
-        determineFinalizability(newFinalizability, true);
-    }
-    removeDeadChildrenFromSlots();
-    return;
 }
 
 } // namespace kas

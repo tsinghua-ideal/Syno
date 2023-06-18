@@ -27,14 +27,13 @@ protected:
     // A statistics counter for all Ops.
     Next::OpTypeCounter existingOps {};
 
+private:
     // Whether there exists a descendant of this Stage that can be Finalized.
     Finalizability finalizability = Finalizability::Maybe;
 
-private:
     bool finalizabilityUpdateRequested = false;
 
-    // A child of this stage calls this to signal that its finalizability has been updated.
-    void requestUpdateForFinalizability(bool propagate);
+    void updateFinalizabilityOnRequest();
 
 public:
     KAS_STATISTICS_DEF(
@@ -67,7 +66,9 @@ public:
     int existingOp() const { return existingOps[Next::TypeOf<Op>()]; }
 
     Finalizability getFinalizability() const;
-    void updateFinalizabilityOnRequest();
+
+    // A child of this stage calls this to signal that its finalizability has been updated.
+    void requestUpdateForFinalizability(bool propagate);
 
     // Python.
     virtual std::size_t hash() const = 0;
@@ -87,15 +88,19 @@ protected:
 
     // A helper function that ensures the finalizability has been updated.
     template<typename F>
-    auto guarded(F&& f) -> decltype(f()) {
+    inline auto guarded(F&& f) -> decltype(f()) {
+        int counter = 0;
         while (true) {
             if (finalizabilityUpdateRequested) {
                 updateFinalizabilityOnRequest();
-                finalizabilityUpdateRequested = false;
             }
             auto ret = f();
             if (!finalizabilityUpdateRequested) {
                 return ret;
+            }
+            ++counter;
+            if (counter > 100) {
+                KAS_WARNING("guarded() is looping too many times.");
             }
         }
     }
