@@ -2,7 +2,7 @@
 
 ## Build Dependencies
 
-- A C++20-compatible compiler.
+- A C++20-compatible compiler. (Complete support required, which means, GCC >= 12 if you are using GCC.)
 - CMake.
 - Ninja.
 - [Halide with GPU Autoscheduler](https://github.com/aekul/Halide/tree/gpu-autoscheduler), with [this patch](./bugfix.patch) applied. For more information, refer to the [pull request](https://github.com/halide/Halide/pull/6856).
@@ -18,7 +18,7 @@ Note: If you are using anaconda to manage your packages, you may also install th
 ```[language=bash]
 conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
 conda install boost fmt pybind11 gtest gmock -c conda-forge
-conda install cudatoolkit=11.7 cudnn=8.8.0 -c conda-forge
+conda install cudatoolkit=11.7 cudatoolkit-dev=11.7 cudnn=8.8.0 -c conda-forge
 ```
 
 ## Build and Run
@@ -52,3 +52,9 @@ bash ./run_tmux.sh 8 python -u evaluator.py
 ## Notes
 
 To run `tests/Semantics/test_semantics_*.py`, you need to first run `ctest` to generate the kernels. Then you can either manually run it to observe the performance or just run `pytest` to check correctness.
+
+## FAQ
+
+### When configuring with CMake, CUDA runtime complains "unsupported GNU version! gcc versions later than 11 are not supported!"
+
+Since this project strictly requires full support of C++20, you need to use GCC 12. However, for the time being, nvcc does not support GCC 12. Fortunately, we are not using nvcc to compile the kernels, and we only need to bypass this restriction by modifying `host_config.h` (which is usually located at `/usr/include/crt/host_config.h`) of CUDA runtime, removing the check that prevents us from using GCC 12.
