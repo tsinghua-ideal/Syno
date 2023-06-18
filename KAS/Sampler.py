@@ -1,15 +1,28 @@
 import os
-import shutil
 import logging
 import torch
 from torch import nn
-from typing import List, Dict, Optional, Tuple, Union
+from typing import Any, List, Dict, Optional, Tuple, Union
+from KAS import Bindings
+from KAS.Assembler import Assembled
+
+from KAS.Node import Node, PseudoPath, VisitedNode
 
 from . import Bindings
 from .Assembler import Assembled, Assembler
 from .Bindings import CodeGenOptions
 from .KernelPack import KernelPack
-from .Node import Next, Path, Node, VisitedNode
+from .Node import (
+    Next,
+    PseudoNext,
+    Path,
+    PseudoPath,
+    Node,
+    VisitedNode,
+    MockNodeMetadata,
+    MockNode,
+    MockVisitedNode,
+)
 from .Placeholder import Placeholder
 
 
@@ -18,7 +31,7 @@ class Sampler:
 
     @staticmethod
     def _extract_placeholders(net: nn.Module) -> List[Placeholder]:
-        """Find all placeholders in the network. """
+        """Find all placeholders in the network."""
         placeholders: List[Placeholder] = [
             node for node in net.modules() if isinstance(node, Placeholder)]
         return placeholders
@@ -75,7 +88,7 @@ class Sampler:
             use_gpu=cuda,
             auto_scheduler=autoscheduler,
             rfactor_threshold=rfactor_threshold,
-            in_bounds_likely_threshold=in_bounds_likely_threshold
+            in_bounds_likely_threshold=in_bounds_likely_threshold,
         )
         self._device = torch.device('cuda' if cuda else 'cpu')
 
@@ -83,7 +96,7 @@ class Sampler:
         """Get the root node."""
         return self.visit([])
 
-    def visit(self, path: Path) -> Optional[VisitedNode]:
+    def visit(self, path: PseudoPath) -> Optional[VisitedNode]:
         """Visit a node via a path."""
         path = Path(path)
         visited_node = self._sampler.visit(path.abs_path)
@@ -91,7 +104,7 @@ class Sampler:
             return None
         return VisitedNode(path, visited_node)
 
-    def random_node_with_prefix(self, prefix: Path) -> Optional[VisitedNode]:
+    def random_node_with_prefix(self, prefix: PseudoPath) -> Optional[VisitedNode]:
         """Find a leaf node with specified prefix. Note that the Node is not necessarily final."""
         prefix = Path(prefix)
         visited_node = self._sampler.random_node_with_prefix(prefix.abs_path)
@@ -100,11 +113,11 @@ class Sampler:
         path, node = visited_node
         return VisitedNode(Path(path), node)
 
-    def path_to_strs(self, path: Path) -> List[str]:
+    def path_to_strs(self, path: PseudoPath) -> List[str]:
         node = self.root()
         strs = []
         for next in path:
-            strs.append(next.description(node._node))
+            strs.append(node.get_child_description(next))
             node = node.get_child(next)
         return strs
 
@@ -173,3 +186,82 @@ class Sampler:
 
     def _bind_debug_context(self):
         self._sampler.bind_debug_context()
+
+
+VertexIndex = Union[int, str]  # Can be index in the vertices list or name.
+
+
+class MockSampler(Sampler):
+    """Stores a DAG of nodes."""
+
+    def __init__(
+        self,
+        vertices: List[Union[Dict[str, Any], str]],
+        edges: List[Tuple[VertexIndex, List[Tuple[PseudoNext, VertexIndex]]]],
+    ) -> None:
+        """Initialize a MockSampler.
+        The first vertex is the root.
+        Example:
+        ```
+            vertices = ['root', 'a', 'b', {'name': 'final', 'is_final': True}]
+            edges = [
+                ('root', [('Share(0)', 'a'), ('Share(1)', 'b')]),
+                ('a', [('Share(2)', 'final')]),
+                ('b', [('Share(3)', 'final')]),
+            ]
+            sampler = MockSampler(vertices, edges)
+        ```
+        """
+        self._mock_nodes = [
+            MockNodeMetadata(self, id, **(v if isinstance(v, dict) else {"name": str(v)}))
+            for id, v in enumerate(vertices)
+        ]
+        self._mock_name_to_id = {
+            str(mock_node): mock_node.mock_get_id() for mock_node in self._mock_nodes
+        }
+
+        def index_of(vertex_index: VertexIndex) -> int:
+            if isinstance(vertex_index, int):
+                return vertex_index
+            return self._mock_name_to_id[vertex_index]
+
+        def process_edges(
+            pairs: List[Tuple[PseudoNext, VertexIndex]]
+        ) -> Dict[Next, MockNodeMetadata]:
+            return {
+                Path.to_next(next): self._mock_nodes[index_of(vertex_index)]
+                for next, vertex_index in pairs
+            }
+
+        mock_edges = {index_of(src): process_edges(dst) for src, dst in edges}
+        self._mock_edges = {
+            index: mock_edges.get(index, {}) for index in range(len(self._mock_nodes))
+        }
+
+    def mock_get_children(self, id: int) -> Dict[Next, MockNodeMetadata]:
+        return self._mock_edges[id]
+
+    def visit(self, path: PseudoPath) -> Optional[MockVisitedNode]:
+        path = Path(path)
+        node = self._mock_nodes[0]
+        for next in path:
+            children = self._mock_edges[node.mock_get_id()]
+            if next not in children:
+                return None
+            node = self._mock_edges[node.mock_get_id()][next]
+        return MockVisitedNode(path, node)
+
+    def random_node_with_prefix(self, prefix: PseudoPath) -> Optional[VisitedNode]:
+        raise NotImplementedError()
+
+    def _realize(self, node: Union[Node, Assembled], all_mappings: List[Dict[str, int]]) -> Bindings.Kernel:
+        raise NotImplementedError()
+
+    def realize(self, net: nn.Module, node: Union[Node, Assembled], identifier_prefix: str) -> Tuple[List[KernelPack], int]:
+        raise NotImplementedError()
+
+    def create_assembler(self):
+        raise NotImplementedError()
+
+    def _bind_debug_context(self):
+        raise NotImplementedError()

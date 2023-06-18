@@ -17,3 +17,12 @@ class NextSerializer:
 
     def deserialize_type(self, next_type: str) -> Next.Type:
         return self._str_to_next_type[next_type]
+
+    def serialize_next(self, next: Next) -> str:
+        return f"{next}"
+
+    def deserialize_next(self, next: str) -> Next:
+        next_type, key = next.split('(')
+        next_type = self.deserialize_type(next_type)
+        key = int(key[:-1])
+        return Next(next_type, key)
