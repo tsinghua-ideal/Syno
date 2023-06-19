@@ -1,5 +1,5 @@
-from collections import defaultdict
 from typing import List, Union, Optional, Dict, Tuple
+import logging
 
 from .Node import Path, Node, PseudoNext, AbsolutePath
 from .Sampler import Sampler
@@ -81,12 +81,12 @@ class TreePath(Path):
 
 class TreeNode(Node):
     """
-    A node that represents either a type or a full node
+    A wrapper of node that represents either a type or a full node
     """
 
-    def __init__(self, node: Bindings.Node, is_mid: bool = False, type: Next.Type = None) -> None:
+    def __init__(self, node: Node, is_mid: bool = False, type: Next.Type = None) -> None:
         """
-        node: the underlying node of this node or of its father (if it is a mid node). 
+        node: the underlying Node of this node or of its father (if it is a mid node). 
 
         Two types of TreeNode for two step search.
 
@@ -105,7 +105,7 @@ class TreeNode(Node):
             - q
             - NumVisitToChild
         """
-        super().__init__(node)
+        self._node = node
         self._is_mid: bool = is_mid
         self._type: Next.Type = type
         self.N: int = 0
@@ -115,22 +115,25 @@ class TreeNode(Node):
         else:
             self.children: List['TreeNode'] = []
 
-        primitives = self.collect_operations()
+        logging.debug(f"collecting {self._node}")
+        assert isinstance(self._node, Node)
+        primitives = self._node.collect_operations()
         # Initialize TreeNodes for children.
-        if not self.is_mid:
+        if not self._is_mid:
             for child in primitives.keys():
                 self.children.append(TreeNode(node, is_mid=True, type=child))
+        logging.debug("initialized")
 
     def __eq__(self, __value: object) -> bool:
         return \
-            super().__eq__(__value) and \
+            self._node.__eq__(__value) and \
             self._is_mid == __value._is_mid and \
             self._type == __value._type
 
     def __hash__(self) -> int:
-        return hash((self._node, self._is_mid, self._type))
+        return hash((self.to_node(), self._is_mid, self._type))
 
-    def get_unexpanded_children(self, factory: Dict[Bindings.Node, 'TreeNode']) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
+    def get_unexpanded_children(self, factory: Dict[Node, 'TreeNode']) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
         children = self.get_children(factory)
         unexpanded_children = [child for child in children if child[1].N == 0]
         return unexpanded_children
@@ -140,23 +143,23 @@ class TreeNode(Node):
         TOTST
         Set a child Finalize(key) to be dead. I should be a mid node with type Finalize
         """
-        assert self.is_mid
+        assert self._is_mid
         assert self._type == Next.Type.Finalize
         self.filtered.append(key)
 
-    def children_count(self) -> int:
+    def children_count(self, factory) -> int:
         """Get the number of all children of a node."""
-        return len(self.get_children())
+        return len(self.get_children(factory))
 
     def get_children(self, factory) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
         """
         Get all children of a node plus the nexts. Since the tree is searching in the background, we shall get the handles frequently. 
         If some children is dead, we remove them
         """
-        primitives = self.collect_operations()
+        primitives = self._node.collect_operations()
 
         # TOTST: remove filtered finalize.
-        if self.is_mid:
+        if self._is_mid:
             nexts = primitives[self._type]
             if self._type == Next.Type.Finalize:
                 nexts = [
@@ -169,7 +172,7 @@ class TreeNode(Node):
             children = [
                 child
                 for child in children
-                if child._type in primitives.keys() and len(child.children_count() > 0)
+                if child._type in primitives.keys() and child.children_count(factory) > 0
             ]
             nexts = [child._type for child in children]
             self.children = children
@@ -177,22 +180,22 @@ class TreeNode(Node):
 
         return list(zip(nexts, children))
 
-    def get_child(self, next: PseudoTreeNext, factory: Dict[Bindings.Node, 'TreeNode'] = None) -> Optional['TreeNode']:
+    def get_child(self, next: PseudoTreeNext, factory: Dict[Node, 'TreeNode'] = None) -> Optional['TreeNode']:
         """
         Get the child node of a node with a Next. When the node is dead, return None.
         """
         if self._is_mid:
             assert isinstance(next, int)
-            child = super().get_child(Next(self._type, next))
+            child = self._node.get_child(Next(self._type, next))
             if child is None:
                 return None
             if child not in factory:
-                factory[child] = TreeNode(child._node)
+                factory[child] = TreeNode(child.to_node())
             return factory[child]
         else:
             assert isinstance(next, Next.Type)
-            for child in self.collect_operations().keys():
-                if child._type == next:
+            for nxt, child in self.get_children(factory):
+                if nxt == next:
                     return child
             return None
 
@@ -201,6 +204,9 @@ class TreeNode(Node):
         if self._is_mid:
             return False
         return self._node.is_final()
+    
+    def to_node(self) -> 'Node':
+        return self._node.to_node()
 
     def __repr__(self) -> str:
         if self._is_mid:
