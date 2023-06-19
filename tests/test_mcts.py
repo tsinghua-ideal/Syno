@@ -28,18 +28,14 @@ def test_mcts():
             node = trials[0]
             print(f"Iteration {idx}. Sampled {node} for {path}:")
             print(path.path_to_strs(sampler))
-            s = node.path.serialize()
-            d = node.path.deserialize(s)
-            print("Serialized Path", s)
-            print("Deserialized Path", d)
-            for i in range(len(node.path)):
-                child = sampler.visit(Path(node.path.abs_path[:i]))
-                print(f"Node {child} has children:",
-                      child.get_children_types())
-            kernel_packs, _ = sampler.realize(net, node, f"test_mcts_{idx}")
-            sampler.replace(net, kernel_packs)
-            print(f"Computing forward {idx}...")
-            print(f"Result: {net(in_tensor)}")
+            # for i in range(len(node.path)):
+            #     child = sampler.visit(Path(node.path.abs_path[:i]))
+            #     print(f"Node {child} has children:",
+            #           child.get_children_types())
+            # kernel_packs, _ = sampler.realize(net, node, f"test_mcts_{idx}")
+            # sampler.replace(net, kernel_packs)
+            # print(f"Computing forward {idx}...")
+            # print(f"Result: {net(in_tensor)}")
             mcts.back_propagate(receipt, 1.0)
         except Exception as e:
             print(f"Caught error {e}")
