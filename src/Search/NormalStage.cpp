@@ -192,8 +192,8 @@ void NormalStage::guardGeneratedChildren() {
     CountChildrenFinalize += nextFinalizations.size();
 
     childrenGenerated = true;
-    // Report to parents if determined.
-    requestUpdateForFinalizability(true);
+    // Update finalizability for this. If it is determined, this will recursively signal the parents in AbstractStage::guarded().
+    requestUpdateForFinalizability();
 }
 
 std::shared_ptr<TensorView> NormalStage::getFinalize(std::size_t key) const {
@@ -307,9 +307,11 @@ NormalStage::NormalStage(ColoredInterface&& interface, AbstractStage& creator, s
     AbstractStage { creator, deltaOp },
     interface { std::move(interface) }
 {
+    // Perform experimental finalization, i.e., compute the ShapeComplexity of the interface.
     if (!possibleToFinalizeByExperimenting()) {
+        // If proved to be not finalizable, no need to generate children.
         childrenGenerated = true;
-        determineFinalizability(Finalizability::No, false);
+        determineFinalizability(Finalizability::No);
     }
 }
 
