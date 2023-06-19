@@ -90,9 +90,17 @@
 - [ ] Reward formatting. 
 - [ ] Stop automatically when the space is exhausted. 
 
+- [ ] Reformat MCTS
+- [ ] Serialization and Deserialization
+- [ ] Mock test for MCTS (DAG)
+    - [ ] update
+    - [ ] serialization & deserialization
+    - [ ] virtual loss
+
 ### Train
 
 - [x] Add MNIST MLP models. 
 - [ ] Speed up data loading
 - [ ] Early Stopping and NaN filtering during training. 
 - [ ] Filter by Fisher Potential. 
+

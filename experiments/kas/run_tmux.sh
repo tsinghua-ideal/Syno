@@ -45,6 +45,7 @@ tmux send-keys -t "$i" "conda activate kas-szy" Enter
 tmux send-keys -t "$i" "cd ${current_path}" Enter
 tmux send-keys -t "$i" "export CUDA_VISIBLE_DEVICES=$(($i))" Enter
 # shellcheck disable=SC2004
+tmux send-keys -t "$i" "mkdir logs" Enter
 tmux send-keys -t "$i" "mkdir logs/worker$(($i))" Enter
 tmux send-keys -t "$i" "for ((j = 1; ;j ++)); do mkdir logs/worker$(($i))/trial\$j; ${*:2} > logs/worker$(($i))/trial\$j/stdout.log 2> logs/worker$(($i))/trial\$j/stderr.log; done" Enter
 done

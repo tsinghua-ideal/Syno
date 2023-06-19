@@ -1,296 +1,297 @@
 import random
 import math
 import logging
-from collections import defaultdict
-from typing import List, Tuple, Any
+from collections import defaultdict, OrderedDict
+from typing import List, Tuple, Any, Optional, Dict
 
-from .Node import Path, VisitedNode
+from .Node import Path, VisitedNode, Node
 from .Sampler import Sampler
-from .TreeNode import TreeNode, TreePath
-from .Bindings import Next
+from .TreeNode import TreeNode, TreePath, PseudoTreeNext
+from .Bindings import Next, Node as cNode
+from .Utils import NextSerializer
 
 
 class MCTS:
-    def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, simulate_retry_limit: int = 10, exploration_weight: float = math.sqrt(2)) -> None:
-        self._Q = defaultdict(float)  # Total reward of each node.
-        self._N = defaultdict(int)  # Total visit count for each node.
-        # Number of children of each node. Only explored nodes are in this dict.
-        self._children_nexts = dict()
+    def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2)) -> None:
+
+        # Dict[Node, TreeNode]
+        self._treenode_store: Dict[cNode, TreeNode] = OrderedDict()
+        root = sampler.visit([])
+        self._treenode_store[root._node] = TreeNode(root._node)
+
         self._sampler = sampler
         self._exploration_weight = exploration_weight
         random.seed(sampler._seed)
 
+        # Tree Parallelization
         self.virtual_loss_constant = virtual_loss_constant
-        self.virtual_loss_count = defaultdict(
-            lambda: 0)  # node -> virtual loss count
+        self.virtual_loss_count: Dict[TreeNode, int] = defaultdict(
+            int)  # node -> virtual loss count
+
+        # Leaf Parallelization
         self.leaf_num = leaf_num
-        self.simulate_retry_limit = simulate_retry_limit
 
-        self.dead_node = []
-
-    def dump(self) -> dict:
-        """Dump the tree into a json file. """
-        Q_sel = {hash(k): v for k, v in self._Q.items()}
-        N_sel = {hash(k): v for k, v in self._N.items()}
-        node_expanded = list(self._children_nexts.keys())
-        node_expanded_sel = [hash(n) for n in node_expanded]
-        packed_args = dict(
-            virtual_loss_constant=self.virtual_loss_constant,
-            leaf_num=self.leaf_num,
-            simulate_retry_limit=self.simulate_retry_limit,
-            _exploration_weight=self._exploration_weight
-        )
-        j = dict(
-            Q=Q_sel,
-            N=N_sel,
-            node_expand=node_expanded_sel,
-            args=packed_args
-        )
-        return j
-
-    def _get_Q(self, node: TreeNode) -> float:
-        return self._Q[node]
-
-    def _add_Q(self, node: TreeNode, value: float) -> None:
-        self._Q[node] += value
-
-    def _get_N(self, node: TreeNode) -> int:
-        return self._N[node]
-
-    def _add_N(self, node: TreeNode, value: int) -> None:
-        self._N[node] += value
-
-    def _has_children_nexts(self, node: TreeNode) -> bool:
-        return node in self._children_nexts
-
-    def _get_children_nexts(self, node: TreeNode) -> List[Any]:
-        return self._children_nexts[node]
-
-    def _set_children_nexts(self, node: TreeNode, children_nexts: List[Any]) -> None:
-        self._children_nexts[node] = children_nexts
-
-    def set_node_dead(self, node: TreeNode) -> None:
-        self.dead_node.append(node.to_node())
-
-    def check_node_dead(self, node: TreeNode) -> bool:
-        return node.to_node() in self.dead_node
-
-    def check_node_alive(self, node: TreeNode) -> bool:
-        return not node.is_dead_end() and not self.check_node_dead(node)
-
-    def get_alive_children(self, node: TreeNode) -> List[Any]:
-        """Node to examined should be alive. """
-        nexts = self._get_children_nexts(node)
-        if any([not self.check_node_alive(node.get_child(nxt)) for nxt in nexts]):
-            nexts = [nxt for nxt in nexts if self.check_node_alive(
-                node.get_child(nxt))]
-        self._set_children_nexts(node, nexts)
-        return nexts
-
-    def _increment_virtual_loss(self, path: TreePath, node: TreeNode):
-        node = TreeNode(node.path, node._node)
+    def _increment_virtual_loss(self, path: TreePath, node: TreeNode) -> None:
+        # TOTST
         for next in path:
-            node = node.get_child(next.type)
+            node = node.get_child(next.type, self._treenode_store)
+            assert node is not None
             self.virtual_loss_count[node] += 1
             if next.key == 0:
                 break
-            node = node.get_child(next.key)
+            node = node.get_child(next.key, self._treenode_store)
+            assert node is not None
             self.virtual_loss_count[node] += 1
 
-    def _decrement_virtual_loss(self, path: TreePath, node: TreeNode):
-        node = TreeNode(node.path, node._node)
+    def _decrement_virtual_loss(self, path: TreePath, node: TreeNode) -> None:
+        # TOTST
         for next in path:
-            node = node.get_child(next.type)
+            node = node.get_child(next.type, self._treenode_store)
+            assert node is not None
             self.virtual_loss_count[node] -= 1
             assert self.virtual_loss_count[node] >= 0
             if next.key == 0:
                 break
-            node = node.get_child(next.key)
+            node = node.get_child(next.key, self._treenode_store)
+            assert node is not None
             self.virtual_loss_count[node] -= 1
-
-        assert self.virtual_loss_count[node] >= 0
+            assert self.virtual_loss_count[node] >= 0
 
     # The receipt which is used for back propagation, which is the root node and the path.
     Receipt = Tuple[TreeNode, TreePath]
 
     def do_rollout(self, node: VisitedNode) -> Tuple[Receipt, List[VisitedNode]]:
-        "Make the tree one layer better. (Train for one iteration.)"
-        "Returns `((root, path), leaf)`. `path` is used to propagate reward. `leaf` is the result of simulation. Note that following `path` we do not necessarily arrive at `leaf`."
+        """
+        Make the tree one layer better. (Train for one iteration.)
+
+        Returns `((root, path), leaf)`. `path` is used to propagate reward. `leaf` is the result of simulation. Note that following `path` we do not necessarily arrive at `leaf`.
+        """
         while True:
-            path, trials, success = self._may_fail_rollout(node)
+            result, success = self._may_fail_rollout(node)
             if success:
+                path, trials = result
                 logging.debug(
                     f"Successful rollout: {path}. Evaluation to be done.")
+                self._increment_virtual_loss(node, path)
                 return (node, path), trials
             else:
                 logging.debug(
-                    f"During rollout, dead end {path} encountered. Retrying...")
-                # # This kind of interferes with the evaluation. TODO
-                # self.back_propagate((node, path), 0.0)
+                    f"During rollout, dead end encountered. Retrying...")
 
-    def get_results(self, node: VisitedNode = None) -> VisitedNode:
-        "Return the best result searched from the tree."
-        if node is None:
-            node = self._sampler.root()
-        node = TreeNode(node.path, node._node, is_mid=True, type=node.path[-1].type) if len(
-            node.path) > 0 and node.path[-1] == 0 else TreeNode(node.path, node._node)
-        while not node.is_terminal():
-            node = self._best_select(node)
-        return node
-
-    def _may_fail_rollout(self, node: VisitedNode) -> Tuple[TreePath, List[TreeNode], bool]:
+    def _may_fail_rollout(self, node: VisitedNode) -> Tuple[Optional[Tuple[TreePath, List[TreeNode]]], bool]:
         "The trial may encounter a dead end. In this case, False is returned."
-        node = TreeNode(node.path, node._node, is_mid=True, type=node.path[-1].type) if len(
-            node.path) > 0 and node.path[-1] == 0 else TreeNode(node.path, node._node)
-        path, leaf = self._select(node)
+        tree_node = self._treenode_store[node._node]
+
+        # Select
+        path, leaf = self._select(tree_node)
         if leaf is None:
-            return path, leaf, False
-        # assert self.check_node_alive(leaf)
-        self._expand(leaf)
+            return None, False
+
+        # Expand
+        leaf_expanded = self._expand(leaf)
+        if leaf_expanded is None:
+            return None, False
+
+        # Simulate
         leaves = []
-        for _ in range(self.simulate_retry_limit):
-            leaf_simul, success = self._simulate(leaf)
+        while not leaf_expanded.is_dead_end():
+            leaf_simul, success = self._simulate(leaf_expanded)
             if success:
                 leaves.append(leaf_simul)
                 if len(leaves) == self.leaf_num:
                     break
-        success = len(leaves) == self.leaf_num
-        if not success:
-            self.set_node_dead(leaf)
-            assert not self.check_node_alive(leaf)
-        return path, leaves, success
+        if leaf_expanded.is_dead_end():
+            return None, False
 
-    def _select(self, node: TreeNode) -> Tuple[TreePath, TreeNode]:
+        return (path, leaves), success
+
+    def _select(self, node: TreeNode) -> Optional[Tuple[TreePath, TreeNode]]:
         "Find an unexplored descendent of `node`"
         # Here, the path is just arbitrary, and depends on how we build the search tree. See doc for `_uct_select`. We only need to make sure we can construct a `TwoStepPath` from `path`.
         path = TreePath([])
         while True:
-            if node.is_terminal() or (not self._has_children_nexts(node)):
+            if node.is_terminal() or len(node.get_unexpanded_children()) > 0:
                 # node is either terminal or unexplored
                 return path, node
-            nexts = self.get_alive_children(node)
-            if len(nexts) == 0:
-                # This node has no children, we shall set the node to be dead and call for another try.
-                self.set_node_dead(node)
-                return None, None
-            for next in nexts:
-                augmented = node.get_child(next)
-                if not self._has_children_nexts(augmented):
-                    assert self.check_node_alive(augmented)
-                    # we found an unexplored descendent of node
-                    path = path.concat(next)
-                    # logging.debug(f'path is {path}')
-                    return TreePath(path), augmented
-            next, node = self._uct_select(node)  # descend a layer deeper
+            selected = self._ucd_select(node)  # descend a layer deeper
+            if selected is None:
+                return None
+            next, node = selected
             path = path.concat(next)
-            assert self.check_node_alive(node)
 
-    def _expand(self, node: TreeNode) -> None:
-        "Update the `children` dict with the children of `node`"
-        if self._has_children_nexts(node):
-            return  # already expanded
+    def _expand(self, node: TreeNode) -> Optional[TreeNode]:
+        """
+        Expand the leaf one level deeper, by choosing a random unexpanded child (N=0). Return None if failed. TOTST
+        """
 
-        alive_nexts = []
-        for next in node.get_children_handles():
-            augmented = node.get_child(next)
-            if augmented.is_dead_end():
-                self.set_node_dead(augmented)
-            if not self.check_node_dead(augmented):
-                alive_nexts.append(next)
+        unexpanded_children = node.get_unexpanded_children()
+        if len(unexpanded_children) == 0:
+            logging.debug("Expand failed.")
+            return None
 
-        self._set_children_nexts(node, alive_nexts)
+        # randomly select a child from pool
+        next, leaf = random.choice(unexpanded_children)
+        return next, leaf
 
-    def _simulate(self, node: TreeNode) -> Tuple[TreeNode, bool]:
+    def _simulate(self, node: TreeNode) -> Tuple[Optional[TreeNode], bool]:
         "Returns a random simulation (to completion) of `node`"
+        # TOTST: simulate it to the end
 
-        def random_child(node: TreeNode) -> TreeNode:
+        def random_child(node: TreeNode) -> Optional[TreeNode]:
             """
             Two step random selection. First, randomly select a primitive type. Then, randomly select a child of that type.
             """
             assert isinstance(node, TreeNode)
-            selected_child = random.choice(node.get_children_handles())
-            return node.get_child(selected_child)
+            children = node.get_children(self._treenode_store)
+            if len(children) == 0:
+                return None
+            _, selected_child = random.choice(children)
+            return selected_child
 
         while not node.is_terminal():
             node = random_child(node)
+            if node is None:
+                return None, False
         return node, node.is_final()
 
-    # Move increment of `_N` to `do_rollout` for parallel search. TODO
     def back_propagate(self, receipt: Receipt, reward: float) -> None:
         "Send the reward back up to the ancestors of the leaf"
         assert 0.0 <= reward <= 1.0
 
         def _update_stats(node: TreeNode, reward: float) -> None:
-            self._add_N(node, 1)
-            self._add_Q(node, reward)
+            node.N += 1
+            node.Q += reward
 
         node, path = receipt
-        node = TreeNode(node.path, node._node)
+        self._decrement_virtual_loss(path, node)
 
         _update_stats(node, reward)
         for next in path:
-            node = node.get_child(next.type)
+            node = node.get_child(next.type, self._treenode_store)
+            assert node is not None
             _update_stats(node, reward)
             if next.key == 0:
                 break
-            node = node.get_child(next.key)
+            node = node.get_child(next.key, self._treenode_store)
+            assert node is not None
             _update_stats(node, reward)
 
-    def add_virtual_loss(self, receipt: Receipt) -> None:
-        node, path = receipt
-        node = TreeNode(node.path, node._node)
-        self._increment_virtual_loss(path, node)
-
-    def remove_virtual_loss(self, receipt: Receipt) -> None:
-        node, path = receipt
-        node = TreeNode(node.path, node._node)
-        self._decrement_virtual_loss(path, node)
-
     # Here, the returned Any is just an element in the path. The type depends on how we build the search tree. If we follow the C++ implementation, it should be a kas_cpp_bindings.Next. If we use two-step generation for primitives, it should be either Union[primitive type, index of primitive], which is not yet implemented.
-    def _uct_select(self, node: TreeNode) -> Tuple[Any, TreeNode]:
+    def _ucd_select(self, node: TreeNode) -> Optional[Tuple[PseudoTreeNext, TreeNode]]:
         "Select a child of node, balancing exploration & exploitation"
 
-        nexts = self.get_alive_children(node)
-        children = [(next, node.get_child(next)) for next in nexts]
+        children = node.get_children(self._treenode_store)
+        if len(children) == 0:
+            logging.debug("Selection failed. ")
+            return None
 
         # All children of node should already be expanded:
-        assert all(self._has_children_nexts(child) for _, child in children)
-        children = list(
-            filter(lambda child: self.check_node_alive(child[1]), children))
-        assert len(children) > 0
+        assert len(node.get_unexpanded_children(self._treenode_store)) == 0
 
-        if self._get_N(node) > 0:
-            log_N_vertex = math.log(self._get_N(node))
+        N_children = [child.N for _, child in children]
+        log_N_vertex = math.log(1 + sum(N_children))
+        assert all([N > 0 for N in N_children])
 
-        def uct(child: Tuple[Next, TreeNode]) -> float:
-            "Upper confidence bound for trees"
-            _, child = child
-            if self._get_N(child) == 0:
-                return -1000  # avoid unseen moves
-            return self._get_Q(child) / self._get_N(child) + self._exploration_weight * math.sqrt(
-                log_N_vertex / self._get_N(child)
+        def ucd(key: Tuple[PseudoTreeNext, TreeNode]) -> float:
+            """
+            Upper confidence bound for trees.
+            We save the tree as a DAG since multiple paths lead to a same node (by using different order of the primitives). Therefore, UCD (https://hal.science/hal-01499672/document) shall be used instead. 
+            """
+            # TOTST: Implement the UCD bound.
+            _, child = key
+            return child.Q / child.N + self._exploration_weight * math.sqrt(
+                log_N_vertex / child.N
             ) - self.virtual_loss_constant * self.virtual_loss_count[child]
 
-        selected_child = max(children, key=uct)
-        assert self.check_node_alive(selected_child[1])
+        selected_child = max(children, key=ucd)
 
         return selected_child
 
-    def _best_select(self, node: TreeNode) -> TreeNode:
-        "Select the best child of a given node"
-        if node.is_terminal():
-            raise RuntimeError(f"choose called on terminal node {node}")
+    def serialize(self) -> Dict:
+        """Serialize the tree and return a dict TOTST"""
 
-        if not self._has_children_nexts(node):
-            children_nexts = node.get_children_handles()
-            return node.get_child(random.choice(children_nexts))
+        node_list = []
+        nodes = list(self._treenode_store.keys())
+        next_serializer = NextSerializer()
 
-        children = [node.get_child(next)
-                    for next in self._get_children_nexts(node)]
+        # index each node
+        index = {n: i for i, n in enumerate(nodes)}
 
-        def score(n) -> float:
-            if self._get_N(n) == 0:
-                return -1  # avoid unseen moves
-            return self._get_Q(n) / self._get_N(n)  # average reward
+        # dump father's n, q
+        # dump children's n, q, filtered
+        for i, n in enumerate(nodes):
+            father = self._treenode_store[n]
 
-        return max(children, key=score)
+            node_serial = {}
+            node_serial['index'] = i
+            node_serial['father'] = {
+                'N': father.N,
+                'Q': father.Q
+            }
+            node_serial['children'] = {}
+            for next, child in father.get_children(self._treenode_store):
+                if child.N > 0:
+                    assert isinstance(next, Next.Type)
+                    node_serial['children'][next_serializer.serialize_type(next)] = {
+                        'N': child.N,
+                        'Q': child.Q,
+                        'children': [(n, index[c._node]) for n, c in child.get_children(self._treenode_store) if c.N > 0],
+                        'filtered': child.filtered
+                    }
+
+            node_list.append(node_serial)
+
+        packed_args = dict(
+            virtual_loss_constant=self.virtual_loss_constant,
+            leaf_num=self.leaf_num,
+            _exploration_weight=self._exploration_weight
+        )
+        j = dict(
+            node_list=node_list,
+            args=packed_args
+        )
+        return j
+
+    def _add_node(self, path: TreePath, node: Dict, node_factory: Dict) -> TreeNode:
+        """Manually add tree nodes recursively. """
+        _node = self._sampler.visit(path)._node
+        tree_node = self._treenode_store[_node] if path.is_root() else TreeNode(_node)
+        tree_node.N = node['father']['N']
+        tree_node.Q = node['father']['Q']
+        tree_node.children = []
+        for _type_serial, child_serial in node['children'].items():
+            _type = NextSerializer.deserialize_type(_type_serial)
+            child_path = path.concat(_type)
+            child_node = self._sampler.visit(child_path)._node
+            child = TreeNode(child_node, is_mid=True, type=_type)
+            
+            child.N = child_serial['N']
+            child.Q = child_serial['Q']
+            child.filtered = child_serial['filtered']
+            for next, grand_child_index in child_serial['children']:
+                grand_child_path = child_path.concat(next)
+                child._children.append(
+                    self._add_node(
+                        grand_child_path, 
+                        node_factory[grand_child_index], 
+                        node_factory
+                        )
+                )
+                
+            tree_node.children.append(child)
+        if not path.is_root():
+            self._treenode_store[_node] = tree_node
+        return tree_node
+
+    @staticmethod
+    def deserialize(serialized: dict, sampler: Sampler) -> 'MCTS':
+        """Deserialize a serialized tree and return a Tree object TOTST"""
+
+        params = serialized['args']
+        node_list = serialized['node_list']
+        node_factory = {n['index']: n for n in node_list}
+        tree = MCTS(sampler, **params)
+        root_node = node_factory[0]
+        tree._add_node(TreePath([]), root_node, node_factory)
+        
+        return tree

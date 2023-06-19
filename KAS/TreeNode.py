@@ -1,12 +1,12 @@
 from collections import defaultdict
-from typing import List, Union
+from typing import List, Union, Optional, Dict, Tuple
 
 from .Node import Path, Node, PseudoNext, AbsolutePath
 from .Sampler import Sampler
 from . import Bindings
 from .Bindings import Next
 
-PseudoTreeNext = Union[PseudoNext, Next.Type]
+PseudoTreeNext = Union[Next.Type, int]
 
 
 class TreePath(Path):
@@ -59,14 +59,16 @@ class TreePath(Path):
     def __getitem__(self, key):
         return self.abs_path[key]
 
-    def append(self, next: PseudoTreeNext):
-        self.abs_path.append(self.to_next(next))
-
     def concat(self, next: PseudoTreeNext) -> 'TreePath':
         if isinstance(next, Next.Type):
-            return TreePath(self.abs_path + [self.to_next(next)])
-        else:
+            return TreePath(self.abs_path + [Next(next, 0)])
+        elif isinstance(next, int):
             return TreePath(self.abs_path[:-1] + [Next(self.abs_path[-1].type, next)])
+        else:
+            raise Exception("Unexpected next!")
+    
+    def is_root(self):
+        return self.abs_path == []
 
     def path_to_strs(self, sampler: Sampler):
         full_path = self.abs_path
@@ -82,25 +84,42 @@ class TreeNode(Node):
     A node that represents either a type or a full node
     """
 
-    def __init__(self, path: Path, node: Bindings.Node, is_mid: bool = False, type: Next.Type = None) -> None:
+    def __init__(self, node: Bindings.Node, is_mid: bool = False, type: Next.Type = None) -> None:
         """
         node: the underlying node of this node or of its father (if it is a mid node). 
+
+        Two types of TreeNode for two step search.
+
+        1. leaf node: a node that represents a full node. 
+            - node
+            - is_mid = False
+            - children: Dict[Next, TreeNode]
+            - n
+            - q
+            - NumVisitToChild
+        2. mid node: a node that represents a type.
+            - node
+            - is_mid = True
+            - type
+            - n
+            - q
+            - NumVisitToChild
         """
         super().__init__(node)
-        self.path = TreePath(path)
-        self._is_mid = is_mid
-        self._type = type
-
-        handles = super().get_children_handles()
-        primitives = defaultdict(list)
-        for handle in handles:
-            primitives[handle.type].append(handle.key)
-
-        if is_mid:  # calculate the children upon initialization
-            assert type is not None, "Please pass a type for mid nodes."
-            self.children = primitives[type]
+        self._is_mid: bool = is_mid
+        self._type: Next.Type = type
+        self.N: int = 0
+        self.Q: float = 0
+        if self._is_mid and self._type == Next.Type.Finalize:
+            self.filtered: List[int] = []
         else:
-            self.children = list(primitives.keys())
+            self.children: List['TreeNode'] = []
+
+        primitives = self.collect_operations()
+        # Initialize TreeNodes for children.
+        if not self.is_mid:
+            for child in primitives.keys():
+                self.children.append(TreeNode(node, is_mid=True, type=child))
 
     def __eq__(self, __value: object) -> bool:
         return \
@@ -109,25 +128,73 @@ class TreeNode(Node):
             self._type == __value._type
 
     def __hash__(self) -> int:
-        return hash(self._node) + hash(self._is_mid) + hash(self._type)
+        return hash((self._node, self._is_mid, self._type))
+
+    def get_unexpanded_children(self, factory: Dict[Bindings.Node, 'TreeNode']) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
+        children = self.get_children(factory)
+        unexpanded_children = [child for child in children if child[1].N == 0]
+        return unexpanded_children
+
+    def set_child_dead(self, key: int) -> None:
+        """
+        TOTST
+        Set a child Finalize(key) to be dead. I should be a mid node with type Finalize
+        """
+        assert self.is_mid
+        assert self._type == Next.Type.Finalize
+        self.filtered.append(key)
 
     def children_count(self) -> int:
         """Get the number of all children of a node."""
-        return len(self.children)
+        return len(self.get_children())
 
-    def get_children_handles(self) -> List[int]:
-        """Get all children of a node."""
-        return self.children
+    def get_children(self, factory) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
+        """
+        Get all children of a node plus the nexts. Since the tree is searching in the background, we shall get the handles frequently. 
+        If some children is dead, we remove them
+        """
+        primitives = self.collect_operations()
 
-    def get_child(self, next: PseudoTreeNext) -> 'TreeNode':
-        """Get the child node of a node with a Next."""
-        new_path = self.path.concat(next)
+        # TOTST: remove filtered finalize.
+        if self.is_mid:
+            nexts = primitives[self._type]
+            if self._type == Next.Type.Finalize:
+                nexts = [
+                    nxt for nxt in nexts if self.get_child(nxt, factory) not in self.filtered and self.get_child(nxt, factory) is not None]
+            children = [self.get_child(nxt, factory) for nxt in nexts]
+            nexts = [nxt for c, nxt in zip(children, nexts) if c is not None]
+            children = [c for c in children if c is not None]
+        else:
+            children = self.children
+            children = [
+                child
+                for child in children
+                if child._type in primitives.keys() and len(child.children_count() > 0)
+            ]
+            nexts = [child._type for child in children]
+            self.children = children
+        assert len(nexts) == len(children)
+
+        return list(zip(nexts, children))
+
+    def get_child(self, next: PseudoTreeNext, factory: Dict[Bindings.Node, 'TreeNode'] = None) -> Optional['TreeNode']:
+        """
+        Get the child node of a node with a Next. When the node is dead, return None.
+        """
         if self._is_mid:
-            assert not isinstance(next, Next.Type)
-            return TreeNode(new_path, self._node.get_child(new_path[-1]))
+            assert isinstance(next, int)
+            child = super().get_child(Next(self._type, next))
+            if child is None:
+                return None
+            if child not in factory:
+                factory[child] = TreeNode(child._node)
+            return factory[child]
         else:
             assert isinstance(next, Next.Type)
-            return TreeNode(new_path, self._node, is_mid=True, type=next)
+            for child in self.collect_operations().keys():
+                if child._type == next:
+                    return child
+            return None
 
     def is_final(self) -> bool:
         """Check if a node is final, which means it can be realized as a Halide kernel."""
