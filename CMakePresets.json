@@ -1,0 +1,16 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 20
+    },
+    "configurePresets": [
+        {
+            "name": "asan",
+            "description": "Enable AddressSanitizer",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/ASAN",
+            "toolchainFile": "cmake/toolchain.asan.cmake"
+        }
+    ]
+}
