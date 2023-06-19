@@ -198,6 +198,7 @@ class MockSampler(Sampler):
         self,
         vertices: List[Union[Dict[str, Any], str]],
         edges: List[Tuple[VertexIndex, List[Tuple[PseudoNext, VertexIndex]]]],
+        seed: int=0xdeadbeaf
     ) -> None:
         """Initialize a MockSampler.
         The first vertex is the root.
@@ -237,6 +238,8 @@ class MockSampler(Sampler):
         self._mock_edges = {
             index: mock_edges.get(index, {}) for index in range(len(self._mock_nodes))
         }
+        
+        self._seed = seed
 
     def mock_get_children(self, id: int) -> Dict[Next, MockNodeMetadata]:
         return self._mock_edges[id]

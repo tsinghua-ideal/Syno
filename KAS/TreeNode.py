@@ -124,11 +124,15 @@ class TreeNode(Node):
                 self.children.append(TreeNode(node, is_mid=True, type=child))
         logging.debug("initialized")
 
-    def __eq__(self, __value: object) -> bool:
-        return \
-            self._node.__eq__(__value) and \
+    def __eq__(self, __value: 'TreeNode') -> bool:
+        eq_flag = self._node.__eq__(__value._node) and \
             self._is_mid == __value._is_mid and \
-            self._type == __value._type
+            self._type == __value._type and \
+            self.N == __value.N and \
+            self.Q == __value.Q
+        if self._is_mid and self._type == Next.Type.Finalize:
+            eq_flag = eq_flag and self.filtered == __value.filtered
+        return eq_flag
 
     def __hash__(self) -> int:
         return hash((self.to_node(), self._is_mid, self._type))

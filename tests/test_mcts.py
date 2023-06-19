@@ -6,7 +6,6 @@ import traceback
 
 from KAS import CodeGenOptions, Sampler, MCTS, Path, Placeholder, MockSampler
 
-
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
@@ -15,23 +14,6 @@ class Model(nn.Module):
     def forward(self, x: torch.Tensor):
         x = self.kernel(x)
         return x
-
-def dag_sampler():
-    "A diamond"
-    vertices = ['root', 'a', 'b', {'name': 'final', 'is_final': True}]
-
-    edges = [
-        ('root', [('Merge(0)', 'a'), ('Share(1)', 'b')]),
-        ('a', [('Split(2)', 'final')]),
-        ('b', [('Unfold(3)', 'final')]),
-    ]
-    
-    sampler = MockSampler(vertices, edges)
-    return sampler
-
-def test_update() -> None:
-    sampler = dag_sampler()
-    
 
 def test_mcts():
     net = Model()

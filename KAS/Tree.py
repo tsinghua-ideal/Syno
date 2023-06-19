@@ -272,6 +272,13 @@ class MCTS:
             args=packed_args
         )
         return j
+    
+    def garbage_collect(self):
+        """
+        Remove non-root tree node with no predecessor.
+        TODO
+        """
+        pass
 
     def _add_node(self, path: TreePath, node: Dict, node_factory: Dict) -> TreeNode:
         """Manually add tree nodes recursively. """
@@ -291,7 +298,7 @@ class MCTS:
                 child.filtered = child_serial['filtered']
             for next, grand_child_index in child_serial['children']:
                 grand_child_path = child_path.concat(next)
-                child._children.append(
+                child.children.append(
                     self._add_node(
                         grand_child_path, 
                         node_factory[grand_child_index], 
