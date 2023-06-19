@@ -4,6 +4,7 @@
 namespace kas {
 
 void AbstractStage::updateFinalizabilityOnRequest() {
+    KAS_ASSERT(finalizabilityUpdateRequested, "No need to update finalizability if there is no request!");
     // After exiting this function, we need to unset finalizabilityUpdateRequested.
     KAS_DEFER { finalizabilityUpdateRequested = false; };
 
@@ -20,7 +21,7 @@ void AbstractStage::updateFinalizabilityOnRequest() {
     // Next, we need to check if this is finalizable. If we determine the Finalizability, we must propagate it.
     Finalizability newFinalizability = checkForFinalizableChildren();
     if (newFinalizability != Finalizability::Maybe) {
-        determineFinalizability(newFinalizability, true);
+        determineFinalizability(newFinalizability);
     }
     removeDeadChildrenFromSlots();
     return;
@@ -71,7 +72,7 @@ AbstractStage::Finalizability AbstractStage::getFinalizability() const {
     return finalizability;
 }
 
-void AbstractStage::determineFinalizability(Finalizability yesOrNo, bool propagate) {
+void AbstractStage::determineFinalizability(Finalizability yesOrNo) {
     KAS_ASSERT(finalizability == Finalizability::Maybe, "Finalizability has already been determined.");
     switch (yesOrNo) {
     case Finalizability::Yes:
@@ -89,15 +90,12 @@ void AbstractStage::determineFinalizability(Finalizability yesOrNo, bool propaga
     }
     // Signal parents.
     for (AbstractStage *parent : parents) {
-        parent->requestUpdateForFinalizability(propagate);
+        parent->requestUpdateForFinalizability();
     }
 }
 
-void AbstractStage::requestUpdateForFinalizability(bool propagate) {
+void AbstractStage::requestUpdateForFinalizability() {
     finalizabilityUpdateRequested = true;
-    if (propagate) {
-        updateFinalizabilityOnRequest();
-    }
 }
 
 } // namespace kas

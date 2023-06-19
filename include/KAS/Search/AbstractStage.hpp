@@ -68,7 +68,7 @@ public:
     Finalizability getFinalizability() const;
 
     // A child of this stage calls this to signal that its finalizability has been updated.
-    void requestUpdateForFinalizability(bool propagate);
+    void requestUpdateForFinalizability();
 
     // Python.
     virtual std::size_t hash() const = 0;
@@ -80,13 +80,15 @@ public:
 
 protected:
     // When the finalizability is determined, call parents to update their finalizability.
-    void determineFinalizability(Finalizability yesOrNo, bool propagate);
+    void determineFinalizability(Finalizability yesOrNo);
 
     virtual void removeDeadChildrenFromSlots() = 0;
     virtual void removeAllChildrenFromSlots() = 0;
     virtual Finalizability checkForFinalizableChildren() const = 0;
 
     // A helper function that ensures the finalizability has been updated.
+    // We want all the calls to be active. That is, if a child wants to propagate that it is dead, then it requests for update, rather than recursively calling parents to update. In this way we avoid conflicting access to data, and keep the control flow simple.
+    // After calling the desired function, if this stage finds out that it is required to be updated, then this stage performs an update of finalizability, and do another trial.
     template<typename F>
     inline auto guarded(F&& f) -> decltype(f()) {
         int counter = 0;
@@ -99,8 +101,8 @@ protected:
                 return ret;
             }
             ++counter;
-            if (counter > 100) {
-                KAS_WARNING("guarded() is looping too many times.");
+            if (counter > 1000) {
+                KAS_CRITICAL("AbstractStage::guarded() is looping too many times. Check for cycles in the graph.");
             }
         }
     }
