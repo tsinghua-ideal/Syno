@@ -96,6 +96,7 @@ class MCTS:
         logging.debug(f"Selection end {path} {leaf}")
 
         # Expand
+        # TODO: what if the selected node is terminal? 
         logging.debug("Expansion start")
         expand_res = self._expand(leaf)
         if expand_res is None:

@@ -17,8 +17,8 @@ class Model(nn.Module):
 
 def test_mcts():
     net = Model()
-    sampler = Sampler("[H,W]", "[H,W]", ["H = 128: 1", "W = 128: 1"], [
-                      "s_1=2: 2", "k=3: 2"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
+    sampler = Sampler("[H,W]", "[W]", ["H = 128: 1", "W = 128: 1"], [
+                      "s_1=2: 2", "k=3: 4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
     mcts = MCTS(sampler, virtual_loss_constant=1)
     in_tensor = torch.randn((128, 128))
     for idx in range(10):
@@ -51,5 +51,5 @@ def test_mcts():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     test_mcts()

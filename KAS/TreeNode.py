@@ -115,14 +115,12 @@ class TreeNode(Node):
         else:
             self.children: List['TreeNode'] = []
 
-        logging.debug(f"collecting {self._node}")
         assert isinstance(self._node, Node)
         primitives = self._node.collect_operations()
         # Initialize TreeNodes for children.
         if not self._is_mid:
             for child in primitives.keys():
                 self.children.append(TreeNode(node, is_mid=True, type=child))
-        logging.debug("initialized")
 
     def __eq__(self, __value: 'TreeNode') -> bool:
         eq_flag = self._node.__eq__(__value._node) and \
@@ -155,7 +153,7 @@ class TreeNode(Node):
         """Get the number of all children of a node."""
         return len(self.get_children(factory))
 
-    def get_children(self, factory) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
+    def get_children(self, factory: Dict[Node, 'TreeNode']) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
         """
         Get all children of a node plus the nexts. Since the tree is searching in the background, we shall get the handles frequently. 
         If some children is dead, we remove them
@@ -190,7 +188,14 @@ class TreeNode(Node):
         """
         if self._is_mid:
             assert isinstance(next, int)
+            logging.debug(f"next is {next}")
+            for k in factory.keys():
+                print(k)
             child = self._node.get_child(Next(self._type, next))
+            logging.debug(f"child is {child}")
+            for k in factory.keys():
+                print(k)
+            logging.debug(f"factory check passed")
             if child is None:
                 return None
             if child not in factory:
