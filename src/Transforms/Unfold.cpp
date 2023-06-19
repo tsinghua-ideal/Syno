@@ -1,6 +1,6 @@
 #include <algorithm>
 
-#include "KAS/Transforms/DimensionStore.hpp"
+#include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Transforms/Unfold.hpp"
 
 
@@ -49,7 +49,7 @@ ColoredInterface UnfoldOp::applyToInterface(const ColoredInterface& interface) c
     return interface.substitute2to1(outputLhs, outputRhs, getInput(), true);
 }
 
-std::vector<const UnfoldOp *> UnfoldOp::Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
+std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // In addition, canonicalization can require that UnfoldOp chain be structured in ascending order of kernel size. This changes semantics but it seems to be fine.

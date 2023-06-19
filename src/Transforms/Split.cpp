@@ -1,5 +1,5 @@
 #include "KAS/Core/MapReduce.hpp"
-#include "KAS/Transforms/DimensionStore.hpp"
+#include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Transforms/Split.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -38,15 +38,15 @@ SplitOp::Values SplitOp::value(const Values &known) const {
     KAS_CRITICAL("Conflicting values for SplitOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
-std::vector<const SplitOp *> SplitOp::Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
+std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // Canonicalization requires SplitOp to be chained.
-    using enum DimensionTypeWithOrder;
-    std::vector<DimensionTypeWithOrder> disallowsL { ShareR, Split, Unfold };
-    std::vector<DimensionTypeWithOrder> disallowsR { ShareR };
-    if (options.disallowSplitRAboveUnfold) disallowsR.push_back(Unfold);
-    if (options.disallowSplitRAboveStride) disallowsR.push_back(Stride);
+    using T = DimensionTypeWithOrder;
+    std::vector<DimensionTypeWithOrder> disallowsL { T::ShareR, T::Split, T::Unfold };
+    std::vector<DimensionTypeWithOrder> disallowsR { T::ShareR };
+    if (options.disallowSplitRAboveUnfold) disallowsR.push_back(T::Unfold);
+    if (options.disallowSplitRAboveStride) disallowsR.push_back(T::Stride);
     auto plausibleL = interface.filterOut(disallowsL);
     auto plausibleR = interface.filterOut(disallowsR);
 
@@ -67,8 +67,8 @@ std::vector<const SplitOp *> SplitOp::Generate(DimensionStore& store, const Colo
                 }
             }
         }
-        if (auto l = dimL.tryAs<MapReduceOp>(); l) {
-            if (auto r = dimR.tryAs<MapReduceOp>(); r) {
+        if (auto l = dimL.tryAs<MapReduce>(); l) {
+            if (auto r = dimR.tryAs<MapReduce>(); r) {
                 // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
                 ++CountUselessImmediateReductions;
                 return;

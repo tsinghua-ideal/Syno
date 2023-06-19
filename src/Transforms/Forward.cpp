@@ -16,8 +16,8 @@ void Dimension::output(std::size_t index) {
     getFactory().storeIterator(std::move(it));
 }
 
-void Dimension::reduce(std::size_t priority, MapReduceOp::MapType mapType, MapReduceOp::ReduceType reduceType) {
-    auto op = std::make_unique<MapReduceOp>(priority, getSize(), mapType, reduceType);
+void Dimension::reduce(std::size_t priority, MapReduce::MapType mapType, MapReduce::ReduceType reduceType) {
+    auto op = std::make_unique<MapReduce>(priority, getSize(), mapType, reduceType);
     set(op.get());
     getFactory().storeMapReduce(std::move(op));
 }
@@ -25,7 +25,7 @@ void Dimension::reduce(std::size_t priority, MapReduceOp::MapType mapType, MapRe
 void Factory::storeIterator(std::unique_ptr<Iterator> iterator) {
     iterators.emplace_back(std::move(iterator));
 }
-void Factory::storeMapReduce(std::unique_ptr<MapReduceOp> mapReduce) {
+void Factory::storeMapReduce(std::unique_ptr<MapReduce> mapReduce) {
     mapReduces.emplace_back(std::move(mapReduce));
 }
 

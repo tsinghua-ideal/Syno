@@ -58,7 +58,7 @@ public:
         SizeTooLarge,
         SuccessfulGenerations,
     )
-    static std::vector<const StrideOp *> Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options);
+    static std::vector<const StrideOp *> Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options);
 };
 
 } // namespace kas

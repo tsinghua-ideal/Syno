@@ -130,7 +130,7 @@ struct Valuations {
     }
 };
 
-class DimensionStore;
+class PrimitiveOpStore;
 
 // There are 3 kinds of `PrimitiveOp`'s, listed below. Those classes can transform `Dimension`s, from those that index the output tensor, to forms that index the original tensors. So this is also kind of bottom-up.
 // First we define a common base class.
@@ -143,6 +143,9 @@ public:
     virtual std::string description(const BindingContext& ctx) const = 0;
     virtual ~PrimitiveOp() = default;
 };
+
+template<typename Op>
+concept PrimitiveOpImpl = std::derived_from<Op, PrimitiveOp>;
 
 // By repeat-like, we refer to the primitives that have one input iterator and one output iterator.
 class RepeatLikeOp: public PrimitiveOp {

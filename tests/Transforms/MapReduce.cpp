@@ -4,8 +4,8 @@
 namespace kas {
 
 TEST_F(transforms_tests, map_reduce) {
-    MapReduceOp mapReduceOp { 0, sizeH * sizeW, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum };
-    Interface in { &mapReduceOp, dimH, dimW, dimCH };
+    MapReduce MapReduce { 0, sizeH * sizeW, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
+    Interface in { &MapReduce, dimH, dimW, dimCH };
     auto tensorView = TensorView { in };
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H*W,H,W,c*H]");

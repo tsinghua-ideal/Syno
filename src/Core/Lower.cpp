@@ -30,10 +30,10 @@ DimensionEvaluator::DimensionEvaluator(const Graph& graph, const std::vector<Pur
 {
     // Collect expression info from graph.
     auto avg = graph.getMapReduceIterators()
-        | std::views::filter([](const MapReduceOp *op) {
-            return op->getReduce() == MapReduceOp::ReduceType::Mean;
+        | std::views::filter([](const MapReduce *op) {
+            return op->getReduce() == MapReduce::ReduceType::Mean;
         })
-        | std::views::transform(&MapReduceOp::size);
+        | std::views::transform(&MapReduce::size);
     divBy = FoldLeftFirst(avg, std::multiplies<Size>{});
 
     // Initialize the unknown and free set.

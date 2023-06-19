@@ -26,8 +26,8 @@ TEST_F(search_tests, forward) {
     dimN.output(0);
     dimH_over_K.output(1);
     dimW_over_K.output(2);
-    dimK2_shared.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Mean);
-    dimK1_shared.reduce(1, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Mean);
+    dimK2_shared.reduce(0, MapReduce::MapType::Identity, MapReduce::ReduceType::Mean);
+    dimK1_shared.reduce(1, MapReduce::MapType::Identity, MapReduce::ReduceType::Mean);
     // [N, H, W], the output.
 
     Interface input { dimN, dimH, dimW }, weight { dimK1, dimK2 };

@@ -10,7 +10,7 @@
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Transforms.hpp"
-#include "KAS/Transforms/DimensionStore.hpp"
+#include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Functional.hpp"
 

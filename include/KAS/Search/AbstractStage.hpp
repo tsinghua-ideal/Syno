@@ -62,7 +62,7 @@ public:
     // Compute from Sampler.
     std::size_t remainingDepth() const;
 
-    template<typename Op>
+    template<PrimitiveOpImpl Op>
     int existingOp() const { return existingOps[Next::TypeOf<Op>()]; }
 
     Finalizability getFinalizability() const;

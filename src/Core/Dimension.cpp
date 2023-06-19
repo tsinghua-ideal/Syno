@@ -21,7 +21,7 @@ std::string Dimension::descendantsDescription(const BindingContext& ctx) const {
         void visit(const Iterator& dim) override {
             result = std::to_string(dim.getIndex());
         }
-        void visit(const MapReduceOp& dim) override {
+        void visit(const MapReduce& dim) override {
             result = std::to_string(dim.getPriority());
         }
         void visit(const RepeatLikeOp::Input& dim) override {

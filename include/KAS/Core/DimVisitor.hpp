@@ -9,7 +9,7 @@ namespace kas {
 class DimVisitor {
 public:
     virtual void visit(const Iterator& dim);
-    virtual void visit(const MapReduceOp& dim);
+    virtual void visit(const MapReduce& dim);
     virtual void visit(const RepeatLikeOp::Input& dim);
     virtual void visit(const SplitLikeOp::Input& dim);
     virtual void visit(const MergeLikeOp::Input& dim);

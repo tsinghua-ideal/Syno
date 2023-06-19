@@ -16,7 +16,7 @@ TEST(core_tests, tensor) {
     auto sizeC1 = ctx.getSingleCoefficientVariableSize(1);
     ASSERT_EQ(sizeC1.toString(ctx), "c_1");
     Iterator i_0 { 0, sizeX0 }, i_1 { 1, sizeX1 }, i_2 { 2, sizeC0 };
-    MapReduceOp i_3 { 0, sizeC1, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum };
+    MapReduce i_3 { 0, sizeC1, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
     Interface interface { &i_0, &i_1, &i_2, &i_3 };
     auto tensorView = TensorView { { interface } };
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[x_0,x_1,c_0]");

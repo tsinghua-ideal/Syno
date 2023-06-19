@@ -7,7 +7,7 @@
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Transforms.hpp"
-#include "KAS/Transforms/DimensionStore.hpp"
+#include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
@@ -59,7 +59,7 @@ public:
     inline BackwardDimension get() const { return inner->get(); }
     inline operator BackwardDimension() const { return get(); }
     void output(std::size_t index);
-    void reduce(std::size_t priority, MapReduceOp::MapType mapType, MapReduceOp::ReduceType reduceType);
+    void reduce(std::size_t priority, MapReduce::MapType mapType, MapReduce::ReduceType reduceType);
 };
 
 class Pure final: public DimensionImpl {
@@ -73,9 +73,9 @@ public:
 
 class Factory {
     const BindingContext& ctx;
-    DimensionStore store;
+    PrimitiveOpStore store;
     std::vector<std::unique_ptr<Iterator>> iterators;
-    std::vector<std::unique_ptr<MapReduceOp>> mapReduces;
+    std::vector<std::unique_ptr<MapReduce>> mapReduces;
     std::unique_ptr<TensorView> result;
 
 public:
@@ -110,9 +110,9 @@ public:
     }
 
     const BindingContext& getBindingContext() const { return ctx; }
-    DimensionStore& getStore() { return store; }
+    PrimitiveOpStore& getStore() { return store; }
     void storeIterator(std::unique_ptr<Iterator> iterator);
-    void storeMapReduce(std::unique_ptr<MapReduceOp> mapReduce);
+    void storeMapReduce(std::unique_ptr<MapReduce> mapReduce);
 
     static std::vector<std::vector<BackwardDimension>> ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors);
     TensorView& buildTensorView(const std::vector<std::vector<Dimension>>& tensors);

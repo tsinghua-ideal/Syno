@@ -63,7 +63,7 @@ public:
         DisallowedAboveUnfold,
         SuccessfulGenerations,
     )
-    static std::vector<const MergeOp *> Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options);
+    static std::vector<const MergeOp *> Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options);
 };
 
 } // namespace kas

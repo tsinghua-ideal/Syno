@@ -222,12 +222,12 @@ public:
         std::vector<Dimension> topmost;
         std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
         std::set<const Iterator *> outputIterators;
-        std::set<const MapReduceOp *> mapReduceIterators;
+        std::set<const MapReduce *> mapReduceIterators;
 
         OpAbove parent;
         CompactIndices ancestor = CompactIndices::None();
         void visit(const Iterator& dim) override;
-        void visit(const MapReduceOp& dim) override;
+        void visit(const MapReduce& dim) override;
         void visit(const RepeatLikeOp::Input& dim) override;
         void visit(const SplitLikeOp::Input& dim) override;
         void visit(const MergeLikeOp::Input& dim) override;
@@ -250,7 +250,7 @@ private:
     std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
     // And the output/reduce iterators as well.
     std::vector<const Iterator *> outputIterators;
-    std::vector<const MapReduceOp *> mapReduceIterators;
+    std::vector<const MapReduce *> mapReduceIterators;
 
     Graph(auto&& topmost, auto&& dimMeta, auto&& outputIterators, auto&& mapReduceIterators):
         topmost { std::forward<decltype(topmost)>(topmost) },
@@ -293,12 +293,12 @@ public:
     }
     std::vector<const Iterator *>& getOutputIterators() { return outputIterators; }
     const std::vector<const Iterator *>& getOutputIterators() const { return outputIterators; }
-    std::vector<const MapReduceOp *>& getMapReduceIterators() { return mapReduceIterators; }
-    const std::vector<const MapReduceOp *>& getMapReduceIterators() const { return mapReduceIterators; }
+    std::vector<const MapReduce *>& getMapReduceIterators() { return mapReduceIterators; }
+    const std::vector<const MapReduce *>& getMapReduceIterators() const { return mapReduceIterators; }
 
     struct ConnectedComponent {
         std::vector<Dimension> inputs;
-        std::vector<Dimension> outputs; // Iterator's and MapReduceOp's
+        std::vector<Dimension> outputs; // Iterator's and MapReduce's
     };
     std::vector<ConnectedComponent> computeConnectedComponents() const;
 

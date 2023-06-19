@@ -13,26 +13,18 @@ namespace kas {
 
 class codegen_tests: public ::testing::Test {
 protected:
-    Sampler sampler = Sampler("[N,H,W]", "[N,H,W]", {"N=8", "H=16", "W=16"}, {"k=5", "s=2"}, {{}}, {{0, 0}});
+    Sampler sampler = Sampler("[N,H,W]", "[N,H,W]", {"N=8", "H=16", "W=16"}, {"k=3", "s=2"}, {{}}, {{0, 0}});
     BindingContext& ctx = sampler.getBindingContext();
 };
 
 TEST_F(codegen_tests, generate) {
-    std::size_t i = 0;
-    while (true) {
-        auto randomLeaf = sampler.randomNodeWithPrefix({});
-        if (!randomLeaf || !randomLeaf->second.isFinal()) {
-            ++i;
-            continue;
-        }
-        auto [_, node] = *randomLeaf;
-        auto sample = node.asFinal();
-        std::cout << sample->printNestedLoopsForAll(ctx);
-        HalideGen gen { ctx, *sample, HalideGen::Options() };
-        auto consts = ctx.realizeConsts({});
-        gen.generate("./kernel_1_" + std::to_string(i), "kernel_1_" + std::to_string(i), consts);
-        break;
-    }
+    auto [sizeN, sizeH, sizeW] = ctx.getSizes("N", "H", "W");
+    Iterator itN { 0, sizeN }, itH { 1, sizeH }, itW { 2, sizeW };
+    TensorView sample { { &itN, &itH, &itW } };
+    std::cout << sample.printNestedLoopsForAll(ctx);
+    HalideGen gen { ctx, sample, HalideGen::Options() };
+    auto consts = ctx.realizeConsts({});
+    gen.generate("./kernel_codegen_test", "kernel_codegen_test", consts);
 }
 
 } // namespace kas

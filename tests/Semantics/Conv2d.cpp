@@ -40,9 +40,9 @@ TEST_F(semantics_tests, conv2d) {
     dimCout.output(1);
     dimH_over_K.output(2);
     dimW_over_K.output(3);
-    dimK2_shared.reduce(0, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
-    dimK1_shared.reduce(1, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
-    dimCin_shared.reduce(2, MapReduceOp::MapType::Identity, MapReduceOp::ReduceType::Sum);
+    dimK2_shared.reduce(0, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum);
+    dimK1_shared.reduce(1, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum);
+    dimCin_shared.reduce(2, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum);
     // [N, C_out, H, W], the output.
 
     Interface input { dimN, dimCin_input, dimH, dimW }, weight { dimCout, dimCin_filter, dimK1, dimK2 };

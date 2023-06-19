@@ -2,7 +2,7 @@
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Transforms/DimensionStore.hpp"
+#include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Transforms/Share.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -54,7 +54,7 @@ ColoredInterface ShareOp::applyToInterface(const ColoredInterface& interface) co
     return interface.substitute1to2(output, getInputL(), getInputR(), true);
 }
 
-std::vector<const ShareOp *> ShareOp::Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
+std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // "Chained" Share.

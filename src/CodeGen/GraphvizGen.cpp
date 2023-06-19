@@ -19,7 +19,7 @@ namespace {
         const BindingContext& ctx;
         std::stringstream& ss;
         std::vector<const Iterator *>& outputs;
-        std::vector<const MapReduceOp *>& reductions;
+        std::vector<const MapReduce *>& reductions;
         std::set<Dimension, Dimension::AddressLessThan> drawn;
         std::set<const RepeatLikeOp *> drawnRepeatLikes;
         std::set<const SplitLikeOp *> drawnSplitLikes;
@@ -30,7 +30,7 @@ namespace {
             outputs.emplace_back(&dim);
             fmt::format_to(SSIt(), "{} -> out_{} [label=\"{}\"];\n", from, dim.getIndex(), dim.size().toString(ctx));
         }
-        void visit(const MapReduceOp& dim) override {
+        void visit(const MapReduce& dim) override {
             reductions.emplace_back(&dim);
             fmt::format_to(SSIt(), "{} -> reduce_{} [label=\"{}\"];\n", from, dim.getPriority(), dim.size().toString(ctx));
         }
@@ -77,7 +77,7 @@ namespace {
             }
         }
     public:
-        DFS(const BindingContext& ctx, std::stringstream& ss, std::vector<const Iterator *>& outputs, std::vector<const MapReduceOp *>& reductions):
+        DFS(const BindingContext& ctx, std::stringstream& ss, std::vector<const Iterator *>& outputs, std::vector<const MapReduce *>& reductions):
             ctx { ctx },
             ss { ss },
             outputs { outputs },
@@ -88,7 +88,7 @@ namespace {
             operator()(edge);
         }
         void done() {
-            std::ranges::sort(reductions, {}, [](const MapReduceOp * i) { return i->getPriority(); });
+            std::ranges::sort(reductions, {}, [](const MapReduce * i) { return i->getPriority(); });
             for (std::size_t i = 0; auto&& reduction: reductions) {
                 fmt::format_to(SSIt(), "reduce_{} [label=\"{}\", shape=box];\n", i, reduction->whatReduce());
                 ++i;
@@ -120,7 +120,7 @@ namespace {
         std::stringstream ss;
         auto SSIt = [&]() { return std::ostreambuf_iterator<char>(ss); };
         std::vector<const Iterator *> outputs;
-        std::vector<const MapReduceOp *> reductions;
+        std::vector<const MapReduce *> reductions;
         auto dfs = DFS { ctx, ss, outputs, reductions };
 
         ss << "newrank = true;\n"; // To allow alignment for subgraphs.

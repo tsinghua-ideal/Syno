@@ -6,11 +6,81 @@
     },
     "configurePresets": [
         {
-            "name": "asan",
-            "description": "Enable AddressSanitizer",
+            "name": "base",
+            "hidden": true,
             "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "debug",
+            "inherits": "base",
+            "displayName": "Debug",
+            "description": "Disables optimizations and includes debug info."
+        },
+        {
+            "name": "release",
+            "inherits": "base",
+            "displayName": "Release",
+            "description": "Includes optimizations but no debug info.",
+            "binaryDir": "${sourceDir}/build/release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "asan",
+            "inherits": "base",
+            "displayName": "AddressSanitizer",
+            "description": "Enable AddressSanitizer.",
             "binaryDir": "${sourceDir}/build/ASAN",
             "toolchainFile": "cmake/toolchain.asan.cmake"
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "debug",
+            "configurePreset": "debug",
+            "displayName": "Debug"
+        },
+        {
+            "name": "release",
+            "configurePreset": "release",
+            "displayName": "Release"
+        },
+        {
+            "name": "asan",
+            "configurePreset": "asan",
+            "displayName": "AddressSanitizer"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "debug",
+            "configurePreset": "debug",
+            "displayName": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "release",
+            "configurePreset": "release",
+            "displayName": "Release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "asan",
+            "configurePreset": "asan",
+            "displayName": "AddressSanitizer",
+            "output": {
+                "outputOnFailure": true
+            }
         }
     ]
 }

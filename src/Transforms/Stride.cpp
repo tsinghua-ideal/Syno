@@ -1,7 +1,7 @@
 #include <algorithm>
 #include <functional>
 
-#include "KAS/Transforms/DimensionStore.hpp"
+#include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Transforms/Stride.hpp"
 
 
@@ -38,7 +38,7 @@ ColoredInterface StrideOp::applyToInterface(const ColoredInterface& interface) c
     return interface.substitute1to1(output, getInput(), true);
 }
 
-std::vector<const StrideOp *> StrideOp::Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
+std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     using enum DimensionTypeWithOrder;

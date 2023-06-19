@@ -67,7 +67,7 @@ VisitedVertex MergeLikeVertex::visitAdjacent(MergeLikeOp::Branch branch) const {
 void Graph::Builder::visit(const Iterator& dim) {
     outputIterators.insert(&dim);
 }
-void Graph::Builder::visit(const MapReduceOp& dim) {
+void Graph::Builder::visit(const MapReduce& dim) {
     mapReduceIterators.insert(&dim);
 }
 void Graph::Builder::visit(const RepeatLikeOp::Input& dim) {
@@ -107,11 +107,11 @@ void Graph::Builder::addTopmost(const Dimension& dim) {
 
 Graph Graph::Builder::build() {
     auto outputIterators = std::vector<const Iterator *>(this->outputIterators.begin(), this->outputIterators.end());
-    auto mapReduceIterators = std::vector<const MapReduceOp *>(this->mapReduceIterators.begin(), this->mapReduceIterators.end());
+    auto mapReduceIterators = std::vector<const MapReduce *>(this->mapReduceIterators.begin(), this->mapReduceIterators.end());
     std::ranges::sort(outputIterators, [](const Iterator *lhs, const Iterator *rhs) {
         return lhs->getIndex() < rhs->getIndex();
     });
-    std::ranges::sort(mapReduceIterators, [](const MapReduceOp *lhs, const MapReduceOp *rhs) {
+    std::ranges::sort(mapReduceIterators, [](const MapReduce *lhs, const MapReduce *rhs) {
         return lhs->getPriority() < rhs->getPriority();
     });
     return {

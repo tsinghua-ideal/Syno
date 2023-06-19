@@ -7,7 +7,7 @@ import os
 
 def test_sample():
     options = SampleOptions()
-    sampler = Sampler("[N,H,W]", "[N,H,W]", ["N=4", "H=16", "W=16"], ["s=2"], [{}], [(0, 0)], options)
+    sampler = Sampler("[N,H,W]", "[N,H,W]", ["N=4: 0", "H=16", "W=16"], ["s=2"], [{}], [(0, 0)], options)
     trials = 0
     while True:
         _, sample = sampler.random_node_with_prefix([])

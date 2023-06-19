@@ -1,7 +1,7 @@
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/MapReduce.hpp"
-#include "KAS/Transforms/DimensionStore.hpp"
 #include "KAS/Transforms/Merge.hpp"
+#include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
@@ -55,12 +55,12 @@ MergeOp::Values MergeOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for MergeOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs, inputRhs, output);
 }
 
-std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
+std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // Canonicalization. Manually handle SplitOp, StrideOp(s<B) and UnfoldOp(k<B).
-    using enum DimensionTypeWithOrder;
-    std::vector<DimensionTypeWithOrder> disallows { ShareL, ShareR, MergeR };
+    using T = DimensionTypeWithOrder;
+    std::vector<DimensionTypeWithOrder> disallows { T::ShareL, T::ShareR, T::MergeR };
     auto plausible = interface.filterOut(disallows);
 
     std::vector<const MergeOp *> res;
@@ -71,7 +71,7 @@ std::vector<const MergeOp *> MergeOp::Generate(DimensionStore& store, const Colo
                 return; // This is pointless!
             }
         }
-        if (auto r = dim.tryAs<MapReduceOp>(); r) {
+        if (auto r = dim.tryAs<MapReduce>(); r) {
             ++CountUselessImmediateReductions;
             return; // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
         }

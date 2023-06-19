@@ -70,8 +70,8 @@ protected:
     // Define the corresponding shape view for interface.
     using IteratorShapeView = AbstractShape<const std::vector<const Iterator *>&, [](const Iterator * const& ptr) -> const Size& { return ptr->size(); }>;
     // The map-reduce iterators.
-    std::vector<const MapReduceOp *> manipulations;
-    using ReduceIteratorShapeView = AbstractShape<const std::vector<const MapReduceOp *>&, [](const MapReduceOp * const& ptr) -> const Size& { return ptr->size(); }>;
+    std::vector<const MapReduce *> manipulations;
+    using ReduceIteratorShapeView = AbstractShape<const std::vector<const MapReduce *>&, [](const MapReduce * const& ptr) -> const Size& { return ptr->size(); }>;
 
     // How to blend the tensors? TODO
     std::vector<PureTensor> tensors;
@@ -111,7 +111,7 @@ public:
     const std::vector<const Iterator *>& getInterfaceIterators() const { return interface; }
 
     // Returns the map-reduce manipulations.
-    const std::vector<const MapReduceOp *>& getManipulations() const { return manipulations; }
+    const std::vector<const MapReduce *>& getManipulations() const { return manipulations; }
 
     // Note that sometimes we need padding to make things work. Here we need to guarantee that all dimensions in the Graph are valid, so instead of padding tensors, we pad variables.
     ConcreteConsts computePadding(const BindingContext& ctx, const ConcreteConsts& consts) const;

@@ -117,8 +117,8 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         root.emplace_back(&it);
     }
 
-    // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
-    rootStage = reductionStageStore.make(*this);
+    // Generate MapReduce's. This recursively calls MapReduce::Generate().
+    rootStage = std::make_unique<NormalStage>(*this);
 }
 
 Size Sampler::getTotalOutputSize() const {
@@ -131,7 +131,7 @@ Size Sampler::getTotalOutputSize() const {
 }
 
 std::optional<Node> Sampler::visit(const std::vector<Next>& path) {
-    Node n { this, rootStage };
+    Node n { this, rootStage.get() };
     for (const auto& next: path) {
         auto nextNode = n.getChild(next);
         if (!nextNode) {
@@ -183,15 +183,14 @@ std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<Interface>&
     std::vector<Next> result;
     // To obtain the path, we need to follow the 3 stages of searching.
 
-    // First, ReductionStage.
+    // First, generate reductions.
     {
-        using Slot = ReductionStage::NextReductionSlot;
-        for (const MapReduceOp *op: graph.getMapReduceIterators()) {
-            result.emplace_back(Slot::SlotType, Slot::GetKey(op));
+        for (const MapReduce *op: graph.getMapReduceIterators()) {
+            result.emplace_back(Next::TypeOf<MapReduceOp>(), op->hash());
         }
     }
 
-    // Next, NormalStage.
+    // Next, other ops in NormalStage.
     {
         std::set<Dimension, Dimension::HashLessThan> completed;
         Graph::AttributeMap<bool> added;

@@ -63,9 +63,10 @@ struct Next {
 
     static std::map<Type, std::size_t> CountTypes(const std::vector<Next>& nexts);
 
-    template<typename Op>
+    template<PrimitiveOpImpl Op>
     static constexpr Type TypeOf() {
-        if constexpr (std::same_as<Op, ShiftOp>) { return Type::Shift; }
+        if constexpr (std::same_as<Op, MapReduceOp>) { return Type::MapReduce; }
+        else if constexpr (std::same_as<Op, ShiftOp>) { return Type::Shift; }
         else if constexpr (std::same_as<Op, StrideOp>) { return Type::Stride; }
         else if constexpr (std::same_as<Op, SplitOp>) { return Type::Split; }
         else if constexpr (std::same_as<Op, UnfoldOp>) { return Type::Unfold; }
@@ -191,7 +192,6 @@ public:
 class TensorView;
 class Sampler;
 class AbstractStage;
-class ReductionStage;
 class NormalStage;
 
 class Node {
@@ -206,38 +206,18 @@ class Node {
         Final = 2, // Finalization performed.
     };
     // This corresponds to the three types.
-    std::variant<ReductionStage *, NormalStage *, std::shared_ptr<TensorView> > inner;
+    std::variant<NormalStage *, std::shared_ptr<TensorView> > inner;
     Type type() const noexcept {
         return static_cast<Type>(inner.index());
     }
-    template<typename R, typename FR, typename FN, typename FF>
+    template<typename R, typename FN, typename FF>
     requires
-        std::convertible_to<std::invoke_result_t<FR, ReductionStage *>, R> &&
         std::convertible_to<std::invoke_result_t<FN, NormalStage *>, R> &&
         std::convertible_to<std::invoke_result_t<FF, std::shared_ptr<TensorView> >, R>
-    R match(FR&& fr, FN&& fn, FF&& ff) const {
+    R match(FN&& fn, FF&& ff) const {
         return std::visit([&](auto arg) -> R {
-            if constexpr (std::is_same_v<decltype(arg), ReductionStage *>) {
-                return fr(arg);
-            } else if constexpr (std::is_same_v<decltype(arg), NormalStage *>) {
+            if constexpr (std::is_same_v<decltype(arg), NormalStage *>) {
                 return fn(arg);
-            } else if constexpr (std::is_same_v<decltype(arg), std::shared_ptr<TensorView> >) {
-                return ff(arg);
-            } else {
-                KAS_UNREACHABLE();
-            }
-        }, inner);
-    }
-    template<typename R, typename FS, typename FF>
-    requires
-        std::convertible_to<std::invoke_result_t<FS, AbstractStage *>, R> &&
-        std::convertible_to<std::invoke_result_t<FF, std::shared_ptr<TensorView> >, R>
-    R match(FS&& fs, FF&& ff) const {
-        return std::visit([&](auto arg) -> R {
-            if constexpr (std::is_same_v<decltype(arg), ReductionStage *>) {
-                return fs(arg);
-            } else if constexpr (std::is_same_v<decltype(arg), NormalStage *>) {
-                return fs(arg);
             } else if constexpr (std::is_same_v<decltype(arg), std::shared_ptr<TensorView> >) {
                 return ff(arg);
             } else {
@@ -247,8 +227,6 @@ class Node {
     }
 
 public:
-    Node(Sampler *sampler, ReductionStage *rStage):
-        sampler { sampler }, inner { rStage } {}
     Node(Sampler *sampler, NormalStage *nStage):
         sampler { sampler }, inner { nStage } {}
     Node(Sampler *sampler, std::shared_ptr<TensorView> kernel):

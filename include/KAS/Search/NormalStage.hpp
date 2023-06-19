@@ -19,7 +19,7 @@
 #include "KAS/Search/AbstractStage.hpp"
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Search/Node.hpp"
-#include "KAS/Transforms/DimensionStore.hpp"
+#include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Utils/Hash.hpp"
 #include "KAS/Utils/Statistics.hpp"
 
@@ -45,11 +45,11 @@ public:
     };
 
 private:
-    DimensionStore dimensionStore;
+    PrimitiveOpStore opStore;
     std::unordered_set<NormalStage *, Hash, Equal> interfaces;
 
 public:
-    DimensionStore& dimStore() { return dimensionStore; }
+    PrimitiveOpStore& getOpStore() { return opStore; }
     NormalStage *find(const ColoredInterface& interface) const;
     bool insert(NormalStage *nStage);
     ~NormalStageStore();
@@ -57,23 +57,23 @@ public:
 
 class NormalStage final: public AbstractStage {
 public:
-    template<typename Op>
+    template<PrimitiveOpImpl Op>
     struct NextOpSlot: NextSlot<Next::TypeOf<Op>()> {
         const Op *op;
         NormalStage *nextStage;
         static std::size_t GetKey(const Op *op) { return op->opHash(); }
     };
 
-    template<typename Op>
+    template<PrimitiveOpImpl Op>
     using NextOpStore = NextSlotStore<NextOpSlot<Op>>;
     template<typename... Ops>
     struct NextOpStores {
         std::tuple<NextOpStore<Ops>...> stores;
-        template<typename Op>
+        template<PrimitiveOpImpl Op>
         NextOpStore<Op>& get() {
             return std::get<NextOpStore<Op>>(stores);
         }
-        template<typename Op>
+        template<PrimitiveOpImpl Op>
         const NextOpStore<Op>& get() const {
             return std::get<NextOpStore<Op>>(stores);
         }
@@ -138,9 +138,8 @@ private:
     bool childrenGenerated = false;
     // Node pointers. The nodes are lazily computed. We are searching bottom-up, so the children are actually closer to the input.
     NextSlotStore<NextFinalizeSlot> nextFinalizations;
-    NextOpStores<ShiftOp, StrideOp, SplitOp, UnfoldOp, MergeOp, ShareOp> nextOpStores;
+    NextOpStores<MapReduceOp, ShiftOp, StrideOp, SplitOp, UnfoldOp, MergeOp, ShareOp> nextOpStores;
 
-    // Metadata.
     NormalStageStore& getNormalStageStore();
 
     void removeDeadChildrenFromSlots() override;
@@ -154,7 +153,7 @@ private:
     std::shared_ptr<TensorView> getFinalize(std::size_t key) const;
 
     // Apply the Op to obtain NormalStage.
-    template<typename Op>
+    template<PrimitiveOpImpl Op>
     NormalStage *getNextOp(const Op *op) {
         NormalStageStore& store = getNormalStageStore();
         auto newInterface = op->applyToInterface(interface);
@@ -177,7 +176,7 @@ private:
     std::size_t uncheckedCountChildren() const;
     std::vector<Next> uncheckedGetChildrenHandles() const;
     const NextFinalizeSlot *getChildFinalizeSlot(std::size_t key) const;
-    template<typename Op>
+    template<PrimitiveOpImpl Op>
     const NextOpSlot<Op> *getChildSlot(std::size_t key) const {
         return nextOpStores.get<Op>().getSlot(key);
     }
@@ -191,6 +190,8 @@ private:
     }
 
 public:
+    // The root.
+    NormalStage(Sampler& sampler);
     NormalStage(ColoredInterface&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp);
 
     const ColoredInterface& getInterface() const { return interface; }

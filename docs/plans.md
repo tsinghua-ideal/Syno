@@ -41,11 +41,16 @@
 
 ## Search
 
+### Finalize
+
+- [ ] Split Finalize, determine one weight at a time.
+
 ### Generation
 
 - [x] Before generating an Op, test sizes of new dimensions to make it legal.
 - [x] Redesign generation algorithm for each Op.
 - [x] Accept FLOPs constraints in Sampler, and generate MapReduceOp's accordingly.
+- [x] Generate MapReduce in multiple arbitrary stages.
 
 ### Pruning
 
