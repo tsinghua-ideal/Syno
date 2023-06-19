@@ -56,81 +56,6 @@ public:
 };
 
 class NormalStage final: public AbstractStage {
-public:
-    template<PrimitiveOpImpl Op>
-    struct NextOpSlot: NextSlot<Next::TypeOf<Op>()> {
-        const Op *op;
-        NormalStage *nextStage;
-        static std::size_t GetKey(const Op *op) { return op->opHash(); }
-    };
-
-    template<PrimitiveOpImpl Op>
-    using NextOpStore = NextSlotStore<NextOpSlot<Op>>;
-    template<typename... Ops>
-    struct NextOpStores {
-        std::tuple<NextOpStore<Ops>...> stores;
-        template<PrimitiveOpImpl Op>
-        NextOpStore<Op>& get() {
-            return std::get<NextOpStore<Op>>(stores);
-        }
-        template<PrimitiveOpImpl Op>
-        const NextOpStore<Op>& get() const {
-            return std::get<NextOpStore<Op>>(stores);
-        }
-        template<typename F>
-        requires std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...>
-        void forEach(F&& f) {
-            std::apply([&f](auto&... store) {
-                (f(store), ...);
-            }, stores);
-        }
-        template<typename F>
-        requires std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...>
-        void forEach(F&& f) const {
-            std::apply([&f](auto&... store) {
-                (f(store), ...);
-            }, stores);
-        }
-        template<typename F>
-        requires std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...>
-        auto heterogeneousMap(F&& f) {
-            return std::apply([&f](auto&... store) {
-                return std::tuple<std::invoke_result_t<F, Ops>...> { f(store)... };
-            }, stores);
-        }
-        template<typename F, typename R = std::invoke_result_t<F, NextOpStore<std::tuple_element_t<0, std::tuple<Ops...>>>&>>
-        requires
-            std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...> &&
-            std::conjunction_v<std::is_same<R, std::invoke_result_t<F, NextOpStore<Ops>&>>...>
-        auto homogeneousMap(F&& f) {
-            std::vector<R> results;
-            results.reserve(sizeof...(Ops));
-            std::apply([&f, &results](auto&... store) {
-                (results.emplace_back(f(store)), ...);
-            }, stores);
-            return results;
-        }
-        std::size_t size() const {
-            return std::apply([](const auto&... store) {
-                return (store.size() + ...);
-            }, stores);
-        }
-        std::vector<Next> toNexts() const {
-            auto results = const_cast<NextOpStores<Ops...>&>(*this).homogeneousMap([](const auto& store) { return store.toNexts(); });
-            std::vector<Next> flattened;
-            std::ranges::move(results | std::views::join, std::back_inserter(flattened));
-            return flattened;
-        }
-    };
-
-    KAS_STATISTICS_DEF(
-        ChildrenFinalize,
-        FinalizabilityCheckInvocations,
-        TooManyWeights,
-        ShapeDeviatesTooMuch,
-    );
-
-private:
     // The interface decides the hash. Other properties are computed.
     ColoredInterface interface;
 
@@ -190,6 +115,13 @@ private:
     }
 
 public:
+    KAS_STATISTICS_DEF(
+        ChildrenFinalize,
+        FinalizabilityCheckInvocations,
+        TooManyWeights,
+        ShapeDeviatesTooMuch,
+    );
+
     // The root.
     NormalStage(Sampler& sampler);
     NormalStage(ColoredInterface&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp);

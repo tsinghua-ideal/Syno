@@ -31,6 +31,7 @@ public:
     std::size_t initialHash() const noexcept override { return reduction.hash(); }
     std::size_t opHash() const noexcept override { return initialHash(); }
 
+    const MapReduce *getRaw() const { return &reduction; }
     Dimension getInput() const { return &reduction; }
 
     ColoredInterface applyToInterface(const ColoredInterface& interface) const override;
@@ -46,6 +47,7 @@ public:
         std::size_t dimUpperBound;
         Size outputSize;
         std::size_t maxFLOPs;
+        std::size_t maximumReductions;
     };
     static std::vector<const MapReduceOp *> Generate(PrimitiveOpStore& store, const std::vector<const MapReduce *>& current, const GenerateOptions& options);
 };

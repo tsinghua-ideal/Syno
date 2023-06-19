@@ -11,6 +11,7 @@
 
 #include <KAS/Transforms.hpp>
 #include "KAS/CodeGen/Kernel.hpp"
+#include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Utils/Hash.hpp"
 
 namespace kas {
@@ -94,6 +95,8 @@ struct NextSlot {
     // This is the key, used for indexing.
     std::size_t key;
 
+    bool operator==(const NextSlot& rhs) const noexcept = default;
+
     Next toNext() const {
         return Next { SlotType, key };
     }
@@ -112,6 +115,8 @@ public:
     NextSlotStore() = default;
     NextSlotStore(const NextSlotStore&) = delete;
     NextSlotStore(NextSlotStore&&) = delete;
+
+    const std::vector<Slot>& getRawSlots() const { return slots; }
 
     std::size_t size() const { return slots.size(); }
 
@@ -187,12 +192,100 @@ public:
         std::ranges::move(slots | std::views::transform(&Slot::toNext), std::back_inserter(nexts));
         return nexts;
     }
+
+    void checkHashCollisionAndRemove() {
+        if (std::ranges::adjacent_find(slots) != slots.end()) {
+            KAS_WARNING("Hash collision detected. Now removing.");
+        } else {
+            return;
+        }
+        // In case of duplicate keys, remove all of them.
+        // This is because we don't want to have duplicate keys in the final result.
+        // This is a very rare case, so we don't care about the performance.
+        std::map<std::size_t, std::vector<Slot *>> map;
+        for (auto& slot: slots) {
+            map[slot.key].emplace_back(&slot);
+        }
+        std::vector<Slot> newSlots;
+        for (auto& [key, slots]: map) {
+            if (slots.size() == 1) {
+                newSlots.emplace_back(std::move(*slots[0]));
+            }
+        }
+        slots = std::move(newSlots);
+    }
 };
 
 class TensorView;
 class Sampler;
 class AbstractStage;
 class NormalStage;
+
+template<PrimitiveOpImpl Op>
+struct NextOpSlot: NextSlot<Next::TypeOf<Op>()> {
+    const Op *op;
+    NormalStage *nextStage;
+    static std::size_t GetKey(const Op *op) { return op->opHash(); }
+};
+
+template<PrimitiveOpImpl Op>
+using NextOpStore = NextSlotStore<NextOpSlot<Op>>;
+template<typename... Ops>
+struct NextOpStores {
+    std::tuple<NextOpStore<Ops>...> stores;
+    template<PrimitiveOpImpl Op>
+    NextOpStore<Op>& get() {
+        return std::get<NextOpStore<Op>>(stores);
+    }
+    template<PrimitiveOpImpl Op>
+    const NextOpStore<Op>& get() const {
+        return std::get<NextOpStore<Op>>(stores);
+    }
+    template<typename F>
+    requires std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...>
+    void forEach(F&& f) {
+        std::apply([&f](auto&... store) {
+            (f(store), ...);
+        }, stores);
+    }
+    template<typename F>
+    requires std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...>
+    void forEach(F&& f) const {
+        std::apply([&f](auto&... store) {
+            (f(store), ...);
+        }, stores);
+    }
+    template<typename F>
+    requires std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...>
+    auto heterogeneousMap(F&& f) {
+        return std::apply([&f](auto&... store) {
+            return std::tuple<std::invoke_result_t<F, Ops>...> { f(store)... };
+        }, stores);
+    }
+    template<typename F, typename R = std::invoke_result_t<F, NextOpStore<std::tuple_element_t<0, std::tuple<Ops...>>>&>>
+    requires
+        std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...> &&
+        std::conjunction_v<std::is_same<R, std::invoke_result_t<F, NextOpStore<Ops>&>>...>
+    auto homogeneousMap(F&& f) {
+        std::vector<R> results;
+        results.reserve(sizeof...(Ops));
+        std::apply([&f, &results](auto&... store) {
+            (results.emplace_back(f(store)), ...);
+        }, stores);
+        return results;
+    }
+    std::size_t size() const {
+        return std::apply([](const auto&... store) {
+            return (store.size() + ...);
+        }, stores);
+    }
+    std::vector<Next> toNexts() const {
+        auto results = const_cast<NextOpStores<Ops...>&>(*this).homogeneousMap([](const auto& store) { return store.toNexts(); });
+        std::vector<Next> flattened;
+        std::ranges::move(results | std::views::join, std::back_inserter(flattened));
+        return flattened;
+    }
+};
 
 class Node {
     friend struct Next;

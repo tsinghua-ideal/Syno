@@ -119,6 +119,18 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
 
     // Generate MapReduce's. This recursively calls MapReduce::Generate().
     rootStage = std::make_unique<NormalStage>(*this);
+    // Pre-generate reductions to avoid redundant work.
+    reductionStore = std::make_unique<ReductionStore>(getOpStore(), std::vector<const MapReduce *>{}, MapReduceOp::GenerateOptions {
+        .ctx = ctx,
+        .dimUpperBound = options.dimUpperBound,
+        .outputSize = getTotalOutputSize(),
+        .maxFLOPs = options.maxFLOPs,
+        .maximumReductions = options.maximumReductions,
+    });
+}
+
+std::vector<const MapReduceOp *> Sampler::retrieveReductions(const std::vector<const MapReduce *> current) const {
+    return reductionStore->retrieve(std::span<const MapReduce * const>(current));
 }
 
 Size Sampler::getTotalOutputSize() const {

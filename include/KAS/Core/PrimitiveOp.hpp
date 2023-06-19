@@ -147,6 +147,14 @@ public:
 template<typename Op>
 concept PrimitiveOpImpl = std::derived_from<Op, PrimitiveOp>;
 
+#define KAS_REPORT_OP_HASH_COLLISION(op1, op2) do { \
+    KAS_WARNING("Duplicate ops! Or even worse, hash collision. {}", \
+        ::kas::BindingContext::DebugPublicCtx != nullptr ? ::fmt::format("Maybe helpful: {} vs {}.", \
+            (op1).description(*::kas::BindingContext::DebugPublicCtx), \
+            (op2).description(*::kas::BindingContext::DebugPublicCtx)) \
+        : "Please call Sampler._bind_debug_context() for more information."); \
+} while (false)
+
 // By repeat-like, we refer to the primitives that have one input iterator and one output iterator.
 class RepeatLikeOp: public PrimitiveOp {
 public:

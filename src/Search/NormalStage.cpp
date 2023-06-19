@@ -120,6 +120,7 @@ void NormalStage::guardGeneratedChildren() {
     }), [](FinalizeOp& f) {
         return NextFinalizeSlot({NextFinalizeSlot::GetKey(f.tensors)}, std::move(f));
     });
+    nextFinalizations.checkHashCollisionAndRemove();
 
     // Wrap the generated Op in a NextOpSlot.
     auto add = [&]<PrimitiveOpImpl Op>(const std::vector<const Op *>& newOps) {
@@ -129,17 +130,17 @@ void NormalStage::guardGeneratedChildren() {
                 return NextOpSlot<Op>({NextOpSlot<Op>::GetKey(op)}, op, getNextOp<Op>(op));
             }
         );
+        const auto& rawSlots = nextOpStores.get<Op>().getRawSlots();
+        if (auto it = std::ranges::adjacent_find(rawSlots); it != rawSlots.end()) {
+            KAS_REPORT_OP_HASH_COLLISION(*it->op, *std::next(it)->op);
+            nextOpStores.get<Op>().checkHashCollisionAndRemove();
+        }
     };
 
     if (remainingDepth() > 0) {
         // Increase dimensionality, by applying `MapReduceOp`^{-1}s.
         if (options.maximumReductions > existingOp<MapReduceOp>()) {
-            add(MapReduceOp::Generate(sampler.getOpStore(), graph.getMapReduceIterators(), {
-                .ctx = sampler.getBindingContext(),
-                .dimUpperBound = options.dimUpperBound,
-                .outputSize = sampler.getTotalOutputSize(),
-                .maxFLOPs = options.maxFLOPs,
-            }));
+            add(sampler.retrieveReductions(graph.getMapReduceIterators()));
         }
 
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
