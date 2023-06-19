@@ -78,6 +78,8 @@ public:
     virtual std::optional<std::string> getChildDescription(Next next) = 0;
     virtual std::string description() const = 0;
 
+    virtual ~AbstractStage() = default;
+
 protected:
     // When the finalizability is determined, call parents to update their finalizability.
     void determineFinalizability(Finalizability yesOrNo);

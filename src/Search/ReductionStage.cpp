@@ -24,7 +24,7 @@ void ReductionStage::expand() {
         .maxFLOPs = options.maxFLOPs,
     });
     this->nextReductions.fill(nextReductions, [&](const MapReduceOp *op) -> NextReductionSlot {
-        return NextReductionSlot({NextReductionSlot::GetKey(op)}, std::make_unique<ReductionStage>(*this, op));
+        return NextReductionSlot({NextReductionSlot::GetKey(op)}, sampler.getReductionStageStore().make(*this, op));
     });
 }
 
@@ -86,7 +86,7 @@ std::optional<Node> ReductionStage::uncheckedGetChild(Next next) {
         if (!slot) {
             return std::nullopt;
         }
-        return Node { &sampler, getChildSlot(next.key)->next.get() };
+        return Node { &sampler, getChildSlot(next.key)->next };
     } else {
         return nStage->getChild(next);
     }

@@ -107,10 +107,10 @@ class Sampler final {
     std::vector<FixedDimension> fixedDimensions;
     Interface root;
 
-    ReductionStore reductionStore;
-    NormalStageStore store;
+    ReductionStageStore reductionStageStore;
+    NormalStageStore normalStageStore;
 
-    std::unique_ptr<ReductionStage> rootStage;
+    ReductionStage *rootStage;
 
 public:
     // A specification has the following forms:
@@ -124,9 +124,10 @@ public:
     Shape& getInputShape() { return inputShape; }
     Shape& getOutputShape() { return outputShape; }
     const SampleOptions& getOptions() const { return options; }
-    DimensionStore& getDimStore() { return store.dimStore(); }
-    ReductionStore& getReductionStore() { return reductionStore; }
-    NormalStageStore& getNormalStageStore() { return store; }
+    DimensionStore& getDimStore() { return normalStageStore.dimStore(); }
+    ReductionStore& getReductionStore() { return reductionStageStore.getReductionStore(); }
+    NormalStageStore& getNormalStageStore() { return normalStageStore; }
+    ReductionStageStore& getReductionStageStore() { return reductionStageStore; }
     const Interface& getRootInterface() const { return root; }
 
     const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }

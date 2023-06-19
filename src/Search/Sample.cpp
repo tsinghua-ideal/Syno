@@ -118,7 +118,7 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     }
 
     // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
-    rootStage = std::make_unique<ReductionStage>(*this);
+    rootStage = reductionStageStore.make(*this);
 }
 
 Size Sampler::getTotalOutputSize() const {
@@ -131,7 +131,7 @@ Size Sampler::getTotalOutputSize() const {
 }
 
 std::optional<Node> Sampler::visit(const std::vector<Next>& path) {
-    Node n { this, rootStage.get() };
+    Node n { this, rootStage };
     for (const auto& next: path) {
         auto nextNode = n.getChild(next);
         if (!nextNode) {

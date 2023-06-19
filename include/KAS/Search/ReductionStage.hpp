@@ -11,10 +11,22 @@
 
 namespace kas {
 
+class ReductionStageStore {
+    ReductionStore store;
+    std::vector<std::unique_ptr<ReductionStage>> reductionStages;
+public:
+    ReductionStore& getReductionStore() { return store; }
+    template<typename... Args>
+    ReductionStage *make(Args&&... args) {
+        reductionStages.emplace_back(std::make_unique<ReductionStage>(std::forward<Args>(args)...));
+        return reductionStages.back().get();
+    }
+};
+
 class ReductionStage final: public AbstractStage {
 public:
     struct NextReductionSlot: NextSlot<Next::Type::MapReduce> {
-        std::unique_ptr<ReductionStage> next;
+        ReductionStage *next;
         static std::size_t GetKey(const MapReduceOp *op) { return op->hash(); }
     };
 
