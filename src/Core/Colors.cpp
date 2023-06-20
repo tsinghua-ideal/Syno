@@ -160,14 +160,6 @@ auto ColoredDimension::deduceOrigin() const -> Origin {
     }
 }
 
-ColoredInterface ColoredInterface::insert1(const Dimension& dim) const {
-    auto newInterface = *this;
-    auto coloredDim = ColoredDimension { dim };
-    auto insertionPoint = std::ranges::lower_bound(newInterface.items, dim, Dimension::HashLessThan{}, ColoredDimension::Projection{});
-    newInterface.items.insert(insertionPoint, std::move(coloredDim));
-    return newInterface;
-}
-
 ColoredInterface ColoredInterface::substitute1to1(const Dimension& fro, const Dimension& to, bool addDataDiscardingFlag) const {
     auto newInterface = *this;
     auto coloredFro = (*this)[fro];

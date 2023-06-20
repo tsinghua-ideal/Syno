@@ -148,7 +148,6 @@ public:
         return std::distance(items.begin(), binarySearch(value));
     }
 
-    ColoredInterface insert1(const Dimension& dim) const;
     ColoredInterface substitute1to1(const Dimension& fro, const Dimension& to, bool addDataDiscardingFlag = false) const;
     ColoredInterface substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2, bool addConstraint = false) const;
     ColoredInterface substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to, bool absorbDataDiscardingFlagInFro2 = false) const;

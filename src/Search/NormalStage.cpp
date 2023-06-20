@@ -138,11 +138,6 @@ void NormalStage::guardGeneratedChildren() {
     };
 
     if (remainingDepth() > 0) {
-        // Increase dimensionality, by applying `MapReduceOp`^{-1}s.
-        if (options.maximumReductions > existingOp<MapReduceOp>()) {
-            add(sampler.retrieveReductions(graph.getMapReduceIterators()));
-        }
-
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}, TODO
         // Stride^{-1}
@@ -276,7 +271,6 @@ std::optional<Node> NormalStage::uncheckedGetChild(Next next) const {
         return std::optional<Node>(std::in_place, &sampler, slot->nextStage);
     };
     switch (type) {
-    case Next::Type::MapReduce: return box(getChildSlot<MapReduceOp>(key));
     case Next::Type::Shift: return box(getChildSlot<ShiftOp>(key));
     case Next::Type::Stride: return box(getChildSlot<StrideOp>(key));
     case Next::Type::Split: return box(getChildSlot<SplitOp>(key));
@@ -300,7 +294,6 @@ std::optional<std::string> NormalStage::uncheckedGetChildDescription(Next next) 
         return slot->op->description(ctx);
     };
     switch (type) {
-    case Next::Type::MapReduce: return box(getChildSlot<MapReduceOp>(key));
     case Next::Type::Shift: return box(getChildSlot<ShiftOp>(key));
     case Next::Type::Stride: return box(getChildSlot<StrideOp>(key));
     case Next::Type::Split: return box(getChildSlot<SplitOp>(key));
@@ -315,15 +308,6 @@ std::optional<std::string> NormalStage::uncheckedGetChildDescription(Next next) 
     default: KAS_UNREACHABLE();
     }
 }
-
-NormalStage::NormalStage(Sampler& sampler):
-    AbstractStage { sampler },
-    interface { [&] {
-        auto interface = sampler.getRootInterface();
-        std::ranges::sort(interface, Dimension::HashLessThan{});
-        return interface;
-    }() }
-{}
 
 NormalStage::NormalStage(ColoredInterface&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp):
     AbstractStage { creator, deltaOp },

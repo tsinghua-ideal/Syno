@@ -5,17 +5,17 @@
 namespace kas {
 
 ColoredInterface MapReduceOp::applyToInterface(const ColoredInterface& interface) const {
-    return interface.insert1(getInput());
+    KAS_UNREACHABLE("No need to apply MapReduceOp to interface.");
 }
 
 std::string MapReduceOp::description(const BindingContext& ctx) const {
     return getInput().description(ctx);
 }
 
-std::vector<const MapReduceOp *> MapReduceOp::Generate(PrimitiveOpStore& store, const std::vector<const MapReduce *>& current, const GenerateOptions& options) {
+std::vector<const MapReduceOp *> MapReduceOp::Generate(PrimitiveOpStore& store, const std::vector<const MapReduceOp *>& current, const GenerateOptions& options) {
     const BindingContext& ctx = options.ctx;
 
-    using BaseShapeView = AbstractShape<const std::vector<const MapReduce *>&, [](const MapReduce *r) -> const Size& { return r->size(); }>;
+    using BaseShapeView = AbstractShape<const std::vector<const MapReduceOp *>&, [](const MapReduceOp *r) -> const Size& { return r->size(); }>;
     const Size& outputSize = options.outputSize;
     Size reductionSize = current.empty() ? outputSize.identity() : BaseShapeView(current).totalSize();
 
@@ -38,7 +38,7 @@ std::vector<const MapReduceOp *> MapReduceOp::Generate(PrimitiveOpStore& store, 
     for (Size size: allowance.enumerateSizes(ctx)) {
         if (canonical(size) && withinFLOPs(size)) {
             // For simplicity, we only use Identity and Mean. TODO: Add more.
-            res.push_back(store.get<MapReduceOp>(current.size(), std::move(size), MapReduce::MapType::Identity, MapReduce::ReduceType::Mean));
+            res.push_back(store.get<MapReduceOp>(current.size(), std::move(size), MapType::Identity, ReduceType::Mean));
         }
     }
 

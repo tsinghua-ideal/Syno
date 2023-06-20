@@ -117,20 +117,8 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         root.emplace_back(&it);
     }
 
-    // Generate MapReduce's. This recursively calls MapReduce::Generate().
-    rootStage = std::make_unique<NormalStage>(*this);
-    // Pre-generate reductions to avoid redundant work.
-    reductionStore = std::make_unique<ReductionStore>(getOpStore(), std::vector<const MapReduce *>{}, MapReduceOp::GenerateOptions {
-        .ctx = ctx,
-        .dimUpperBound = options.dimUpperBound,
-        .outputSize = getTotalOutputSize(),
-        .maxFLOPs = options.maxFLOPs,
-        .maximumReductions = options.maximumReductions,
-    });
-}
-
-std::vector<const MapReduceOp *> Sampler::retrieveReductions(const std::vector<const MapReduce *> current) const {
-    return reductionStore->retrieve(std::span<const MapReduce * const>(current));
+    // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
+    rootStage = reductionStageStore.make(*this);
 }
 
 Size Sampler::getTotalOutputSize() const {
@@ -143,7 +131,7 @@ Size Sampler::getTotalOutputSize() const {
 }
 
 std::optional<Node> Sampler::visit(const std::vector<Next>& path) {
-    Node n { this, rootStage.get() };
+    Node n { this, rootStage };
     for (const auto& next: path) {
         auto nextNode = n.getChild(next);
         if (!nextNode) {
@@ -195,14 +183,14 @@ std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<Interface>&
     std::vector<Next> result;
     // To obtain the path, we need to follow the 3 stages of searching.
 
-    // First, generate reductions.
+    // First, ReductionStage.
     {
         for (const MapReduce *op: graph.getMapReduceIterators()) {
-            result.emplace_back(Next::TypeOf<MapReduceOp>(), op->hash());
+            result.emplace_back(Next::Type::MapReduce, op->hash());
         }
     }
 
-    // Next, other ops in NormalStage.
+    // Next, NormalStage.
     {
         std::set<Dimension, Dimension::HashLessThan> completed;
         Graph::AttributeMap<bool> added;

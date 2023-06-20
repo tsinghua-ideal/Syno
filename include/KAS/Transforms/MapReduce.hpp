@@ -49,7 +49,7 @@ public:
         std::size_t maxFLOPs;
         std::size_t maximumReductions;
     };
-    static std::vector<const MapReduceOp *> Generate(PrimitiveOpStore& store, const std::vector<const MapReduce *>& current, const GenerateOptions& options);
+    static std::vector<const MapReduceOp *> Generate(PrimitiveOpStore& store, const std::vector<const MapReduceOp *>& current, const GenerateOptions& options);
 };
 
 } // namespace kas

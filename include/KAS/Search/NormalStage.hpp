@@ -45,11 +45,9 @@ public:
     };
 
 private:
-    PrimitiveOpStore opStore;
     std::unordered_set<NormalStage *, Hash, Equal> interfaces;
 
 public:
-    PrimitiveOpStore& getOpStore() { return opStore; }
     NormalStage *find(const ColoredInterface& interface) const;
     bool insert(NormalStage *nStage);
     ~NormalStageStore();
@@ -63,7 +61,7 @@ class NormalStage final: public AbstractStage {
     bool childrenGenerated = false;
     // Node pointers. The nodes are lazily computed. We are searching bottom-up, so the children are actually closer to the input.
     NextSlotStore<NextFinalizeSlot> nextFinalizations;
-    NextOpStores<MapReduceOp, ShiftOp, StrideOp, SplitOp, UnfoldOp, MergeOp, ShareOp> nextOpStores;
+    NextOpStores<ShiftOp, StrideOp, SplitOp, UnfoldOp, MergeOp, ShareOp> nextOpStores;
 
     NormalStageStore& getNormalStageStore();
 
@@ -122,8 +120,6 @@ public:
         ShapeDeviatesTooMuch,
     );
 
-    // The root.
-    NormalStage(Sampler& sampler);
     NormalStage(ColoredInterface&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp);
 
     const ColoredInterface& getInterface() const { return interface; }

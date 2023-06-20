@@ -22,7 +22,7 @@
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/NormalStage.hpp"
-#include "KAS/Search/ReductionStore.hpp"
+#include "KAS/Search/ReductionStage.hpp"
 
 
 namespace kas {
@@ -107,10 +107,11 @@ class Sampler final {
     std::vector<FixedDimension> fixedDimensions;
     Interface root;
 
+    PrimitiveOpStore opStore;
+    ReductionStageStore reductionStageStore;
     NormalStageStore normalStageStore;
-    std::unique_ptr<ReductionStore> reductionStore;
 
-    std::unique_ptr<NormalStage> rootStage;
+    ReductionStage *rootStage;
 
 public:
     // A specification has the following forms:
@@ -124,11 +125,10 @@ public:
     Shape& getInputShape() { return inputShape; }
     Shape& getOutputShape() { return outputShape; }
     const SampleOptions& getOptions() const { return options; }
-    PrimitiveOpStore& getOpStore() { return normalStageStore.getOpStore(); }
+    PrimitiveOpStore& getOpStore() { return opStore; }
+    ReductionStageStore& getReductionStageStore() { return reductionStageStore; }
     NormalStageStore& getNormalStageStore() { return normalStageStore; }
     const Interface& getRootInterface() const { return root; }
-
-    std::vector<const MapReduceOp *> retrieveReductions(const std::vector<const MapReduce *> current) const;
 
     const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }
     // Taking fixed dimensions into account.

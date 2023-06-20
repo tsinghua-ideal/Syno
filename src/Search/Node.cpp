@@ -1,6 +1,7 @@
 #include "KAS/Search/Node.hpp"
 #include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/Search/NormalStage.hpp"
+#include "KAS/Search/ReductionStage.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
@@ -35,6 +36,9 @@ bool Node::operator==(const Node& rhs) const {
         return false;
     }
     return match<bool>(
+        [&](ReductionStage *rStage) { // Because we have uniquified them.
+            return rStage == std::get<ReductionStage *>(rhs.inner);
+        },
         [&](NormalStage *nStage) { // Because we have uniquified them.
             return nStage == std::get<NormalStage *>(rhs.inner);
         },
@@ -96,6 +100,11 @@ std::size_t Node::estimateTotalFLOPsAsFinal() const {
 void Node::generateGraphviz(const std::string& dir, const std::string& name) const {
     const auto& ctx = sampler->getBindingContext();
     match<void>(
+        [&](ReductionStage *rStage) {
+            auto interface = rStage->toInterface();
+            GraphvizGen gen { interface, ctx };
+            gen.generate(dir, name);
+        },
         [&](NormalStage *nStage) {
             auto interface = ranges::to<Interface>(nStage->getInterface().toDimensions());
             GraphvizGen gen { interface, ctx };
