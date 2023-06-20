@@ -11,7 +11,7 @@ TEST_F(transforms_tests, stride_unfold) {
     auto tensorView = TensorView { in };
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H,W]");
-    ASSERT_EQ(tensorView.printNestedLoops(ctx, AbstractAccess::Output),
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c; i_2++) {
@@ -20,7 +20,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
-    ASSERT_EQ(tensorView.printNestedLoops(ctx, AbstractAccess::Input<0>),
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Input<0>),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         float temp_ri_0 = 0;

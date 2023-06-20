@@ -6,6 +6,31 @@
 
 namespace kas {
 
+TensorExpression TensorExpressionDifferentiator::visits(IntegerTensorExpression& expr) {
+    return IntegerTensorExpression::Create(0);
+}
+TensorExpression TensorExpressionDifferentiator::visits(TensorTensorExpression& expr) {
+    if (position == expr.position) {
+        return IntegerTensorExpression::Create(1);
+    } else {
+        return IntegerTensorExpression::Create(0);
+    }
+}
+TensorExpression TensorExpressionDifferentiator::visits(BinaryOpTensorExpression& expr) {
+    switch (expr.op) {
+    case BinaryOpTensorExpression::Op::Add:
+        return differentiate(expr.lhs) + differentiate(expr.rhs);
+    case BinaryOpTensorExpression::Op::Mul:
+        return differentiate(expr.lhs) * expr.rhs + expr.lhs * differentiate(expr.rhs);
+    default:
+        KAS_UNREACHABLE();
+    }
+}
+TensorExpression TensorExpressionDifferentiator::differentiate(TensorExpression& expr) {
+    expr.accept(*this);
+    return result();
+}
+
 void DimensionEvaluator::assign(Dimension dim, IteratorValue value) {
     Valuation& val = values[dim];
     KAS_ASSERT(val.type() == Valuation::Type::Unoriented, "Assigning to assigned or constrained dimension.");
@@ -45,6 +70,9 @@ DimensionEvaluator::DimensionEvaluator(const Graph& graph, const std::vector<Pur
     for (auto&& dim: graph.getDimensions()) {
         graph.visitAlong(dim, Direction::Down).match(p, p, p);
     }
+
+    // TODO!!! Accept expression from user.
+    expression = *FoldLeftFirst(std::views::iota(static_cast<std::size_t>(0), inputTensors.size()) | std::views::transform(&TensorTensorExpression::Create), std::multiplies<>{});
 }
 
 void DimensionEvaluator::makeVar(Dimension dim) {
@@ -149,6 +177,10 @@ AbstractAccess DimensionEvaluator::toAccess(int position, const std::vector<Dime
         .innerLoopsShape = std::move(innerLoopsShape),
         .inputs = std::move(inputsAccesses),
         .output = extractValues(output),
+        .expression =
+            position == TensorExpression::Output ?
+            expression :
+            TensorExpressionDifferentiator(position).differentiate(expression),
         .divBy = std::move(divBy),
     };
 }

@@ -12,6 +12,21 @@
 
 namespace kas {
 
+class TensorExpressionDifferentiator final: public ValuedTensorExpressionVisitor<
+    TensorExpressionDifferentiator,
+    TensorExpression
+> {
+    TensorExpression::Position position;
+public:
+    TensorExpressionDifferentiator(TensorExpression::Position position): position { position } {
+        KAS_ASSERT(position != TensorExpression::Output);
+    }
+    TensorExpression visits(IntegerTensorExpression& expr);
+    TensorExpression visits(TensorTensorExpression& expr);
+    TensorExpression visits(BinaryOpTensorExpression& expr);
+    TensorExpression differentiate(TensorExpression& expr);
+};
+
 class DimensionEvaluator {
     const Graph& graph;
     const std::vector<PureTensor>& inputTensors;
@@ -25,6 +40,7 @@ class DimensionEvaluator {
     std::vector<Size> innerLoopsShape;
 
     // Description of the expression.
+    TensorExpression expression;
     std::optional<Size> divBy;
 
     // Extract the values of branches of this Op.

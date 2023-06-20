@@ -109,6 +109,7 @@ HalideAccess HalideGen::lowerToAccess(const ConcreteConsts& consts, const Abstra
         constraints,
         inputs,
         output,
+        expression,
         divBy
     ] = ret;
 
@@ -162,6 +163,7 @@ HalideAccess HalideGen::lowerToAccess(const ConcreteConsts& consts, const Abstra
     std::ranges::reverse(outerLoops); // To adapt to column-major Halide.
 
     // Handle the expression.
+    expression = access.expression;
     if (access.divBy) {
         divBy = ConcretizeSize(consts, *access.divBy);
     }
@@ -170,31 +172,57 @@ HalideAccess HalideGen::lowerToAccess(const ConcreteConsts& consts, const Abstra
 
 Halide::Func HalideGen::lowerAccessToFunc(std::vector<Halide::ImageParam>& inputTensors, Halide::ImageParam *outputTensor, const HalideAccess& access, std::string_view originalFuncName) const {
     std::string funcName { originalFuncName };
-    if (access.position != HalideAccess::Output) {
+    if (access.position != TensorExpression::Output) {
         funcName += std::to_string(access.position);
     }
 
-    Halide::Expr rhs;
-    auto mult = [&](Halide::Expr what) {
-        if (rhs.defined()) {
-            rhs = rhs * what;
-        } else {
-            rhs = what;
+    class HalideExpressionLower final: public ValuedTensorExpressionVisitor<HalideExpressionLower, Halide::Expr> {
+        std::vector<Halide::ImageParam>& inputTensors;
+        Halide::ImageParam *outputTensor;
+        const std::vector<std::vector<Halide::Expr>>& inputAccesses;
+        const std::vector<Halide::Expr>& outputAccess;
+    public:
+        HalideExpressionLower(std::vector<Halide::ImageParam>& inputTensors, Halide::ImageParam *outputTensor, const std::vector<std::vector<Halide::Expr>>& inputAccesses, const std::vector<Halide::Expr>& outputAccess):
+            inputTensors { inputTensors },
+            outputTensor { outputTensor },
+            inputAccesses { inputAccesses },
+            outputAccess { outputAccess }
+        {}
+        Halide::Expr visits(IntegerTensorExpression& expr) {
+            return Halide::Expr(static_cast<float>(expr.value));
+        }
+        Halide::Expr visits(TensorTensorExpression& expr) {
+            if (expr.position == TensorExpression::Output) {
+                return (*outputTensor)(outputAccess);
+            } else {
+                return inputTensors.at(expr.position)(inputAccesses.at(expr.position));
+            }
+        }
+        Halide::Expr visits(BinaryOpTensorExpression& expr) {
+            switch (expr.op) {
+            case BinaryOpTensorExpression::Op::Add:
+                return lower(expr.lhs) + lower(expr.rhs);
+            case BinaryOpTensorExpression::Op::Mul:
+                return lower(expr.lhs) * lower(expr.rhs);
+            default:
+                KAS_UNREACHABLE();
+            }
+        }
+        Halide::Expr lower(TensorExpression& expr) {
+            expr.accept(*this);
+            return result();
         }
     };
-    // out[...] += in_0[...] * in_1[...] * ... * in_n[...], or
-    // in_i_grad[...] += in_0[...] * in_1[...] * ...  * out_grad[...] * ... * in_n[...]
-    for (std::size_t inputId = 0; auto&& tensor: inputTensors) {
-        if (inputId != access.position) {
-            mult(tensor(access.inputs[inputId]));
-        } else {
-            mult((*outputTensor)(access.output));
-        }
-        ++inputId;
+
+    HalideExpressionLower exprLower { inputTensors, outputTensor, access.inputs, access.output };
+
+    Halide::Expr rhs = exprLower.lower(access.expression);
+    if (access.position != TensorExpression::Output) {
+        rhs *= (*outputTensor)(access.output);
     }
     if (access.divBy) {
         // Handle the expression.
-        rhs = rhs / *access.divBy;
+        rhs /= *access.divBy;
     }
 
     // Guard the boundary.

@@ -47,7 +47,7 @@ TEST_F(semantics_tests, conv2d) {
 
     Interface input { dimN, dimCin_input, dimH, dimW }, weight { dimCout, dimCin_filter, dimK1, dimK2 };
     auto tensorView = TensorView { input, weight };
-    ASSERT_EQ(tensorView.printNestedLoops(ctx, AbstractAccess::Output),
+    ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),
 R"(for (int i_0 = 0; i_0 < N; i_0++) {
     for (int i_1 = 0; i_1 < C_out; i_1++) {
         for (int i_2 = 0; i_2 < H; i_2++) {
@@ -70,8 +70,8 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     }
 }
 )");
-    fmt::print("Gradient for input:\n{}", tensorView.printNestedLoops(ctx, AbstractAccess::Input<0>));
-    fmt::print("Gradient for weight:\n{}", tensorView.printNestedLoops(ctx, AbstractAccess::Input<1>));
+    fmt::print("Gradient for input:\n{}", tensorView.printNestedLoops(ctx, TensorExpression::Input<0>));
+    fmt::print("Gradient for weight:\n{}", tensorView.printNestedLoops(ctx, TensorExpression::Input<1>));
 
     auto funcName = "conv2d";
     auto gvGen = GraphvizGen { tensorView, ctx };

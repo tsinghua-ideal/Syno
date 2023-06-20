@@ -45,7 +45,6 @@ struct HalideAccess {
         bool likely;
     };
 
-    constexpr static int Output = -1;
     int position; // Still, -1 means output tensor.
     std::vector<Halide::Var> outerLoops; // In reverse order.
     std::vector<Halide::Var> rfactoredInnerLoops; // In priority order.
@@ -56,6 +55,7 @@ struct HalideAccess {
     std::vector<Halide::Expr> output; // In reverse order.
 
     // Description of the expression.
+    mutable TensorExpression expression;
     std::optional<Halide::Expr> divBy;
 };
 
