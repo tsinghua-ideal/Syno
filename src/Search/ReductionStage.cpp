@@ -10,6 +10,8 @@ namespace kas {
 void ReductionStage::expand() {
     const auto& options = sampler.getOptions();
 
+    auto guard = acquireFinalizabilityLock();
+
     // First create the corresponding NormalStage.
     nStage = std::make_unique<NormalStage>(toInterface(), *this, std::nullopt);
 
@@ -24,9 +26,12 @@ void ReductionStage::expand() {
         .maxFLOPs = options.maxFLOPs,
     });
     this->nextReductions.fill(nextReductions, [&](const MapReduceOp *op) -> NextOpSlot<MapReduceOp> {
-        return {{NextOpSlot<MapReduceOp>::GetKey(op)}, sampler.getReductionStageStore().make(*this, op)};
+        return {{NextOpSlot<MapReduceOp>::GetKey(op)}, make(*this, op)};
     });
     this->nextReductions.checkHashCollisionAndRemove();
+
+    requestUpdateForFinalizability();
+    guard.releaseAndPropagateChanges();
 }
 
 void ReductionStage::removeDeadChildrenFromSlots() {
@@ -67,21 +72,21 @@ AbstractStage::Finalizability ReductionStage::checkForFinalizableChildren() cons
     }
 }
 
-std::size_t ReductionStage::uncheckedCountChildren() {
+std::size_t ReductionStage::uncheckedCountChildren() const {
     return nextReductions.size() + nStage->countChildren();
 }
 
-std::vector<Next> ReductionStage::uncheckedGetChildrenHandles() {
+std::vector<Next> ReductionStage::uncheckedGetChildrenHandles() const {
     std::vector<Next> handles = nextReductions.toNexts();
     std::ranges::move(nStage->getChildrenHandles(), std::back_inserter(handles));
     return handles;
 }
 
-const NextOpSlot<MapReduceOp> *ReductionStage::getChildSlot(std::size_t key) {
+const NextOpSlot<MapReduceOp> *ReductionStage::getChildSlot(std::size_t key) const {
     return nextReductions.getSlot(key);
 }
 
-std::optional<Node> ReductionStage::uncheckedGetChild(Next next) {
+std::optional<Node> ReductionStage::uncheckedGetChild(Next next) const {
     if(next.type == Next::Type::MapReduce) {
         auto slot = getChildSlot(next.key);
         if (!slot) {
@@ -93,7 +98,7 @@ std::optional<Node> ReductionStage::uncheckedGetChild(Next next) {
     }
 }
 
-std::optional<std::string> ReductionStage::uncheckedGetChildDescription(Next next) {
+std::optional<std::string> ReductionStage::uncheckedGetChildDescription(Next next) const {
     if (next.type == Next::Type::MapReduce) {
         auto slot = getChildSlot(next.key);
         if (!slot) {
@@ -131,19 +136,19 @@ std::size_t ReductionStage::hash() const {
 }
 
 std::size_t ReductionStage::countChildren() {
-    return guarded([this] { return uncheckedCountChildren(); });
+    return uncheckedCountChildren();
 }
 
 std::vector<Next> ReductionStage::getChildrenHandles() {
-    return guarded([this] { return uncheckedGetChildrenHandles(); });
+    return uncheckedGetChildrenHandles();
 }
 
 std::optional<Node> ReductionStage::getChild(Next next) {
-    return guarded([=, this] { return uncheckedGetChild(next); });
+    return uncheckedGetChild(next);
 }
 
 std::optional<std::string> ReductionStage::getChildDescription(Next next) {
-    return guarded([=, this] { return uncheckedGetChildDescription(next); });
+    return uncheckedGetChildDescription(next);
 }
 
 std::string ReductionStage::description() const {

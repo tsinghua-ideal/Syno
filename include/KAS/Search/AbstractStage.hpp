@@ -28,12 +28,57 @@ protected:
     Next::OpTypeCounter existingOps {};
 
 private:
-    // Whether there exists a descendant of this Stage that can be Finalized.
-    Finalizability finalizability = Finalizability::Maybe;
+    Finalizability state = Finalizability::Maybe;
+    bool updateRequested = false;
 
-    bool finalizabilityUpdateRequested = false;
+    // When executing guarded(), we do not allow propagating over this Stage. In this case, requestUpdateForFinalizability() only sets the state to UpdateRequested.
+    bool guardLock = false;
 
-    void updateFinalizabilityOnRequest();
+    bool isLocked() const { return guardLock; }
+
+protected:
+    // When locked, disallow any updateFinalizabilityOnRequest(). When unlocked, call updateFinalizabilityOnRequest() if needed.
+    class FinalizabilityStateGuard {
+        friend AbstractStage;
+        AbstractStage *stage = nullptr;
+        FinalizabilityStateGuard(AbstractStage *stage): stage { stage } {
+            KAS_ASSERT(!stage->guardLock, "Cannot guard a stage twice!");
+            stage->guardLock = true;
+        }
+    public:
+        FinalizabilityStateGuard(const FinalizabilityStateGuard&) = delete;
+        FinalizabilityStateGuard(FinalizabilityStateGuard&& other): stage { other.stage } {
+            other.stage = nullptr;
+        }
+        void releaseAndPropagateChanges() {
+            KAS_ASSERT(stage, "Guard invalid!");
+            stage->guardLock = false;
+            KAS_DEFER { stage = nullptr; };
+            stage->updateFinalizabilityIfRequested();
+        }
+        ~FinalizabilityStateGuard() {
+            if (!stage) return;
+            KAS_ASSERT(stage->guardLock, "guardLock can only be modified by StateGuard!");
+            stage->guardLock = false;
+        }
+    };
+    [[nodiscard]] FinalizabilityStateGuard acquireFinalizabilityLock() {
+        return FinalizabilityStateGuard { this };
+    }
+
+    // When the finalizability is determined, call parents to update their finalizability.
+    void determineFinalizability(Finalizability yesOrNo);
+
+    // When accessing any property used by the following function (from other functions), you must acquireFinalizabilityLock()!
+    virtual void removeDeadChildrenFromSlots() = 0;
+    // When accessing any property used by the following function (from other functions), you must acquireFinalizabilityLock()!
+    virtual void removeAllChildrenFromSlots() = 0;
+    // When accessing any property used by the following function (from other functions), you must acquireFinalizabilityLock()!
+    virtual Finalizability checkForFinalizableChildren() const = 0;
+
+private:
+    // This tries to acquire the lock (to verify correctness). Do not call this if isLocked()!
+    void updateFinalizabilityIfRequested();
 
 public:
     KAS_STATISTICS_DEF(
@@ -79,35 +124,6 @@ public:
     virtual std::string description() const = 0;
 
     virtual ~AbstractStage() = default;
-
-protected:
-    // When the finalizability is determined, call parents to update their finalizability.
-    void determineFinalizability(Finalizability yesOrNo);
-
-    virtual void removeDeadChildrenFromSlots() = 0;
-    virtual void removeAllChildrenFromSlots() = 0;
-    virtual Finalizability checkForFinalizableChildren() const = 0;
-
-    // A helper function that ensures the finalizability has been updated.
-    // We want all the calls to be active. That is, if a child wants to propagate that it is dead, then it requests for update, rather than recursively calling parents to update. In this way we avoid conflicting access to data, and keep the control flow simple.
-    // After calling the desired function, if this stage finds out that it is required to be updated, then this stage performs an update of finalizability, and do another trial.
-    template<typename F>
-    inline auto guarded(F&& f) -> decltype(f()) {
-        int counter = 0;
-        while (true) {
-            if (finalizabilityUpdateRequested) {
-                updateFinalizabilityOnRequest();
-            }
-            auto ret = f();
-            if (!finalizabilityUpdateRequested) {
-                return ret;
-            }
-            ++counter;
-            if (counter > 1000) {
-                KAS_CRITICAL("AbstractStage::guarded() is looping too many times. Check for cycles in the graph.");
-            }
-        }
-    }
 };
 
 } // namespace kas

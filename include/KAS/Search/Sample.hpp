@@ -108,10 +108,9 @@ class Sampler final {
     Interface root;
 
     PrimitiveOpStore opStore;
-    ReductionStageStore reductionStageStore;
     NormalStageStore normalStageStore;
 
-    ReductionStage *rootStage;
+    std::unique_ptr<ReductionStage> rootStage;
 
 public:
     // A specification has the following forms:
@@ -126,7 +125,6 @@ public:
     Shape& getOutputShape() { return outputShape; }
     const SampleOptions& getOptions() const { return options; }
     PrimitiveOpStore& getOpStore() { return opStore; }
-    ReductionStageStore& getReductionStageStore() { return reductionStageStore; }
     NormalStageStore& getNormalStageStore() { return normalStageStore; }
     const Interface& getRootInterface() const { return root; }
 

@@ -194,8 +194,8 @@ public:
     }
 
     void checkHashCollisionAndRemove() {
-        if (std::ranges::adjacent_find(slots) != slots.end()) {
-            KAS_WARNING("Hash collision detected. Now removing.");
+        if (auto it = std::ranges::adjacent_find(slots); it != slots.end()) {
+            KAS_WARNING("Hash collision {} detected. Now removing.", it->toNext().toString());
         } else {
             return;
         }

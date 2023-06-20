@@ -112,6 +112,9 @@ void NormalStage::guardGeneratedChildren() {
     PrimitiveOpStore& store = sampler.getOpStore();
     Graph graph = interface.buildGraph();
 
+    // Now we start to modify the states.
+    auto guard = acquireFinalizabilityLock();
+
     // First add finalizations.
     nextFinalizations.fill(FinalizeOp::Generate(interface, graph, {
         .ctx = ctx,
@@ -198,8 +201,9 @@ void NormalStage::guardGeneratedChildren() {
     CountChildrenFinalize += nextFinalizations.size();
 
     childrenGenerated = true;
-    // Update finalizability for this. If it is determined, this will recursively signal the parents in AbstractStage::guarded().
+
     requestUpdateForFinalizability();
+    guard.releaseAndPropagateChanges();
 }
 
 std::shared_ptr<TensorView> NormalStage::getFinalize(std::size_t key) const {
@@ -317,6 +321,7 @@ NormalStage::NormalStage(ColoredInterface&& interface, AbstractStage& creator, s
     if (!possibleToFinalizeByExperimenting()) {
         // If proved to be not finalizable, no need to generate children.
         childrenGenerated = true;
+        // We cannot propagte, because the parent is now building children.
         determineFinalizability(Finalizability::No);
     }
 }
