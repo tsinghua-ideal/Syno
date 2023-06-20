@@ -79,7 +79,7 @@ class TreePath(Path):
         return sampler.path_to_strs(full_path), suffix if suffix != '' else sampler.path_to_strs(full_path)
 
 
-class TreeNode(Node):
+class TreeNode:
     """
     A wrapper of node that represents either a type or a full node
     """
@@ -110,9 +110,10 @@ class TreeNode(Node):
         self._type: Next.Type = type
         self.N: int = 0
         self.Q: float = 0
-        if self._is_mid and self._type == Next.Type.Finalize:
-            self.filtered: List[int] = []
-        else:
+        self._is_dead: bool = False
+        if node.is_final():
+            self.filtered: bool = False
+        if not self._is_mid:
             self.children: List['TreeNode'] = []
 
         assert isinstance(self._node, Node)
@@ -128,31 +129,47 @@ class TreeNode(Node):
             self._type == __value._type and \
             self.N == __value.N and \
             self.Q == __value.Q
-        if self._is_mid and self._type == Next.Type.Finalize:
+        if self._node.is_final():
             eq_flag = eq_flag and self.filtered == __value.filtered
         return eq_flag
 
     def __hash__(self) -> int:
         return hash((self.to_node(), self._is_mid, self._type))
 
+    def children_count(self, factory: Dict[Node, 'TreeNode']) -> int:
+        """Get the number of all children of a node."""
+        primitives = self._node.collect_operations()
+        if self._is_mid:
+            nexts = primitives[self._type]
+            count = 0
+            for next in nexts:
+                child = self._node.get_child(Next(self._type, next))
+                if child is None:
+                    continue
+                if child not in factory or not factory[child].is_dead_end(factory):
+                    count += 1
+            return count
+        else:
+            return len(self.children) - sum([child.is_dead_end(factory) for child in self.children])
+
+    def is_fully_expanded(self, factory: Dict[Node, 'TreeNode']) -> bool:
+        """
+        Get all nexts of a node. 
+        """
+        primitives = self._node.collect_operations()
+        if self._is_mid:
+            nexts = primitives[self._type]
+            for next in nexts:
+                child = self._node.get_child(Next(self._type, next))
+                if child not in factory:
+                    return False
+        return True
+
     def get_unexpanded_children(self, factory: Dict[Node, 'TreeNode']) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
         children = self.get_children(factory)
         unexpanded_children = [child for child in children if child[1].N == 0]
         return unexpanded_children
-
-    def set_child_dead(self, key: int) -> None:
-        """
-        TOTST
-        Set a child Finalize(key) to be dead. I should be a mid node with type Finalize
-        """
-        assert self._is_mid
-        assert self._type == Next.Type.Finalize
-        self.filtered.append(key)
-
-    def children_count(self, factory) -> int:
-        """Get the number of all children of a node."""
-        return len(self.get_children(factory))
-
+    
     def get_children(self, factory: Dict[Node, 'TreeNode']) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
         """
         Get all children of a node plus the nexts. Since the tree is searching in the background, we shall get the handles frequently. 
@@ -160,21 +177,24 @@ class TreeNode(Node):
         """
         primitives = self._node.collect_operations()
 
-        # TOTST: remove filtered finalize.
         if self._is_mid:
             nexts = primitives[self._type]
-            if self._type == Next.Type.Finalize:
-                nexts = [
-                    nxt for nxt in nexts if self.get_child(nxt, factory) not in self.filtered and self.get_child(nxt, factory) is not None]
             children = [self.get_child(nxt, factory) for nxt in nexts]
-            nexts = [nxt for c, nxt in zip(children, nexts) if c is not None]
-            children = [c for c in children if c is not None]
+            
+            # Remove filtered and dead children. 
+            filtered = [
+                (nxt, c) 
+                for c, nxt in zip(children, nexts) 
+                    if (c is not None) and not c.is_dead_end(factory)
+            ]
+            nexts = [nxt for nxt, _ in filtered]
+            children = [c for _, c in filtered]
         else:
             children = self.children
             children = [
                 child
                 for child in children
-                if child._type in primitives.keys() and child.children_count(factory) > 0
+                if child._type in primitives.keys() and not child.is_dead_end(factory)
             ]
             nexts = [child._type for child in children]
             self.children = children
@@ -188,14 +208,7 @@ class TreeNode(Node):
         """
         if self._is_mid:
             assert isinstance(next, int)
-            logging.debug(f"next is {next}")
-            for k in factory.keys():
-                print(k)
             child = self._node.get_child(Next(self._type, next))
-            logging.debug(f"child is {child}")
-            for k in factory.keys():
-                print(k)
-            logging.debug(f"factory check passed")
             if child is None:
                 return None
             if child not in factory:
@@ -203,11 +216,46 @@ class TreeNode(Node):
             return factory[child]
         else:
             assert isinstance(next, Next.Type)
-            for nxt, child in self.get_children(factory):
-                if nxt == next:
+            for child in self.children:
+                if child._type == next:
                     return child
             return None
 
+    def is_terminal(self) -> bool:
+        """Check if a node is final, which means it can be realized as a Halide kernel."""
+        if self._is_mid:
+            return False
+        return self._node.is_terminal()
+    
+    def is_dead_end(self, factory: Dict[Node, 'TreeNode']) -> bool:
+        """Check if a node is final, which means it can be realized as a Halide kernel."""
+        if self.is_final() and not self.filtered:
+            return False
+        if self._node.is_dead_end() or self.is_final():
+            self._is_dead = True
+        if self._is_dead:
+            return True
+        
+        primitives = self._node.collect_operations()
+        if self._is_mid:
+            nexts = primitives[self._type]
+            dead_children: List[Node] = []
+            for next in nexts:
+                child = self._node.get_child(Next(self._type, next))
+                if child is None:
+                    continue
+                dead_children.append(child)
+                if child not in factory or not factory[child].is_dead_end(factory):
+                    return False
+            self._is_dead = True
+            return True
+        else:
+            if len(self.children) == 0 or all([child.is_dead_end(factory) for child in self.children]):
+                self.is_dead = True
+                return True
+            else:
+                return False
+    
     def is_final(self) -> bool:
         """Check if a node is final, which means it can be realized as a Halide kernel."""
         if self._is_mid:
@@ -219,5 +267,5 @@ class TreeNode(Node):
 
     def __repr__(self) -> str:
         if self._is_mid:
-            return str(self._node) + '->' + str(self._type)
+            return str(self._node) + '->' + str(self._type).split('.')[-1]
         return str(self._node)

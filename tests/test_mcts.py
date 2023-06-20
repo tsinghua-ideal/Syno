@@ -48,8 +48,16 @@ def test_mcts():
     mcts_serialize = mcts.serialize()
     json.dump(mcts_serialize, open("test_mcts.json", "w"), indent=4)
     mcts_recover = MCTS.deserialize(mcts_serialize, sampler)
+    for k, v in mcts_recover._treenode_store.items():
+        assert k in mcts._treenode_store, f"Node {k} not in {mcts._treenode_store}"
+        assert v == mcts._treenode_store[k], f"Node {k} is {v}, should be {mcts._treenode_store[k]}"
+    for k, v in mcts._treenode_store.items():
+        if v.N == 0:
+            continue
+        assert k in mcts_recover._treenode_store, f"Node {k} not in {mcts_recover._treenode_store}"
+        assert v == mcts_recover._treenode_store[k], f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     test_mcts()

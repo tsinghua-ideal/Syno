@@ -33,21 +33,21 @@ class MCTS:
         
         self.next_serializer = NextSerializer()
 
-    def _increment_virtual_loss(self, path: TreePath, node: Node) -> None:
-        # TOTST
+    def _increment_virtual_loss(self, path: TreePath, node: Node, delta: int=1) -> None:
+        assert delta > 0
         tree_node = self._treenode_store[node.to_node()]
         for next in path:
             tree_node = tree_node.get_child(next.type, self._treenode_store)
             assert tree_node is not None
-            self.virtual_loss_count[tree_node] += 1
+            self.virtual_loss_count[tree_node] += delta
             if next.key == 0:
                 break
             tree_node = tree_node.get_child(next.key, self._treenode_store)
             assert tree_node is not None
-            self.virtual_loss_count[tree_node] += 1
+            self.virtual_loss_count[tree_node] += delta
 
-    def _decrement_virtual_loss(self, path: TreePath, node: Node) -> None:
-        # TOTST
+    def _decrement_virtual_loss(self, path: TreePath, node: Node, delta: int=1) -> None:
+        assert delta > 0
         tree_node = self._treenode_store[node.to_node()]
         for next in path:
             tree_node = tree_node.get_child(next.type, self._treenode_store)
@@ -64,21 +64,26 @@ class MCTS:
     # The receipt which is used for back propagation, which is the root node and the path.
     Receipt = Tuple[Node, TreePath]
 
-    def do_rollout(self, node: VisitedNode) -> Tuple[Receipt, List[VisitedNode]]:
+    def do_rollout(self, node: VisitedNode) -> Optional[Tuple[Receipt, List[TreeNode]]]:
         """
         Make the tree one layer better. (Train for one iteration.)
 
         Returns `((root, path), leaf)`. `path` is used to propagate reward. `leaf` is the result of simulation. Note that following `path` we do not necessarily arrive at `leaf`.
+        
+        If the tree is exhausted, then return None. 
         """
         logging.debug(
             f"Rolling out from {node}.")
         while True:
+            if self._treenode_store[node.to_node()].is_dead_end(self._treenode_store):
+                logging.info("The tree is exhausted. ")
+                return None
             result, success = self._may_fail_rollout(node)
             if success:
                 path, trials = result
                 logging.debug(
                     f"Successful rollout: {path}. Evaluation to be done.")
-                self._increment_virtual_loss(path, node)
+                self._increment_virtual_loss(path, node, len(trials))
                 return (node.to_node(), path), trials
             else:
                 logging.debug(
@@ -90,18 +95,19 @@ class MCTS:
 
         # Select
         logging.debug("Selection start")
-        path, leaf = self._select(tree_node)
-        if leaf is None:
+        select_result = self._select(tree_node)
+        if select_result is None:
             return None, False
+        path, leaf = select_result
         logging.debug(f"Selection end {path} {leaf}")
 
         # Expand
         # TODO: what if the selected node is terminal? 
         logging.debug("Expansion start")
-        expand_res = self._expand(leaf)
-        if expand_res is None:
+        expand_result = self._expand(leaf)
+        if expand_result is None:
             return None, False
-        next_expand, leaf_expanded = expand_res
+        next_expand, leaf_expanded = expand_result
         path = path.concat(next_expand)
         assert isinstance(path, TreePath), type(path)
         logging.debug(f"Expansion end {path} {leaf_expanded}")
@@ -109,13 +115,13 @@ class MCTS:
         # Simulate
         leaves = []
         logging.debug(f"Simulation start")
-        while not leaf_expanded.is_dead_end():
+        while not leaf_expanded.is_dead_end(self._treenode_store):
             leaf_simul, success = self._simulate(leaf_expanded)
             if success:
                 leaves.append(leaf_simul)
                 if len(leaves) == self.leaf_num:
                     break
-        if leaf_expanded.is_dead_end():
+        if leaf_expanded.is_dead_end(self._treenode_store):
             return None, False
 
         return (path, leaves), success
@@ -136,7 +142,7 @@ class MCTS:
 
     def _expand(self, node: TreeNode) -> Optional[Tuple[PseudoTreeNext, TreeNode]]:
         """
-        Expand the leaf one level deeper, by choosing a random unexpanded child (N=0). Return None if failed. TOTST
+        Expand the leaf one level deeper, by choosing a random unexpanded child (N=0). Return None if failed. 
         """
 
         unexpanded_children = node.get_unexpanded_children(self._treenode_store)
@@ -150,7 +156,6 @@ class MCTS:
 
     def _simulate(self, node: TreeNode) -> Tuple[Optional[TreeNode], bool]:
         "Returns a random simulation (to completion) of `node`"
-        # TOTST: simulate it to the end
 
         def random_child(node: TreeNode) -> Optional[TreeNode]:
             """
@@ -158,6 +163,7 @@ class MCTS:
             """
             assert isinstance(node, TreeNode)
             children = node.get_children(self._treenode_store)
+            logging.debug(f"{node} has children {children}")
             if len(children) == 0:
                 return None
             next, selected_child = random.choice(children)
@@ -172,9 +178,12 @@ class MCTS:
 
     def back_propagate(self, receipt: Receipt, reward: float) -> None:
         "Send the reward back up to the ancestors of the leaf"
+        assert isinstance(reward, float)
         assert 0.0 <= reward <= 1.0
 
         def _update_stats(node: TreeNode, reward: float) -> None:
+            assert isinstance(node, TreeNode)
+            assert isinstance(reward, float)
             node.N += 1
             node.Q += reward
 
@@ -192,6 +201,17 @@ class MCTS:
             node = node.get_child(next.key, self._treenode_store)
             assert node is not None
             _update_stats(node, reward)
+    
+    def remove(self, receipt: Receipt, trial: TreeNode) -> None:
+        "Remove the receipt and set this trial to be dead. "
+        assert isinstance(trial, TreeNode), type(trial)
+        assert trial.is_final(), "The removed trial should be a final node!"
+
+        node, path = receipt
+        self._decrement_virtual_loss(path, node)
+
+        trail_node = self._treenode_store[trial.to_node()]
+        trail_node.filtered = True
 
     # Here, the returned Any is just an element in the path. The type depends on how we build the search tree. If we follow the C++ implementation, it should be a kas_cpp_bindings.Next. If we use two-step generation for primitives, it should be either Union[primitive type, index of primitive], which is not yet implemented.
     def _ucd_select(self, node: TreeNode) -> Optional[Tuple[PseudoTreeNext, TreeNode]]:
@@ -214,7 +234,6 @@ class MCTS:
             Upper confidence bound for trees.
             We save the tree as a DAG since multiple paths lead to a same node (by using different order of the primitives). Therefore, UCD (https://hal.science/hal-01499672/document) shall be used instead. 
             """
-            # TOTST: Implement the UCD bound.
             _, child = key
             return child.Q / child.N + self._exploration_weight * math.sqrt(
                 log_N_vertex / child.N
@@ -225,7 +244,7 @@ class MCTS:
         return selected_child
 
     def serialize(self) -> Dict:
-        """Serialize the tree and return a dict TOTST"""
+        """Serialize the tree and return a dict."""
 
         node_list = []
         nodes = list(self._treenode_store.keys())
@@ -250,7 +269,7 @@ class MCTS:
             node_serial['children'] = {}
             logging.debug("dumping children")
             for next, child in father.get_children(self._treenode_store):
-                if child.N > 0:
+                if child.N > 0 or child.is_final():
                     assert isinstance(next, Next.Type)
                     next_serial = self.next_serializer.serialize_type(next)
                     node_serial['children'][next_serial] = {
@@ -258,7 +277,7 @@ class MCTS:
                         'Q': child.Q,
                         'children': [(n, index[c.to_node()]) for n, c in child.get_children(self._treenode_store) if c.N > 0]
                     }
-                    if next == Next.Type.Finalize:
+                    if child.is_final():
                         node_serial['children'][next_serial]['filtered'] = child.filtered
 
             node_list.append(node_serial)
@@ -295,17 +314,15 @@ class MCTS:
             
             child.N = child_serial['N']
             child.Q = child_serial['Q']
-            if _type == Next.Type.Finalize:
+            if child.is_final():
                 child.filtered = child_serial['filtered']
             for next, grand_child_index in child_serial['children']:
                 grand_child_path = child_path.concat(next)
-                child.children.append(
-                    self._add_node(
-                        grand_child_path, 
-                        node_factory[grand_child_index], 
-                        node_factory
-                        )
-                )
+                self._add_node(
+                    grand_child_path, 
+                    node_factory[grand_child_index], 
+                    node_factory
+                    )
                 
             tree_node.children.append(child)
         if not path.is_root():
@@ -314,7 +331,7 @@ class MCTS:
 
     @staticmethod
     def deserialize(serialized: dict, sampler: Sampler) -> 'MCTS':
-        """Deserialize a serialized tree and return a Tree object TOTST"""
+        """Deserialize a serialized tree and return a Tree object"""
 
         params = serialized['args']
         node_list = serialized['node_list']
