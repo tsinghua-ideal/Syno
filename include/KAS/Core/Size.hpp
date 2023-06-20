@@ -263,13 +263,20 @@ struct std::hash<kas::Size> {
         using namespace std::string_view_literals;
         auto h = std::hash<std::string_view>{}("Size"sv);
         std::span<const kas::Size::PowerType> ps = size.getPrimary(), cs = size.getCoefficient();
+        const std::size_t pc = ps.size(), cc = cs.size();
         kas::HashCombine(h, ps.size());
-        for (auto p: ps) {
-            kas::HashCombine(h, p);
+        for (std::size_t i = 0; i < pc; ++i) {
+            if (ps[i] != 0) {
+                kas::HashCombine(h, i);
+                kas::HashCombine(h, ps[i]);
+            }
         }
         kas::HashCombine(h, cs.size());
-        for (auto c: cs) {
-            kas::HashCombine(h, c);
+        for (std::size_t i = 0; i < cc; ++i) {
+            if (cs[i] != 0) {
+                kas::HashCombine(h, i);
+                kas::HashCombine(h, cs[i]);
+            }
         }
         return h;
     }

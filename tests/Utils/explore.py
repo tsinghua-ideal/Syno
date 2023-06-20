@@ -41,6 +41,7 @@ sampler = Sampler(
     fixed_io_pairs=[(0, 0)],
     autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021
 )
+sampler._bind_debug_context()
 
 explorer = Explorer(sampler)
 explorer.interactive()

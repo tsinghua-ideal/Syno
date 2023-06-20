@@ -109,7 +109,7 @@ class NormalStage final: public AbstractStage {
     template<typename F>
     inline auto guarded(F&& f) -> decltype(f()) {
         guardGeneratedChildren();
-        return AbstractStage::guarded(std::forward<F>(f));
+        return f();
     }
 
 public:

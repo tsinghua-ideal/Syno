@@ -3,18 +3,47 @@
 
 namespace kas {
 
-void AbstractStage::updateFinalizabilityOnRequest() {
-    KAS_ASSERT(finalizabilityUpdateRequested, "No need to update finalizability if there is no request!");
-    // After exiting this function, we need to unset finalizabilityUpdateRequested.
-    KAS_DEFER { finalizabilityUpdateRequested = false; };
+void AbstractStage::determineFinalizability(Finalizability yesOrNo) {
+    KAS_ASSERT(state == Finalizability::Maybe, "Finalizability has already been determined.");
+    switch (yesOrNo) {
+    case Finalizability::Yes:
+        --CountFinalizabilityMaybe;
+        ++CountFinalizabilityYes;
+        state = Finalizability::Yes;
+        break;
+    case Finalizability::No:
+        --CountFinalizabilityMaybe;
+        ++CountFinalizabilityNo;
+        state = Finalizability::No;
+        break;
+    default:
+        KAS_CRITICAL("Invalid Finalizability.");
+    }
+    // Signal parents.
+    for (AbstractStage *parent : parents) {
+        parent->requestUpdateForFinalizability();
+    }
+    // Update this.
+    requestUpdateForFinalizability();
+}
 
-    // If finalizability is determined, still need to remove dead ends!
-    if (getFinalizability() == Finalizability::Yes) {
-        removeDeadChildrenFromSlots();
+void AbstractStage::updateFinalizabilityIfRequested() {
+    // First we need to guarantee that we have unique access to the state.
+    auto guard = acquireFinalizabilityLock();
+
+    if (!updateRequested) {
         return;
-    } else if (getFinalizability() == Finalizability::No) {
+    }
+
+    if (state == Finalizability::Yes) {
+        // If finalizability is determined, still need to remove dead ends!
+        removeDeadChildrenFromSlots();
+        updateRequested = false;
+        return;
+    } else if (state == Finalizability::No) {
         // Usually this is not needed, becase when we determined Finalizability::No, we would have removed all children.
         removeAllChildrenFromSlots();
+        updateRequested = false;
         return;
     }
 
@@ -22,9 +51,10 @@ void AbstractStage::updateFinalizabilityOnRequest() {
     Finalizability newFinalizability = checkForFinalizableChildren();
     if (newFinalizability != Finalizability::Maybe) {
         determineFinalizability(newFinalizability);
+        guard.releaseAndPropagateChanges(); // Call this function again.
+    } else {
+        removeDeadChildrenFromSlots();
     }
-    removeDeadChildrenFromSlots();
-    return;
 }
 
 AbstractStage::AbstractStage(Sampler& sampler):
@@ -69,33 +99,14 @@ std::size_t AbstractStage::remainingDepth() const {
 }
 
 AbstractStage::Finalizability AbstractStage::getFinalizability() const {
-    return finalizability;
-}
-
-void AbstractStage::determineFinalizability(Finalizability yesOrNo) {
-    KAS_ASSERT(finalizability == Finalizability::Maybe, "Finalizability has already been determined.");
-    switch (yesOrNo) {
-    case Finalizability::Yes:
-        --CountFinalizabilityMaybe;
-        ++CountFinalizabilityYes;
-        finalizability = Finalizability::Yes;
-        break;
-    case Finalizability::No:
-        --CountFinalizabilityMaybe;
-        ++CountFinalizabilityNo;
-        finalizability = Finalizability::No;
-        break;
-    default:
-        KAS_CRITICAL("Invalid Finalizability.");
-    }
-    // Signal parents.
-    for (AbstractStage *parent : parents) {
-        parent->requestUpdateForFinalizability();
-    }
+    return state;
 }
 
 void AbstractStage::requestUpdateForFinalizability() {
-    finalizabilityUpdateRequested = true;
+    updateRequested = true;
+    if (!isLocked()) {
+        updateFinalizabilityIfRequested();
+    }
 }
 
 } // namespace kas

@@ -11,21 +11,16 @@
 
 namespace kas {
 
-class ReductionStage;
-
-class ReductionStageStore {
-    std::vector<std::unique_ptr<ReductionStage>> reductionStages;
-public:
-    template<typename... Args>
-    ReductionStage *make(Args&&... args) {
-        reductionStages.emplace_back(std::make_unique<ReductionStage>(std::forward<Args>(args)...));
-        return reductionStages.back().get();
-    }
-};
-
 class ReductionStage final: public AbstractStage {
     std::vector<const MapReduceOp *> reductions;
 
+    // Since the stages are unique, we do not need a shared common store to store ReductionStage's.
+    std::vector<std::unique_ptr<ReductionStage>> nextReductionStages;
+    template<typename... Args>
+    ReductionStage *make(Args&&... args) {
+        nextReductionStages.emplace_back(std::make_unique<ReductionStage>(std::forward<Args>(args)...));
+        return nextReductionStages.back().get();
+    }
     NextSlotStore<NextOpSlot<MapReduceOp>> nextReductions;
 
     // The stage that is directly constructed, without appending any reduction.
@@ -37,11 +32,11 @@ class ReductionStage final: public AbstractStage {
     void removeAllChildrenFromSlots() override;
     Finalizability checkForFinalizableChildren() const override;
 
-    std::size_t uncheckedCountChildren();
-    std::vector<Next> uncheckedGetChildrenHandles();
-    const NextOpSlot<MapReduceOp> *getChildSlot(std::size_t key);
-    std::optional<Node> uncheckedGetChild(Next next);
-    std::optional<std::string> uncheckedGetChildDescription(Next next);
+    std::size_t uncheckedCountChildren() const;
+    std::vector<Next> uncheckedGetChildrenHandles() const;
+    const NextOpSlot<MapReduceOp> *getChildSlot(std::size_t key) const;
+    std::optional<Node> uncheckedGetChild(Next next) const;
+    std::optional<std::string> uncheckedGetChildDescription(Next next) const;
 
 public:
     ReductionStage(ReductionStage& current, const MapReduceOp *nextReduction);
