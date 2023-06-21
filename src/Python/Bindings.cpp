@@ -23,7 +23,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<SampleOptions>(m, "SampleOptions")
         .def(
-            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float minimumMergeRatio, bool disallowDiscontinuousView, bool canonicalizeUnfoldOrder, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
+            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maximumVariablesInSize, std::size_t maximumVariablesPowersInSize, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float minimumMergeRatio, bool disallowDiscontinuousView, bool canonicalizeUnfoldOrder, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
                 return SampleOptions {
                     .seed = seed,
                     .depth = depth,
@@ -32,6 +32,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
                     .maximumTensors = maximumTensors,
                     .maximumReductions = maximumReductions,
                     .maxFLOPs = static_cast<std::size_t>(maxFLOPs),
+                    .maximumVariablesInSize = maximumVariablesInSize,
+                    .maximumVariablesPowersInSize = maximumVariablesPowersInSize,
                     .maxStridedDimSize = maxStridedDimSize,
                     .maxUnfoldKernelSize = maxUnfoldKernelSize,
                     .minimumUnfoldRatio = minimumUnfoldRatio,
@@ -63,6 +65,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("maximum_tensors") = DefaultSampleOptions.maximumTensors,
             pybind11::arg("maximum_reductions") = DefaultSampleOptions.maximumReductions,
             pybind11::arg("max_flops") = static_cast<float>(DefaultSampleOptions.maxFLOPs),
+            pybind11::arg("maximum_variables_in_size") = DefaultSampleOptions.maximumVariablesInSize,
+            pybind11::arg("maximum_variables_powers_in_size") = DefaultSampleOptions.maximumVariablesPowersInSize,
             pybind11::arg("max_strided_dim_size") = DefaultSampleOptions.maxStridedDimSize,
             pybind11::arg("max_unfold_kernel_size") = DefaultSampleOptions.maxUnfoldKernelSize,
             pybind11::arg("minimum_unfold_ratio") = DefaultSampleOptions.minimumUnfoldRatio,

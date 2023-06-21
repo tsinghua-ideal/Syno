@@ -268,10 +268,12 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
         auto divisor = identity();
         while (true) {
             NextSize(divisor.coefficient, nonzeroPowers, {}, coefficient);
-            if (divisor == *this) {
-                co_return;
+            if (
+                divisor != *this
+                && ctx.isSizeValid(divisor)
+            ) {
+                co_yield divisor;
             }
-            co_yield divisor;
         }
         break;
     }
@@ -301,6 +303,7 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
                     dTrait && *dTrait != Trait::IllegalCoefficient && *dTrait != Trait::One
                     && qTrait && *qTrait != Trait::IllegalCoefficient && *qTrait != Trait::One
                     && divisor.lowerBoundEst(ctx) > 1.0f && quotient.lowerBoundEst(ctx) > 1.0f
+                    && ctx.isSizeValid(divisor)
                 ) {
                     co_yield divisor;
                 }
@@ -340,6 +343,7 @@ Generator<Size> Size::EnumerateSizes(const BindingContext& ctx, Size lowerBound,
             if (
                 trait && *trait != Trait::IllegalCoefficient && *trait != Trait::One
                 && size.lowerBoundEst(ctx) > 1.0f
+                && ctx.isSizeValid(size)
             ) {
                 co_yield size;
             }

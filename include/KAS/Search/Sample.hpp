@@ -37,6 +37,9 @@ struct SampleOptions {
     std::size_t maximumReductions = 2;
     std::size_t maxFLOPs = std::numeric_limits<std::size_t>::max();
 
+    std::size_t maximumVariablesInSize = std::numeric_limits<std::size_t>::max();
+    std::size_t maximumVariablesPowersInSize = std::numeric_limits<std::size_t>::max();
+
     // These might better be the same.
     std::size_t maxStridedDimSize = 30;
     std::size_t maxUnfoldKernelSize = 30;

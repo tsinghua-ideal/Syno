@@ -5,6 +5,7 @@
 
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Shape.hpp"
+#include "KAS/Utils/Algorithm.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
@@ -122,6 +123,35 @@ Size BindingContext::getSize(const std::string& name) const {
     auto pNameToIndex = getPrimaryLookupTable();
     auto cNameToIndex = getCoefficientLookupTable();
     return lookUp(name, pNameToIndex, cNameToIndex);
+}
+
+void BindingContext::setMaxVariablesInSize(std::size_t maximumVariablesInSize) {
+    this->maximumVariablesInSize = maximumVariablesInSize;
+}
+std::size_t BindingContext::getMaxVariablesInSize() const {
+    return maximumVariablesInSize;
+}
+void BindingContext::setMaxVariablesPowersInSize(std::size_t maximumVariablesPowersInSize) {
+    this->maximumVariablesPowersInSize = maximumVariablesPowersInSize;
+}
+std::size_t BindingContext::getMaxVariablesPowersInSize() const {
+    return maximumVariablesPowersInSize;
+}
+
+bool BindingContext::isSizeValid(const Size& size) const {
+    int usedPrimaryVars = 0, primaryVarsPowers = 0;
+    int usedCoefficientVars = 0, coefficientVarsPowers = 0;
+    for (auto p: size.getPrimary()) {
+        usedPrimaryVars += p != 0;
+        primaryVarsPowers += std::abs(p);
+    }
+    for (auto c: size.getCoefficient()) {
+        usedCoefficientVars += c != 0;
+        coefficientVarsPowers += std::abs(c);
+    }
+    return 
+        usedPrimaryVars + usedCoefficientVars <= maximumVariablesInSize
+        && primaryVarsPowers + coefficientVarsPowers <= maximumVariablesPowersInSize;
 }
 
 std::vector<Size> BindingContext::getSizes(const std::vector<std::string>& names) const {

@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <functional>
+#include <limits>
 #include <map>
 #include <span>
 #include <string>
@@ -38,8 +39,6 @@ struct PaddedConsts {
 };
 
 class BindingContext final {
-    friend class HalideGen;
-
 public:
     struct Metadata {
         std::string alias = "D";
@@ -52,6 +51,9 @@ protected:
     // The varaibles are the indices. Metadata can be accessed by index.
     std::vector<Metadata> primaryMetadata;
     std::vector<Metadata> coefficientMetadata;
+
+    std::size_t maximumVariablesInSize = std::numeric_limits<std::size_t>::max();
+    std::size_t maximumVariablesPowersInSize = std::numeric_limits<std::size_t>::max();
 
     ConcreteConsts defaultConsts;
     std::vector<ConcreteConsts> allConsts;
@@ -85,6 +87,12 @@ public:
         std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();
         return std::array { lookUp(std::forward<Args>(args), pNameToIndex, cNameToIndex)... };
     }
+
+    void setMaxVariablesInSize(std::size_t maximumVariablesInSize);
+    std::size_t getMaxVariablesInSize() const;
+    void setMaxVariablesPowersInSize(std::size_t maximumVariablesPowersInSize);
+    std::size_t getMaxVariablesPowersInSize() const;
+    bool isSizeValid(const Size& size) const;
 
     std::vector<Size> getSizes(const std::vector<std::string>& names) const;
     Shape getShape(const std::vector<std::string>& names) const;

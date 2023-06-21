@@ -76,6 +76,8 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     // Apply the specs to all variables.
     ctx = BindingContext { contractedPrimarySpecs.size(), contractedCoefficientSpecs.size() };
     ctx.applySpecs(contractedPrimarySpecs, contractedCoefficientSpecs);
+    ctx.setMaxVariablesInSize(options.maximumVariablesInSize);
+    ctx.setMaxVariablesPowersInSize(options.maximumVariablesPowersInSize);
 
     // Parse shape from names. TODO: add arithmetics support.
     this->inputShape = ctx.getShape(inputShapeNames);
