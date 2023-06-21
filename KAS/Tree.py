@@ -16,8 +16,8 @@ class MCTS:
 
         # Dict[Node, TreeNode]
         self._treenode_store: Dict[Node, TreeNode] = OrderedDict()
-        root = sampler.visit([])
-        self._treenode_store[root.to_node()] = TreeNode(root.to_node())
+        self._root = sampler.visit([]).to_node()
+        self._treenode_store[self._root] = TreeNode(self._root)
 
         self._sampler = sampler
         self._exploration_weight = exploration_weight
@@ -102,7 +102,10 @@ class MCTS:
         logging.debug(f"Selection end {path} {leaf}")
 
         # Expand
-        # TODO: what if the selected node is terminal? 
+        if leaf.is_final():
+            logging.debug("Selected final node, return immediately. ")
+            return (path, [leaf for _ in range(self.leaf_num)]), True
+        
         logging.debug("Expansion start")
         expand_result = self._expand(leaf)
         if expand_result is None:
@@ -296,9 +299,23 @@ class MCTS:
     def garbage_collect(self):
         """
         Remove non-root tree node with no predecessor.
-        TODO
         """
-        pass
+        # Label every alive node
+        alive_nodes = set()
+        def label_alive(node: TreeNode):
+            assert isinstance(node, TreeNode)
+            alive_nodes.add(node._node)
+            if node.N > 0:
+                children = node.get_children(self._treenode_store, False)
+                for _, child in children:
+                    label_alive(child)
+        label_alive(self._treenode_store[self._root])
+        
+        # Remove dead nodes
+        key_list = list(self._treenode_store.keys())
+        for node in key_list:
+            if node not in alive_nodes and not node.is_final():
+                self._treenode_store.pop(node)
 
     def _add_node(self, path: TreePath, node: Dict, node_factory: Dict) -> TreeNode:
         """Manually add tree nodes recursively. """

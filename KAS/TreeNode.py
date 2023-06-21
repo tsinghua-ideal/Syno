@@ -170,7 +170,7 @@ class TreeNode:
         unexpanded_children = [child for child in children if child[1].N == 0]
         return unexpanded_children
     
-    def get_children(self, factory: Dict[Node, 'TreeNode']) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
+    def get_children(self, factory: Dict[Node, 'TreeNode'], auto_initialize: bool=True) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
         """
         Get all children of a node plus the nexts. Since the tree is searching in the background, we shall get the handles frequently. 
         If some children is dead, we remove them
@@ -179,7 +179,7 @@ class TreeNode:
 
         if self._is_mid:
             nexts = primitives[self._type]
-            children = [self.get_child(nxt, factory) for nxt in nexts]
+            children = [self.get_child(nxt, factory, auto_initialize) for nxt in nexts]
             
             # Remove filtered and dead children. 
             filtered = [
@@ -202,7 +202,7 @@ class TreeNode:
 
         return list(zip(nexts, children))
 
-    def get_child(self, next: PseudoTreeNext, factory: Dict[Node, 'TreeNode'] = None) -> Optional['TreeNode']:
+    def get_child(self, next: PseudoTreeNext, factory: Dict[Node, 'TreeNode'] = None, auto_initialize: bool=True) -> Optional['TreeNode']:
         """
         Get the child node of a node with a Next. When the node is dead, return None.
         """
@@ -212,7 +212,10 @@ class TreeNode:
             if child is None:
                 return None
             if child not in factory:
-                factory[child] = TreeNode(child.to_node())
+                if auto_initialize:
+                    factory[child] = TreeNode(child.to_node())
+                else:
+                    return None
             return factory[child]
         else:
             assert isinstance(next, Next.Type)
