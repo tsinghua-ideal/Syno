@@ -46,9 +46,9 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
             for (int i_3 = 0; i_3 < K^-1*W; i_3++) {
                 float temp_ri_0 = 0;
                 for (int ri_0 = 0; ri_0 < K^2; ri_0++) {
-                    temp_ri_0 += in_0[i_0,i_1,((i_2)*(K))+((ri_0)/(K)),((i_3)*(K))+((ri_0)%(K))] / (K^2);
+                    temp_ri_0 += (in_0[i_0, i_1, i_2 * K + ri_0 / (K), i_3 * K + ri_0 % K]) / (K^2);
                 }
-                out[i_0,i_1,i_2,i_3] = temp_ri_0;
+                out[i_0, i_1, i_2, i_3] = temp_ri_0;
             }
         }
     }
@@ -59,7 +59,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     for (int i_1 = 0; i_1 < C; i_1++) {
         for (int i_2 = 0; i_2 < H; i_2++) {
             for (int i_3 = 0; i_3 < W; i_3++) {
-                grad_in_0[i_0,i_1,i_2,i_3] = grad_out[i_0,i_1,(i_2)/(K),(i_3)/(K)] / (K^2);
+                grad_in_0[i_0, i_1, i_2, i_3] = (grad_out[i_0, i_1, i_2 / (K), i_3 / (K)]) / (K^2);
             }
         }
     }

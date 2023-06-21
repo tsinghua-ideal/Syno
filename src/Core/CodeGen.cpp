@@ -27,6 +27,17 @@ IteratorValue IteratorValue::operator%(const IteratorValue& other) const {
     return IteratorValue(std::make_shared<BinaryOpValueNode>(BinaryOpValueNode::Type::Mod, *this, other));
 }
 
+ExpressionPrecedence BinaryOpValueNode::getPrecedence() const {
+    switch (type) {
+        case Type::Add: return ExpressionPrecedence::Add;
+        case Type::Sub: return ExpressionPrecedence::Sub;
+        case Type::Mul: return ExpressionPrecedence::Mul;
+        case Type::Mod: return ExpressionPrecedence::Mod;
+        case Type::Div: return ExpressionPrecedence::Div;
+        default: KAS_UNREACHABLE();
+    }
+}
+
 std::string IteratorValue::toString(const BindingContext& ctx) const {
     IteratorValuePrinter printer { ctx };
     return printer.toString(*this);
@@ -46,39 +57,155 @@ void IteratorValuePrinter::visit(ImmediateValueNode &value) {
     ss << value.value;
 }
 void IteratorValuePrinter::visit(BinaryOpValueNode& value) {
-    ss << "(";
+    if (value.op1.getPrecedence() > value.getPrecedence())
+        ss << "(";
     value.op1.accept(*this);
-    ss << ")";
+    if (value.op1.getPrecedence() > value.getPrecedence())
+        ss << ")";
     switch (value.type) {
         case BinaryOpValueNode::Type::Add:
-            ss << "+";
+            ss << " + ";
             break;
         case BinaryOpValueNode::Type::Sub:
-            ss << "-";
+            ss << " - ";
             break;
         case BinaryOpValueNode::Type::Mul:
-            ss << "*";
+            ss << " * ";
             break;
         case BinaryOpValueNode::Type::Div:
-            ss << "/";
+            ss << " / ";
             break;
         case BinaryOpValueNode::Type::Mod:
-            ss << "%";
+            ss << " % ";
             break;
     }
-    ss << "(";
+    if (value.op2.getPrecedence() > value.getPrecedence())
+        ss << "(";
     value.op2.accept(*this);
-    ss << ")";
+    if (value.op2.getPrecedence() > value.getPrecedence())
+        ss << ")";
 }
 void IteratorValuePrinter::visit(IntervalBoundValueNode& value) {
     ss << "restrict(";
     value.input.accept(*this);
-    ss << ",0,";
+    ss << ", 0, ";
     ss << value.max.toString(ctx);
     ss << ")";
 }
 std::string IteratorValuePrinter::toString(const IteratorValue& value) {
     value.accept(*this);
+    std::string result = ss.str();
+    ss.str("");
+    return result;
+}
+
+TensorExpression TensorExpression::operator+(const TensorExpression& other) const {
+    return BinaryOpTensorExpression::Create(*this, other, BinaryOpTensorExpression::Op::Add);
+}
+TensorExpression& TensorExpression::operator+=(const TensorExpression& other) {
+    return *this = *this + other;
+}
+TensorExpression TensorExpression::operator*(const TensorExpression& other) const {
+    return BinaryOpTensorExpression::Create(*this, other, BinaryOpTensorExpression::Op::Mul);
+}
+TensorExpression& TensorExpression::operator*=(const TensorExpression& other) {
+    return *this = *this * other;
+}
+
+std::string TensorExpression::toString() const {
+    TensorExpressionPrinter p;
+    return p.print(*this);
+}
+
+TensorExpression IntegerTensorExpression::Create(int value) {
+    static auto zero = TensorExpression(std::make_shared<IntegerTensorExpression>(0));
+    static auto one = TensorExpression(std::make_shared<IntegerTensorExpression>(1));
+    if (value == 0) {
+        return zero;
+    } else if (value == 1) {
+        return one;
+    }
+    return TensorExpression(std::make_shared<IntegerTensorExpression>(value));
+}
+
+int BinaryOpTensorExpression::getPrecedence() const {
+    switch (op) {
+    case Op::Add: return 1;
+    case Op::Mul: return 2;
+    default: KAS_UNREACHABLE();
+    }
+}
+
+TensorExpression BinaryOpTensorExpression::Create(TensorExpression lhs, TensorExpression rhs, Op op) {
+    switch (op) {
+    case Op::Add:
+        if (auto lhsInt = lhs.tryAs<IntegerTensorExpression>(); lhsInt) {
+            if (lhsInt->value == 0) {
+                return rhs;
+            }
+            if (auto rhsInt = rhs.tryAs<IntegerTensorExpression>(); rhsInt) {
+                return TensorExpression(std::make_shared<IntegerTensorExpression>(lhsInt->value + rhsInt->value));
+            }
+        } else if (auto rhsInt = rhs.tryAs<IntegerTensorExpression>(); rhsInt) {
+            if (rhsInt->value == 0) {
+                return lhs;
+            }
+        }
+        break;
+    case Op::Mul:
+        if (auto lhsInt = lhs.tryAs<IntegerTensorExpression>(); lhsInt) {
+            if (lhsInt->value == 0) {
+                return lhs;
+            } else if (lhsInt->value == 1) {
+                return rhs;
+            }
+            if (auto rhsInt = rhs.tryAs<IntegerTensorExpression>(); rhsInt) {
+                return TensorExpression(std::make_shared<IntegerTensorExpression>(lhsInt->value * rhsInt->value));
+            }
+        } else if (auto rhsInt = rhs.tryAs<IntegerTensorExpression>(); rhsInt) {
+            if (rhsInt->value == 0) {
+                return rhs;
+            } else if (rhsInt->value == 1) {
+                return lhs;
+            }
+        }
+        break;
+    }
+    return TensorExpression(std::make_shared<BinaryOpTensorExpression>(std::move(lhs), std::move(rhs), op));
+}
+
+void TensorExpressionPrinter::visit(IntegerTensorExpression& expr) {
+    ss << expr.value;
+}
+void TensorExpressionPrinter::visit(TensorTensorExpression& expr) {
+    ss << TensorExpression::PositionToString(expr.position);
+}
+void TensorExpressionPrinter::visit(BinaryOpTensorExpression& expr) {
+    if (expr.lhs.getPrecedence() > expr.getPrecedence()) {
+        ss << "(";
+        expr.lhs.accept(*this);
+        ss << ")";
+    } else {
+        expr.lhs.accept(*this);
+    }
+    switch (expr.op) {
+    case BinaryOpTensorExpression::Op::Add:
+        ss << " + ";
+        break;
+    case BinaryOpTensorExpression::Op::Mul:
+        ss << " * ";
+        break;
+    }
+    if (expr.rhs.getPrecedence() > expr.getPrecedence()) {
+        ss << "(";
+        expr.rhs.accept(*this);
+        ss << ")";
+    } else {
+        expr.rhs.accept(*this);
+    }
+}
+std::string TensorExpressionPrinter::print(const TensorExpression& expr) {
+    expr.accept(*this);
     std::string result = ss.str();
     ss.str("");
     return result;

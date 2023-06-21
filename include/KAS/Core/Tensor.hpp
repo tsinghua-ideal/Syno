@@ -15,128 +15,21 @@ namespace kas {
 
 class PureTensor {
 protected:
-    std::string name;
+    TensorExpression::Position position;
     std::vector<Dimension> dims;
 public:
-    PureTensor(auto&& name, auto&& dims):
-        name { std::forward<decltype(name)>(name) },
+    PureTensor(TensorExpression::Position position, auto&& dims):
+        position { position },
         dims { std::forward<decltype(dims)>(dims) }
     {}
     bool operator==(const PureTensor& rhs) const {
-        return name == rhs.name && dims == rhs.dims;
+        return position == rhs.position && dims == rhs.dims;
     }
-    const std::string& getName() const { return name; }
+    const TensorExpression::Position& getPosition() const { return position; }
     const std::vector<Dimension>& getDimensions() const { return dims; }
     ShapeView getShape() const { return ShapeView(dims); }
     std::string shapeToString(const BindingContext& ctx) const;
     std::string description(const BindingContext& ctx) const;
-};
-
-class IntegerTensorExpression;
-class TensorTensorExpression;
-class BinaryOpTensorExpression;
-
-class TensorExpressionVisitor {
-public:
-    virtual void visit(IntegerTensorExpression& expr) = 0;
-    virtual void visit(TensorTensorExpression& expr) = 0;
-    virtual void visit(BinaryOpTensorExpression& expr) = 0;
-    virtual ~TensorExpressionVisitor() = default;
-};
-
-template<typename Derived, typename T>
-class ValuedTensorExpressionVisitor: public TensorExpressionVisitor {
-    T storedResult;
-public:
-    void visit(IntegerTensorExpression& expr) override {
-        storedResult = static_cast<Derived*>(this)->visits(expr);
-    }
-    void visit(TensorTensorExpression& expr) override {
-        storedResult = static_cast<Derived*>(this)->visits(expr);
-    }
-    void visit(BinaryOpTensorExpression& expr) override {
-        storedResult = static_cast<Derived*>(this)->visits(expr);
-    }
-    T result() { return std::move(storedResult); }
-};
-
-class TensorExpressionImpl {
-public:
-    virtual void accept(TensorExpressionVisitor& visitor) = 0;
-    virtual std::string toString() const = 0;
-    virtual ~TensorExpressionImpl() = default;
-};
-
-class TensorExpression {
-    std::shared_ptr<TensorExpressionImpl> value;
-public:
-    using Position = int;
-    constexpr static Position Output = -1;
-    template<int Index>
-    constexpr static Position Input = Index;
-    // -1 for output tensor, otherwise index of input tensors.
-
-    TensorExpression() = default;
-    explicit TensorExpression(std::shared_ptr<TensorExpressionImpl> value): value { std::move(value) } {}
-
-    explicit operator bool() const { return static_cast<bool>(value); }
-
-    template<std::derived_from<TensorExpressionImpl> T>
-    std::shared_ptr<T> tryAs() const {
-        return std::dynamic_pointer_cast<T>(value);
-    }
-    template<std::derived_from<TensorExpressionImpl> T>
-    bool is() const { return static_cast<bool>(tryAs<T>()); }
-
-    TensorExpression operator+(const TensorExpression& other) const;
-    TensorExpression& operator+=(const TensorExpression& other);
-    TensorExpression operator*(const TensorExpression& other) const;
-    TensorExpression& operator*=(const TensorExpression& other);
-
-    void accept(TensorExpressionVisitor& visitor) const { value->accept(visitor); }
-    std::string toString() const { return value->toString(); }
-};
-
-class IntegerTensorExpression final: public TensorExpressionImpl {
-public:
-    int value;
-    IntegerTensorExpression(int value): value { value } {}
-    void accept(TensorExpressionVisitor& visitor) override { visitor.visit(*this); }
-    std::string toString() const override { return std::to_string(value); }
-
-    static TensorExpression Create(int value);
-};
-
-class TensorTensorExpression final: public TensorExpressionImpl {
-public:
-    TensorExpression::Position position;
-    TensorTensorExpression(TensorExpression::Position position): position { position } {}
-    void accept(TensorExpressionVisitor& visitor) override { visitor.visit(*this); }
-    std::string toString() const override;
-
-    static TensorExpression Create(TensorExpression::Position position) {
-        return TensorExpression(std::make_shared<TensorTensorExpression>(position));
-    }
-};
-
-class BinaryOpTensorExpression final: public TensorExpressionImpl {
-public:
-    enum class Op {
-        Add, Mul,
-    };
-    TensorExpression lhs;
-    TensorExpression rhs;
-    Op op;
-    BinaryOpTensorExpression(TensorExpression lhs, TensorExpression rhs, Op op):
-        lhs { std::move(lhs) },
-        rhs { std::move(rhs) },
-        op { op }
-    {}
-    void accept(TensorExpressionVisitor& visitor) override { visitor.visit(*this); }
-    std::string toString() const override;
-
-    // Perform some simple canonicalization.
-    static TensorExpression Create(TensorExpression lhs, TensorExpression rhs, Op op);
 };
 
 struct AbstractAccess {
@@ -150,6 +43,8 @@ struct AbstractAccess {
     // Description of the expression.
     TensorExpression expression; // The actual expression.
     std::optional<Size> divBy; // The divisor, if any.
+
+    bool isDerivative() const { return position != TensorExpression::Output; }
 
     // The standard interface, i.e., the outer loops.
     std::string outerLoopsIteratorsToString() const;

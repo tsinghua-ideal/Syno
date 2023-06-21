@@ -7,17 +7,17 @@ TEST_F(transforms_tests, map_reduce) {
     MapReduce MapReduce { 0, sizeH * sizeW, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
     Interface in { &MapReduce, dimH, dimW, dimCH };
     auto tensorView = TensorView { in };
-    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c*H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H*W,H,W,c*H]");
+    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H, W, c*H]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H*W, H, W, c*H]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c*H; i_2++) {
             float temp_ri_0 = 0;
             for (int ri_0 = 0; ri_0 < H*W; ri_0++) {
-                temp_ri_0 += in_0[ri_0,i_0,i_1,i_2];
+                temp_ri_0 += in_0[ri_0, i_0, i_1, i_2];
             }
-            out[i_0,i_1,i_2] = temp_ri_0;
+            out[i_0, i_1, i_2] = temp_ri_0;
         }
     }
 }

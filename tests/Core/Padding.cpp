@@ -5,7 +5,7 @@
 
 using namespace kas;
 
-class padding_tests: public ::testing::Test {
+class core_padding_tests: public ::testing::Test {
 protected:
     using Metadata = BindingContext::Metadata;
     BindingContext ctx =  {
@@ -28,7 +28,7 @@ protected:
     PaddingSolver sol { ctx, unpaddedConsts };
 };
 
-TEST_F(padding_tests, none) {
+TEST_F(core_padding_tests, none) {
     sol.addConstraint(sizeH * sizeW / sizeS);
     sol.addConstraint(sizeH / (sizeS * sizeS));
     sol.addConstraint(sizeW / (sizeS * sizeS * sizeS));
@@ -36,7 +36,7 @@ TEST_F(padding_tests, none) {
     EXPECT_EQ(padded, unpaddedConsts);
 }
 
-TEST_F(padding_tests, one) {
+TEST_F(core_padding_tests, one) {
     sol.addConstraint(sizeC / sizeK);
     auto padded = sol.solve(sizeC * sizeH * sizeW, sizeC * sizeH * sizeW);
     EXPECT_EQ(padded, (ConcreteConsts{
@@ -45,7 +45,7 @@ TEST_F(padding_tests, one) {
     }));
 }
 
-TEST_F(padding_tests, two) {
+TEST_F(core_padding_tests, two) {
     sol.addConstraint(sizeC * sizeH / sizeK);
     sol.addConstraint(sizeC * sizeW / (sizeS * sizeS * sizeS * sizeS));
     auto padded = sol.solve(sizeC * sizeH * sizeW, sizeC * sizeH * sizeW);

@@ -294,7 +294,7 @@ HalideGen::ForwardArgsAndFunc HalideGen::createFunc(const ConcreteConsts& consts
 
     const auto& tensors = tensorView.getUnderlyingTensors();
     for (std::size_t inputId = 0; auto&& tensor: tensors) {
-        inputs.emplace_back(Halide::type_of<float>(), tensor.getShape().size(), tensor.getName());
+        inputs.emplace_back(Halide::type_of<float>(), tensor.getShape().size(), TensorExpression::PositionToString(tensor.getPosition()));
         inputs.back().set_estimates(shapes.inputShapes[inputId]);
         ++inputId;
     }
@@ -309,7 +309,7 @@ HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& 
     std::vector<Halide::Func> inputsGrads;
 
     for (std::size_t inputId = 0; auto&& tensor: tensorView.getUnderlyingTensors()) {
-        inputs.emplace_back(Halide::type_of<float>(), tensor.getShape().size(), tensor.getName());
+        inputs.emplace_back(Halide::type_of<float>(), tensor.getShape().size(), TensorExpression::PositionToString(tensor.getPosition()));
         inputs.back().set_estimates(shapes.inputShapes[inputId]);
         ++inputId;
     }

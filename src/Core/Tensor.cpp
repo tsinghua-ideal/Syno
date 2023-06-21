@@ -30,87 +30,6 @@ std::string PureTensor::description(const BindingContext& ctx) const {
     return DimensionArrayToString(dims, ctx);
 }
 
-TensorExpression TensorExpression::operator+(const TensorExpression& other) const {
-    return BinaryOpTensorExpression::Create(*this, other, BinaryOpTensorExpression::Op::Add);
-}
-TensorExpression& TensorExpression::operator+=(const TensorExpression& other) {
-    return *this = *this + other;
-}
-TensorExpression TensorExpression::operator*(const TensorExpression& other) const {
-    return BinaryOpTensorExpression::Create(*this, other, BinaryOpTensorExpression::Op::Mul);
-}
-TensorExpression& TensorExpression::operator*=(const TensorExpression& other) {
-    return *this = *this * other;
-}
-
-TensorExpression IntegerTensorExpression::Create(int value) {
-    static auto zero = TensorExpression(std::make_shared<IntegerTensorExpression>(0));
-    static auto one = TensorExpression(std::make_shared<IntegerTensorExpression>(1));
-    if (value == 0) {
-        return zero;
-    } else if (value == 1) {
-        return one;
-    }
-    return TensorExpression(std::make_shared<IntegerTensorExpression>(value));
-}
-
-std::string TensorTensorExpression::toString() const {
-    if (position == TensorExpression::Output) {
-        return "out";
-    } else {
-        return "in_" + std::to_string(position);
-    }
-}
-
-std::string BinaryOpTensorExpression::toString() const {
-    switch (op) {
-    case Op::Add:
-        return fmt::format("({}) + ({})", lhs.toString(), rhs.toString());
-    case Op::Mul:
-        return fmt::format("({}) * ({})", lhs.toString(), rhs.toString());
-    default:
-        KAS_UNREACHABLE();
-    }
-}
-
-TensorExpression BinaryOpTensorExpression::Create(TensorExpression lhs, TensorExpression rhs, Op op) {
-    switch (op) {
-    case Op::Add:
-        if (auto lhsInt = lhs.tryAs<IntegerTensorExpression>(); lhsInt) {
-            if (lhsInt->value == 0) {
-                return rhs;
-            }
-            if (auto rhsInt = rhs.tryAs<IntegerTensorExpression>(); rhsInt) {
-                return TensorExpression(std::make_shared<IntegerTensorExpression>(lhsInt->value + rhsInt->value));
-            }
-        } else if (auto rhsInt = rhs.tryAs<IntegerTensorExpression>(); rhsInt) {
-            if (rhsInt->value == 0) {
-                return lhs;
-            }
-        }
-        break;
-    case Op::Mul:
-        if (auto lhsInt = lhs.tryAs<IntegerTensorExpression>(); lhsInt) {
-            if (lhsInt->value == 0) {
-                return lhs;
-            } else if (lhsInt->value == 1) {
-                return rhs;
-            }
-            if (auto rhsInt = rhs.tryAs<IntegerTensorExpression>(); rhsInt) {
-                return TensorExpression(std::make_shared<IntegerTensorExpression>(lhsInt->value * rhsInt->value));
-            }
-        } else if (auto rhsInt = rhs.tryAs<IntegerTensorExpression>(); rhsInt) {
-            if (rhsInt->value == 0) {
-                return rhs;
-            } else if (rhsInt->value == 1) {
-                return lhs;
-            }
-        }
-        break;
-    }
-    return TensorExpression(std::make_shared<BinaryOpTensorExpression>(std::move(lhs), std::move(rhs), op));
-}
-
 std::string AbstractAccess::outerLoopsIteratorsToString() const {
     return VectorToString(outerLoops
         | std::views::transform([](const IteratorValue& it) -> const std::string& {
@@ -135,19 +54,49 @@ std::string AbstractAccess::accessToString(const BindingContext& ctx, int pos) c
     );
 }
 
+namespace {
+
+class ConcreteTensorExpressionPrinter final: public TensorExpressionPrinter {
+    const BindingContext& ctx;
+    const AbstractAccess& access;
+    bool isOutput(const TensorTensorExpression& tensor) const {
+        return tensor.position == TensorExpression::Output;
+    }
+public:
+    ConcreteTensorExpressionPrinter(const BindingContext& ctx, const AbstractAccess& access):
+        ctx { ctx },
+        access { access }
+    {}
+    void visit(TensorTensorExpression& expr) override {
+        if (access.isDerivative() && isOutput(expr)) {
+            ss << "grad_"; // This is the derivative of the output.
+        }
+        TensorExpressionPrinter::visit(expr); // print the tensor name
+        ss << access.accessToString(ctx, expr.position); // print the access iterators
+    };
+    std::string print(const TensorExpression& originalExpr) {
+        TensorExpression expr = originalExpr;
+        if (access.isDerivative()) {
+            expr *= TensorTensorExpression::Create(TensorExpression::Output);
+        }
+        if (access.divBy.has_value()) {
+            ss << "(";
+        }
+        expr.accept(*this);
+        if (access.divBy.has_value()) {
+            ss << ") / (" << access.divBy->toString(ctx) << ")";
+        }
+        std::string result = ss.str();
+        ss.str("");
+        return result;
+    }
+};
+
+} // namespace
+
 std::string AbstractAccess::statementToString(const BindingContext& ctx) const {
-    return fmt::format("{}{}", fmt::join(
-        std::views::iota(std::size_t{0}, inputs.size())
-        | std::views::transform([&](std::size_t pos) {
-            if (pos == position) {
-                return fmt::format("grad_out{}", accessToString(ctx, TensorExpression::Output));
-            } else {
-                return fmt::format("in_{}{}", pos, accessToString(ctx, pos));
-            }
-        }),
-    " * "),
-    divBy ? fmt::format(" / ({})", divBy->toString(ctx)) : ""
-    );
+    ConcreteTensorExpressionPrinter printer { ctx, *this };
+    return printer.print(expression);
 }
 
 std::string AbstractAccess::targetEntryToString() const {
@@ -286,8 +235,7 @@ std::string TensorView::description(const BindingContext& ctx) const {
 
 TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     for (std::size_t tId = 0; auto&& tensor: tensors) {
-        auto name = "in_" + std::to_string(tId);
-        this->tensors.emplace_back(std::move(name), tensor);
+        this->tensors.emplace_back(tId, tensor);
         ++tId;
     }
 

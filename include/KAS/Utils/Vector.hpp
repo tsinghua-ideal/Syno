@@ -115,7 +115,7 @@ int WeakOrderedSubstituteVector2To1IfAny(std::vector<Elem>& v, const Value& fro1
 
 template<std::ranges::input_range Range>
 std::string VectorToString(Range&& range) {
-    return fmt::format("[{}]", fmt::join(range, ","));
+    return fmt::format("[{}]", fmt::join(range, ", "));
 }
 
 } // namespace kas

@@ -7,13 +7,13 @@ TEST_F(transforms_tests, split) {
     SplitOp splitOp { dimH, dimW };
     Interface in { splitOp.getInput(), dimCH };
     auto tensorView = TensorView { in };
-    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H,W,c*H]");
-    ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H*W,c*H]");
+    ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H, W, c*H]");
+    ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H*W, c*H]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),
 R"(for (int i_0 = 0; i_0 < H; i_0++) {
     for (int i_1 = 0; i_1 < W; i_1++) {
         for (int i_2 = 0; i_2 < c*H; i_2++) {
-            out[i_0,i_1,i_2] = in_0[((i_0)*(W))+(i_1),i_2];
+            out[i_0, i_1, i_2] = in_0[i_0 * W + i_1, i_2];
         }
     }
 }
