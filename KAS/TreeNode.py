@@ -112,6 +112,7 @@ class TreeNode:
         self.Q: float = 0
         self._is_dead: bool = False
         if node.is_final():
+            self.reward: float = -1
             self.filtered: bool = False
         if not self._is_mid:
             self.children: List['TreeNode'] = []
