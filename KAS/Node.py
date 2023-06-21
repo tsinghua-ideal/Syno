@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from . import Bindings
 from .Bindings import Next
@@ -186,13 +186,15 @@ class VisitedNode(Node):
 class MockNodeMetadata:
     """Bindings.Node equivalent."""
 
-    def __init__(self, mock_sampler, id: int, name: Union[str, None] = None, is_final: bool = False, total_flops: int = 114514) -> None:
+    def __init__(self, mock_sampler, id: int, name: Union[str, None] = None, is_final: bool = False, accuracy: float = 0.0, total_flops: int = 114514, **additional_attributes) -> None:
         self._mock_sampler = mock_sampler
         assert id is not None
         self._id = id
         self._name = name if name is not None else f"MockNode({id})"
         self._is_final = is_final
+        self._accuracy = accuracy
         self._total_flops = total_flops
+        self._additional_attributes = additional_attributes
 
     def __eq__(self, __value: object) -> bool:
         if not isinstance(__value, MockNodeMetadata):
@@ -244,6 +246,12 @@ class MockNodeMetadata:
         assert self._is_final
         return f"for (int i = 0; i < 10; i++) {{\tthis is {self._name}\n}}\n"
 
+    def mock_get_accuracy(self) -> float:
+        return self._accuracy
+
+    def mock_get(self, key: str) -> Any:
+        return self._additional_attributes[key]
+
     def __repr__(self) -> str:
         return self._name
 
@@ -270,6 +278,12 @@ class MockNode(Node):
 
     def to_node(self) -> 'MockNode':
         return MockNode(self._node)
+
+    def mock_get_accuracy(self) -> float:
+        return self._node.mock_get_accuracy()
+
+    def mock_get(self, key: str) -> Any:
+        return self._node.mock_get(key)
 
     def __repr__(self) -> str:
         return str(self._node)

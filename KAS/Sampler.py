@@ -204,7 +204,7 @@ class MockSampler(Sampler):
         The first vertex is the root.
         Example:
         ```
-            vertices = ['root', 'a', 'b', {'name': 'final', 'is_final': True}]
+            vertices = ['root', 'a', 'b', {'name': 'final', 'is_final': True, 'accuracy': 0.9, 'arbitrary_metadata': 42}]
             edges = [
                 ('root', [('Share(0)', 'a'), ('Share(1)', 'b')]),
                 ('a', [('Share(2)', 'final')]),
