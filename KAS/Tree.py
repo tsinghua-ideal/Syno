@@ -104,7 +104,7 @@ class MCTS:
         # Expand
         if leaf.is_final():
             logging.debug("Selected final node, return immediately. ")
-            return (path, [leaf for _ in range(self.leaf_num)]), True
+            return path, [(path, leaf) for _ in range(self.leaf_num)]
         
         logging.debug("Expansion start")
         expand_result = self._expand(leaf)

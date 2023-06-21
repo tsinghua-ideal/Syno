@@ -222,8 +222,6 @@ def arg_parse():
                         help='Sampler saving directory')
     parser.add_argument('--kas-iterations', default=30, type=int,
                         help='Searcher iterations')
-    parser.add_argument('--kas-simulate-retry-limit', default=10000, type=int,
-                        help='simulate max round')
     parser.add_argument('--kas-leaf-parallelization-number', default=1, type=int,
                         help='leaf parallelization')
     # https://github.com/CyCTW/Parallel-MCTS/blob/master/src/MCTS.h

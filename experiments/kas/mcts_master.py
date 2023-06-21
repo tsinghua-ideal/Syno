@@ -55,7 +55,6 @@ if __name__ == '__main__':
         arguments,
         mcts_iterations=args.kas_iterations,
         leaf_parallelization_number=args.kas_leaf_parallelization_number,
-        simulate_retry_limit=args.kas_simulate_retry_limit,
         virtual_loss_constant=args.kas_tree_parallelization_virtual_loss_constant
     )
 

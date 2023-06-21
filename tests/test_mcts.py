@@ -40,7 +40,7 @@ def test_mcts():
         except Exception as e:
             print(f"Caught error {e}")
             traceback.print_exc()
-        print(f"Garbage collection: size={len(mcts._treenode_store.keys())}-", end="")
+        print(f"Garbage collection: size={len(mcts._treenode_store.keys())}->", end="")
         mcts.garbage_collect()
         print(len(mcts._treenode_store.keys()))
     
