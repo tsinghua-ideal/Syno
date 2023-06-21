@@ -4,6 +4,17 @@ import traceback
 
 from KAS import MCTS, MockSampler
 
+def simple_sampler():
+    "A diamond"
+    vertices = ['root', {'name': 'final', 'is_final': True}]
+
+    edges = [
+        ('root', [('Merge(1)', 'final')])
+    ]
+    
+    sampler = MockSampler(vertices, edges)
+    return sampler
+
 def line_sampler():
     "A diamond"
     vertices = ['root', {'name': 'final', 'is_final': True}]
@@ -38,7 +49,28 @@ def test_remove():
     print(f"Sampled {node} for {path}:")
     mcts.remove(receipt, trials[0])
     
-    assert mcts.do_rollout(sampler.root()) is None # 
+    assert mcts.do_rollout(sampler.root()) is None
+    
+    
+def test_final_select():
+    sampler = simple_sampler()
+    mcts = MCTS(sampler, virtual_loss_constant=1, leaf_num=2)
+    
+    receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
+    _, path = receipt
+    node = trials
+    print(f"Sampled {node} for {path}:")
+    mcts.back_propagate(receipt, 0.5)
+    mcts.back_propagate(receipt, 0.5)
+    
+    receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
+    _, path = receipt
+    node = trials
+    print(f"Sampled {node} for {path}:")
+    mcts.back_propagate(receipt, 0.5)
+    mcts.back_propagate(receipt, 0.5)
+    
+    mcts.do_rollout(sampler.root())
 
 def test_mcts():
     sampler = diamond_sampler()
@@ -56,6 +88,10 @@ def test_mcts():
     print("Tree after first two iterations", [v for _, v in mcts._treenode_store.items() if v.N > 0])
     assert len(mcts._treenode_store.keys()) == 4
     assert len([v for _, v in mcts._treenode_store.items() if v.N > 0]) == 1
+    
+    print(f"Garbage collection: size={len(mcts._treenode_store.keys())}->", end="")
+    mcts.garbage_collect()
+    print(len(mcts._treenode_store.keys()))
     
     receipts = []
     trialss = []
@@ -96,3 +132,4 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     test_mcts()
     test_remove()
+    test_final_select()

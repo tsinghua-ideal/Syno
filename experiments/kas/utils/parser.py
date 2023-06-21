@@ -245,7 +245,7 @@ def arg_parse():
                         help='Workers to use for sampling (only for search)')
     parser.add_argument('--kas-proxy-kernel-scale-limit', default=0.3, type=float,
                         help='Minimum/maximum kernel scale (geometric mean, only for search)')
-    parser.add_argument('--kas-selector-address', default='http://127.0.0.1:8000', type=str,
+    parser.add_argument('--kas-selector-address', default='http://127.0.0.1:1104', type=str,
                         help='Selector server address')
     parser.add_argument('--kas-selector-max-params',
                         default=6, help='Maximum model size')
@@ -255,7 +255,7 @@ def arg_parse():
                         help='Selector saving directory')
 
     parser.add_argument('--host', type=str, metavar='HOST', default='0.0.0.0')
-    parser.add_argument('--port', type=int, metavar='PORT', default='8000')
+    parser.add_argument('--port', type=int, metavar='PORT', default='1104')
 
     # Parse program arguments, add timestamp information, and checks.
     args = parser.parse_args()

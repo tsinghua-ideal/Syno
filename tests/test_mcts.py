@@ -27,7 +27,7 @@ def test_mcts():
             _, path = receipt
             node = trials[0]
             print(f"Iteration {idx}. Sampled {node} for {path}:")
-            print(path.path_to_strs(sampler))
+            # print(path.path_to_strs(sampler))
             # for i in range(len(node.path)):
             #     child = sampler.visit(Path(node.path.abs_path[:i]))
             #     print(f"Node {child} has children:",
@@ -40,6 +40,9 @@ def test_mcts():
         except Exception as e:
             print(f"Caught error {e}")
             traceback.print_exc()
+        print(f"Garbage collection: size={len(mcts._treenode_store.keys())}->", end="")
+        mcts.garbage_collect()
+        print(len(mcts._treenode_store.keys()))
     
     for k, v in mcts.virtual_loss_count.items():
         assert v == 0, f"Virtual loss count for {k} is {v}"

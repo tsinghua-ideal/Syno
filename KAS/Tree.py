@@ -16,8 +16,8 @@ class MCTS:
 
         # Dict[Node, TreeNode]
         self._treenode_store: Dict[Node, TreeNode] = OrderedDict()
-        root = sampler.visit([])
-        self._treenode_store[root.to_node()] = TreeNode(root.to_node())
+        self._root = sampler.visit([]).to_node()
+        self._treenode_store[self._root] = TreeNode(self._root)
 
         self._sampler = sampler
         self._exploration_weight = exploration_weight
@@ -64,7 +64,7 @@ class MCTS:
     # The receipt which is used for back propagation, which is the root node and the path.
     Receipt = Tuple[Node, TreePath]
 
-    def do_rollout(self, node: VisitedNode) -> Optional[Tuple[Receipt, List[TreeNode]]]:
+    def do_rollout(self, node: VisitedNode) -> Optional[Tuple[Receipt, List[Tuple[TreePath, TreeNode]]]]:
         """
         Make the tree one layer better. (Train for one iteration.)
 
@@ -78,8 +78,8 @@ class MCTS:
             if self._treenode_store[node.to_node()].is_dead_end(self._treenode_store):
                 logging.info("The tree is exhausted. ")
                 return None
-            result, success = self._may_fail_rollout(node)
-            if success:
+            result = self._may_fail_rollout(node)
+            if result is not None:
                 path, trials = result
                 logging.debug(
                     f"Successful rollout: {path}. Evaluation to be done.")
@@ -89,7 +89,7 @@ class MCTS:
                 logging.debug(
                     f"During rollout, dead end encountered. Retrying...")
 
-    def _may_fail_rollout(self, node: VisitedNode) -> Tuple[Optional[Tuple[TreePath, List[TreeNode]]], bool]:
+    def _may_fail_rollout(self, node: VisitedNode) -> Optional[Tuple[TreePath, List[Tuple[TreePath, TreeNode]]]]:
         "The trial may encounter a dead end. In this case, False is returned."
         tree_node = self._treenode_store[node.to_node()]
 
@@ -97,16 +97,19 @@ class MCTS:
         logging.debug("Selection start")
         select_result = self._select(tree_node)
         if select_result is None:
-            return None, False
+            return None
         path, leaf = select_result
         logging.debug(f"Selection end {path} {leaf}")
 
         # Expand
-        # TODO: what if the selected node is terminal? 
+        if leaf.is_final():
+            logging.debug("Selected final node, return immediately. ")
+            return path, [(path, leaf) for _ in range(self.leaf_num)]
+        
         logging.debug("Expansion start")
         expand_result = self._expand(leaf)
         if expand_result is None:
-            return None, False
+            return None
         next_expand, leaf_expanded = expand_result
         path = path.concat(next_expand)
         assert isinstance(path, TreePath), type(path)
@@ -116,15 +119,15 @@ class MCTS:
         leaves = []
         logging.debug(f"Simulation start")
         while not leaf_expanded.is_dead_end(self._treenode_store):
-            leaf_simul, success = self._simulate(leaf_expanded)
-            if success:
-                leaves.append(leaf_simul)
-                if len(leaves) == self.leaf_num:
-                    break
+            leaf_simul = self._simulate(path, leaf_expanded)
+            if leaf_simul is None: continue
+            leaves.append(leaf_simul)
+            if len(leaves) == self.leaf_num:
+                break
         if leaf_expanded.is_dead_end(self._treenode_store):
-            return None, False
+            return None
 
-        return (path, leaves), success
+        return path, leaves
 
     def _select(self, node: TreeNode) -> Optional[Tuple[TreePath, TreeNode]]:
         "Find an unexplored descendent of `node`"
@@ -154,10 +157,10 @@ class MCTS:
         next, leaf = random.choice(unexpanded_children)
         return next, leaf
 
-    def _simulate(self, node: TreeNode) -> Tuple[Optional[TreeNode], bool]:
+    def _simulate(self, path: TreePath, node: TreeNode) -> Optional[Tuple[TreePath, TreeNode]]:
         "Returns a random simulation (to completion) of `node`"
 
-        def random_child(node: TreeNode) -> Optional[TreeNode]:
+        def random_child(node: TreeNode) -> Optional[Tuple[TreePath, TreeNode]]:
             """
             Two step random selection. First, randomly select a primitive type. Then, randomly select a child of that type.
             """
@@ -168,13 +171,17 @@ class MCTS:
                 return None
             next, selected_child = random.choice(children)
             logging.debug(f"Random selected {next}: {selected_child}")
-            return selected_child
+            return next, selected_child
 
         while not node.is_terminal():
-            node = random_child(node)
-            if node is None:
-                return None, False
-        return node, node.is_final()
+            random_select_result = random_child(node)
+            if random_select_result is None:
+                return None
+            next, node = random_select_result
+            path = path.concat(next)
+        if not node.is_final(): # is dead end
+            return None
+        return path, node
 
     def back_propagate(self, receipt: Receipt, reward: float) -> None:
         "Send the reward back up to the ancestors of the leaf"
@@ -279,6 +286,7 @@ class MCTS:
                     }
                     if child.is_final():
                         node_serial['children'][next_serial]['filtered'] = child.filtered
+                        node_serial['children'][next_serial]['reward'] = child.reward
 
             node_list.append(node_serial)
 
@@ -296,9 +304,23 @@ class MCTS:
     def garbage_collect(self):
         """
         Remove non-root tree node with no predecessor.
-        TODO
         """
-        pass
+        # Label every alive node
+        alive_nodes = set()
+        def label_alive(node: TreeNode):
+            assert isinstance(node, TreeNode)
+            alive_nodes.add(node._node)
+            if node.N > 0:
+                children = node.get_children(self._treenode_store, False)
+                for _, child in children:
+                    label_alive(child)
+        label_alive(self._treenode_store[self._root])
+        
+        # Remove dead nodes
+        key_list = list(self._treenode_store.keys())
+        for node in key_list:
+            if node not in alive_nodes and not node.is_final():
+                self._treenode_store.pop(node)
 
     def _add_node(self, path: TreePath, node: Dict, node_factory: Dict) -> TreeNode:
         """Manually add tree nodes recursively. """
@@ -315,6 +337,7 @@ class MCTS:
             child.N = child_serial['N']
             child.Q = child_serial['Q']
             if child.is_final():
+                child.reward = child_serial['reward']
                 child.filtered = child_serial['filtered']
             for next, grand_child_index in child_serial['children']:
                 grand_child_path = child_path.concat(next)
