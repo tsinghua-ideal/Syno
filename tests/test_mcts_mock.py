@@ -1,59 +1,35 @@
 import logging
 import json
 import traceback
+from tqdm import trange
 
 from KAS import MCTS, MockSampler
 
-def simple_sampler():
-    "A diamond"
+def test_remove():
     vertices = ['root', {'name': 'final', 'is_final': True}]
-
-    edges = [
-        ('root', [('Merge(1)', 'final')])
-    ]
-    
-    sampler = MockSampler(vertices, edges)
-    return sampler
-
-def line_sampler():
-    "A diamond"
-    vertices = ['root', {'name': 'final', 'is_final': True}]
-
     edges = [
         ('root', [('Merge(1)', 'final'), ('Share(2)', 'final')])
     ]
-    
     sampler = MockSampler(vertices, edges)
-    return sampler
-
-def diamond_sampler():
-    "A diamond"
-    vertices = ['root', 'a', 'b', {'name': 'final', 'is_final': True}]
-
-    edges = [
-        ('root', [('Merge(1)', 'a'), ('Share(2)', 'b')]),
-        ('a', [('Split(3)', 'final')]),
-        ('b', [('Unfold(4)', 'final')]),
-    ]
     
-    sampler = MockSampler(vertices, edges)
-    return sampler
-
-def test_remove():
-    sampler = line_sampler()
     mcts = MCTS(sampler, virtual_loss_constant=1)
     
     receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
     _, path = receipt
     node = trials
     print(f"Sampled {node} for {path}:")
-    mcts.remove(receipt, trials[0])
+    mcts.remove(receipt, trials[0][1])
     
     assert mcts.do_rollout(sampler.root()) is None
     
-    
 def test_final_select():
-    sampler = simple_sampler()
+    
+    vertices = ['root', {'name': 'final', 'is_final': True}]
+    edges = [
+        ('root', [('Merge(1)', 'final')])
+    ]
+    sampler = MockSampler(vertices, edges)
+    
     mcts = MCTS(sampler, virtual_loss_constant=1, leaf_num=2)
     
     receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
@@ -73,7 +49,14 @@ def test_final_select():
     mcts.do_rollout(sampler.root())
 
 def test_mcts():
-    sampler = diamond_sampler()
+    vertices = ['root', 'a', 'b', {'name': 'final', 'is_final': True}]
+    edges = [
+        ('root', [('Merge(1)', 'a'), ('Share(2)', 'b')]),
+        ('a', [('Split(3)', 'final')]),
+        ('b', [('Unfold(4)', 'final')]),
+    ]
+    sampler = MockSampler(vertices, edges)
+    
     mcts = MCTS(sampler, virtual_loss_constant=1)
     
     assert mcts._treenode_store[sampler.root().to_node()].children_count(mcts._treenode_store) == 2, mcts._treenode_store
@@ -128,8 +111,43 @@ def test_mcts():
         assert k in mcts_recover._treenode_store, f"Node {k} not in {mcts_recover._treenode_store}"
         assert v == mcts_recover._treenode_store[k], f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
 
+
+def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
+    """
+    Here we construct a 3 level fully connected DAG. The result at root should converge to the best reward given infinite time. 
+    """
+    vertices = [
+        'root', 
+        'l1-1', 'l1-2', 'l1-3', 
+        'l2-1', 'l2-2', 'l2-3', 
+        'l3-1', 'l3-2', 'l3-3', 
+        {'name': 'f1', 'is_final': True, 'reward': 0.2}, 
+        {'name': 'f2', 'is_final': True, 'reward': 0.9}, 
+        {'name': 'f3', 'is_final': True, 'reward': 0.6}
+    ]
+    edges = [
+        *[('root', [(f'Merge(1{i})', f'l1-{i}') for i in [1, 2, 3]])],
+        *[(f'l1-{j}', [(f'Unfold(1{j}2{k})', f'l2-{k}') for k in [1, 2, 3]]) for j in [1, 2, 3]],
+        *[(f'l2-{j}', [(f'Split(2{j}3{k})', f'l3-{k}') for k in [1, 2, 3]]) for j in [1, 2, 3]],
+        *[(f'l3-{j}', [(f'Share(3{j}4{k})', f'f{k}') for k in [1, 2, 3]]) for j in [1, 2, 3]]
+    ]
+    sampler = MockSampler(vertices, edges)
+    mcts = MCTS(sampler, virtual_loss_constant=1, leaf_num=leaf_num)
+    
+    for _ in trange(num_iter):
+        receipt, trials = mcts.do_rollout(sampler.root())
+        for _, node in trials:
+            mcts.back_propagate(receipt, node._node.mock_get('reward'))
+        
+        root = mcts._treenode_store[sampler.visit([]).to_node()]
+    
+    root = mcts._treenode_store[sampler.visit([]).to_node()]
+    assert root.N == num_iter * leaf_num, f"Root node has {root.N} visits, should be {num_iter * leaf_num}"
+    assert abs(root.Q / root.N - 0.9) <= eps, f"Q/N of root is {root.Q / root.N}, which has absolute error {abs(root.Q / root.N - 0.9)} > {eps}"
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     test_mcts()
     test_remove()
     test_final_select()
+    test_converge()
