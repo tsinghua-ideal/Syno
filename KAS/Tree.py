@@ -253,6 +253,8 @@ class MCTS:
     def serialize(self) -> Dict:
         """Serialize the tree and return a dict."""
 
+        self.garbage_collect()
+        
         node_list = []
         nodes = list(self._treenode_store.keys())
 
@@ -264,8 +266,6 @@ class MCTS:
         for i, n in enumerate(nodes):
             logging.debug(f"dumping node {i}")
             father = self._treenode_store[n]
-            if father.N == 0:
-                continue
 
             node_serial = {}
             node_serial['index'] = i
@@ -273,20 +273,19 @@ class MCTS:
                 'N': father.N,
                 'Q': father.Q
             }
+            if father.is_final():
+                node_serial['father']['filtered'] = father.filtered
+                node_serial['father']['reward'] = father.reward
             node_serial['children'] = {}
             logging.debug("dumping children")
             for next, child in father.get_children(self._treenode_store):
-                if child.N > 0 or child.is_final():
-                    assert isinstance(next, Next.Type)
-                    next_serial = self.next_serializer.serialize_type(next)
-                    node_serial['children'][next_serial] = {
-                        'N': child.N,
-                        'Q': child.Q,
-                        'children': [(n, index[c.to_node()]) for n, c in child.get_children(self._treenode_store) if c.N > 0]
-                    }
-                    if child.is_final():
-                        node_serial['children'][next_serial]['filtered'] = child.filtered
-                        node_serial['children'][next_serial]['reward'] = child.reward
+                assert isinstance(next, Next.Type)
+                next_serial = self.next_serializer.serialize_type(next)
+                node_serial['children'][next_serial] = {
+                    'N': child.N,
+                    'Q': child.Q,
+                    'children': [(n, index[c.to_node()]) for n, c in child.get_children(self._treenode_store) if c._node in index]
+                }
 
             node_list.append(node_serial)
 
@@ -303,18 +302,23 @@ class MCTS:
     
     def garbage_collect(self):
         """
-        Remove non-root tree node with no predecessor.
+        Remove non-root tree node with no predecessor. 
+        All nodes that are accessible from the root should be reserved! 
         """
         # Label every alive node
         alive_nodes = set()
-        def label_alive(node: TreeNode):
+        def label_alive(node: TreeNode) -> bool:
+            """Return a boolean value indicating whether the node contains a final descendant. """
             assert isinstance(node, TreeNode)
-            alive_nodes.add(node._node)
-            if node.N > 0:
-                children = node.get_children(self._treenode_store, False)
-                for _, child in children:
-                    label_alive(child)
-        label_alive(self._treenode_store[self._root])
+            children = node.get_children(self._treenode_store, False)
+            alive_flag = node.N > 0 or node.is_final()
+            for _, child in children:
+                child_alive_flag = label_alive(child)
+                alive_flag = alive_flag or child_alive_flag
+            if alive_flag:
+                alive_nodes.add(node._node)
+            return alive_flag
+        assert label_alive(self._treenode_store[self._root])
         
         # Remove dead nodes
         key_list = list(self._treenode_store.keys())
@@ -329,6 +333,9 @@ class MCTS:
         tree_node.N = node['father']['N']
         tree_node.Q = node['father']['Q']
         tree_node.children = []
+        if tree_node.is_final():
+            tree_node.reward = node['father']['reward']
+            tree_node.filtered = node['father']['filtered']
         for _type_serial, child_serial in node['children'].items():
             _type = self.next_serializer.deserialize_type(_type_serial)
             child_path = path.concat(_type)
@@ -336,9 +343,6 @@ class MCTS:
             
             child.N = child_serial['N']
             child.Q = child_serial['Q']
-            if child.is_final():
-                child.reward = child_serial['reward']
-                child.filtered = child_serial['filtered']
             for next, grand_child_index in child_serial['children']:
                 grand_child_path = child_path.concat(next)
                 self._add_node(

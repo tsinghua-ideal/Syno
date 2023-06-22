@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import json
 import traceback
+import os
 
 from KAS import CodeGenOptions, Sampler, MCTS, Path, Placeholder, MockSampler
 
@@ -59,6 +60,8 @@ def test_mcts():
             continue
         assert k in mcts_recover._treenode_store, f"Node {k} not in {mcts_recover._treenode_store}"
         assert v == mcts_recover._treenode_store[k], f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
+        
+    os.remove("test_mcts.json")
 
 
 if __name__ == "__main__":
