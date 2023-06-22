@@ -268,10 +268,10 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
         auto divisor = identity();
         while (true) {
             NextSize(divisor.coefficient, nonzeroPowers, {}, coefficient);
-            if (
-                divisor != *this
-                && ctx.isSizeValid(divisor)
-            ) {
+            if (divisor == *this) {
+                co_return;
+            }
+            if (ctx.isSizeValid(divisor)) {
                 co_yield divisor;
             }
         }
