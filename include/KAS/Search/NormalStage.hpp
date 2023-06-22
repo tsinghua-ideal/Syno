@@ -59,6 +59,7 @@ class NormalStage final: public AbstractStage {
 
     // Lazily generate children.
     bool childrenGenerated = false;
+    bool generatingChildren = false;
     // Node pointers. The nodes are lazily computed. We are searching bottom-up, so the children are actually closer to the input.
     NextSlotStore<NextFinalizeSlot> nextFinalizations;
     NextOpStores<ShiftOp, StrideOp, SplitOp, UnfoldOp, MergeOp, ShareOp> nextOpStores;

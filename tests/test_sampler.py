@@ -51,11 +51,11 @@ def manually_design(assembler: Assembler) -> Assembled:
     shared_s_2.mean(0) # Mark the s_2 as sum reduction.
 
     # Specify the input tensors.
-    return assembler.assemble([in_H, in_W], [w_s_2])
+    return assembler.assemble("in_0 * in_1", [in_H, in_W], [w_s_2])
 
 def perform_trials(manual: bool):
     net = Model()
-    sampler = Sampler("[H,W]", "[H,W]", [], ["s_1=2", "s_2=3"], net=net, seed=42, depth=10,
+    sampler = Sampler("[H,W]", "[H,W]", [], ["s_1=2", "s_2=3"], net=net, seed=43, depth=10,
                       maximum_reductions=3,
                       cuda=False, autoscheduler=CodeGenOptions.ComputeRoot)
     sampler._bind_debug_context()

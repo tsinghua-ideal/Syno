@@ -28,7 +28,7 @@ public:
         tensors { std::forward<decltype(tensors)>(tensors) }
     {}
     // Pass in sorted fixed dimensions.
-    std::shared_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed) const;
+    std::shared_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending) const;
     std::size_t hash() const noexcept;
 
     std::string description(const BindingContext& ctx) const;

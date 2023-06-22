@@ -107,6 +107,8 @@ void NormalStage::guardGeneratedChildren() {
     if (childrenGenerated) {
         return;
     }
+    KAS_ASSERT(!generatingChildren);
+    generatingChildren = true;
     const BindingContext& ctx = sampler.getBindingContext();
     const SampleOptions& options = sampler.getOptions();
     PrimitiveOpStore& store = sampler.getOpStore();
@@ -200,6 +202,7 @@ void NormalStage::guardGeneratedChildren() {
 
     CountChildrenFinalize += nextFinalizations.size();
 
+    generatingChildren = false;
     childrenGenerated = true;
 
     requestUpdateForFinalizability();
@@ -210,7 +213,8 @@ std::shared_ptr<TensorView> NormalStage::getFinalize(std::size_t key) const {
     auto slot = getChildFinalizeSlot(key);
     if (!slot) return nullptr;
     // KAS_DEBUG("Building TensorView from Finalization.");
-    return slot->finalization.buildTensorView(sampler.getFixedDimensions());
+    // TODO!!!
+    return slot->finalization.buildTensorView(sampler.getFixedDimensions(), TensorExpression::ProductOfTensors(slot->finalization.tensors.size()));
 }
 
 bool NormalStage::possibleToFinalizeByExperimenting() const {

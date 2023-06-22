@@ -117,6 +117,22 @@ std::string TensorExpression::toString() const {
     return p.print(*this);
 }
 
+TensorExpression TensorExpression::ProductOfTensors(std::size_t numTensors) {
+    KAS_ASSERT(numTensors >= 1);
+    TensorExpression result = IntegerTensorExpression::Create(1);
+    for (std::size_t i = 0; i < numTensors; ++i) {
+        result *= TensorTensorExpression::Create(i);
+    }
+    return result;
+}
+
+TensorExpression TensorExpression::ProductAndPlusOneTensor(std::size_t numTensors) {
+    KAS_ASSERT(numTensors >= 2);
+    auto result = ProductOfTensors(numTensors - 1);
+    result += TensorTensorExpression::Create(numTensors - 1);
+    return result;
+}
+
 TensorExpression IntegerTensorExpression::Create(int value) {
     static auto zero = TensorExpression(std::make_shared<IntegerTensorExpression>(0));
     static auto one = TensorExpression(std::make_shared<IntegerTensorExpression>(1));
@@ -128,10 +144,10 @@ TensorExpression IntegerTensorExpression::Create(int value) {
     return TensorExpression(std::make_shared<IntegerTensorExpression>(value));
 }
 
-int BinaryOpTensorExpression::getPrecedence() const {
+ExpressionPrecedence BinaryOpTensorExpression::getPrecedence() const {
     switch (op) {
-    case Op::Add: return 1;
-    case Op::Mul: return 2;
+    case Op::Add: return ExpressionPrecedence::Add;
+    case Op::Mul: return ExpressionPrecedence::Mul;
     default: KAS_UNREACHABLE();
     }
 }

@@ -106,7 +106,7 @@ class DimensionEvaluator {
     // Obtain the iterator values for specified dimensions.
     std::vector<IteratorValue> extractValues(const std::vector<Dimension>& dims) const;
 public:
-    DimensionEvaluator(const Graph& graph, const std::vector<PureTensor>& inputTensors);
+    DimensionEvaluator(const Graph& graph, const std::vector<PureTensor>& inputTensors, TensorExpression blending);
     // Assign a dimension with an outer loop iterator.
     void makeVar(Dimension dim);
     // Do the above for all specified dimensions in the specified order.

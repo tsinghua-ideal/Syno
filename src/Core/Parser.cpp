@@ -3,6 +3,7 @@
 #include <sstream>
 #include <vector>
 
+#include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -15,6 +16,8 @@ std::string_view Parser::what(Token tok) {
         return "identifier";
     case Token::Integer:
         return "integer";
+    case Token::Plus:
+        return "'+'";
     case Token::Times:
         return "'*'";
     case Token::Power:
@@ -25,10 +28,14 @@ std::string_view Parser::what(Token tok) {
         return "':'";
     case Token::Equal:
         return "'='";
-    case Token::OpenBracket:
+    case Token::OpenParen:
         return "'('";
-    case Token::CloseBracket:
+    case Token::CloseParen:
         return "')'";
+    case Token::OpenBracket:
+        return "'['";
+    case Token::CloseBracket:
+        return "']'";
     case Token::End:
         return "EOF";
     }
@@ -92,6 +99,10 @@ Parser::Parser(std::string_view buffer) {
         case '\n':
             switchToNormal();
             break;
+        case '+':
+            switchToNormal();
+            tokens.emplace_back(Token::Plus, "");
+            break;
         case '*':
             switchToNormal();
             tokens.emplace_back(Token::Times, "");
@@ -111,6 +122,14 @@ Parser::Parser(std::string_view buffer) {
         case '=':
             switchToNormal();
             tokens.emplace_back(Token::Equal, "");
+            break;
+        case '(':
+            switchToNormal();
+            tokens.emplace_back(Token::OpenParen, "");
+            break;
+        case ')':
+            switchToNormal();
+            tokens.emplace_back(Token::CloseParen, "");
             break;
         case '[':
             switchToNormal();
@@ -201,6 +220,43 @@ std::vector<std::vector<Parser::Factor>> Parser::parseShape() {
     }
     consume(Token::CloseBracket);
     return sizes;
+}
+
+TensorExpression Parser::parseFactorExpression() {
+    if (current() == Token::OpenParen) {
+        return parseTensorExpression();
+    }
+    auto id = parseIdentifier();
+    KAS_ASSERT(id.starts_with("in_"));
+    int index = -1;
+    std::stringstream ss;
+    ss << id.substr(3);
+    ss >> index;
+    return TensorTensorExpression::Create(index);
+}
+
+TensorExpression Parser::parseTermExpression() {
+    TensorExpression expr = parseFactorExpression();
+    while (current() == Token::Times) {
+        consume(Token::Times);
+        expr *= parseFactorExpression();
+    }
+    return expr;
+}
+
+TensorExpression Parser::parseTensorExpression() {
+    if (current() == Token::OpenParen) {
+        consume(Token::OpenParen);
+        TensorExpression expr = parseTensorExpression();
+        consume(Token::CloseParen);
+        return expr;
+    }
+    TensorExpression expr = parseTermExpression();
+    while (current() == Token::Plus) {
+        consume(Token::Plus);
+        expr += parseTermExpression();
+    }
+    return expr;
 }
 
 std::optional<std::string> Parser::SizeSpec::name() const {

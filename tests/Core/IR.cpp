@@ -31,4 +31,8 @@ TEST(core_ir_tests, tensor_expression) {
     ASSERT_EQ(din2.toString(), "in_0 * in_1");
     ASSERT_EQ(d0.differentiate(p3).toString(), "in_1 * in_2");
     ASSERT_EQ(d1.differentiate(p3).toString(), "in_0 * in_2");
+
+    auto in3 = TensorTensorExpression::Create(TensorExpression::Input<3>);
+    auto p4 = in0 * in1 + in3;
+    ASSERT_EQ(p4.toString(), "in_0 * in_1 + in_3");
 }

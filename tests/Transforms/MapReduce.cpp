@@ -6,7 +6,7 @@ namespace kas {
 TEST_F(transforms_tests, map_reduce) {
     MapReduce MapReduce { 0, sizeH * sizeW, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
     Interface in { &MapReduce, dimH, dimW, dimCH };
-    auto tensorView = TensorView { in };
+    auto tensorView = TensorView({ in }, TensorExpression::ProductOfTensors(1));
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H, W, c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H*W, H, W, c*H]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),

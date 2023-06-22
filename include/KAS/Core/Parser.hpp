@@ -10,11 +10,14 @@
 
 namespace kas {
 
+class TensorExpression;
+
 class Parser {
 protected:
     enum class Token {
         Identifier, Integer,
-        Times, Power, Comma, Colon, Equal,
+        Plus, Times, Power, Comma, Colon, Equal,
+        OpenParen, CloseParen,
         OpenBracket, CloseBracket,
         End,
     };
@@ -34,10 +37,14 @@ protected:
     std::vector<Factor> parseSize();
     std::vector<std::vector<Factor>> parseCommaSeparatedSizes();
 
+    TensorExpression parseFactorExpression();
+    TensorExpression parseTermExpression();
+
 public:
     Parser(std::string_view buffer);
     std::vector<std::vector<Factor>> parseShape();
     std::vector<std::vector<std::vector<Factor>>> parseShapes();
+    TensorExpression parseTensorExpression();
 
     struct PureSpec;
     // For size specifications.

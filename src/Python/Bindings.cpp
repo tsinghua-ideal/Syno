@@ -242,8 +242,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             }
         )
         .def(
-            "build", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) {
-                TensorView& tensorView = self.buildTensorView(tensors);
+            "build", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const std::string& blending, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) {
+                TensorView& tensorView = self.buildTensorView(tensors, Parser(blending).parseTensorExpression());
                 return std::make_unique<Kernel>(tensorView, self.getBindingContext(), allMappings, std::move(options));
             }
         );

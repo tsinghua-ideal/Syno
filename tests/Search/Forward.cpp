@@ -33,7 +33,7 @@ TEST_F(search_tests, forward) {
     Interface input { dimN, dimH, dimW }, weight { dimK1, dimK2 };
     std::vector<Interface> tensors { input, weight };
     Sampler::ConvertTensorViewToSearchableOrder(tensors);
-    auto tensorView = TensorView { tensors };
+    auto tensorView = TensorView(tensors, TensorExpression::ProductOfTensors(tensors.size()));
     auto path = sampler.convertTensorViewToPath(tensors);
     fmt::print("A possible path is:\n");
     for (auto&& next: path) {

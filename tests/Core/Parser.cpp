@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Size.hpp"
 
@@ -27,4 +28,9 @@ TEST(core_parser_tests, parse_specs) {
     auto spec4 = Parser("5: 10").parseSizeSpec();
     auto spec4Expect = Parser::SizeSpec { .quantity = static_cast<std::size_t>(5), .maxOccurrences = static_cast<std::size_t>(10) };
     ASSERT_EQ(spec4, spec4Expect);
+}
+
+TEST(core_parser_tests, parse_tensor_expression) {
+    auto expr1 = Parser("in_0 * in_1 + in_2").parseTensorExpression();
+    ASSERT_EQ(expr1.toString(), "in_0 * in_1 + in_2");
 }

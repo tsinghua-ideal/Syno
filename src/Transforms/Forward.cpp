@@ -42,9 +42,9 @@ std::vector<std::vector<BackwardDimension>> Factory::ForwardDimsToBackwardDims(c
     return backwardTensors;
 }
 
-TensorView& Factory::buildTensorView(const std::vector<std::vector<Dimension>>& tensors) {
+TensorView& Factory::buildTensorView(const std::vector<std::vector<Dimension>>& tensors, TensorExpression blending) {
     KAS_ASSERT(!this->result, "Factory must not be used twice!");
-    this->result = std::make_unique<TensorView>(ForwardDimsToBackwardDims(tensors));
+    this->result = std::make_unique<TensorView>(ForwardDimsToBackwardDims(tensors), std::move(blending));
     return *this->result;
 }
 

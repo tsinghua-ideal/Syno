@@ -191,7 +191,7 @@ public:
 class TensorExpressionImpl {
 public:
     virtual void accept(TensorExpressionVisitor& visitor) = 0;
-    virtual int getPrecedence() const = 0;
+    virtual ExpressionPrecedence getPrecedence() const = 0;
     virtual ~TensorExpressionImpl() = default;
 };
 
@@ -230,8 +230,11 @@ public:
     TensorExpression& operator*=(const TensorExpression& other);
 
     void accept(TensorExpressionVisitor& visitor) const { value->accept(visitor); }
-    int getPrecedence() const { return value->getPrecedence(); }
+    ExpressionPrecedence getPrecedence() const { return value->getPrecedence(); }
     std::string toString() const;
+
+    static TensorExpression ProductOfTensors(std::size_t numTensors);
+    static TensorExpression ProductAndPlusOneTensor(std::size_t numTensors);
 };
 
 class IntegerTensorExpression final: public TensorExpressionImpl {
@@ -239,7 +242,7 @@ public:
     int value;
     IntegerTensorExpression(int value): value { value } {}
     void accept(TensorExpressionVisitor& visitor) override { visitor.visit(*this); }
-    constexpr int getPrecedence() const override { return 0; }
+    constexpr ExpressionPrecedence getPrecedence() const override { return ExpressionPrecedence::Var; }
 
     static TensorExpression Create(int value);
 };
@@ -249,7 +252,7 @@ public:
     TensorExpression::Position position;
     TensorTensorExpression(TensorExpression::Position position): position { position } {}
     void accept(TensorExpressionVisitor& visitor) override { visitor.visit(*this); }
-    constexpr int getPrecedence() const override { return 0; }
+    constexpr ExpressionPrecedence getPrecedence() const override { return ExpressionPrecedence::Var; }
 
     static TensorExpression Create(TensorExpression::Position position) {
         return TensorExpression(std::make_shared<TensorTensorExpression>(position));
@@ -270,7 +273,7 @@ public:
         op { op }
     {}
     void accept(TensorExpressionVisitor& visitor) override { visitor.visit(*this); }
-    int getPrecedence() const override;
+    ExpressionPrecedence getPrecedence() const override;
 
 
     // Perform some simple canonicalization.

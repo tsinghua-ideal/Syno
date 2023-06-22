@@ -233,7 +233,7 @@ std::string TensorView::description(const BindingContext& ctx) const {
     return TensorArrayToString(tensors | std::views::transform(&PureTensor::getDimensions), ctx);
 }
 
-TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
+TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors, TensorExpression blending) {
     for (std::size_t tId = 0; auto&& tensor: tensors) {
         this->tensors.emplace_back(tId, tensor);
         ++tId;
@@ -248,7 +248,7 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     std::vector<Dimension> interfaceDimensions;
     std::ranges::copy(outputIterators, std::back_inserter(interfaceDimensions));
 
-    auto forwardEval = DimensionEvaluator(graph, this->tensors);
+    auto forwardEval = DimensionEvaluator(graph, this->tensors, blending);
     forwardEval.makeVars(interfaceDimensions);
     for (auto r: mapReduceIterators) {
         forwardEval.reduceAt(r);
@@ -257,7 +257,7 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors) {
     forwardAccess = forwardEval.toAccess(TensorExpression::Output, interfaceDimensions);
     for (std::size_t tId = 0; auto&& tensor: this->tensors) {
         // KAS_DEBUG("Differentiating input {}...", tId);
-        auto backwardEval = DimensionEvaluator(graph, this->tensors);
+        auto backwardEval = DimensionEvaluator(graph, this->tensors, blending);
         backwardEval.makeVars(tensor.getDimensions());
         backwardEval.fillWithReductions();
         backwardEval.adjustReductionOrder();

@@ -49,9 +49,10 @@ std::vector<IteratorValue> DimensionEvaluator::extractValues(const std::vector<D
     return result;
 }
 
-DimensionEvaluator::DimensionEvaluator(const Graph& graph, const std::vector<PureTensor>& inputTensors):
+DimensionEvaluator::DimensionEvaluator(const Graph& graph, const std::vector<PureTensor>& inputTensors, TensorExpression blending):
     graph { graph },
-    inputTensors { inputTensors }
+    inputTensors { inputTensors },
+    expression { std::move(blending) }
 {
     // Collect expression info from graph.
     auto avg = graph.getMapReduceIterators()
@@ -70,9 +71,6 @@ DimensionEvaluator::DimensionEvaluator(const Graph& graph, const std::vector<Pur
     for (auto&& dim: graph.getDimensions()) {
         graph.visitAlong(dim, Direction::Down).match(p, p, p);
     }
-
-    // TODO!!! Accept expression from user.
-    expression = *FoldLeftFirst(std::views::iota(static_cast<std::size_t>(0), inputTensors.size()) | std::views::transform(&TensorTensorExpression::Create), std::multiplies<>{});
 }
 
 void DimensionEvaluator::makeVar(Dimension dim) {
