@@ -55,7 +55,7 @@ def manually_design(assembler: Assembler) -> Assembled:
 
 def perform_trials(manual: bool):
     net = Model()
-    sampler = Sampler("[H,W]", "[H,W]", [], ["s_1=2", "s_2=3"], net=net, seed=43, depth=10,
+    sampler = Sampler("[H,W]", "[H,W]", [], ["s_1=2", "s_2=3"], net=net, seed=42, depth=10,
                       maximum_reductions=3,
                       cuda=False, autoscheduler=CodeGenOptions.ComputeRoot)
     sampler._bind_debug_context()
@@ -65,8 +65,9 @@ def perform_trials(manual: bool):
             node = sampler.random_node_with_prefix(Path([]))
             if node.is_final():
                 kernel_packs, total_flops = sampler.realize(net, node, "test_sampler")
-                if len(kernel_packs[0]._unpadded_inputs_shapes) > 0:
+                if len(kernel_packs[0]._unpadded_inputs_shapes) > 1:
                     break
+        print(node.get_nested_loops_as_final())
     else:
         assembler = sampler.create_assembler()
         node = manually_design(assembler)
@@ -89,7 +90,7 @@ def perform_trials(manual: bool):
         # get max component
         max_grad = max(torch.max(param.grad) for param in net.parameters())
         for param in net.parameters():
-            param -= param.grad / max_grad * 1.0e-3
+            param -= param.grad / max_grad * 1.0e-2
             param.grad.zero_()
     out_tensor = net(in_tensor)
     print("Second output:", out_tensor)
