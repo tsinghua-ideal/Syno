@@ -5,7 +5,7 @@ namespace kas {
 
 TEST_F(transforms_tests, split) {
     SplitOp splitOp { dimH, dimW };
-    Interface in { splitOp.getInput(), dimCH };
+    std::vector<Dimension> in { splitOp.getInput(), dimCH };
     auto tensorView = TensorView({ in }, TensorExpression::ProductOfTensors(1));
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H, W, c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H*W, c*H]");

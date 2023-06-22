@@ -9,6 +9,15 @@
 
 namespace kas {
 
+ShareOp::ShareOp(const Dimension& output):
+    MergeLikeOp { output },
+    inputLhs { this, Order::Left },
+    inputRhs { this, Order::Right }
+{
+    // Add constraint.
+    color.addTag(this);
+}
+
 ShareOp::Values ShareOp::value(const Values& known) const {
     if (known.canSkipDeduction()) return known;
     auto& [inputLhs, inputRhs, output] = known.values;
@@ -49,12 +58,7 @@ std::pair<bool, CompactColor> ShareOp::transformColor(CompactColor fro1, Compact
     return { !(fro1 & fro2), fro1 | fro2 };
 }
 
-ColoredInterface ShareOp::applyToInterface(const ColoredInterface& interface) const {
-    // Add new constraints.
-    return interface.substitute1to2(output, getInputL(), getInputR(), true);
-}
-
-std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
+std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // "Chained" Share.
@@ -66,7 +70,8 @@ std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Co
     std::vector<const ShareOp *> result;
     CountGenerateAttempts += interface.size();
     std::size_t countPlausible = 0;
-    for (auto&& [dim, color]: plausible) {
+    for (auto&& dim: plausible) {
+        const auto& color = dim.getColor();
         // Since RHS will be a weight dim, we cannot make it data-discarding.
         if (color.isDataDiscarding()) continue;
         ++countPlausible;
@@ -79,7 +84,7 @@ std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Co
             auto& self = dim.as<ShareOp::Input>();
             KAS_ASSERT(self.getOrder() == Order::Left);
         }
-        if (color.countTags() + 1 > options.maxColorTags()) {
+        if (color.size() + 1 > options.maxColorTags()) {
             // Too many color tags.
             ++CountMaximumTensorsExceeded;
             continue;

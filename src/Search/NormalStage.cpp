@@ -10,29 +10,29 @@
 
 namespace kas {
 
-std::size_t NormalStageStore::Hash::operator()(const ColoredInterface& interface) const noexcept {
-    return std::hash<Interface>{}(interface.toDimensions());
+std::size_t NormalStageStore::Hash::operator()(const Dimensions& interface) const noexcept {
+    return std::hash<Dimensions>{}(interface);
 }
 
 std::size_t NormalStageStore::Hash::operator()(const NormalStage * nStage) const noexcept {
     return (*this)(nStage->getInterface());
 }
 
-bool NormalStageStore::Equal::operator()(const ColoredInterface& lhs, const ColoredInterface& rhs) const noexcept {
-    return std::ranges::equal(lhs.toDimensions(), rhs.toDimensions());
+bool NormalStageStore::Equal::operator()(const Dimensions& lhs, const Dimensions& rhs) const noexcept {
+    return std::ranges::equal(lhs, rhs);
 }
-bool NormalStageStore::Equal::operator()(const ColoredInterface& lhs, const NormalStage *rhs) const noexcept {
+bool NormalStageStore::Equal::operator()(const Dimensions& lhs, const NormalStage *rhs) const noexcept {
     return (*this)(lhs, rhs->getInterface());
 }
-bool NormalStageStore::Equal::operator()(const NormalStage *lhs, const ColoredInterface& rhs) const noexcept {
+bool NormalStageStore::Equal::operator()(const NormalStage *lhs, const Dimensions& rhs) const noexcept {
     return (*this)(lhs->getInterface(), rhs);
 }
 bool NormalStageStore::Equal::operator()(const NormalStage *lhs, const NormalStage *rhs) const noexcept {
     return (*this)(lhs->getInterface(), rhs->getInterface());
 }
 
-NormalStage *NormalStageStore::find(const ColoredInterface& interface) const {
-    KAS_ASSERT(std::ranges::is_sorted(interface.toDimensions(), Dimension::HashLessThan{}), "Interface is not sorted.");
+NormalStage *NormalStageStore::find(const Dimensions& interface) const {
+    KAS_ASSERT(std::ranges::is_sorted(interface, Dimension::HashLessThan{}), "Interface is not sorted.");
     if (auto it = interfaces.find(interface); it != interfaces.end()) {
         return *it;
     } else {
@@ -132,7 +132,7 @@ void NormalStage::guardGeneratedChildren() {
         nextOpStores.get<Op>().fill(
             newOps,
             [&](const Op *op) {
-                return NextOpSlot<Op>({NextOpSlot<Op>::GetKey(op)}, op, getNextOp<Op>(op));
+                return NextOpSlot<Op>({NextOpSlot<Op>::GetKey(op)}, op, getNextOp(op));
             }
         );
         const auto& rawSlots = nextOpStores.get<Op>().getRawSlots();
@@ -209,12 +209,26 @@ void NormalStage::guardGeneratedChildren() {
     guard.releaseAndPropagateChanges();
 }
 
-std::shared_ptr<TensorView> NormalStage::getFinalize(std::size_t key) const {
-    auto slot = getChildFinalizeSlot(key);
-    if (!slot) return nullptr;
-    // KAS_DEBUG("Building TensorView from Finalization.");
+std::shared_ptr<TensorView> NormalStage::getFinalize(const FinalizeOp *op) const {
+    if (!op) return nullptr;
     // TODO!!!
-    return slot->finalization.buildTensorView(sampler.getFixedDimensions(), TensorExpression::ProductOfTensors(slot->finalization.tensors.size()));
+    return op->buildTensorView(sampler.getFixedDimensions(), TensorExpression::ProductOfTensors(op->tensors.size()));
+}
+
+NormalStage *NormalStage::getNextOp(const PrimitiveOp *op) {
+    NormalStageStore& store = getNormalStageStore();
+    auto newInterface = op->applyToInterface(interface);
+    if (NormalStage *found = store.find(newInterface); found) {
+        found->addParent(*this);
+        return found;
+    } else {
+        auto tempStage = std::make_unique<NormalStage>(std::move(newInterface), *this, Next::TypeOf(op->getType()));
+        if(store.insert(tempStage.get())) {
+            return tempStage.release();
+        } else {
+            KAS_CRITICAL("NormalStageStore::insert() failed.");
+        }
+    }
 }
 
 bool NormalStage::possibleToFinalizeByExperimenting() const {
@@ -223,12 +237,12 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     const SampleOptions& options = sampler.getOptions();
     const BindingContext& ctx = sampler.getBindingContext();
 
-    std::vector<std::reference_wrapper<const ColoredDimension>> onlyWeights, weightsExcluded;
-    for (const ColoredDimension& cDim : interface) {
-        if (cDim.deduceOrigin() == ColoredDimension::Origin::Weight) {
-            onlyWeights.emplace_back(std::cref(cDim));
+    std::vector<std::reference_wrapper<const Dimension>> onlyWeights, weightsExcluded;
+    for (const Dimension& dim : interface) {
+        if (dim.deduceOrigin() == Dimension::Origin::Weight) {
+            onlyWeights.emplace_back(std::cref(dim));
         } else {
-            weightsExcluded.emplace_back(std::cref(cDim));
+            weightsExcluded.emplace_back(std::cref(dim));
         }
     }
 
@@ -268,56 +282,18 @@ std::vector<Next> NormalStage::uncheckedGetChildrenHandles() const {
     return nexts;
 }
 
+std::vector<Arc> NormalStage::uncheckedGetArcs() const {
+    auto arcsF = nextFinalizations.toArcs();
+    auto arcs = nextOpStores.toArcs();
+    arcs.insert(arcs.begin(), arcsF.begin(), arcsF.end());
+    return arcs;
+}
+
 const NextFinalizeSlot *NormalStage::getChildFinalizeSlot(std::size_t key) const {
     return nextFinalizations.getSlot(key);
 }
 
-std::optional<Node> NormalStage::uncheckedGetChild(Next next) const {
-    const auto& [type, key] = next;
-    auto box = [&](auto slot) -> std::optional<Node> {
-        if (!slot) { return std::nullopt; }
-        return std::optional<Node>(std::in_place, &sampler, slot->nextStage);
-    };
-    switch (type) {
-    case Next::Type::Shift: return box(getChildSlot<ShiftOp>(key));
-    case Next::Type::Stride: return box(getChildSlot<StrideOp>(key));
-    case Next::Type::Split: return box(getChildSlot<SplitOp>(key));
-    case Next::Type::Unfold: return box(getChildSlot<UnfoldOp>(key));
-    case Next::Type::Merge: return box(getChildSlot<MergeOp>(key));
-    case Next::Type::Share: return box(getChildSlot<ShareOp>(key));
-    case Next::Type::Finalize: {
-        auto res = getFinalize(key);
-        if (!res) return std::nullopt;
-        return std::optional<Node>(std::in_place, &sampler, std::move(res));
-    }
-    default: KAS_UNREACHABLE("Invalid Next {}.", next.toString());
-    }
-}
-
-std::optional<std::string> NormalStage::uncheckedGetChildDescription(Next next) {
-    const auto& [type, key] = next;
-    const BindingContext& ctx = sampler.getBindingContext();
-    auto box = [&](auto slot) -> std::optional<std::string> {
-        if (!slot) { return std::nullopt; }
-        return slot->op->description(ctx);
-    };
-    switch (type) {
-    case Next::Type::Shift: return box(getChildSlot<ShiftOp>(key));
-    case Next::Type::Stride: return box(getChildSlot<StrideOp>(key));
-    case Next::Type::Split: return box(getChildSlot<SplitOp>(key));
-    case Next::Type::Unfold: return box(getChildSlot<UnfoldOp>(key));
-    case Next::Type::Merge: return box(getChildSlot<MergeOp>(key));
-    case Next::Type::Share: return box(getChildSlot<ShareOp>(key));
-    case Next::Type::Finalize: {
-        auto res = getChildFinalizeSlot(key);
-        if (!res) return std::nullopt;
-        return res->finalization.description(ctx);
-    }
-    default: KAS_UNREACHABLE();
-    }
-}
-
-NormalStage::NormalStage(ColoredInterface&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp):
+NormalStage::NormalStage(Dimensions&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp):
     AbstractStage { creator, deltaOp },
     interface { std::move(interface) }
 {
@@ -338,16 +314,57 @@ std::vector<Next> NormalStage::getChildrenHandles() {
     return guarded([this] { return uncheckedGetChildrenHandles(); });
 }
 
-std::optional<Node> NormalStage::getChild(Next next) {
-    return guarded([=, this] { return uncheckedGetChild(next); });
+std::vector<Arc> NormalStage::getArcs() {
+    return guarded([this] { return uncheckedGetArcs(); });
 }
 
-std::optional<std::string> NormalStage::getChildDescription(Next next) {
-    return guarded([=, this] { return uncheckedGetChildDescription(next); });
+std::optional<Arc> NormalStage::getArcFromHandle(Next next) {
+    return guarded([&] { return matchNext<Arc>(next,
+        [&](const auto& slot) -> Arc {
+            return slot.op;
+        },
+        [&](const auto& slot) -> Arc {
+            return &slot.finalization;
+        }
+    );});
+}
+
+std::optional<Node> NormalStage::getChild(Next next) {
+    return guarded([&] { return matchNext<Node>(next,
+        [&](const auto& slot) -> Node {
+            return { &sampler, slot.nextStage };
+        },
+        [&](const auto& slot) -> Node {
+            return { &sampler, getFinalize(&slot.finalization) };
+        }
+    );});
+}
+
+Node NormalStage::getChild(Arc arc) {
+    return arc.match<Node>(
+        [&](auto op) -> Node {
+            return { &sampler, getNextOp(op) };
+        },
+        [&](auto op) -> Node {
+            return { &sampler, getFinalize(op) };
+        }
+    );
+}
+
+std::string NormalStage::getChildDescription(Arc arc) {
+    const auto& ctx = sampler.getBindingContext();
+    return arc.match<std::string>(
+        [&](auto op) -> std::string {
+            return op->description(ctx);
+        },
+        [&](auto op) -> std::string {
+            return op->description(ctx);
+        }
+    );
 }
 
 std::string NormalStage::description() const {
-    return DimensionArrayToString(interface.toDimensions(), sampler.getBindingContext());
+    return DimensionArrayToString(interface, sampler.getBindingContext());
 }
 
 } // namespace kas

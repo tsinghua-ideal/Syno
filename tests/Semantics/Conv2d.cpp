@@ -45,7 +45,7 @@ TEST_F(semantics_tests, conv2d) {
     dimCin_shared.reduce(2, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum);
     // [N, C_out, H, W], the output.
 
-    Interface input { dimN, dimCin_input, dimH, dimW }, weight { dimCout, dimCin_filter, dimK1, dimK2 };
+    std::vector<Dimension> input { dimN, dimCin_input, dimH, dimW }, weight { dimCout, dimCin_filter, dimK1, dimK2 };
     // TODO!!! Add bias.
     auto tensorView = TensorView({ input, weight }, Parser("in_0 * in_1").parseTensorExpression());
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),

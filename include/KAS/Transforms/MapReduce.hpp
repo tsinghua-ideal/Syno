@@ -22,6 +22,7 @@ private:
 
 public:
     MapReduceOp(std::size_t priority, auto&& domain, MapType mapType, ReduceType reduceType):
+        PrimitiveOp { Color::None },
         reduction { priority, std::forward<decltype(domain)>(domain), mapType, reduceType }
     {}
     MapReduceOp(const MapReduce&) = delete;
@@ -34,7 +35,7 @@ public:
     const MapReduce *getRaw() const { return &reduction; }
     Dimension getInput() const { return &reduction; }
 
-    ColoredInterface applyToInterface(const ColoredInterface& interface) const override;
+    Dimensions applyToInterface(const Dimensions& interface) const override;
 
     bool operator==(const MapReduceOp& other) const noexcept {
         return getMap() == other.getMap() && getReduce() == other.getReduce() && getPriority() == other.getPriority() && size() == other.size();

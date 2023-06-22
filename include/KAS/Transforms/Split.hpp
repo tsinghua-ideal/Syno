@@ -46,13 +46,12 @@ public:
         GenerateInvocations,
         GenerateAttempts,
         DisallowedAttempts,
-        ConflictingColors,
         CounteractedMerges,
         DisallowedDiscontinuousViews,
         UselessImmediateReductions,
         SuccessfulGenerations,
     )
-    static std::vector<const SplitOp *> Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options);
+    static std::vector<const SplitOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
 };
 
 } // namespace kas

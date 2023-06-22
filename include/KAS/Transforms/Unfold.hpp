@@ -22,17 +22,11 @@ protected:
     Input input;
 
 public:
-    UnfoldOp(auto&& outputLhs, auto&& outputRhs):
-        SplitLikeOp { std::forward<decltype(outputLhs)>(outputLhs), std::forward<decltype(outputRhs)>(outputRhs) },
-        input { this }
-    {}
+    UnfoldOp(const Dimension& outputLhs, const Dimension& outputRhs);
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override { return std::hash<DimensionType>{}(Type); }
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
-
-    // Absorb dataDiscardingFlag in outputRhs.
-    ColoredInterface applyToInterface(const ColoredInterface& interface) const override;
 
     bool operator==(const UnfoldOp& other) const noexcept {
         return outputLhs == other.outputLhs && outputRhs == other.outputRhs;
@@ -53,13 +47,12 @@ public:
         GenerateInvocations,
         GenerateAttempts,
         DisallowedAttempts,
-        ConflictingColors,
         KernelAbsolutelyTooLarge,
         KernelRelativelyTooLarge,
         CanonicalizedUnfoldChains,
         SuccessfulGenerations,
     )
-    static std::vector<const UnfoldOp *> Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options);
+    static std::vector<const UnfoldOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
 };
 
 } // namespace kas

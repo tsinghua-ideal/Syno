@@ -4,7 +4,7 @@
 
 namespace kas {
 
-ColoredInterface MapReduceOp::applyToInterface(const ColoredInterface& interface) const {
+Dimensions MapReduceOp::applyToInterface(const Dimensions& interface) const {
     KAS_UNREACHABLE("No need to apply MapReduceOp to interface.");
 }
 

@@ -157,12 +157,12 @@ namespace {
     }
 }
 
-GraphvizGen::GraphvizGen(const Interface& inputs, const BindingContext& ctx) {
+GraphvizGen::GraphvizGen(const std::vector<Dimension>& inputs, const BindingContext& ctx) {
     auto oneTensor = { inputs };
     code = draw(ctx, oneTensor);
 }
 
-GraphvizGen::GraphvizGen(const std::vector<Interface>& tensors, const BindingContext& ctx) {
+GraphvizGen::GraphvizGen(const std::vector<std::vector<Dimension>>& tensors, const BindingContext& ctx) {
     code = draw(ctx, tensors);
 }
 

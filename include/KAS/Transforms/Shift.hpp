@@ -36,7 +36,7 @@ public:
         return output == other.output && shift == other.shift;
     }
 
-    static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const ColoredInterface& outputShape);
+    static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const Dimensions& outputShape);
 };
 
 } // namespace kas

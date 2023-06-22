@@ -7,7 +7,6 @@
 #include <type_traits>
 
 #include "KAS/Core/BindingContext.hpp"
-#include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Size.hpp"
 #include "KAS/Utils/Vector.hpp"
 
@@ -101,6 +100,5 @@ public:
 
 // We have forward-defined Shape in BindingContext.hpp.
 // using Shape = AbstractShape<std::vector<Size>, [](const Size& size) -> const Size& { return size; }>;
-using ShapeView = AbstractShape<const std::vector<Dimension>&, [](const Dimension& dim) -> const Size& { return dim.size(); }>;
 
 } // namespace kas

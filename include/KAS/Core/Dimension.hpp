@@ -8,6 +8,8 @@
 
 #include "fmt/format.h"
 
+#include "KAS/Core/Colors.hpp"
+#include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Size.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -69,11 +71,9 @@ public:
         return static_cast<DimensionTypeWithOrder>(type()) == ty;
     }
     virtual void accept(DimVisitor& visitor) const = 0;
+    virtual const Color& getColor() const = 0;
     virtual ~DimensionImpl() = default;
 };
-
-class Dimension;
-using Interface = std::vector<Dimension>;
 
 class Dimension {
 public:
@@ -111,6 +111,17 @@ public:
             return lhs.getInnerPointer() < rhs.getInnerPointer();
         }
     };
+
+    // Color related.
+    const Color& getColor() const { return inner->getColor(); }
+    enum class Origin {
+        Unfold,
+        Input,
+        Weight,
+        BothPossible,
+    };
+    Origin deduceOrigin() const;
+
     // [<size>]@<type><hash>
     std::string description(const BindingContext& ctx) const;
     // All descendants.
@@ -132,6 +143,8 @@ public:
         }
     }
 };
+
+using ShapeView = AbstractShape<const std::vector<Dimension>&, [](const Dimension& dim) -> const Size& { return dim.size(); }>;
 
 template<typename R>
 concept DimensionRange =
@@ -161,6 +174,42 @@ std::string TensorArrayToString(R&& tensors, const BindingContext& ctx) {
     ", "));
 }
 
+class Graph;
+
+class Dimensions: public std::vector<Dimension> {
+public:
+    using std::vector<Dimension>::vector;
+
+    std::size_t maximumTags() const;
+    std::size_t countDataDiscardingDims() const;
+
+    ShapeView getShape() const { return ShapeView(*this); }
+
+    const_iterator binarySearch(const Dimension& value) const {
+        return WeakOrderedBinarySearch(*this, value, Dimension::HashLessThan{});
+    }
+    iterator binarySearch(const Dimension& value) {
+        auto it = std::as_const(*this).binarySearch(value);
+        // Amazing trick: https://stackoverflow.com/questions/765148/how-to-remove-constness-of-const-iterator
+        return erase(it, it);
+    }
+    std::size_t binarySearchIndexOf(const Dimension& value) const {
+        return std::distance(begin(), binarySearch(value));
+    }
+
+    Dimensions substitute1to1(const Dimension& fro, const Dimension& to) const;
+    Dimensions substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2) const;
+    Dimensions substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const;
+
+    Graph buildGraph() const;
+
+    auto filterOut(const std::vector<DimensionTypeWithOrder>& disallows) const {
+        return *this | std::views::filter([&](const Dimension& dim) {
+            return std::ranges::none_of(disallows, [&](auto disallow) { return dim.is(disallow); });
+        });
+    }
+};
+
 } // namespace kas
 
 #define KAS_REPORT_DIMENSION_HASH_COLLISION(dim1, dim2) do { \
@@ -172,8 +221,8 @@ std::string TensorArrayToString(R&& tensors, const BindingContext& ctx) {
 } while (false)
 
 template<>
-struct std::hash<kas::Interface> {
-    // Since this is a template function, std::hash<Interface> can provide hash for arbitrary DimensionRange.
+struct std::hash<kas::Dimensions> {
+    // Since this is a template function, std::hash<Dimensions> can provide hash for arbitrary DimensionRange.
     template<kas::DimensionRange R>
     std::size_t operator()(R&& interface) const noexcept {
         using namespace std::string_view_literals;
@@ -187,14 +236,14 @@ struct std::hash<kas::Interface> {
 };
 
 template<>
-struct std::hash<std::vector<kas::Interface>> {
-    // Since this is a template function, std::hash<std::vector<Interface>> can provide hash for arbitrary TensorRange.
+struct std::hash<std::vector<kas::Dimensions>> {
+    // Since this is a template function, std::hash<std::vector<Dimensions>> can provide hash for arbitrary TensorRange.
     template<kas::TensorRange R>
     std::size_t operator()(R&& tensors) const noexcept {
         using namespace std::string_view_literals;
         std::size_t h = std::hash<std::string_view>{}("TensorRange"sv);
         kas::HashCombine(h, tensors.size());
-        auto hasher = std::hash<kas::Interface>{};
+        auto hasher = std::hash<kas::Dimensions>{};
         for (const auto& tensor: tensors) {
             kas::HashCombineRaw(h, hasher(tensor));
         }
@@ -248,6 +297,23 @@ struct fmt::formatter<kas::Order>: formatter<string_view> {
         using namespace std::string_view_literals;
         case kas::Order::Left: name = "Left"sv; break;
         case kas::Order::Right: name = "Right"sv; break;
+        }
+        return formatter<string_view>::format(name, ctx);
+    }
+};
+std::ostream& operator<<(std::ostream& os, kas::Order o);
+
+template<>
+struct fmt::formatter<kas::Dimension::Origin>: formatter<string_view> {
+    template<typename FormatContext>
+    auto format(kas::Dimension::Origin o, FormatContext& ctx) const {
+        string_view name = "Unknown";
+        switch (o) {
+        using namespace std::string_view_literals;
+        case kas::Dimension::Origin::Input: name = "Input"sv; break;
+        case kas::Dimension::Origin::Weight: name = "Weight"sv; break;
+        case kas::Dimension::Origin::Unfold: name = "Unfold"sv; break;
+        case kas::Dimension::Origin::BothPossible: name = "BothPossible"sv; break;
         }
         return formatter<string_view>::format(name, ctx);
     }

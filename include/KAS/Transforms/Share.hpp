@@ -26,11 +26,7 @@ protected:
     Input inputLhs, inputRhs;
 
 public:
-    ShareOp(auto&& output):
-        MergeLikeOp { std::forward<decltype(output)>(output) },
-        inputLhs { this, Order::Left },
-        inputRhs { this, Order::Right }
-    {}
+    ShareOp(const Dimension& output);
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override { return std::hash<DimensionType>{}(Type); }
     Dimension getInputL() const override { return &inputLhs; }
@@ -38,8 +34,6 @@ public:
     Values value(const Values& known) const override;
 
     std::pair<bool, CompactColor> transformColor(CompactColor fro1, CompactColor fro2) const override;
-    // Add new constraints.
-    ColoredInterface applyToInterface(const ColoredInterface& interface) const override;
 
     bool operator==(const ShareOp& other) const noexcept {
         return output == other.output;
@@ -69,7 +63,7 @@ public:
         MaximumTensorsExceeded,
         SuccessfulGenerations,
     )
-    static std::vector<const ShareOp *> Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options);
+    static std::vector<const ShareOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
 };
 
 } // namespace kas

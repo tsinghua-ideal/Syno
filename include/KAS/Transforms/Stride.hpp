@@ -24,21 +24,13 @@ protected:
     Input input;
 
 public:
-    StrideOp(auto&& output, auto&& stride):
-        RepeatLikeOp { std::forward<decltype(output)>(output) },
-        stride { stride },
-        sz { this->output.size() * this->stride },
-        input { this }
-    {}
+    StrideOp(const Dimension& output, const Size& stride);
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 
     const Size& getStride() const { return stride; }
-
-    // Set dataDiscardingFlag to true in Color.
-    ColoredInterface applyToInterface(const ColoredInterface& interface) const override;
 
     bool operator==(const StrideOp& other) const noexcept {
         return output == other.output && stride == other.stride;
@@ -58,7 +50,7 @@ public:
         SizeTooLarge,
         SuccessfulGenerations,
     )
-    static std::vector<const StrideOp *> Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options);
+    static std::vector<const StrideOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
 };
 
 } // namespace kas

@@ -33,14 +33,14 @@ class NormalStageStore {
 public:
     struct Hash {
         using is_transparent = void;
-        std::size_t operator()(const ColoredInterface& interface) const noexcept;
-        std::size_t operator()(const NormalStage * nStage) const noexcept;
+        std::size_t operator()(const Dimensions& interface) const noexcept;
+        std::size_t operator()(const NormalStage *nStage) const noexcept;
     };
     struct Equal {
         using is_transparent = void;
-        bool operator()(const ColoredInterface& lhs, const ColoredInterface& rhs) const noexcept;
-        bool operator()(const ColoredInterface& lhs, const NormalStage *rhs) const noexcept;
-        bool operator()(const NormalStage *lhs, const ColoredInterface& rhs) const noexcept;
+        bool operator()(const Dimensions& lhs, const Dimensions& rhs) const noexcept;
+        bool operator()(const Dimensions& lhs, const NormalStage *rhs) const noexcept;
+        bool operator()(const NormalStage *lhs, const Dimensions& rhs) const noexcept;
         bool operator()(const NormalStage *lhs, const NormalStage *rhs) const noexcept;
     };
 
@@ -48,14 +48,14 @@ private:
     std::unordered_set<NormalStage *, Hash, Equal> interfaces;
 
 public:
-    NormalStage *find(const ColoredInterface& interface) const;
+    NormalStage *find(const Dimensions& interface) const;
     bool insert(NormalStage *nStage);
     ~NormalStageStore();
 };
 
 class NormalStage final: public AbstractStage {
     // The interface decides the hash. Other properties are computed.
-    ColoredInterface interface;
+    Dimensions interface;
 
     // Lazily generate children.
     bool childrenGenerated = false;
@@ -73,44 +73,58 @@ class NormalStage final: public AbstractStage {
     // This checks whether the nexts are evaluated. If not, it evaluates them.
     void guardGeneratedChildren();
 
-    // Execute the finalization to obtain TensorView.
-    std::shared_ptr<TensorView> getFinalize(std::size_t key) const;
+    std::shared_ptr<TensorView> getFinalize(const FinalizeOp *op) const;
 
     // Apply the Op to obtain NormalStage.
-    template<PrimitiveOpImpl Op>
-    NormalStage *getNextOp(const Op *op) {
-        NormalStageStore& store = getNormalStageStore();
-        auto newInterface = op->applyToInterface(interface);
-        if (NormalStage *found = store.find(newInterface); found) {
-            found->addParent(*this);
-            return found;
-        } else {
-            auto tempStage = std::make_unique<NormalStage>(std::move(newInterface), *this, Next::TypeOf<Op>());
-            if(store.insert(tempStage.get())) {
-                return tempStage.release();
-            } else {
-                KAS_CRITICAL("NormalStageStore::insert() failed.");
-            }
-        }
-    }
+    NormalStage *getNextOp(const PrimitiveOp *op);
 
     // This is for pruning. We experimentally finalize this stage, and conservatively exclude the stage if it is not possible to finalize.
     bool possibleToFinalizeByExperimenting() const;
 
     std::size_t uncheckedCountChildren() const;
     std::vector<Next> uncheckedGetChildrenHandles() const;
+    std::vector<Arc> uncheckedGetArcs() const;
     const NextFinalizeSlot *getChildFinalizeSlot(std::size_t key) const;
     template<PrimitiveOpImpl Op>
     const NextOpSlot<Op> *getChildSlot(std::size_t key) const {
         return nextOpStores.get<Op>().getSlot(key);
     }
-    std::optional<Node> uncheckedGetChild(Next next) const;
-    std::optional<std::string> uncheckedGetChildDescription(Next next);
 
     template<typename F>
     inline auto guarded(F&& f) -> decltype(f()) {
         guardGeneratedChildren();
         return f();
+    }
+
+    template<typename R, typename FP, typename FF>
+    requires
+        std::convertible_to<std::invoke_result_t<FF, const NextFinalizeSlot&>, R> &&
+        std::convertible_to<std::invoke_result_t<FP, const NextOpSlot<ShiftOp>&>, R> &&
+        std::convertible_to<std::invoke_result_t<FP, const NextOpSlot<StrideOp>&>, R> &&
+        std::convertible_to<std::invoke_result_t<FP, const NextOpSlot<SplitOp>&>, R> &&
+        std::convertible_to<std::invoke_result_t<FP, const NextOpSlot<UnfoldOp>&>, R> &&
+        std::convertible_to<std::invoke_result_t<FP, const NextOpSlot<MergeOp>&>, R> &&
+        std::convertible_to<std::invoke_result_t<FP, const NextOpSlot<ShareOp>&>, R>
+    std::optional<R> matchNext(Next next, FP&& fp, FF&& ff) const {
+        const auto& [type, key] = next;
+        auto box = [&](auto slot) -> std::optional<R> {
+            if (!slot) { return std::nullopt; }
+            return std::optional<R>(std::in_place, std::invoke(std::forward<FP>(fp), *slot));
+        };
+        switch (type) {
+        case Next::Type::Shift: return box(getChildSlot<ShiftOp>(key));
+        case Next::Type::Stride: return box(getChildSlot<StrideOp>(key));
+        case Next::Type::Split: return box(getChildSlot<SplitOp>(key));
+        case Next::Type::Unfold: return box(getChildSlot<UnfoldOp>(key));
+        case Next::Type::Merge: return box(getChildSlot<MergeOp>(key));
+        case Next::Type::Share: return box(getChildSlot<ShareOp>(key));
+        case Next::Type::Finalize: {
+            auto res = getChildFinalizeSlot(key);
+            if (!res) return std::nullopt;
+            return std::optional<R>(std::in_place, std::invoke(std::forward<FF>(ff), *res));
+        }
+        default: KAS_UNREACHABLE("Invalid Next {}.", next.toString());
+        }
     }
 
 public:
@@ -121,15 +135,18 @@ public:
         ShapeDeviatesTooMuch,
     );
 
-    NormalStage(ColoredInterface&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp);
+    NormalStage(Dimensions&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp);
 
-    const ColoredInterface& getInterface() const { return interface; }
+    const Dimensions& getInterface() const { return interface; }
 
     std::size_t hash() const override { return NormalStageStore::Hash{}(interface); }
     std::size_t countChildren() override;
     std::vector<Next> getChildrenHandles() override;
+    std::vector<Arc> getArcs() override;
+    std::optional<Arc> getArcFromHandle(Next next) override;
     std::optional<Node> getChild(Next next) override;
-    std::optional<std::string> getChildDescription(Next next) override;
+    Node getChild(Arc arc) override;
+    std::string getChildDescription(Arc arc) override;
     std::string description() const override;
 };
 

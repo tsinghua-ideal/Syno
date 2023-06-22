@@ -55,7 +55,7 @@ MergeOp::Values MergeOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for MergeOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs, inputRhs, output);
 }
 
-std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
+std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // Canonicalization. Manually handle SplitOp, StrideOp(s<B) and UnfoldOp(k<B).
@@ -100,7 +100,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Co
     };
     CountGenerateAttempts += interface.size();
     std::size_t countPlausible = 0;
-    for (auto&& [dim, color]: plausible) {
+    for (auto&& dim: plausible) {
         ++countPlausible;
         for (Size sizeR: dim.size().sampleDivisors(options.ctx)) {
             checkThenAdd(dim, std::move(sizeR));

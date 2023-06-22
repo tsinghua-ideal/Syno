@@ -32,11 +32,7 @@ class ReductionStage final: public AbstractStage {
     void removeAllChildrenFromSlots() override;
     Finalizability checkForFinalizableChildren() const override;
 
-    std::size_t uncheckedCountChildren() const;
-    std::vector<Next> uncheckedGetChildrenHandles() const;
     const NextOpSlot<MapReduceOp> *getChildSlot(std::size_t key) const;
-    std::optional<Node> uncheckedGetChild(Next next) const;
-    std::optional<std::string> uncheckedGetChildDescription(Next next) const;
 
 public:
     ReductionStage(ReductionStage& current, const MapReduceOp *nextReduction);
@@ -44,13 +40,16 @@ public:
     ReductionStage(Sampler& sampler);
 
     const MapReduceOp *lastReduction() const { return reductions.size() ? reductions.back() : nullptr; }
-    Interface toInterface() const;
+    Dimensions toInterface() const;
 
     std::size_t hash() const override;
     std::size_t countChildren() override;
     std::vector<Next> getChildrenHandles() override;
+    std::vector<Arc> getArcs() override;
+    std::optional<Arc> getArcFromHandle(Next next) override;
     std::optional<Node> getChild(Next next) override;
-    std::optional<std::string> getChildDescription(Next next) override;
+    Node getChild(Arc arc) override;
+    std::string getChildDescription(Arc arc) override;
     std::string description() const override;
 };
 

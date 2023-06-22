@@ -7,6 +7,16 @@
 
 namespace kas {
 
+StrideOp::StrideOp(const Dimension& output, const Size& stride):
+    RepeatLikeOp { output },
+    stride { stride },
+    sz { this->output.size() * this->stride },
+    input { this }
+{
+    // StrideOp discards data.
+    color.setDataDiscarding(true);
+}
+
 std::size_t StrideOp::initialHash() const noexcept {
     std::size_t h = std::hash<DimensionType>{}(Type);
     HashCombine(h, stride);
@@ -33,19 +43,14 @@ StrideOp::Values StrideOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for StrideOp: input = {}, output = {}", input, output);
 }
 
-ColoredInterface StrideOp::applyToInterface(const ColoredInterface& interface) const {
-    // Add dataDiscarding flag.
-    return interface.substitute1to1(output, getInput(), true);
-}
-
-std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
+std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     using enum DimensionTypeWithOrder;
     std::vector<DimensionTypeWithOrder> disallows { ShareR, Unfold, Stride };
     if (options.disallowStrideAboveSplit) disallows.push_back(Split);
     if (options.disallowStrideAboveMergeR) disallows.push_back(MergeR);
-    std::vector<std::reference_wrapper<const ColoredDimension>> plausible;
+    std::vector<std::reference_wrapper<const Dimension>> plausible;
     for (const auto& p: interface.filterOut(disallows)) {
         plausible.emplace_back(std::cref(p));
     }
@@ -56,7 +61,7 @@ std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const 
     CountGenerateAttempts += interface.size();
     for (Size stride: allowance.enumerateSizes(options.ctx)) {
         for (auto&& p: plausible) {
-            auto&& [dim, color] = p.get();
+            auto&& dim = p.get();
             // Disallow too large strides.
             if ((dim.size() * stride).upperBoundEst(options.ctx) > options.maxStridedDimSize) {
                 ++CountSizeTooLarge;

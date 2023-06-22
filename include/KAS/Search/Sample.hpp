@@ -108,7 +108,7 @@ class Sampler final {
 
     std::vector<Iterator> outputIterators;
     std::vector<FixedDimension> fixedDimensions;
-    Interface root;
+    Dimensions root;
 
     PrimitiveOpStore opStore;
     NormalStageStore normalStageStore;
@@ -129,7 +129,7 @@ public:
     const SampleOptions& getOptions() const { return options; }
     PrimitiveOpStore& getOpStore() { return opStore; }
     NormalStageStore& getNormalStageStore() { return normalStageStore; }
-    const Interface& getRootInterface() const { return root; }
+    const Dimensions& getRootInterface() const { return root; }
 
     const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }
     // Taking fixed dimensions into account.
@@ -140,8 +140,8 @@ public:
     // The path is intended to visit a TensorView, but it may fail, in which case we rely on the search algorithm to penalize it.
     std::optional<std::pair<std::vector<Next>, Node>> randomNodeWithPrefix(const std::vector<Next>& prefix);
 
-    static void ConvertTensorViewToSearchableOrder(std::vector<Interface>& tensorView);
-    std::vector<Next> convertTensorViewToPath(const std::vector<Interface>& tensorView) const;
+    static void ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimension>>& tensorView);
+    std::vector<Next> convertTensorViewToPath(const std::vector<std::vector<Dimension>>& tensorView) const;
 };
 
 } // namespace kas

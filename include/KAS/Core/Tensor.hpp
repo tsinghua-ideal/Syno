@@ -97,7 +97,7 @@ public:
         return std::ranges::equal(tensors, rhs.tensors);
     }
     std::size_t hash() const {
-        return std::hash<std::vector<Interface>>{}(getUnderlyingTensorRange());
+        return std::hash<std::vector<Dimensions>>{}(getUnderlyingTensorRange());
     }
 
     const AbstractAccess& getForwardAccess() const { return forwardAccess; }

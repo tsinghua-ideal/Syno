@@ -5,10 +5,38 @@
 
 #include "KAS/Core/DimVisitor.hpp"
 #include "KAS/Core/Dimension.hpp"
+#include "KAS/Core/Graph.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
+
+Dimension::Origin Dimension::deduceOrigin() const {
+    const auto& color = getColor();
+    if (is(DimensionTypeWithOrder::ShareR)) {
+        KAS_ASSERT(!color.isDataDiscarding(), "A weight dimension must not be data discarding!");
+        // As required by canonicalization, rhs of ShareOp is not allowed to be further transformed and must be weight.
+        return Origin::Weight;
+    } else if (color.isDataDiscarding()) {
+        return Origin::Unfold;
+    } else {
+        switch (type()) {
+        case DimensionType::Iterator:
+            return Origin::BothPossible;
+        case DimensionType::MapReduce:
+        case DimensionType::Shift:
+        case DimensionType::Stride:
+        case DimensionType::Split:
+        case DimensionType::Unfold:
+        case DimensionType::Merge:
+        case DimensionType::Share: // In this case, always ShareL.
+            return Origin::Input;
+        default:
+            KAS_UNREACHABLE("Unknown DimensionType");
+        }
+    }
+
+}
 
 std::string Dimension::description(const BindingContext& ctx) const {
     return fmt::format("[{}]@{}{:x}", size().toString(ctx), type(), hash());
@@ -40,6 +68,33 @@ std::string Dimension::descendantsDescription(const BindingContext& ctx) const {
     visitor v { ctx };
     v.visit(*this);
     return fmt::format("{}({})", description(ctx), std::move(v.result));
+}
+
+Dimensions Dimensions::substitute1to1(const Dimension& fro, const Dimension& to) const {
+    auto newInterface = *this;
+    bool res = WeakOrderedSubstituteVector1To1IfAny(newInterface, fro, to, Dimension::HashLessThan{});
+    KAS_ASSERT(res);
+    return newInterface;
+}
+
+Dimensions Dimensions::substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2) const {
+    auto newInterface = *this;
+    bool res = WeakOrderedSubstituteVector1To2IfAny(newInterface, fro, to1, to2, Dimension::HashLessThan{});
+    KAS_ASSERT(res);
+    return newInterface;
+}
+
+Dimensions Dimensions::substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const {
+    auto newInterface = *this;
+    bool res = WeakOrderedSubstituteVector2To1IfAny(newInterface, fro1, fro2, to, Dimension::HashLessThan{});
+    KAS_ASSERT(res);
+    return newInterface;
+}
+
+Graph Dimensions::buildGraph() const {
+    Graph::Builder builder;
+    builder.addTopmost(*this);
+    return builder.build();
 }
 
 std::ostream& operator<<(std::ostream& os, kas::DimensionType t) {

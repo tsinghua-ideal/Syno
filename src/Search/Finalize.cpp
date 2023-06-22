@@ -13,7 +13,7 @@ std::shared_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedD
     if (fixed.empty()) {
         return std::make_unique<TensorView>(tensors, std::move(blending));
     }
-    std::vector<Interface> tensors;
+    std::vector<std::vector<Dimension>> tensors;
     std::ranges::copy(this->tensors, std::back_inserter(tensors));
     auto& inputTensor = tensors.at(0);
     for (const auto& [index, dim]: fixed) {
@@ -31,7 +31,7 @@ std::string FinalizeOp::description(const BindingContext& ctx) const {
     return TensorArrayToString(tensors, ctx);
 }
 
-bool FinalizeOp::Prune(const std::vector<Graph::ConnectedComponent>& components, const std::vector<Interface>& trial) {
+bool FinalizeOp::Prune(const std::vector<Graph::ConnectedComponent>& components, const std::vector<std::vector<Dimension>>& trial) {
     std::map<Dimension, std::size_t, Dimension::AddressLessThan> dim2tensorId;
     for (std::size_t tId = 0; tId < trial.size(); ++tId) {
         for (auto&& dim: trial[tId]) {
@@ -84,7 +84,7 @@ bool FinalizeOp::Prune(const std::vector<Graph::ConnectedComponent>& components,
     return false;
 }
 
-bool FinalizeOp::FitIntoWeights(const std::vector<std::reference_wrapper<const ColoredDimension>>& current, const WeightOptions& options) {
+bool FinalizeOp::FitIntoWeights(const std::vector<std::reference_wrapper<const Dimension>>& current, const WeightOptions& options) {
     switch (options.maximumTensors) {
     case 1: {
         // There must be exactly 1 weight tensor.
@@ -96,11 +96,11 @@ bool FinalizeOp::FitIntoWeights(const std::vector<std::reference_wrapper<const C
     case 2: {
         // We have to check that the colors won't conflict.
         Color color;
-        for (const ColoredDimension& cDim: current) {
-            if (!color.disjoint(cDim.color)) {
+        for (const Dimension& dim: current) {
+            if (!color.disjointWithWeightDim(dim)) {
                 return false;
             }
-            color.merge(cDim.color);
+            color.mergeWeightDim(dim);
         }
         break;
     }
@@ -397,22 +397,22 @@ std::size_t FinalizeOp::ShapeComplexity(const Shape& desired, const std::vector<
     }
 }
 
-std::size_t FinalizeOp::Distance(const std::vector<std::reference_wrapper<const ColoredDimension>>& current, const Shape& desired, const DistanceOptions& options) {
+std::size_t FinalizeOp::Distance(const std::vector<std::reference_wrapper<const Dimension>>& current, const Shape& desired, const DistanceOptions& options) {
     constexpr std::size_t Infinity = std::numeric_limits<std::size_t>::max();
 
     int strideDist = 0;
 
     std::vector<Size> mustBeInput, canBeWeight;
-    for (const ColoredDimension& cDim: current) {
-        auto origin = cDim.deduceOrigin();
+    for (const Dimension& dim: current) {
+        auto origin = dim.deduceOrigin();
         switch (origin) {
-        case ColoredDimension::Origin::Input:
-            mustBeInput.emplace_back(cDim.size());
+        case Dimension::Origin::Input:
+            mustBeInput.emplace_back(dim.size());
             break;
-        case ColoredDimension::Origin::BothPossible:
-            canBeWeight.emplace_back(cDim.size());
+        case Dimension::Origin::BothPossible:
+            canBeWeight.emplace_back(dim.size());
             break;
-        case ColoredDimension::Origin::Unfold:
+        case Dimension::Origin::Unfold:
             ++strideDist; // We need an Unfold to eliminate this.
             break;
         default:
@@ -464,7 +464,7 @@ struct CollectedTensorFragments {
     CollectedTensorFragments(std::size_t size): used(size, false) {}
     bool canAccept(std::size_t index, const Color& color) const {
         // Collect tags.
-        return std::ranges::find(mappings, index) == mappings.end() && this->color.disjoint(color) && !used[index];
+        return std::ranges::find(mappings, index) == mappings.end() && !used[index];
     }
     void accept(std::size_t index, const Color& color) {
         mappings.emplace_back(index);
@@ -472,11 +472,11 @@ struct CollectedTensorFragments {
         // Merge tags.
         this->color.merge(color);
     }
-    std::vector<Dimension> toTensor(const ColoredInterface& interface) const {
+    std::vector<Dimension> toTensor(const Dimensions& interface) const {
         std::vector<Dimension> result;
         result.reserve(mappings.size());
         for (auto mapping: mappings) {
-            result.emplace_back(interface[mapping].dimension);
+            result.emplace_back(interface[mapping]);
         }
         return result;
     }
@@ -484,11 +484,11 @@ struct CollectedTensorFragments {
 
 } // namespace
 
-std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, const Graph& graph, const GenerateOptions& options) {
+std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const Graph& graph, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // First we perform a basic check. If any Dimension is data-discarding, then it is not a legal kernel.
-    if (std::ranges::any_of(interface, [](const ColoredDimension& cdim) { return cdim.color.isDataDiscarding(); })) {
+    if (std::ranges::any_of(interface, [](const Dimension& dim) { return dim.getColor().isDataDiscarding(); })) {
         ++CountFailedInvocations;
         return {};
     }
@@ -500,7 +500,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
     const auto& desired = options.desired;
 
     auto buildBesideInputTensor = [&](const CollectedTensorFragments& inputCandidate) {
-        std::vector<Interface> tensors { {} };
+        std::vector<std::vector<Dimension>> tensors { {} };
         auto& inputTensor = tensors.back();
         inputTensor = inputCandidate.toTensor(interface);
         const auto& used = inputCandidate.used;
@@ -519,14 +519,14 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
                 auto& weightTensor = tensors.back();
                 for (std::size_t i = 0; i < interface.size(); ++i) {
                     if (!used[i]) {
-                        auto& [dim, color] = interface[i];
-                        if (!weightColors.disjoint(color)) {
+                        auto& dim = interface[i];
+                        if (!weightColors.disjointWithWeightDim(dim)) {
                             // Conflicting color!
                             ++CountConflictingColors;
                             return;
                         }
-                        weightColors.merge(color);
-                        weightTensor.emplace_back(interface[i].dimension);
+                        weightColors.mergeWeightDim(dim);
+                        weightTensor.emplace_back(interface[i]);
                     }
                 }
             }
@@ -553,7 +553,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
                 if (fragments.used[i]) continue;
                 const auto& cDim = interface[i];
                 auto origin = cDim.deduceOrigin();
-                if (origin != ColoredDimension::Origin::Weight && origin != ColoredDimension::Origin::BothPossible) {
+                if (origin != Dimension::Origin::Weight && origin != Dimension::Origin::BothPossible) {
                     ++CountUncanonicalWeight;
                     return;
                 }
@@ -564,12 +564,12 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const ColoredInterface& interface, 
         }
         const auto& desiredDimSize = desired[nextIndex];
         for (std::size_t i = 0; i < interface.size(); ++i) {
-            auto&& cDim = interface[i];
-            auto&& [dim, color] = cDim;
-            auto origin = cDim.deduceOrigin();
-            if (origin != ColoredDimension::Origin::Input && origin != ColoredDimension::Origin::BothPossible) {
+            auto&& dim = interface[i];
+            auto origin = dim.deduceOrigin();
+            if (origin != Dimension::Origin::Input && origin != Dimension::Origin::BothPossible) {
                 continue;
             }
+            const auto& color = dim.getColor();
             if (dim.size() == desiredDimSize && fragments.canAccept(i, color)) {
                 auto newFragments = fragments;
                 newFragments.accept(i, color);

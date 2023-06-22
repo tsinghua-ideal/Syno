@@ -55,7 +55,7 @@ bool WeakOrderedSubstituteVector1To2IfAny(std::vector<Elem>& v, const Value& fro
     }
     std::vector<Elem> dst;
     dst.reserve(v.size() + 1);
-    std::pair<std::reference_wrapper<Elem>, std::reference_wrapper<Elem>> to = comp(proj(to1), proj(to2)) ? std::pair{std::ref(to1), std::ref(to2)} : std::pair{std::ref(to2), std::ref(to1)};
+    std::pair<std::reference_wrapper<std::add_const_t<Elem>>, std::reference_wrapper<std::add_const_t<Elem>>> to = comp(proj(to1), proj(to2)) ? std::pair{std::ref(to1), std::ref(to2)} : std::pair{std::ref(to2), std::ref(to1)};
     bool toBeInsertedL = true, toBeInsertedR = true;
     auto src = v.begin();
     while (src != v.end()) {

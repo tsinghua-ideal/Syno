@@ -170,14 +170,14 @@ std::optional<std::pair<std::vector<Next>, Node>> Sampler::randomNodeWithPrefix(
     return std::optional<std::pair<std::vector<Next>, Node>>(std::in_place, std::move(path), std::move(cur));
 }
 
-void Sampler::ConvertTensorViewToSearchableOrder(std::vector<Interface>& tensorView) {
+void Sampler::ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimension>>& tensorView) {
     // First sort the weights in order of hash. This somewhat duplicates the functionality in Forward::buildTensorView(). TODO
-    std::ranges::for_each(tensorView | std::views::drop(1), [](Interface& dims) {
+    std::ranges::for_each(tensorView | std::views::drop(1), [](std::vector<Dimension>& dims) {
         std::ranges::sort(dims, Dimension::HashLessThan{});
     });
 }
 
-std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<Interface>& tensorView) const {
+std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<std::vector<Dimension>>& tensorView) const {
     Graph::Builder builder;
     builder.addTopmost(tensorView | std::views::join);
     Graph graph = builder.build();
@@ -236,7 +236,7 @@ std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<Interface>&
     // Finally, Finalize.
     {
         // The fixed dimensions should be removed first.
-        std::vector<Interface> tensors;
+        std::vector<std::vector<Dimension>> tensors;
         std::ranges::copy(tensorView, std::back_inserter(tensors));
         auto& inputTensor = tensors.at(0);
         for (const auto& [i, _]: fixedDimensions | std::views::reverse) {

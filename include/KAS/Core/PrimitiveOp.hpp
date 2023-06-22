@@ -136,10 +136,13 @@ class PrimitiveOpStore;
 // First we define a common base class.
 class PrimitiveOp {
 public:
+    Color color;
+    PrimitiveOp(auto&& color):
+        color { std::forward<decltype(color)>(color) } {}
     virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
     virtual std::size_t opHash() const noexcept = 0;
-    virtual ColoredInterface applyToInterface(const ColoredInterface& interface) const = 0;
+    virtual Dimensions applyToInterface(const Dimensions& interface) const = 0;
     virtual std::string description(const BindingContext& ctx) const = 0;
     virtual ~PrimitiveOp() = default;
 };
@@ -177,11 +180,13 @@ public:
             return op->opHash();
         }
         void accept(DimVisitor& visitor) const final override;
+        const Color& getColor() const final override { return op->color; }
         const RepeatLikeOp *getOp() const noexcept { return op; }
     };
     Dimension output;
-    RepeatLikeOp(auto&& output):
-        output { std::forward<decltype(output)>(output) }
+    RepeatLikeOp(const Dimension& output):
+        PrimitiveOp { output.getColor() },
+        output { output }
     {}
     RepeatLikeOp(const RepeatLikeOp&) = delete; // Do not copy! We want to store inputs in this class.
     RepeatLikeOp(RepeatLikeOp&&) = delete; // Do not move! Same reason.
@@ -198,7 +203,7 @@ public:
     virtual Values value(const Values& known) const = 0;
 
     virtual std::pair<bool, CompactColor> transformColor(CompactColor fro) const { return { true, fro }; }
-    ColoredInterface applyToInterface(const ColoredInterface& interface) const override {
+    Dimensions applyToInterface(const Dimensions& interface) const final override {
         return interface.substitute1to1(output, getInput());
     }
 
@@ -236,12 +241,14 @@ public:
             return op->opHash();
         }
         void accept(DimVisitor& visitor) const final override;
+        const Color& getColor() const final override { return op->color; }
         const SplitLikeOp *getOp() const noexcept { return op; }
     };
     Dimension outputLhs, outputRhs;
-    SplitLikeOp(auto&& outputLhs, auto&& outputRhs):
-        outputLhs { std::forward<decltype(outputLhs)>(outputLhs) },
-        outputRhs { std::forward<decltype(outputRhs)>(outputRhs) }
+    SplitLikeOp(const Dimension& outputLhs, const Dimension& outputRhs):
+        PrimitiveOp { Color { outputLhs.getColor(), outputRhs.getColor() } },
+        outputLhs { outputLhs },
+        outputRhs { outputRhs }
     {}
     SplitLikeOp(const SplitLikeOp&) = delete;
     SplitLikeOp(SplitLikeOp&&) = delete;
@@ -257,7 +264,7 @@ public:
     virtual Values value(const Values& known) const = 0;
 
     virtual std::tuple<bool, CompactColor, CompactColor> transformColor(CompactColor fro) const { return { true, fro, fro }; }
-    ColoredInterface applyToInterface(const ColoredInterface& interface) const override {
+    Dimensions applyToInterface(const Dimensions& interface) const final override {
         return interface.substitute2to1(outputLhs, outputRhs, getInput());
     }
 
@@ -299,6 +306,7 @@ public:
         }
         virtual bool is(DimensionTypeWithOrder ty) const noexcept override = 0;
         void accept(DimVisitor& visitor) const final override;
+        const Color& getColor() const final override { return op->color; }
         const MergeLikeOp *getOp() const noexcept { return op; }
         Order getOrder() const noexcept { return order; }
         Dimension getOther() const noexcept {
@@ -306,8 +314,9 @@ public:
         }
     };
     Dimension output;
-    MergeLikeOp(auto&& output):
-        output { std::forward<decltype(output)>(output) }
+    MergeLikeOp(const Dimension& output):
+        PrimitiveOp { Color { output.getColor() } },
+        output { output }
     {}
     MergeLikeOp(const MergeLikeOp&) = delete;
     MergeLikeOp(MergeLikeOp&&) = delete;
@@ -323,7 +332,7 @@ public:
     virtual Values value(const Values& known) const = 0;
 
     virtual std::pair<bool, CompactColor> transformColor(CompactColor fro1, CompactColor fro2) const { return { true, fro1 | fro2 }; }
-    ColoredInterface applyToInterface(const ColoredInterface& interface) const override {
+    Dimensions applyToInterface(const Dimensions& interface) const final override {
         return interface.substitute1to2(output, getInputL(), getInputR());
     }
 

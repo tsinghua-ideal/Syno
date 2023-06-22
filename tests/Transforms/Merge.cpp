@@ -5,7 +5,7 @@ namespace kas {
 
 TEST_F(transforms_tests, merge) {
     MergeOp mergeOp { dimCH, sizeH };
-    Interface in { mergeOp.getInputL(), mergeOp.getInputR(), dimH, dimW };
+    std::vector<Dimension> in { mergeOp.getInputL(), mergeOp.getInputR(), dimH, dimW };
     auto tensorView = TensorView({ in }, TensorExpression::ProductOfTensors(1));
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H, W, c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[c, H, H, W]");

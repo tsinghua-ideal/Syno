@@ -38,7 +38,7 @@ SplitOp::Values SplitOp::value(const Values &known) const {
     KAS_CRITICAL("Conflicting values for SplitOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
-std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
+std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // Canonicalization requires SplitOp to be chained.
@@ -80,14 +80,10 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Co
     const auto totalAttempts = interface.size() * interface.size() - interface.size();
     CountGenerateAttempts += totalAttempts;
     std::size_t countPlausible = 0;
-    for (auto&& [dimL, colorL]: plausibleL) {
-        for (auto&& [dimR, colorR]: plausibleR) {
+    for (auto&& dimL: plausibleL) {
+        for (auto&& dimR: plausibleR) {
             if (dimL == dimR) continue;
             ++countPlausible;
-            if (!colorL.disjoint(colorR)) {
-                ++CountConflictingColors;
-                continue;
-            }
             checkThenAdd(dimL, dimR);
         }
     }

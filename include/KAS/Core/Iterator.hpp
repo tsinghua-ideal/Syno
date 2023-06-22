@@ -22,6 +22,7 @@ public:
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::Iterator; }
     void accept(DimVisitor& visitor) const final override;
+    const Color & getColor() const override { return Color::None; }
 
     inline std::size_t getIndex() const { return index; }
     inline std::string getName() const {

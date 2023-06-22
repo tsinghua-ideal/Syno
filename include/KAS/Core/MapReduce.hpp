@@ -62,6 +62,7 @@ public:
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::MapReduce; }
     void accept(DimVisitor& visitor) const final override;
+    const Color& getColor() const override { return Color::None; }
 
     MapType getMap() const { return mapType; }
     ReduceType getReduce() const { return reduceType; }

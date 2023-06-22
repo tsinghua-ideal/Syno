@@ -119,8 +119,11 @@ public:
     virtual std::size_t hash() const = 0;
     virtual std::size_t countChildren() = 0;
     virtual std::vector<Next> getChildrenHandles() = 0;
+    virtual std::vector<Arc> getArcs() = 0;
+    virtual std::optional<Arc> getArcFromHandle(Next next) = 0;
     virtual std::optional<Node> getChild(Next next) = 0;
-    virtual std::optional<std::string> getChildDescription(Next next) = 0;
+    virtual Node getChild(Arc arc) = 0;
+    virtual std::string getChildDescription(Arc arc) = 0;
     virtual std::string description() const = 0;
 
     virtual ~AbstractStage() = default;

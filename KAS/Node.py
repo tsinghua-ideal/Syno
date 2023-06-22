@@ -119,7 +119,7 @@ class Node:
 
     def get_child_description(self, next: PseudoNext) -> Optional[str]:
         """Get the description of Next."""
-        return Path.to_next(next).description(self._node)
+        return self._node.get_child_description(Path.to_next(next))
 
     def is_final(self) -> bool:
         """Check if a node is final, which means it can be realized as a Halide kernel."""

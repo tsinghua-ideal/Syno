@@ -12,17 +12,6 @@ std::string Next::toString() const {
     return fmt::format("{}({})", type, key);
 }
 
-std::optional<std::string> Next::description(const Node& node) const {
-    return node.match<std::optional<std::string>>(
-        [&](AbstractStage *stage) {
-            return stage->getChildDescription(*this);
-        },
-        [](std::shared_ptr<TensorView> tensor) -> std::string {
-            KAS_UNREACHABLE();
-        }
-    );
-}
-
 std::map<Next::Type, std::size_t> Next::CountTypes(const std::vector<Next>& nexts) {
     std::map<Type, std::size_t> result;
     for (auto&& next: nexts) {
@@ -106,8 +95,7 @@ void Node::generateGraphviz(const std::string& dir, const std::string& name) con
             gen.generate(dir, name);
         },
         [&](NormalStage *nStage) {
-            auto interface = ranges::to<Interface>(nStage->getInterface().toDimensions());
-            GraphvizGen gen { interface, ctx };
+            GraphvizGen gen { nStage->getInterface(), ctx };
             gen.generate(dir, name);
         },
         [&](std::shared_ptr<TensorView>) -> void {
@@ -145,6 +133,19 @@ std::optional<Node> Node::getChild(Next next) const {
     return match<std::optional<Node>>(
         [&](AbstractStage *stage) { return stage->getChild(next); },
         [](std::shared_ptr<TensorView> tensor) -> std::optional<Node> { return std::nullopt; }
+    );
+}
+
+std::optional<std::string> Node::getChildDescription(Next next) const {
+    return match<std::optional<std::string>>(
+        [&](AbstractStage *stage) -> std::optional<std::string> {
+            auto arc = stage->getArcFromHandle(next);
+            if (!arc) return std::nullopt;
+            return stage->getChildDescription(arc.value());
+        },
+        [](std::shared_ptr<TensorView> tensor) -> std::string {
+            KAS_UNREACHABLE();
+        }
     );
 }
 

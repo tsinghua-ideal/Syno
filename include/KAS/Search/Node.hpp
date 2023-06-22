@@ -59,8 +59,6 @@ struct Next {
 
     // <type>(<key>)
     std::string toString() const;
-    // Detailed descriptions of this Op, based on the node.
-    std::optional<std::string> description(const Node& node) const;
 
     static std::map<Type, std::size_t> CountTypes(const std::vector<Next>& nexts);
 
@@ -100,6 +98,34 @@ struct NextSlot {
     Next toNext() const {
         return Next { SlotType, key };
     }
+};
+
+class FinalizeOp;
+
+class Arc {
+    std::variant<const PrimitiveOp *, const FinalizeOp *> inner;
+public:
+    Arc(const PrimitiveOp *op): inner(op) {}
+    Arc(const FinalizeOp *op): inner(op) {}
+
+    template<typename R, typename FP, typename FF>
+    requires
+        std::convertible_to<std::invoke_result_t<FP, const PrimitiveOp *>, R> &&
+        std::convertible_to<std::invoke_result_t<FF, const FinalizeOp *>, R>
+    R match(FP&& fp, FF&& ff) const {
+        return std::visit([&](auto arg) -> R {
+            if constexpr (std::is_same_v<decltype(arg), const PrimitiveOp *>) {
+                return fp(arg);
+            } else if constexpr (std::is_same_v<decltype(arg), const FinalizeOp *>) {
+                return ff(arg);
+            } else {
+                KAS_UNREACHABLE();
+            }
+        }, inner);
+    }
+
+    bool operator==(const Arc& rhs) const;
+    std::size_t hash() const;
 };
 
 template<typename Slot>
@@ -193,6 +219,12 @@ public:
         return nexts;
     }
 
+    std::vector<Arc> toArcs() const {
+        std::vector<Arc> arcs;
+        std::ranges::move(slots | std::views::transform(&Slot::toArc), std::back_inserter(arcs));
+        return arcs;
+    }
+
     void checkHashCollisionAndRemove() {
         if (auto it = std::ranges::adjacent_find(slots); it != slots.end()) {
             KAS_WARNING("Hash collision {} detected. Now removing.", it->toNext().toString());
@@ -227,18 +259,22 @@ struct NextOpSlot: NextSlot<Next::TypeOf<Op>()> {
     const Op *op;
     NormalStage *nextStage;
     static std::size_t GetKey(const Op *op) { return op->opHash(); }
+    Arc toArc() const { return Arc(op); }
 };
 
 template<>
 struct NextOpSlot<MapReduceOp>: NextSlot<Next::Type::MapReduce> {
+    const MapReduceOp *op;
     ReductionStage *nextStage;
     static std::size_t GetKey(const MapReduceOp *op) { return op->opHash(); }
+    Arc toArc() const { return Arc(op); }
 };
 
 template<PrimitiveOpImpl Op>
 using NextOpStore = NextSlotStore<NextOpSlot<Op>>;
 template<typename... Ops>
 struct NextOpStores {
+    using Primitives = std::tuple<Ops...>;
     std::tuple<NextOpStore<Ops>...> stores;
     template<PrimitiveOpImpl Op>
     NextOpStore<Op>& get() {
@@ -292,6 +328,12 @@ struct NextOpStores {
         std::ranges::move(results | std::views::join, std::back_inserter(flattened));
         return flattened;
     }
+    std::vector<Arc> toArcs() const {
+        auto results = const_cast<NextOpStores<Ops...>&>(*this).homogeneousMap([](const auto& store) { return store.toArcs(); });
+        std::vector<Arc> flattened;
+        std::ranges::move(results | std::views::join, std::back_inserter(flattened));
+        return flattened;
+    }
 };
 
 class Node {
@@ -306,7 +348,7 @@ class Node {
         Final = 2, // Finalization performed.
     };
     // This corresponds to the three types.
-    std::variant<ReductionStage *, NormalStage *, std::shared_ptr<TensorView> > inner;
+    std::variant<ReductionStage *, NormalStage *, std::shared_ptr<TensorView>> inner;
     Type type() const noexcept {
         return static_cast<Type>(inner.index());
     }
@@ -375,6 +417,7 @@ public:
     std::size_t countChildren() const;
     std::vector<Next> getChildrenHandles() const;
     std::optional<Node> getChild(Next next) const;
+    std::optional<std::string> getChildDescription(Next next) const;
     bool isFinal() const { return type() == Type::Final; }
     bool isDeadEnd() const;
     bool discoveredFinalDescendant() const;

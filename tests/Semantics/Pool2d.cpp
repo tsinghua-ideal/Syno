@@ -37,7 +37,7 @@ TEST_F(semantics_tests, pool2d) {
     dimH_over_K.output(2);
     dimW_over_K.output(3);
 
-    Interface in { dimN, dimC, dimH, dimW };
+    std::vector<Dimension> in { dimN, dimC, dimH, dimW };
     auto tensorView = TensorView({ in }, Parser("in_0").parseTensorExpression());
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),
 R"(for (int i_0 = 0; i_0 < N; i_0++) {

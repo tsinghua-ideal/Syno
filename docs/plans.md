@@ -29,7 +29,7 @@
 - [ ] Multiple weights. (Minimumize difference.)
 - [x] Manual `rfactor` for up to 3x performance.
 - [x] Add support for more arithmetic operations, other than product.
-- [ ] Add nested loops codegen for expression.
+- [x] Add nested loops codegen for expression.
 - [ ] Generate metadata along with kernels.
 
 ## Transforms
@@ -80,6 +80,7 @@
 - [x] Robustify the TensorView -> Path function.
 - [ ] Add visualization for search space, e.g., draw the DAG interactively.
 - [x] Node -> Graphviz.
+- [ ] Replace `Next` with `Arc`.
 
 ## Experiment
 

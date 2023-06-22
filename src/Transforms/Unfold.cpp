@@ -6,6 +6,14 @@
 
 namespace kas {
 
+UnfoldOp::UnfoldOp(const Dimension& outputLhs, const Dimension& outputRhs):
+    SplitLikeOp { outputLhs, outputRhs },
+    input { this }
+{
+    // Absorb dataDiscardingFlag in outputRhs.
+    color.setDataDiscarding(outputLhs.getColor().isDataDiscarding());
+}
+
 UnfoldOp::Values UnfoldOp::value(const Values& known) const {
     if (known.canSkipDeduction()) return known;
     auto& [input, outputLhs, outputRhs] = known.values;
@@ -44,12 +52,7 @@ UnfoldOp::Values UnfoldOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for UnfoldOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
-ColoredInterface UnfoldOp::applyToInterface(const ColoredInterface& interface) const {
-    // Absorb dataDiscarding flag in outputRhs.
-    return interface.substitute2to1(outputLhs, outputRhs, getInput(), true);
-}
-
-std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const ColoredInterface& interface, const GenerateOptions& options) {
+std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // In addition, canonicalization can require that UnfoldOp chain be structured in ascending order of kernel size. This changes semantics but it seems to be fine.
@@ -65,14 +68,10 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
     const auto totalAttempts = interface.size() * interface.size() - interface.size();
     CountGenerateAttempts += totalAttempts;
     std::size_t countPlausible = 0;
-    for (auto&& [dimL, colorL]: plausibleL) {
-        for (auto&& [dimR, colorR]: plausibleR) {
+    for (auto&& dimL: plausibleL) {
+        for (auto&& dimR: plausibleR) {
             if (dimL == dimR) continue;
             ++countPlausible;
-            if (!colorL.disjoint(colorR)) {
-                ++CountConflictingColors;
-                continue;
-            }
             // First check whether the kernel is small enough.
             // Absolute size.
             if (dimR.size().upperBoundEst(options.ctx) > options.maxUnfoldKernelSize) {

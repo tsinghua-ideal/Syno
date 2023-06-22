@@ -49,6 +49,29 @@ struct OpStores {
 
 } // namespace detail
 
+struct PrimitiveOpEqual {
+    template<PrimitiveOpImpl Op>
+    static bool TypedPrimitiveOpEqual(const PrimitiveOp *const& lhs, const PrimitiveOp *const& rhs) noexcept {
+        if (rhs->getType() != Op::Type) {
+            return false;
+        }
+        return static_cast<const Op&>(*lhs) == static_cast<const Op&>(*rhs);
+    }
+
+    bool operator()(const PrimitiveOp *const& lhs, const PrimitiveOp *const& rhs) const noexcept {
+        switch (lhs->getType()) {
+        case DimensionType::MapReduce: return TypedPrimitiveOpEqual<MapReduceOp>(lhs, rhs);
+        case DimensionType::Shift: return TypedPrimitiveOpEqual<ShiftOp>(lhs, rhs);
+        case DimensionType::Stride: return TypedPrimitiveOpEqual<StrideOp>(lhs, rhs);
+        case DimensionType::Split: return TypedPrimitiveOpEqual<SplitOp>(lhs, rhs);
+        case DimensionType::Unfold: return TypedPrimitiveOpEqual<UnfoldOp>(lhs, rhs);
+        case DimensionType::Merge: return TypedPrimitiveOpEqual<MergeOp>(lhs, rhs);
+        case DimensionType::Share: return TypedPrimitiveOpEqual<ShareOp>(lhs, rhs);
+        default: KAS_UNREACHABLE("PrimitiveOpEqual applied to unknown Op!");
+        }
+    }
+};
+
 class PrimitiveOpStore {
     // Remember to register the Ops!
     detail::OpStores<

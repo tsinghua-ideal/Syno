@@ -133,10 +133,6 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def_readwrite("key", &Next::key)
         .def("__eq__", &Next::operator==)
         .def("__hash__", &Next::hash)
-        .def(
-            "description", &Next::description,
-            pybind11::arg("based_on_node")
-        )
         .def("__repr__", &Next::toString);
 
     pybind11::class_<Kernel>(m, "Kernel")
@@ -175,6 +171,10 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("get_children_handles", &Node::getChildrenHandles)
         .def(
             "get_child", &Node::getChild,
+            pybind11::arg("next")
+        )
+        .def(
+            "get_child_description", &Node::getChildDescription,
             pybind11::arg("next")
         )
         .def("is_final", &Node::isFinal)

@@ -30,8 +30,8 @@ TEST_F(search_tests, forward) {
     dimK1_shared.reduce(1, MapReduce::MapType::Identity, MapReduce::ReduceType::Mean);
     // [N, H, W], the output.
 
-    Interface input { dimN, dimH, dimW }, weight { dimK1, dimK2 };
-    std::vector<Interface> tensors { input, weight };
+    std::vector<Dimension> input { dimN, dimH, dimW }, weight { dimK1, dimK2 };
+    std::vector<std::vector<Dimension>> tensors { input, weight };
     Sampler::ConvertTensorViewToSearchableOrder(tensors);
     auto tensorView = TensorView(tensors, TensorExpression::ProductOfTensors(tensors.size()));
     auto path = sampler.convertTensorViewToPath(tensors);
@@ -44,12 +44,12 @@ TEST_F(search_tests, forward) {
         fmt::print("Trying {}...\n", next.toString());
         fmt::print("The children are:\n");
         for (auto handles = node.getChildrenHandles(); auto handle: handles) {
-            fmt::print("  {}\n", *handle.description(node));
+            fmt::print("  {}\n", *node.getChildDescription(handle));
         }
         fmt::print("Getting child...\n");
         auto old = node;
         node = *node.getChild(next);
-        fmt::print("Got child. BTW, it is {}.\n", *next.description(old));
+        fmt::print("Got child. BTW, it is {}.\n", *old.getChildDescription(next));
     }
     ASSERT_EQ(
         node.asFinal()->printNestedLoopsForAll(ctx),
