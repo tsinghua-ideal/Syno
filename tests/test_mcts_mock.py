@@ -1,6 +1,6 @@
 import logging
 import json
-import traceback
+import os
 from tqdm import trange
 
 from KAS import MCTS, MockSampler
@@ -110,6 +110,8 @@ def test_mcts():
             continue
         assert k in mcts_recover._treenode_store, f"Node {k} not in {mcts_recover._treenode_store}"
         assert v == mcts_recover._treenode_store[k], f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
+    
+    os.remove("test_mcts.json")
 
 
 def test_converge(num_iter=1000, leaf_num=3, eps=0.03):

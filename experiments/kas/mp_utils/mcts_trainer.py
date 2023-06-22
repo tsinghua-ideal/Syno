@@ -1,15 +1,24 @@
 import math
+import torch
 
 # Systems
-import os
+import shutil
+import os, sys
 import json
 import logging
 from time import time, sleep
 from typing import Dict, List, Tuple, Any
+from copy import deepcopy
 
 # KAS
-from KAS import MCTS, Sampler, Statistics, Node, TreeNode
+from KAS import MCTS, Sampler, Statistics, TreePath, TreeNode, CodeGenOptions
 
+if os.getcwd() not in sys.path:
+    sys.path.append(os.getcwd())
+from utils.models import ModelBackup
+import utils.models as model_factory
+from utils.parser import arg_parse
+from utils.config import parameters
 
 class MCTSTrainer:
     def __init__(self,
@@ -25,19 +34,16 @@ class MCTSTrainer:
                          leaf_parallelization_number, exploration_weight)
 
         print("MCTS initialized")
-
-        # flags
-        self.best_node = (0, 0)
-        self.reward_list: List[float] = []
-        self.time_list: List[float] = []
-        self.end_flag: bool = False
+        self.remain_iterations = mcts_iterations
         self.start_time: float = time()
 
+        # records
+        self.best_node: TreeNode = None
+        self.reward_list: List[float] = []
+        self.time_list: List[float] = []
+
         # arguments
-        self.args = arguments
-        self.remain_iterations = mcts_iterations
-        self.leaf_parallelization_number = leaf_parallelization_number
-        self.virtual_loss_constant = virtual_loss_constant
+        self.arguments = arguments
 
     def has_eval_result(self, node: TreeNode) -> bool:
         return node.reward != -1
@@ -57,18 +63,19 @@ class MCTSTrainer:
         node.reward = val
 
     def get_args(self) -> Dict:
-        return self.args
+        return self.arguments
 
     def update_result(self, meta: Tuple[TreeNode, Any], reward: float) -> None:
         """preprocess a path after evaluation. """
         trial, receipt = meta
+        assert trial.is_final()
         if reward == -1:
             self.mcts.remove(receipt, trial)
         else:
             self.set_eval_result(trial, reward)
             # update
-            if self.best_node[1] < reward:
-                self.best_node = (trial, reward)
+            if self.best_node is None or self.best_node.reward < reward:
+                self.best_node = trial
             self.mcts.back_propagate(receipt, reward)
             self.reward_list.append(reward)
             self.time_list.append(time() - self.start_time)
@@ -77,7 +84,7 @@ class MCTSTrainer:
             Statistics.Print()
             print("**************** Logged Summary ******************")
 
-    def launch_new_iteration(self) -> None:
+    def launch_new_iteration(self) -> Dict[str, Tuple[TreeNode, Any]]:
         """
         Launch a new iteration and push some tasks to the task pool. 
         Tasks: Tree parallelization, Leaf parallelization
@@ -115,23 +122,107 @@ class MCTSTrainer:
         """Search for the best model for iterations times."""
 
         print("Finish searching process. Displaying final result...")
-        node, reward = self.best_node
 
         os.makedirs(result_save_loc, exist_ok=True)
+        
+        args_path = os.path.join(result_save_loc, 'arguments.json')
+        # We need not to save mcts_iterations
+        json.dump(self.arguments, open(args_path, 'w'), indent=4)
+        
         perf_path = os.path.join(result_save_loc, 'perf.json')
         perf_dict = {
             "rewards": self.reward_list,
             "times": self.time_list
         }
-        json.dump(perf_dict, open(perf_path, 'w'))
+        json.dump(perf_dict, open(perf_path, 'w'), indent=4)
         result_path = os.path.join(result_save_loc, 'result.json')
         result_dict = {
-            "best_node": hash(node),
-            "best_perf": reward,
+            "best_perf": self.best_node.reward,
             "mcts": self.mcts.serialize()
         }
-        json.dump(result_dict, open(result_path, 'w'))
+        json.dump(result_dict, open(result_path, 'w'), indent=4)
 
-        assert self.has_eval_result(node)
-        print("Best performance: {}".format(self.get_eval_result(node)))
+        assert self.has_eval_result(self.best_node)
+        assert self.get_eval_result(self.best_node) == self.best_node.reward
+        print("Best performance: {}".format(self.best_node.reward))
         print("Time elapsed: {} seconds.".format(time() - self.start_time))
+    
+    @staticmethod
+    def load(result_save_loc: str, mcts_iterations: int = 1000) -> 'MCTSTrainer':
+        """
+        Load a MCTSTrainer from a result folder.
+        """
+        args_path = os.path.join(result_save_loc, 'arguments.json')
+        perf_path = os.path.join(result_save_loc, 'perf.json')
+        result_path = os.path.join(result_save_loc, 'result.json')
+        arguments = json.load(open(args_path))
+        perf_dict = json.load(open(perf_path))
+        result_dict = json.load(open(result_path))
+        
+        sampler_params = arguments['sampler_args']
+        extra_args = arguments['extra_args']
+        model_type = getattr(model_factory, extra_args['model_type'])
+        _model = ModelBackup(model_type, torch.randn(
+            extra_args["sample_input_shape"]), "cpu")
+        sampler_params['autoscheduler'] = getattr(
+            CodeGenOptions.AutoScheduler, sampler_params['autoscheduler'])
+        sampler = Sampler(net=_model.create_instance(), **sampler_params)
+        
+        mcts_trainer = MCTSTrainer(
+            sampler=sampler, 
+            arguments=arguments, 
+            mcts_iterations=mcts_iterations
+        )
+        mcts_trainer.mcts = MCTS.deserialize(serialized=result_dict["mcts"], sampler=sampler)
+        mcts_trainer.reward_list = perf_dict["rewards"]
+        mcts_trainer.time_list = perf_dict["times"]
+        
+        # get best_node
+        for tree_node in mcts_trainer.mcts._treenode_store.values():
+            if tree_node.is_final() and tree_node.reward == result_dict["best_perf"]:
+                mcts_trainer.best_node = tree_node
+                break
+        assert mcts_trainer.best_node is not None, "The tree has no best node! (i.e., it does not contain any result). "
+        
+        return mcts_trainer
+
+if __name__ == '__main__':
+    args = arg_parse()
+    use_cuda = torch.cuda.is_available()
+
+    os.makedirs(args.kas_sampler_save_dir, exist_ok=True)
+
+    training_params, sampler_params, extra_args = parameters(args)
+
+    arguments = deepcopy(dict(
+        sampler_args=sampler_params,
+        train_args=training_params,
+        extra_args=extra_args
+    ))
+    arguments['sampler_args']['autoscheduler'] = str(
+        arguments['sampler_args']['autoscheduler'])[14:]  # HACK: serialize the enum
+
+    model_type = getattr(model_factory, extra_args['model_type'])
+    _model = ModelBackup(model_type, torch.randn(
+        extra_args["sample_input_shape"]), "cpu")
+    kas_sampler = Sampler(net=_model.create_instance(), **sampler_params)
+
+    searcher = MCTSTrainer(
+        kas_sampler,
+        arguments,
+        mcts_iterations=args.kas_iterations,
+        leaf_parallelization_number=args.kas_leaf_parallelization_number,
+        virtual_loss_constant=args.kas_tree_parallelization_virtual_loss_constant
+    )
+    
+    result = searcher.launch_new_iteration()
+    for path, trial in result.items():
+        assert trial[0].is_final()
+        searcher.update_result(trial, 0.9)
+    searcher.dump_result('./test_save_folder')
+    
+    # test loading
+    searcher_recover = MCTSTrainer.load('./test_save_folder')
+    
+    shutil.rmtree('./test_save_folder')
+    print("[Passed] Loading Test. ")
