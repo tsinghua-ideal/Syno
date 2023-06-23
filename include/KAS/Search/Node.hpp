@@ -100,13 +100,19 @@ struct NextSlot {
     }
 };
 
+class Sampler;
 class FinalizeOp;
 
 class Arc {
+    const Sampler *sampler;
     std::variant<const PrimitiveOp *, const FinalizeOp *> inner;
 public:
-    Arc(const PrimitiveOp *op): inner(op) {}
-    Arc(const FinalizeOp *op): inner(op) {}
+    Arc(const Sampler *sampler, const PrimitiveOp *op):
+        sampler { sampler },
+        inner { op } {}
+    Arc(const Sampler *sampler, const FinalizeOp *op):
+        sampler { sampler },
+        inner { op } {}
 
     template<typename R, typename FP, typename FF>
     requires
@@ -124,8 +130,14 @@ public:
         }, inner);
     }
 
+    template<typename T>
+    const T *as() const {
+        return std::get<const T *>(inner);
+    }
+
     bool operator==(const Arc& rhs) const;
     std::size_t hash() const;
+    std::string toString() const;
 };
 
 template<typename Slot>
@@ -219,9 +231,15 @@ public:
         return nexts;
     }
 
-    std::vector<Arc> toArcs() const {
+    std::vector<Arc> toArcs(const Sampler *sampler) const {
         std::vector<Arc> arcs;
-        std::ranges::move(slots | std::views::transform(&Slot::toArc), std::back_inserter(arcs));
+        std::ranges::move(
+            slots
+            | std::views::transform([=](const Slot& slot) {
+                return slot.toArc(sampler);
+            }),
+            std::back_inserter(arcs)
+        );
         return arcs;
     }
 
@@ -249,7 +267,6 @@ public:
 };
 
 class TensorView;
-class Sampler;
 class AbstractStage;
 class ReductionStage;
 class NormalStage;
@@ -259,7 +276,7 @@ struct NextOpSlot: NextSlot<Next::TypeOf<Op>()> {
     const Op *op;
     NormalStage *nextStage;
     static std::size_t GetKey(const Op *op) { return op->opHash(); }
-    Arc toArc() const { return Arc(op); }
+    Arc toArc(const Sampler *sampler) const { return Arc(sampler, op); }
 };
 
 template<>
@@ -267,7 +284,7 @@ struct NextOpSlot<MapReduceOp>: NextSlot<Next::Type::MapReduce> {
     const MapReduceOp *op;
     ReductionStage *nextStage;
     static std::size_t GetKey(const MapReduceOp *op) { return op->opHash(); }
-    Arc toArc() const { return Arc(op); }
+    Arc toArc(const Sampler *sampler) const { return Arc(sampler, op); }
 };
 
 template<PrimitiveOpImpl Op>
@@ -328,8 +345,8 @@ struct NextOpStores {
         std::ranges::move(results | std::views::join, std::back_inserter(flattened));
         return flattened;
     }
-    std::vector<Arc> toArcs() const {
-        auto results = const_cast<NextOpStores<Ops...>&>(*this).homogeneousMap([](const auto& store) { return store.toArcs(); });
+    std::vector<Arc> toArcs(const Sampler *sampler) const {
+        auto results = const_cast<NextOpStores<Ops...>&>(*this).homogeneousMap([=](const auto& store) { return store.toArcs(sampler); });
         std::vector<Arc> flattened;
         std::ranges::move(results | std::views::join, std::back_inserter(flattened));
         return flattened;
@@ -416,7 +433,10 @@ public:
     // The count of children nodes.
     std::size_t countChildren() const;
     std::vector<Next> getChildrenHandles() const;
+    std::vector<Arc> getArcs() const;
+    std::optional<Arc> getArcFromHandle(Next next) const;
     std::optional<Node> getChild(Next next) const;
+    Node getChildFromArc(Arc arc) const;
     std::optional<std::string> getChildDescription(Next next) const;
     bool isFinal() const { return type() == Type::Final; }
     bool isDeadEnd() const;

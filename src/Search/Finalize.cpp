@@ -23,6 +23,10 @@ std::shared_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedD
     return std::make_unique<TensorView>(tensors, std::move(blending));
 }
 
+bool FinalizeOp::operator==(const FinalizeOp& rhs) const noexcept {
+    return tensors == rhs.tensors;
+}
+
 std::size_t FinalizeOp::hash() const noexcept {
     return NextFinalizeSlot::GetKey(tensors);
 }

@@ -19,7 +19,7 @@ from .Tree import MCTS, TreeNode, TreePath
 from .Sampler import Sampler, CodeGenOptions, MockSampler
 from .Placeholder import Placeholder
 from .Statistics import Statistics
-from .Node import Next, Path, Node, MockNodeMetadata, MockNode, MockVisitedNode
+from .Node import Next, Path, Arc, Node, MockNodeMetadata, MockNode, MockVisitedNode
 from .KernelPack import KernelPack
 from .Utils import NextSerializer
 from .Explorer import Explorer

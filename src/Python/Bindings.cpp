@@ -164,14 +164,28 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         )
         .def("__repr__", &Kernel::toNestedLoops);
 
+    pybind11::class_<Arc>(m, "Arc")
+        .def("__eq__", &Arc::operator==)
+        .def("__hash__", &Arc::hash)
+        .def("__repr__", &Arc::toString);
+
     pybind11::class_<Node>(m, "Node")
         .def("__eq__", &Node::operator==)
         .def("__hash__", &Node::hash)
         .def("children_count", &Node::countChildren)
         .def("get_children_handles", &Node::getChildrenHandles)
+        .def("get_arcs", &Node::getArcs)
+        .def(
+            "get_arc_from_handle", &Node::getArcFromHandle,
+            pybind11::arg("next")
+        )
         .def(
             "get_child", &Node::getChild,
             pybind11::arg("next")
+        )
+        .def(
+            "get_child_from_arc", &Node::getChildFromArc,
+            pybind11::arg("arc")
         )
         .def(
             "get_child_description", &Node::getChildDescription,

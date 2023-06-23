@@ -283,8 +283,8 @@ std::vector<Next> NormalStage::uncheckedGetChildrenHandles() const {
 }
 
 std::vector<Arc> NormalStage::uncheckedGetArcs() const {
-    auto arcsF = nextFinalizations.toArcs();
-    auto arcs = nextOpStores.toArcs();
+    auto arcsF = nextFinalizations.toArcs(&sampler);
+    auto arcs = nextOpStores.toArcs(&sampler);
     arcs.insert(arcs.begin(), arcsF.begin(), arcsF.end());
     return arcs;
 }
@@ -321,10 +321,10 @@ std::vector<Arc> NormalStage::getArcs() {
 std::optional<Arc> NormalStage::getArcFromHandle(Next next) {
     return guarded([&] { return matchNext<Arc>(next,
         [&](const auto& slot) -> Arc {
-            return slot.op;
+            return { &sampler, slot.op };
         },
         [&](const auto& slot) -> Arc {
-            return &slot.finalization;
+            return { &sampler, &slot.finalization };
         }
     );});
 }
@@ -347,18 +347,6 @@ Node NormalStage::getChild(Arc arc) {
         },
         [&](auto op) -> Node {
             return { &sampler, getFinalize(op) };
-        }
-    );
-}
-
-std::string NormalStage::getChildDescription(Arc arc) {
-    const auto& ctx = sampler.getBindingContext();
-    return arc.match<std::string>(
-        [&](auto op) -> std::string {
-            return op->description(ctx);
-        },
-        [&](auto op) -> std::string {
-            return op->description(ctx);
         }
     );
 }

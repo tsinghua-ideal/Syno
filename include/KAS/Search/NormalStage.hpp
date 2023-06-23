@@ -146,7 +146,6 @@ public:
     std::optional<Arc> getArcFromHandle(Next next) override;
     std::optional<Node> getChild(Next next) override;
     Node getChild(Arc arc) override;
-    std::string getChildDescription(Arc arc) override;
     std::string description() const override;
 };
 

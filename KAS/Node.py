@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from . import Bindings
-from .Bindings import Next
+from .Bindings import Next, Arc
 
 
 AbsolutePath = List[Next]
@@ -73,7 +73,7 @@ class Path:
 
 
 class Node:
-    """A node in Python, not necessarily corresponding to a C++ node."""
+    """A node in Python, corresponding to a C++ Node."""
 
     def __init__(self, node: Bindings.Node) -> None:
         self._node = node
@@ -110,11 +110,24 @@ class Node:
             result[str(handle.type)] += 1
         return result
 
+    def get_arcs(self) -> List[Arc]:
+        """Get all arcs of a node."""
+        return self._node.get_arcs()
+
+    def get_arc_from_handle(self, handle: Next) -> Optional[Arc]:
+        """Get the arc from a Next."""
+        return self._node.get_arc_from_handle(handle)
+
     def get_child(self, next: PseudoNext) -> Optional['Node']:
         """Get the child node of a node with a Next."""
         child_node = self._node.get_child(Path.to_next(next))
         if child_node is None:
             return None
+        return Node(child_node)
+
+    def get_child_from_arc(self, arc: Arc) -> 'Node':
+        """Get the child node of a node with an Arc."""
+        child_node = self._node.get_child_from_arc(arc)
         return Node(child_node)
 
     def get_child_description(self, next: PseudoNext) -> Optional[str]:
@@ -216,8 +229,17 @@ class MockNodeMetadata:
     def get_children_handles(self) -> List[Next]:
         return list(self._mock_children().keys())
 
+    def get_arcs(self) -> List[Next]:
+        return self.get_children_handles()
+
+    def get_arc_from_handle(self, handle: Next) -> Optional[Next]:
+        return handle
+
     def get_child(self, next: Next) -> Optional['MockNodeMetadata']:
         return self._mock_children().get(next, None)
+
+    def get_child_from_arc(self, arc: Next) -> 'MockNodeMetadata':
+        return self.get_child(arc)
 
     def _get_child_description_helper(self, next: Next) -> Optional[str]:
         if next in self._mock_children():

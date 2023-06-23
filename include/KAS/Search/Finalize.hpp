@@ -29,6 +29,7 @@ public:
     {}
     // Pass in sorted fixed dimensions.
     std::shared_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending) const;
+    bool operator==(const FinalizeOp& rhs) const noexcept;
     std::size_t hash() const noexcept;
 
     std::string description(const BindingContext& ctx) const;
@@ -128,7 +129,7 @@ struct NextFinalizeSlot: NextSlot<Next::Type::Finalize> {
     FinalizeOp finalization;
     template<TensorRange TR>
     static std::size_t GetKey(TR&& tensors) { return std::hash<std::vector<Dimensions>>{}(tensors); }
-    Arc toArc() const { return Arc(&finalization); }
+    Arc toArc(const Sampler *sampler) const { return Arc(sampler, &finalization); }
 };
 
 } // namespace kas

@@ -170,6 +170,17 @@ std::optional<std::pair<std::vector<Next>, Node>> Sampler::randomNodeWithPrefix(
     return std::optional<std::pair<std::vector<Next>, Node>>(std::in_place, std::move(path), std::move(cur));
 }
 
+std::string Sampler::getArcDescription(Arc arc) const {
+    return arc.match<std::string>(
+        [&](auto op) -> std::string {
+            return op->description(ctx);
+        },
+        [&](auto op) -> std::string {
+            return op->description(ctx);
+        }
+    );
+}
+
 void Sampler::ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimension>>& tensorView) {
     // First sort the weights in order of hash. This somewhat duplicates the functionality in Forward::buildTensorView(). TODO
     std::ranges::for_each(tensorView | std::views::drop(1), [](std::vector<Dimension>& dims) {

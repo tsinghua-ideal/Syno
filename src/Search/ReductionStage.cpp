@@ -112,7 +112,7 @@ std::vector<Next> ReductionStage::getChildrenHandles() {
 }
 
 std::vector<Arc> ReductionStage::getArcs() {
-    std::vector<Arc> arcs = nextReductions.toArcs();
+    std::vector<Arc> arcs = nextReductions.toArcs(&sampler);
     std::ranges::move(nStage->getArcs(), std::back_inserter(arcs));
     return arcs;
 }
@@ -123,7 +123,7 @@ std::optional<Arc> ReductionStage::getArcFromHandle(Next next) {
         if (!slot) {
             return std::nullopt;
         }
-        return slot->nextStage->lastReduction();
+        return std::optional<Arc>(std::in_place, &sampler, slot->nextStage->lastReduction());
     } else {
         return nStage->getArcFromHandle(next);
     }
@@ -151,23 +151,11 @@ Node ReductionStage::getChild(Arc arc) {
                 }
                 return Node { &sampler, slot->nextStage };
             } else {
-                return nStage->getChild(Arc(op));
+                return nStage->getChild(Arc(&sampler, op));
             }
         },
         [&](auto) -> Node {
             KAS_CRITICAL("Invalid Arc: applied to a final node.");
-        }
-    );
-}
-
-std::string ReductionStage::getChildDescription(Arc arc) {
-    const auto& ctx = sampler.getBindingContext();
-    return arc.match<std::string>(
-        [&](auto op) -> std::string {
-            return op->description(ctx);
-        },
-        [&](auto op) -> std::string {
-            return op->description(ctx);
         }
     );
 }

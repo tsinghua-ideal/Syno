@@ -20,6 +20,46 @@ std::map<Next::Type, std::size_t> Next::CountTypes(const std::vector<Next>& next
     return result;
 }
 
+bool Arc::operator==(const Arc& rhs) const {
+    if (inner.index() != rhs.inner.index()) {
+        return false;
+    }
+    return match<bool>(
+        [&](const PrimitiveOp *op) {
+            return PrimitiveOpEqual{}(op, rhs.as<PrimitiveOp>());
+        },
+        [&](const FinalizeOp *op) {
+            return *op == *rhs.as<FinalizeOp>();
+        }
+    );
+}
+std::size_t Arc::hash() const {
+    using namespace std::string_view_literals;
+    auto h = std::hash<std::string_view>{}("Arc"sv);
+    HashCombine(h, inner.index());
+    auto contentHash = match<std::size_t>(
+        [](const PrimitiveOp *op) {
+            return op->opHash();
+        },
+        [](const FinalizeOp *op) {
+            return op->hash();
+        }
+    );
+    HashCombineRaw(h, contentHash);
+    return h;
+}
+std::string Arc::toString() const {
+    const auto& ctx = sampler->getBindingContext();
+    return match<std::string>(
+        [&](auto op) -> std::string {
+            return op->description(ctx);
+        },
+        [&](auto op) -> std::string {
+            return op->description(ctx);
+        }
+    );
+}
+
 bool Node::operator==(const Node& rhs) const {
     if (inner.index() != rhs.inner.index()) {
         return false;
@@ -129,10 +169,31 @@ std::vector<Next> Node::getChildrenHandles() const {
     );
 }
 
+std::vector<Arc> Node::getArcs() const {
+    return match<std::vector<Arc>>(
+        [](AbstractStage *stage) { return stage->getArcs(); },
+        [](std::shared_ptr<TensorView> tensor) { return std::vector<Arc>{}; }
+    );
+}
+
+std::optional<Arc> Node::getArcFromHandle(Next next) const {
+    return match<std::optional<Arc>>(
+        [&](AbstractStage *stage) { return stage->getArcFromHandle(next); },
+        [](std::shared_ptr<TensorView> tensor) -> std::optional<Arc> { return std::nullopt; }
+    );
+}
+
 std::optional<Node> Node::getChild(Next next) const {
     return match<std::optional<Node>>(
         [&](AbstractStage *stage) { return stage->getChild(next); },
         [](std::shared_ptr<TensorView> tensor) -> std::optional<Node> { return std::nullopt; }
+    );
+}
+
+Node Node::getChildFromArc(Arc arc) const {
+    return match<Node>(
+        [&](AbstractStage *stage) { return stage->getChild(arc); },
+        [](std::shared_ptr<TensorView> tensor) -> Node { KAS_UNREACHABLE(); }
     );
 }
 
@@ -141,7 +202,7 @@ std::optional<std::string> Node::getChildDescription(Next next) const {
         [&](AbstractStage *stage) -> std::optional<std::string> {
             auto arc = stage->getArcFromHandle(next);
             if (!arc) return std::nullopt;
-            return stage->getChildDescription(arc.value());
+            return sampler->getArcDescription(*arc);
         },
         [](std::shared_ptr<TensorView> tensor) -> std::string {
             KAS_UNREACHABLE();

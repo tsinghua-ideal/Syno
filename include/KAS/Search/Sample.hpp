@@ -124,6 +124,7 @@ public:
     Sampler(Sampler&&) = delete;
 
     BindingContext& getBindingContext() { return ctx; }
+    const BindingContext& getBindingContext() const { return ctx; }
     Shape& getInputShape() { return inputShape; }
     Shape& getOutputShape() { return outputShape; }
     const SampleOptions& getOptions() const { return options; }
@@ -139,6 +140,8 @@ public:
     std::optional<Node> visit(const std::vector<Next>& path);
     // The path is intended to visit a TensorView, but it may fail, in which case we rely on the search algorithm to penalize it.
     std::optional<std::pair<std::vector<Next>, Node>> randomNodeWithPrefix(const std::vector<Next>& prefix);
+    // Get description of an Op.
+    std::string getArcDescription(Arc arc) const;
 
     static void ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimension>>& tensorView);
     std::vector<Next> convertTensorViewToPath(const std::vector<std::vector<Dimension>>& tensorView) const;
