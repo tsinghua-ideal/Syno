@@ -123,6 +123,7 @@ void NormalStage::guardGeneratedChildren() {
         .desired = sampler.getInputShape(),
         .maximumTensors = options.maximumTensors,
         .maximumFinalizations = options.maximumFinalizations,
+        .allowWeightPermutation = options.allowWeightPermutation,
     }), [](FinalizeOp& f) {
         return NextFinalizeSlot({NextFinalizeSlot::GetKey(f.tensors)}, std::move(f));
     });
@@ -212,7 +213,6 @@ void NormalStage::guardGeneratedChildren() {
 
 std::shared_ptr<TensorView> NormalStage::getFinalize(const FinalizeOp *op) const {
     if (!op) return nullptr;
-    // TODO!!!
     return op->buildTensorView(sampler.getFixedDimensions(), sampler.getExpressionForTensorNum(op->tensors.size()));
 }
 

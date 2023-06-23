@@ -40,6 +40,10 @@ public:
     std::shared_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending) const;
     bool operator==(const FinalizeOp& rhs) const noexcept;
     std::size_t hash() const noexcept;
+    std::size_t count() const noexcept { return tensors.size(); }
+
+    double weightVariance(const ConcreteConsts& consts) const;
+    double weightVariance(const BindingContext& ctx) const;
 
     std::string description(const BindingContext& ctx) const;
 
@@ -130,7 +134,9 @@ public:
         const Shape& desired;
         std::size_t maximumTensors;
         std::size_t maximumFinalizations;
+        bool allowWeightPermutation;
     };
+
     static Generator<std::vector<std::vector<Dimension>>> AssignToWeights(const std::vector<ColoredDimension>& remaining, std::size_t maxWeights);
     static std::vector<FinalizeOp> Generate(const Dimensions& interface, const Graph& graph, const GenerateOptions& options);
 };

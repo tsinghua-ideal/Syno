@@ -34,6 +34,41 @@ std::size_t FinalizeOp::hash() const noexcept {
     return NextFinalizeSlot::GetKey(tensors);
 }
 
+double FinalizeOp::weightVariance(const ConcreteConsts& consts) const {
+    if (tensors.size() <= 1) {
+        return 0.0;
+    }
+    const double count = tensors.size() - 1;
+    double elements = 1.0;
+    double sum = 0.0;
+    std::vector<double> weights;
+    weights.reserve(tensors.size() - 1);
+    for (std::size_t tId = 1; tId < tensors.size(); ++tId) {
+        const auto& tensor = tensors[tId];
+        ShapeView shape { tensor };
+        double weight = shape.totalSize().eval<double>(consts);
+        elements *= weight;
+        sum += weight;
+        weights.emplace_back(weight);
+    }
+    const double avg = sum / count;
+    // The `count` is by def of variance. The second factor is due to different consts.
+    const double normalization = count * std::pow(elements, 2.0 / count);
+    return std::transform_reduce(weights.begin(), weights.end(), 0.0, std::plus<>{}, [&avg](double weight) {
+        return (weight - avg) * (weight - avg);
+    }) / normalization;
+}
+
+double FinalizeOp::weightVariance(const BindingContext& ctx) const {
+    const auto& allConsts = ctx.getAllConsts();
+    if (allConsts.empty()) {
+        return weightVariance(ctx.getDefaultConsts());
+    }
+    return std::transform_reduce(allConsts.begin(), allConsts.end(), 0.0, std::plus<>{}, [this](const auto& consts) {
+        return weightVariance(consts);
+    });
+}
+
 std::string FinalizeOp::description(const BindingContext& ctx) const {
     return TensorArrayToString(tensors, ctx);
 }
@@ -295,6 +330,17 @@ std::size_t FinalizeOp::ReshapeGroups::countSteps() const {
     return countSplits() + countTrivialMerges() + countFinalAdditionalMerges() + countFinalUnfolds();
 }
 
+namespace {
+
+template<typename T>
+std::optional<T> optionalMin(const std::optional<T>& a, const std::optional<T>& b) {
+    if (!a) return b;
+    if (!b) return a;
+    return std::min(*a, *b);
+}
+
+} // namespace
+
 std::size_t FinalizeOp::ShapeComplexity(const Shape& desired, const std::vector<Size>& current, const FinalizeOp::DistanceOptions& options) {
     constexpr std::size_t Infinity = std::numeric_limits<std::size_t>::max();
 
@@ -342,13 +388,7 @@ std::size_t FinalizeOp::ShapeComplexity(const Shape& desired, const std::vector<
             std::optional<std::size_t> result;
             for (ReshapeGroups newGroups: groups.assignCurrent(currentIndex)) {
                 std::optional<std::size_t> newResult = self(self, newGroups, currentIndex + 1);
-                if (newResult) {
-                    if (result) {
-                        result = std::min(*result, *newResult);
-                    } else {
-                        result = newResult;
-                    }
-                }
+                result = optionalMin(result, newResult);
             }
             return result;
         } else { // We have grouped all sizes.
@@ -373,13 +413,7 @@ std::size_t FinalizeOp::ShapeComplexity(const Shape& desired, const std::vector<
             std::optional<std::size_t> result;
             for (ReshapeGroups newGroups: groups.assignDesired(desiredIndex)) {
                 std::optional<std::size_t> newResult = self(self, newGroups, desiredIndex + 1);
-                if (newResult) {
-                    if (result) {
-                        result = std::min(*result, *newResult);
-                    } else {
-                        result = newResult;
-                    }
-                }
+                result = optionalMin(result, newResult);
             }
             return result;
         } else { // We have assigned all desired sizes.
@@ -604,6 +638,59 @@ struct CollectedTensorFragments {
     }
 };
 
+struct TopKFinalizations {
+    struct Finalization {
+        FinalizeOp tensors;
+        double variance;
+        Finalization(const BindingContext& ctx, auto&& tensors):
+            tensors { std::forward<decltype(tensors)>(tensors) },
+            variance { this->tensors.weightVariance(ctx) }
+        {}
+        std::weak_ordering operator<=>(const Finalization& other) const {
+            auto count = tensors.count() <=> other.tensors.count();
+            if (count != 0) {
+                return count;
+            }
+            if (variance < other.variance) {
+                return std::weak_ordering::less;
+            } else if (variance > other.variance) {
+                return std::weak_ordering::greater;
+            } else {
+                return std::weak_ordering::equivalent;
+            }
+        }
+    };
+    const BindingContext& ctx;
+    std::size_t k;
+    // Sorted by variance, from lowest to highest.
+    std::vector<Finalization> topK;
+
+    TopKFinalizations(const BindingContext& ctx, std::size_t k):
+        ctx { ctx }, k { k } {}
+    bool empty() const noexcept { return topK.empty(); }
+    std::size_t size() const noexcept { return topK.size(); }
+    void emplace(auto&& tensors) {
+        Finalization f { ctx, std::forward<decltype(tensors)>(tensors) };
+        auto it = std::lower_bound(topK.begin(), topK.end(), f);
+        if (it != topK.end()) {
+            topK.insert(it, std::move(f));
+            if (topK.size() > k) {
+                topK.pop_back();
+            }
+        } else if (topK.size() < k) {
+            topK.emplace_back(std::move(f));
+        }
+    }
+    std::vector<FinalizeOp> toResult() {
+        std::vector<FinalizeOp> result;
+        result.reserve(topK.size());
+        for (auto& f: topK) {
+            result.emplace_back(std::move(f.tensors));
+        }
+        return result;
+    }
+};
+
 } // namespace
 
 std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const Graph& graph, const GenerateOptions& options) {
@@ -618,14 +705,22 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const 
     // Compute connected components for early reduction analysis.
     auto components = graph.computeConnectedComponents();
 
-    std::vector<FinalizeOp> result;
+    TopKFinalizations result { options.ctx, options.maximumFinalizations };
     const auto& desired = options.desired;
 
     auto buildBesideInputTensor = [&](const CollectedTensorFragments& inputCandidate) {
         auto [inputTensor, weightDims] = inputCandidate.toTensorAndWeightDims(interface);
         for (auto tensors: AssignToWeights(weightDims, options.maximumTensors - 1)) {
+            // Canonicalize order of tensors.
+            if (!options.allowWeightPermutation) {
+                auto it = std::adjacent_find(tensors.begin(), tensors.end(), [](const auto& a, const auto& b) {
+                    return a[0].hash() > b[0].hash();
+                });
+                if (it != tensors.end()) {
+                    continue;
+                }
+            }
             tensors.insert(tensors.begin(), std::move(inputTensor));
-            // TODO!!!! Canonicalize order of tensors.
             if (!Color::CheckFinalization(tensors)) {
                 // We really should avoid this!
                 KAS_WARNING("Finalization with conflicting colors generated!");
@@ -636,8 +731,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const 
                 ++CountPrunedFinalizations;
                 return;
             }
-            // TODO!!!! Keep top-k results.
-            result.emplace_back(std::move(tensors));
+            result.emplace(std::move(tensors));
         }
     };
 
@@ -679,7 +773,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const 
     } else {
         ++CountSuccessfulInvocations;
     }
-    return result;
+    return result.toResult();
 }
 
 } // namespace kas

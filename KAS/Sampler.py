@@ -53,7 +53,95 @@ class Sampler:
         for placeholder, kernel_pack in zip(placeholders, kernel_packs):
             placeholder.reload(kernel_pack)
 
-    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, maximum_variables_in_size: int = 16, maximum_variables_powers_in_size: int = 16, expression_one_tensor: str = "in_0", expression_two_tensors: str = "in_0 * in_1", expression_three_tensors: str = "in_0 * in_1 + in_2", expression_four_tensors: str = "in_0 * in_1 * in_2 + in_3", max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_discontinuous_view: bool = True, canonicalize_unfold_order: bool = True, maximum_merges: int = -1, maximum_splits: int = -1, maximum_shifts: int = -1, maximum_strides: int = -1, maximum_unfolds: int = -1, maximum_shares: int = -1, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot, rfactor_threshold: int = 32, in_bounds_likely_threshold: float = 0.3):
+    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, maximum_variables_in_size: int = 16, maximum_variables_powers_in_size: int = 16, expression_one_tensor: str = "in_0", expression_two_tensors: str = "in_0 * in_1", expression_three_tensors: str = "in_0 * in_1 + in_2", expression_four_tensors: str = "in_0 * in_1 * in_2 + in_3", maximum_finalizations: int = 5, allow_weight_permutation: bool = True, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_discontinuous_view: bool = True, canonicalize_unfold_order: bool = True, maximum_merges: int = -1, maximum_splits: int = -1, maximum_shifts: int = -1, maximum_strides: int = -1, maximum_unfolds: int = -1, maximum_shares: int = -1, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot, rfactor_threshold: int = 32, in_bounds_likely_threshold: float = 0.3):
+        """
+        Parameters
+        ----------
+        input_shape : str
+            The shape of the desired input tensor. All sizes are represented by variables. A variable can be denoted by a (Python) identifier. For exampler, this argument can be `"[N, C, H, W]"` or `"[N, C, H, W, D]"`. Note the brackets.
+        output_shape : str
+            Same as above.
+        primary_specs : List[str]
+            The variables in KAS are of either of the two types: primary, and coefficient. There is no clear distinction, but generally primary variables are large in size (for example, spatial dimensions `H` and `W`), and coefficient variables are small in size (for example, the stride `s`).
+            Primary variables are never allowed to be in the denominator of a fraction, while coefficient variables are allowed to be in the denominator. This is utilized to reduce the search space. For example, `s^-1*H` is a legal size.
+            This argument is a list of primary variables specifications, along with their (optional) values and (optional) maximum occurrences. For example, the argument `["N: 0", "C", "H = 28: 2", "W = 28: 2"]` means we do not want `N` to be appear in the search space, the spatial dimensions are 28 and can appear at most twice in any phase of searching.
+            The syntax of a specification is:
+            `SizeSpec` ::= `Size` (`:` `int`)?
+            where the integer is the maximum occurrences of a size. And
+            `Size` ::= `int` | `id` | `id` `=` `int`
+            A size can be anonymous (in which case it is a numeric constant), or named with optional specified value.
+        coefficient_specs : List[str]
+            Same as above. Note that you can utilize anonymous sizes to write something like `["5", "3: 2"]`. It is recommended that you do not set 2 variables of the exact same size, because this simply doubles the search space. Unless you have a special reason to do so, for example, you need to distinguish between the height `H` and width `W`, which appear in input and output shapes.
+        net : nn.Module, optional
+            The network to be sampled. This is needed to extract the concrete sizes of each variable from the `Placeholder`s. It is highly recommended that you pass your network in, because this affects the search space!
+        fixed_io_pairs : List[Tuple[int, int]], optional
+            The dimension pairs in input and output shapes that you want to exclude from the searching process. You can do this to the batch size dimension. For example, if your input and output shapes are both `[N, C, H, W]`, then you can pass `[(0, 0)]` to tell KAS that the first dimension of input and first dimension of output are fixed together.
+        seed : int, optional
+            The random seed provided to the C++ bindings.
+        depth : int, optional
+            The maximum number of primitives (excluding FinalizeOp) allowed in a kernel. This is effectively the depth of the search tree, because we add one primitive at one time.
+        dim_lower : int, optional
+            Minimum number of dimensions in any phase of searching.
+        dim_upper : int, optional
+            Maximum number of dimensions in any phase of searching.
+        maximum_tensors : int, optional
+            Maximum number of tensors that this kernel accepts. That is, the maximum number of weights plus 1.
+        maximum_reductions : int, optional
+            Maximum number of MapReduceOp's.
+        max_flops : float, optional
+            Maximum number of floating point operations allowed in a kernel. This is a soft constraint, because we do not know the exact number of floating point operations in a kernel until we finalize it.
+        maximum_variables_in_size : int, optional
+            Maximum number of variables in a size. For example, in `c^_1*H^2*W` has 3 variables.
+        maximum_variables_powers_in_size : int, optional
+            Maximum number of powers of variables in a size. For example, in `c^_1*H^2*W` has 4.
+        expression_one_tensor : bool, optional
+            The blending operation that blends the input tensors. The ith input tensor is denoted by the identifier `in_i`. Allowed operations are `+`, `*` and `(`, `)`.
+            In the case of 1 tensor, this can only be `in_0`.
+        expression_two_tensors : bool, optional
+            Same as above. Examples are `in_0 + in_1` and `in_0 * in_1`.
+        expression_three_tensors : bool, optional
+            Same as above. Examples are `in_0 * in_1 + in_2` and `in_0 * in_1 * in_2`.
+        expression_four_tensors : bool, optional
+            Same as above. Examples are `in_0 * in_1 + in_2 * in_3` and `in_0 * in_1 * in_2 * in_3`.
+        maximum_finalizations : int, optional
+            Maximum number of FinalizeOp's in a final node. This keeps the top-`k` (`k == maximum_finalizations`) finalizations, which minimize the variance of weights.
+        allow_weight_permutation : bool, optional
+            Since the analysis of tensor expressions is still not complete, you have to manually tell KAS whether the weights are commutative. If you set this to `True`, then KAS will try all permutations of weights in the tensor expressions. Otherwise, KAS will sort the weights in order of hash.
+        max_strided_dim_size : int, optional
+            Maximum size of a strided dimension. For example, `Stride s*H -> H` will not be sampled if `s*H > max_strided_dim_size`.
+        max_unfold_kernel_size : int, optional
+            Maximum size of the parameter of UnfoldOp.
+        minimum_unfold_ratio : float, optional
+            Minimum ratio of the size of the input dimension to the parameter of UnfoldOp.
+        minimum_merge_ratio : float, optional
+            Minimum ratio of the size of the left input dimension to the right input dimension of MergeOp.
+        disallow_discontinuous_view : bool, optional
+            We know that `Split s*k -> s, k` along with `Merge s, k -> s*k` is meaningless, but what if `Split s*k -> s, k` along with `Merge k, s -> s*k`? It seems meaningless either. Set this argument to true to disallow this.
+        canonicalize_unfold_order : bool, optional
+            Make chained UnfoldOp's appear in ascending parameter order.
+        maximum_merges : int, optional
+            Maximum number of MergeOp's. `-1` for infinite.
+        maximum_splits : int, optional
+            Maximum number of SplitOp's. `-1` for infinite.
+        maximum_shifts : int, optional
+            Maximum number of ShiftOp's. `-1` for infinite.
+        maximum_strides : int, optional
+            Maximum number of StrideOp's. `-1` for infinite.
+        maximum_unfolds : int, optional
+            Maximum number of UnfoldOp's. `-1` for infinite.
+        maximum_shares : int, optional
+            Maximum number of ShareOp's. `-1` for infinite.
+        save_path : str, optional
+            The path to save the sampled kernels.
+        cuda : bool, optional
+            Use GPU.
+        autoscheduler : Bindings.CodeGenOptions.AutoScheduler, optional
+            Halide autoschdulers. Check `src/Python/Bindings.cpp` for detail.
+        rfactor_threshold : int, optional
+            Halide autoschedulers are weak, so we manually split up the reduction loops for them. If the outermost loop is smaller than this parameter, we will not perform manual splitting of reduction loops.
+        in_bounds_likely_threshold : float, optional
+            We need zero padding in UnfoldOp. We use a special Halide directive `likely` to hint that the most of the results are not 0. But sometimes this is not the case, for example, when `H=8` and `k=5`, `Unfold H -> H, k` has a lot of zeros.In this case, if `5/8=0.625 > in_bounds_likely_threshold`, we will not use `likely`.
+        """
         options = Bindings.SampleOptions(
             seed=seed,
             depth=depth,
@@ -68,6 +156,8 @@ class Sampler:
             expression_two_tensors=expression_two_tensors,
             expression_three_tensors=expression_three_tensors,
             expression_four_tensors=expression_four_tensors,
+            maximum_finalizations=maximum_finalizations,
+            allow_weight_permutation=allow_weight_permutation,
             max_strided_dim_size=max_strided_dim_size,
             max_unfold_kernel_size=max_unfold_kernel_size,
             minimum_unfold_ratio=minimum_unfold_ratio,
