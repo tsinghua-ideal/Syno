@@ -16,6 +16,15 @@
 
 namespace kas {
 
+struct ColoredDimension {
+    Dimension dim;
+    WeightColor color;
+    ColoredDimension(Dimension dim): dim { dim }, color { dim } {}
+    void removeAllRightTagsIn(const WeightColor& color) {
+        this->color.removeAllRightTagsIn(color);
+    }
+};
+
 struct FixedDimension;
 
 // Contains multiple finalization options.
@@ -120,8 +129,9 @@ public:
         const BindingContext& ctx;
         const Shape& desired;
         std::size_t maximumTensors;
+        std::size_t maximumFinalizations;
     };
-
+    static Generator<std::vector<std::vector<Dimension>>> AssignToWeights(const std::vector<ColoredDimension>& remaining, std::size_t maxWeights);
     static std::vector<FinalizeOp> Generate(const Dimensions& interface, const Graph& graph, const GenerateOptions& options);
 };
 

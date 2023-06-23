@@ -1,5 +1,8 @@
+#include <list>
 #include <memory>
+#include <stack>
 
+#include "KAS/Core/Colors.hpp"
 #include "KAS/Core/Tensor.hpp"
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Search/Sample.hpp"
@@ -451,6 +454,127 @@ std::size_t FinalizeOp::Distance(const std::vector<Dimension>& current, const Sh
 
 namespace {
 
+struct WeightFragment {
+    const std::vector<ColoredDimension>& interface;
+    std::vector<bool> used;
+    WeightColor current;
+
+    WeightFragment(const std::vector<ColoredDimension>& interface):
+        interface { interface },
+        used(interface.size(), false)
+    {}
+
+    bool canAccept(std::size_t i) const {
+        return !used[i] && current.disjointWith(interface[i].color);
+    }
+    void accept(std::size_t i) {
+        current.merge(interface[i].color);
+        used[i] = true;
+    }
+
+    std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> split() const {
+        std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> result;
+        auto& [weight, newInterface] = result;
+        for (std::size_t i = 0; i < interface.size(); ++i) {
+            if (used[i]) {
+                weight.emplace_back(interface[i].dim);
+            } else {
+                newInterface.emplace_back(interface[i]);
+                newInterface.back().removeAllRightTagsIn(current);
+            }
+        }
+        return result;
+    }
+
+    static std::size_t MinimumWeights(const std::vector<ColoredDimension>& remaining) {
+        if (remaining.empty()) {
+            return 0;
+        }
+        std::size_t count = std::ranges::max(remaining | std::views::transform([](const ColoredDimension& cDim) { return cDim.color.countTags(); }));
+        if (count == 0) {
+            return 1;
+        } else {
+            return count;
+        }
+    }
+};
+
+} // namespace
+
+// Require that the dimensions are sorted according to hash!
+Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeights(const std::vector<ColoredDimension>& remaining, std::size_t maxWeights) {
+    if (remaining.empty()) {
+        co_yield {};
+        co_return;
+    }
+    if (WeightFragment::MinimumWeights(remaining) > maxWeights) {
+        co_return;
+    }
+    if (maxWeights == 0) {
+        co_return;
+    } else if (maxWeights == 1) {
+        // Special handling for maxWeights == 1.
+        // We can only assign all remaining dimensions to one weight.
+        std::vector<Dimension> weight;
+        WeightColor weightColor;
+        for (const auto& cDim: remaining) {
+            if (!weightColor.disjointWith(cDim.color)) {
+                co_return;
+            }
+            weightColor.merge(cDim.color);
+            weight.emplace_back(cDim.dim);
+        }
+        std::vector<std::vector<Dimension>> weights { std::move(weight) };
+        co_yield std::move(weights);
+        co_return;
+    }
+
+    // Now we have remaining.size() >= 1 and maxWeights >= 2.
+    // Recursively find all possible assignments.
+
+    struct State {
+        enum Trial: bool {
+            WillTryWithThis,
+            WillTryWithoutThis,
+        };
+        std::size_t startIndex;
+        Trial trial;
+        WeightFragment fragment;
+    };
+    std::stack<State> stack;
+    stack.emplace(0, State::WillTryWithThis, remaining);
+    while (!stack.empty()) {
+        auto& [startIndex, trial, fragment] = stack.top();
+        if (startIndex == remaining.size()) {
+            auto [weight, newInterface] = fragment.split();
+            if (!weight.empty()) {
+                for (auto subproblem: AssignToWeights(newInterface, maxWeights - 1)) {
+                    subproblem.emplace_back(std::move(weight));
+                    co_yield std::move(subproblem);
+                }
+            }
+            stack.pop();
+            continue;
+        }
+        if (trial == State::WillTryWithThis) {
+            if (fragment.canAccept(startIndex)) {
+                auto newFragment = fragment;
+                newFragment.accept(startIndex);
+                trial = State::WillTryWithoutThis;
+                stack.emplace(startIndex + 1, State::WillTryWithThis, std::move(newFragment));
+            } else {
+                trial = State::WillTryWithoutThis;
+            }
+        } else if (trial == State::WillTryWithoutThis) {
+            startIndex += 1;
+            trial = State::WillTryWithThis;
+        }
+    }
+    co_return;
+}
+
+namespace {
+
 struct CollectedTensorFragments {
     std::vector<std::size_t> mappings;
     std::vector<bool> used;
@@ -463,11 +587,18 @@ struct CollectedTensorFragments {
         mappings.emplace_back(index);
         used[index] = true;
     }
-    std::vector<Dimension> toTensor(const Dimensions& interface) const {
-        std::vector<Dimension> result;
-        result.reserve(mappings.size());
+    std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> toTensorAndWeightDims(const Dimensions& interface) const {
+        std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> result;
+        auto& [tensor, weight] = result;
+        tensor.reserve(mappings.size());
         for (auto mapping: mappings) {
-            result.emplace_back(interface[mapping]);
+            tensor.emplace_back(interface[mapping]);
+        }
+        weight.reserve(interface.size() - mappings.size());
+        for (std::size_t i = 0; i < interface.size(); ++i) {
+            if (!used[i]) {
+                weight.emplace_back(interface[i]);
+            }
         }
         return result;
     }
@@ -491,50 +622,23 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const 
     const auto& desired = options.desired;
 
     auto buildBesideInputTensor = [&](const CollectedTensorFragments& inputCandidate) {
-        std::vector<std::vector<Dimension>> tensors { {} };
-        auto& inputTensor = tensors.back();
-        inputTensor = inputCandidate.toTensor(interface);
-        const auto& used = inputCandidate.used;
-        if (options.maximumTensors == 1) {
-            // Check that there is no excessive dimension.
-            for (std::size_t i = 0; i < used.size(); ++i) {
-                if (!used[i]) {
-                    return;
-                }
+        auto [inputTensor, weightDims] = inputCandidate.toTensorAndWeightDims(interface);
+        for (auto tensors: AssignToWeights(weightDims, options.maximumTensors - 1)) {
+            tensors.insert(tensors.begin(), std::move(inputTensor));
+            // TODO!!!! Canonicalize order of tensors.
+            if (!Color::CheckFinalization(tensors)) {
+                // We really should avoid this!
+                KAS_WARNING("Finalization with conflicting colors generated!");
+                ++CountConflictingColors;
+                return;
             }
-        } else if (options.maximumTensors == 2) {
-            if (interface.size() != desired.size()) {
-                // Add the dimensions to weight.
-                tensors.emplace_back();
-                Color weightColors;
-                auto& weightTensor = tensors.back();
-                for (std::size_t i = 0; i < interface.size(); ++i) {
-                    if (!used[i]) {
-                        auto& dim = interface[i];
-                        if (!weightColors.disjointWithWeightDim(dim)) {
-                            // Conflicting color!
-                            ++CountConflictingColors;
-                            return;
-                        }
-                        weightColors.mergeWeightDim(dim);
-                        weightTensor.emplace_back(interface[i]);
-                    }
-                }
+            if (Prune(components, tensors)) {
+                ++CountPrunedFinalizations;
+                return;
             }
-        } else {
-            KAS_UNIMPLEMENTED("maximumTensors > 2 not supported.");
+            // TODO!!!! Keep top-k results.
+            result.emplace_back(std::move(tensors));
         }
-        if (!Color::CheckFinalization(tensors)) {
-            // We really should avoid this!
-            KAS_WARNING("Finalization with conflicting colors generated!");
-            ++CountConflictingColors;
-            return;
-        }
-        if (Prune(components, tensors)) {
-            ++CountPrunedFinalizations;
-            return;
-        }
-        result.emplace_back(std::move(tensors));
     };
 
     auto collectInputDimensions = [&](const auto& self, std::size_t nextIndex, const CollectedTensorFragments& fragments) -> void {

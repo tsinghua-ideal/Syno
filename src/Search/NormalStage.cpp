@@ -122,6 +122,7 @@ void NormalStage::guardGeneratedChildren() {
         .ctx = ctx,
         .desired = sampler.getInputShape(),
         .maximumTensors = options.maximumTensors,
+        .maximumFinalizations = options.maximumFinalizations,
     }), [](FinalizeOp& f) {
         return NextFinalizeSlot({NextFinalizeSlot::GetKey(f.tensors)}, std::move(f));
     });

@@ -12,6 +12,8 @@ class Dimension;
 class MergeLikeOp;
 
 class Color {
+    friend class WeightColor;
+
 public:
     // Colors are specified by tags. The disjoint constraints are due to ShareOp's. So in each tag we have a ShareOp, to indicate that such a ShareOp is an acestor of this Dimension.
     using Tag = const MergeLikeOp *;
@@ -23,6 +25,12 @@ private:
     bool dataDiscardingFlag = false;
 
 public:
+    static bool AnyCommonTags(const std::vector<Tag>& left, const std::vector<Tag>& right);
+    static std::vector<Tag> MergeTags(const std::vector<Tag>& left, const std::vector<Tag>& right);
+    static bool RemoveTag(std::vector<Tag>& tags, Tag tag);
+    // Return the number of tags removed.
+    static std::size_t RemoveTags(std::vector<Tag>& tags, const std::vector<Tag>& toRemove);
+
     Color() = default;
     Color(auto&& color1, auto&&color2):
         Color { std::forward<decltype(color1)>(color1) }
@@ -40,11 +48,6 @@ public:
     bool isDataDiscarding() const { return dataDiscardingFlag; }
     void setDataDiscarding(bool value) { dataDiscardingFlag = value; }
 
-    // Assume the dimension is a ShareR or Iterator. Rejects if the Op of the ShareR is in the tags.
-    bool disjointWithWeightDim(const Dimension& dim) const;
-    // Assume the dimension is a ShareR or Iterator. Remove the Op of the ShareR from its color if any, and merge the color.
-    void mergeWeightDim(const Dimension& dim);
-
     // Returns true if removed.
     bool removeTag(Tag tag);
     bool empty() const { return tags.empty(); }
@@ -54,6 +57,31 @@ public:
     // This assigns the dimensions with colors, and verify that color constraints are not violated. 
     // For correctly constructed Finalizations, this is intended to return true.
     static bool CheckFinalization(const std::vector<std::vector<Dimension>>& tensors);
+};
+
+// Different from usual colors, a weight can have left color and right color.
+// Left color refers to the left branches of ShareOp, while the right color refers to the right branches.
+// Left and right colors must be disjoint to be consistent.
+class WeightColor {
+    using Tag = Color::Tag;
+    std::vector<Tag> leftTags, rightTags;
+public:
+    WeightColor() = default;
+    // Create a basic WeightColor from a ShareR.
+    // If the dimension is not a ShareR, then all the tags are seen as left tags.
+    WeightColor(const Dimension& dim);
+
+    // Left tags + right tags.
+    std::size_t countTags() const;
+
+    // Merge. Asserts that the two are disjoint.
+    void merge(const WeightColor& other);
+
+    // Remove all the given right tags from left tags of this.
+    void removeAllRightTagsIn(const WeightColor& color);
+
+    // Check for conflicts that will create a bad ShareOp.
+    bool disjointWith(const WeightColor& other) const;
 };
 
 // Use bits to represent colors.

@@ -44,6 +44,7 @@ struct SampleOptions {
     std::string expressionTwoTensors = "in_0 * in_1";
     std::string expressionThreeTensors = "in_0 * in_1 + in_2";
     std::string expressionFourTensors = "in_0 * in_1 * in_2 + in_3";
+    std::size_t maximumFinalizations = 5;
 
     // These might better be the same.
     std::size_t maxStridedDimSize = 30;
