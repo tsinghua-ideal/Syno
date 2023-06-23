@@ -1,13 +1,16 @@
 from typing import List, Union, Optional, Dict, Tuple
 import logging
+import math
+from statistics import mean, stdev
+from collections import defaultdict
 
 from .Node import Path, Node, PseudoNext, AbsolutePath
 from .Sampler import Sampler
-from . import Bindings
-from .Bindings import Next
+from .Bindings import Next, Arc
+from .Utils import AverageMeter
 
 PseudoTreeNext = Union[Next.Type, int]
-
+PseudoArc = Union[Next.Type, Arc]
 
 class TreePath(Path):
     """
@@ -108,9 +111,11 @@ class TreeNode:
         self._node = node
         self._is_mid: bool = is_mid
         self._type: Next.Type = type
-        self.N: int = 0
-        self.Q: float = 0
+        self.Qs: List[float] = [] # TODO: modify to running mean and std
+        self._last_T: int = 0
         self._is_dead: bool = False
+        self._isin_tree: bool = False
+        self.l_rave: Dict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
         if node.is_final():
             self.reward: float = -1
             self.filtered: bool = False
@@ -128,14 +133,39 @@ class TreeNode:
         eq_flag = self._node.__eq__(__value._node) and \
             self._is_mid == __value._is_mid and \
             self._type == __value._type and \
-            self.N == __value.N and \
-            self.Q == __value.Q
+            self.Qs == __value.Qs
         if self._node.is_final():
             eq_flag = eq_flag and self.filtered == __value.filtered
         return eq_flag
 
     def __hash__(self) -> int:
         return hash((self.to_node(), self._is_mid, self._type))
+    
+    def update(self, reward: float, arc: PseudoArc=None) -> None:
+        self.Qs.append(reward)
+        if arc:
+            self.l_rave[arc].update(reward)
+        
+    @property
+    def mean(self) -> float:
+        return mean(self.Qs) if len(self.Qs) > 0 else math.inf
+    
+    @property
+    def std(self) -> float:
+        return stdev(self.Qs) if len(self.Qs) > 0 else math.inf
+    
+    @property
+    def N(self) -> int:
+        return len(self.Qs)
+    
+    @property
+    def state_dict(self) -> Dict:
+        return {
+            'Qs': self.Qs
+        }
+        
+    def load(self, state_dict: Dict) -> Dict:
+        self.Qs = state_dict['Qs']
 
     def children_count(self, factory: Dict[Node, 'TreeNode']) -> int:
         """Get the number of all children of a node."""
@@ -162,16 +192,36 @@ class TreeNode:
             nexts = primitives[self._type]
             for next in nexts:
                 child = self._node.get_child(Next(self._type, next))
-                if child not in factory:
+                if child not in factory or not factory[child]._isin_tree:
                     return False
-        return True
+        return all([c._isin_tree for c in self.children])
+    
+    def add_new_children(self, factory: Dict[Node, 'TreeNode'], g_rave: Dict[Arc, AverageMeter], c_l: float) -> None:
+        """
+        Add a new children.
+        TOTST
+        """
+        assert not self.is_fully_expanded(factory)
+        def rave(key: Tuple[PseudoTreeNext, TreeNode]) -> float:
+            """
+            (1-β) l-RAVE + β g-RAVE
+            """
+            next, _ = key
+            arc = self._node.get_arc_from_handle(next)
+            beta = c_l / (c_l + self.l_rave[arc].N)
+            return (1-beta) * self.l_rave[arc].avg + beta * g_rave[arc].avg
+            
+        unexpanded_children = self.get_unexpanded_children(factory)
+        _, child = max(unexpanded_children, key=rave)
+        child._isin_tree = True
 
-    def get_unexpanded_children(self, factory: Dict[Node, 'TreeNode']) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
+    def get_unexpanded_children(self, factory: Dict[Node, 'TreeNode'], on_tree: bool=False) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
         children = self.get_children(factory)
         unexpanded_children = [child for child in children if child[1].N == 0]
+        if on_tree: return [child for child in unexpanded_children if child[1]._isin_tree]
         return unexpanded_children
     
-    def get_children(self, factory: Dict[Node, 'TreeNode'], auto_initialize: bool=True) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
+    def get_children(self, factory: Dict[Node, 'TreeNode'], auto_initialize: bool=True, on_tree: bool=False) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
         """
         Get all children of a node plus the nexts. Since the tree is searching in the background, we shall get the handles frequently. 
         If some children is dead, we remove them
@@ -200,10 +250,11 @@ class TreeNode:
             nexts = [child._type for child in children]
             self.children = children
         assert len(nexts) == len(children)
-
+        if on_tree:
+            return [(nxt, c) for nxt, c in zip(nexts, children) if c._isin_tree]
         return list(zip(nexts, children))
 
-    def get_child(self, next: PseudoTreeNext, factory: Dict[Node, 'TreeNode'] = None, auto_initialize: bool=True) -> Optional['TreeNode']:
+    def get_child(self, next: PseudoTreeNext, factory: Dict[Node, 'TreeNode'] = None, auto_initialize: bool=True, on_tree: bool=False) -> Optional['TreeNode']:
         """
         Get the child node of a node with a Next. When the node is dead, return None.
         """
@@ -211,6 +262,8 @@ class TreeNode:
             assert isinstance(next, int)
             child = self._node.get_child(Next(self._type, next))
             if child is None:
+                return None
+            if on_tree and (child not in factory or not factory[child]._isin_tree):
                 return None
             if child not in factory:
                 if auto_initialize:
@@ -222,7 +275,7 @@ class TreeNode:
             assert isinstance(next, Next.Type)
             for child in self.children:
                 if child._type == next:
-                    return child
+                    return child if child._isin_tree else None
             return None
 
     def is_terminal(self) -> bool:

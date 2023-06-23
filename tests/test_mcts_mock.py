@@ -145,7 +145,7 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
     
     root = mcts._treenode_store[sampler.visit([]).to_node()]
     assert root.N == num_iter * leaf_num, f"Root node has {root.N} visits, should be {num_iter * leaf_num}"
-    assert abs(root.Q / root.N - 0.9) <= eps, f"Q/N of root is {root.Q / root.N}, which has absolute error {abs(root.Q / root.N - 0.9)} > {eps}"
+    assert abs(root.Qs / root.N - 0.9) <= eps, f"Q/N of root is {root.Qs / root.N}, which has absolute error {abs(root.Qs / root.N - 0.9)} > {eps}"
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

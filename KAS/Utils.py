@@ -26,3 +26,17 @@ class NextSerializer:
         next_type = self.deserialize_type(next_type)
         key = int(key[:-1])
         return Next(next_type, key)
+
+class AverageMeter:
+    def __init__(self) -> None:
+        self.sum = 0
+        self.N = 0
+    
+    def update(self, val: float) -> None:
+        self.sum += val
+        self.N += 1
+    
+    @property
+    def avg(self) -> float:
+        if self.N == 0: return 0
+        return self.sum / self.N
