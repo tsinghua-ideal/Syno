@@ -13,7 +13,10 @@ void ReductionStage::expand() {
     auto guard = acquireFinalizabilityLock();
 
     // First create the corresponding NormalStage.
-    nStage = std::make_unique<NormalStage>(toInterface(), *this, std::nullopt);
+    auto interface = sampler.getRootInterface();
+    std::ranges::move(reductions | std::views::transform(&MapReduceOp::getInput), std::back_inserter(interface));
+    std::ranges::sort(interface, Dimension::HashLessThan{});
+    nStage = std::make_unique<NormalStage>(Dimensions(std::move(interface)), *this, std::nullopt);
 
     // Then attempt to generate new reductions.
     if (reductions.size() == options.maximumReductions) {
@@ -90,11 +93,8 @@ ReductionStage::ReductionStage(Sampler& sampler):
     expand();
 }
 
-Dimensions ReductionStage::toInterface() const {
-    auto interface = sampler.getRootInterface();
-    std::ranges::move(reductions | std::views::transform(&MapReduceOp::getInput), std::back_inserter(interface));
-    std::ranges::sort(interface, Dimension::HashLessThan{});
-    return interface;
+const Dimensions& ReductionStage::getInterface() const {
+    return nStage->getInterface();
 }
 
 std::size_t ReductionStage::hash() const {

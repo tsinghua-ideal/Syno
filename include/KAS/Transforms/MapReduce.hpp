@@ -6,34 +6,24 @@
 
 namespace kas {
 
-class MapReduceOp final: public PrimitiveOp {
+class MapReduceOp final: public MapReduce, public PrimitiveOp {
 public:
     static constexpr DimensionType Type = DimensionType::MapReduce;
-    using MapType = MapReduce::MapType;
-    using ReduceType = MapReduce::ReduceType;
-
-private:
-    MapReduce reduction;
-
-    MapType getMap() const { return reduction.getMap(); }
-    ReduceType getReduce() const { return reduction.getReduce(); }
-    std::size_t getPriority() const { return reduction.getPriority(); }
-    const Size& size() const { return reduction.size(); }
 
 public:
     MapReduceOp(std::size_t priority, auto&& domain, MapType mapType, ReduceType reduceType):
-        PrimitiveOp { Color::None },
-        reduction { priority, std::forward<decltype(domain)>(domain), mapType, reduceType }
+        MapReduce { priority, std::forward<decltype(domain)>(domain), mapType, reduceType },
+        PrimitiveOp { Color::None }
     {}
     MapReduceOp(const MapReduce&) = delete;
     MapReduceOp(MapReduce&&) = delete;
 
     constexpr DimensionType getType() const noexcept override { return Type; }
-    std::size_t initialHash() const noexcept override { return reduction.hash(); }
+    std::size_t initialHash() const noexcept override { return hash(); }
     std::size_t opHash() const noexcept override { return initialHash(); }
 
-    const MapReduce *getRaw() const { return &reduction; }
-    Dimension getInput() const { return &reduction; }
+    const MapReduce *getRaw() const { return this; }
+    Dimension getInput() const { return this; }
 
     Dimensions applyToInterface(const Dimensions& interface) const override;
 

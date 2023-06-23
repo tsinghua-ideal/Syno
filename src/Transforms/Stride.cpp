@@ -50,9 +50,9 @@ std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const 
     std::vector<DimensionTypeWithOrder> disallows { ShareR, Unfold, Stride };
     if (options.disallowStrideAboveSplit) disallows.push_back(Split);
     if (options.disallowStrideAboveMergeR) disallows.push_back(MergeR);
-    std::vector<std::reference_wrapper<const Dimension>> plausible;
+    std::vector<Dimension> plausible;
     for (const auto& p: interface.filterOut(disallows)) {
-        plausible.emplace_back(std::cref(p));
+        plausible.emplace_back(p);
     }
 
     Allowance allowance { interface.getShape().totalSize(), options.ctx };
@@ -60,8 +60,7 @@ std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const 
     std::vector<const StrideOp *> result;
     CountGenerateAttempts += interface.size();
     for (Size stride: allowance.enumerateSizes(options.ctx)) {
-        for (auto&& p: plausible) {
-            auto&& dim = p.get();
+        for (auto&& dim: plausible) {
             // Disallow too large strides.
             if ((dim.size() * stride).upperBoundEst(options.ctx) > options.maxStridedDimSize) {
                 ++CountSizeTooLarge;

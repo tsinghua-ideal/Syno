@@ -48,6 +48,16 @@ std::size_t Arc::hash() const {
     HashCombineRaw(h, contentHash);
     return h;
 }
+Next Arc::toNext() const {
+    return match<Next>(
+        [&](const PrimitiveOp *op) -> Next {
+            return { Next::TypeOf(op->getType()), op->opHash() };
+        },
+        [&](const FinalizeOp *op) -> Next {
+            return { Next::Type::Finalize, op->hash() };
+        }
+    );
+}
 std::string Arc::toString() const {
     const auto& ctx = sampler->getBindingContext();
     return match<std::string>(
@@ -130,8 +140,7 @@ void Node::generateGraphviz(const std::string& dir, const std::string& name) con
     const auto& ctx = sampler->getBindingContext();
     match<void>(
         [&](ReductionStage *rStage) {
-            auto interface = rStage->toInterface();
-            GraphvizGen gen { interface, ctx };
+            GraphvizGen gen { rStage->getInterface(), ctx };
             gen.generate(dir, name);
         },
         [&](NormalStage *nStage) {
@@ -195,6 +204,25 @@ Node Node::getChildFromArc(Arc arc) const {
         [&](AbstractStage *stage) { return stage->getChild(arc); },
         [](std::shared_ptr<TensorView> tensor) -> Node { KAS_UNREACHABLE(); }
     );
+}
+
+std::vector<Next> Node::getPossiblePath() const {
+    return match<std::vector<Next>>(
+        [](AbstractStage *stage) {
+            auto graph = stage->getInterface().buildGraph();
+            return Sampler::ConvertGraphToPath(graph);
+        },
+        [&](std::shared_ptr<TensorView> tensorView) {
+            auto tensors = ranges::to<std::vector<std::vector<Dimension>>>(tensorView->getUnderlyingTensorRange());
+            return sampler->convertTensorsToPath(tensors);
+        }
+    );
+}
+
+std::vector<Arc> Node::getComposingArcs() const {
+    auto arcs = sampler->convertPathToArcs(getPossiblePath());
+    KAS_ASSERT(arcs, "This node is a dead end, so the composing arcs do not exist.");
+    return std::move(*arcs);
 }
 
 std::optional<std::string> Node::getChildDescription(Next next) const {

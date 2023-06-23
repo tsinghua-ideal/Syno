@@ -148,7 +148,9 @@ public:
     std::optional<std::pair<std::vector<Next>, Node>> randomNodeWithPrefix(const std::vector<Next>& prefix);
 
     static void ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimension>>& tensorView);
-    std::vector<Next> convertTensorViewToPath(const std::vector<std::vector<Dimension>>& tensorView) const;
+    static std::vector<Next> ConvertGraphToPath(const Graph& graph);
+    std::vector<Next> convertTensorsToPath(const std::vector<std::vector<Dimension>>& tensors) const;
+    std::optional<std::vector<Arc>> convertPathToArcs(const std::vector<Next>& path);
 };
 
 } // namespace kas

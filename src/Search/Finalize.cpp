@@ -88,30 +88,20 @@ bool FinalizeOp::Prune(const std::vector<Graph::ConnectedComponent>& components,
     return false;
 }
 
-bool FinalizeOp::FitIntoWeights(const std::vector<std::reference_wrapper<const Dimension>>& current, const WeightOptions& options) {
-    switch (options.maximumTensors) {
-    case 1: {
-        // There must be exactly 1 weight tensor.
-        if (current.size() > 0) {
-            return false;
-        }
-        break;
+bool FinalizeOp::FitIntoWeights(const std::vector<Dimension>& current, const WeightOptions& options) {
+    if (current.empty()) {
+        return true;
     }
-    case 2: {
-        // We have to check that the colors won't conflict.
-        Color color;
-        for (const Dimension& dim: current) {
-            if (!color.disjointWithWeightDim(dim)) {
-                return false;
-            }
-            color.mergeWeightDim(dim);
-        }
-        break;
+    if (options.maximumTensors == 1) {
+        return current.empty();
     }
-    default:
-        KAS_CRITICAL("Unsupported maximumTensors: {}", options.maximumTensors);
-    }
-    return true;
+    // The number of weights can be as small as greates the number of tags in ShareR's.
+    return std::ranges::max(
+        current
+        | std::views::transform([](const Dimension& dim) {
+            return dim.getColor().size();
+        })
+    ) + 1 <= options.maximumTensors;
 }
 
 FinalizeOp::ReshapeGroup::ReshapeGroup(const Size& provision, const Size& consumption):
@@ -401,7 +391,7 @@ std::size_t FinalizeOp::ShapeComplexity(const Shape& desired, const std::vector<
     }
 }
 
-std::size_t FinalizeOp::Distance(const std::vector<std::reference_wrapper<const Dimension>>& current, const Shape& desired, const DistanceOptions& options) {
+std::size_t FinalizeOp::Distance(const std::vector<Dimension>& current, const Shape& desired, const DistanceOptions& options) {
     constexpr std::size_t Infinity = std::numeric_limits<std::size_t>::max();
 
     int strideDist = 0;
@@ -464,17 +454,14 @@ namespace {
 struct CollectedTensorFragments {
     std::vector<std::size_t> mappings;
     std::vector<bool> used;
-    Color color;
     CollectedTensorFragments(std::size_t size): used(size, false) {}
-    bool canAccept(std::size_t index, const Color& color) const {
+    bool canAccept(std::size_t index) const {
         // Collect tags.
         return std::ranges::find(mappings, index) == mappings.end() && !used[index];
     }
-    void accept(std::size_t index, const Color& color) {
+    void accept(std::size_t index) {
         mappings.emplace_back(index);
         used[index] = true;
-        // Merge tags.
-        this->color.merge(color);
     }
     std::vector<Dimension> toTensor(const Dimensions& interface) const {
         std::vector<Dimension> result;
@@ -573,10 +560,9 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const 
             if (origin != Dimension::Origin::Input && origin != Dimension::Origin::BothPossible) {
                 continue;
             }
-            const auto& color = dim.getColor();
-            if (dim.size() == desiredDimSize && fragments.canAccept(i, color)) {
+            if (dim.size() == desiredDimSize && fragments.canAccept(i)) {
                 auto newFragments = fragments;
-                newFragments.accept(i, color);
+                newFragments.accept(i);
                 self(self, nextIndex + 1, newFragments);
             }
         }

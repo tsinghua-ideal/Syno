@@ -175,6 +175,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
     pybind11::class_<Arc>(m, "Arc")
         .def("__eq__", &Arc::operator==)
         .def("__hash__", &Arc::hash)
+        .def("to_next", &Arc::toNext)
         .def("__repr__", &Arc::toString);
 
     pybind11::class_<Node>(m, "Node")
@@ -195,6 +196,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             "get_child_from_arc", &Node::getChildFromArc,
             pybind11::arg("arc")
         )
+        .def("get_possible_path", &Node::getPossiblePath)
+        .def("get_composing_arcs", &Node::getComposingArcs)
         .def(
             "get_child_description", &Node::getChildDescription,
             pybind11::arg("next")
@@ -260,7 +263,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def(
             "convert_assembled_to_path", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const Sampler& sampler) -> std::vector<Next> {
                 auto backTensors = Forward::Factory::ForwardDimsToBackwardDims(tensors);
-                return sampler.convertTensorViewToPath(backTensors);
+                return sampler.convertTensorsToPath(backTensors);
             }
         )
         .def(

@@ -244,8 +244,21 @@ class MockSampler(Sampler):
         self._mock_edges = {
             index: mock_edges.get(index, {}) for index in range(len(self._mock_nodes))
         }
-        
+
         self._seed = seed
+
+        # Assign a path for each node.
+        self.visit([]).mock_set_path(Path([]))
+        for _ in range(len(self._mock_nodes)):
+            # The following loop progresses by at least 1 per iteration.
+            for node in self._mock_nodes:
+                path = node.mock_get_path()
+                if path is not None:
+                    for next, child in self._mock_edges[node.mock_get_id()].items():
+                        if child.mock_get_path() is None:
+                            child.mock_set_path(path.concat(next))
+        for node in self._mock_nodes:
+            assert node.mock_get_path() is not None
 
     def mock_get_children(self, id: int) -> Dict[Next, MockNodeMetadata]:
         return self._mock_edges[id]

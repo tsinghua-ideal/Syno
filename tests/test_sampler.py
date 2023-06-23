@@ -68,6 +68,7 @@ def perform_trials(manual: bool):
                 if len(kernel_packs[0]._unpadded_inputs_shapes) > 1:
                     break
         print(node.get_nested_loops_as_final())
+        print(node.get_composing_arcs())
     else:
         assembler = sampler.create_assembler()
         node = manually_design(assembler)

@@ -44,8 +44,4 @@ std::string MapReduce::whatReduce() const {
     return what(reduceType);
 }
 
-std::string MapReduce::what() const {
-    return what(mapType) + "+" + what(reduceType);
-}
-
 } // namespace kas

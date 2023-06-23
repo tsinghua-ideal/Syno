@@ -137,7 +137,7 @@ public:
 
     NormalStage(Dimensions&& interface, AbstractStage& creator, std::optional<Next::Type> deltaOp);
 
-    const Dimensions& getInterface() const { return interface; }
+    const Dimensions& getInterface() const override { return interface; }
 
     std::size_t hash() const override { return NormalStageStore::Hash{}(interface); }
     std::size_t countChildren() override;

@@ -39,8 +39,9 @@ public:
     // This is the root.
     ReductionStage(Sampler& sampler);
 
+    const std::vector<const MapReduceOp *>& getReductions() const { return reductions; }
     const MapReduceOp *lastReduction() const { return reductions.size() ? reductions.back() : nullptr; }
-    Dimensions toInterface() const;
+    const Dimensions& getInterface() const override;
 
     std::size_t hash() const override;
     std::size_t countChildren() override;

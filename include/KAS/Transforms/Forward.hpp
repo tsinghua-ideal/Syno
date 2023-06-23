@@ -75,7 +75,7 @@ class Factory {
     const BindingContext& ctx;
     PrimitiveOpStore store;
     std::vector<std::unique_ptr<Iterator>> iterators;
-    std::vector<std::unique_ptr<MapReduce>> mapReduces;
+    std::vector<std::unique_ptr<MapReduceOp>> mapReduces;
     std::unique_ptr<TensorView> result;
 
 public:
@@ -112,7 +112,7 @@ public:
     const BindingContext& getBindingContext() const { return ctx; }
     PrimitiveOpStore& getStore() { return store; }
     void storeIterator(std::unique_ptr<Iterator> iterator);
-    void storeMapReduce(std::unique_ptr<MapReduce> mapReduce);
+    void storeMapReduce(std::unique_ptr<MapReduceOp> mapReduce);
 
     static std::vector<std::vector<BackwardDimension>> ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors);
     TensorView& buildTensorView(const std::vector<std::vector<Dimension>>& tensors, TensorExpression blending);

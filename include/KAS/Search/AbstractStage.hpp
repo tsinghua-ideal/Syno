@@ -6,6 +6,7 @@
 namespace kas {
 
 class Sampler;
+class ReductionStage;
 
 class AbstractStage {
 public:
@@ -103,6 +104,8 @@ public:
     // Disallow copy or move.
     AbstractStage(const AbstractStage&) = delete;
     AbstractStage(AbstractStage&&) = delete;
+
+    virtual const Dimensions& getInterface() const = 0;
 
     // Compute from Sampler.
     std::size_t remainingDepth() const;

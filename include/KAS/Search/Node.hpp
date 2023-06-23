@@ -137,6 +137,7 @@ public:
 
     bool operator==(const Arc& rhs) const;
     std::size_t hash() const;
+    Next toNext() const;
     std::string toString() const;
 };
 
@@ -437,6 +438,8 @@ public:
     std::optional<Arc> getArcFromHandle(Next next) const;
     std::optional<Node> getChild(Next next) const;
     Node getChildFromArc(Arc arc) const;
+    std::vector<Next> getPossiblePath() const;
+    std::vector<Arc> getComposingArcs() const;
     std::optional<std::string> getChildDescription(Next next) const;
     bool isFinal() const { return type() == Type::Final; }
     bool isDeadEnd() const;

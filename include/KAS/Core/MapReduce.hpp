@@ -10,7 +10,7 @@
 
 namespace kas {
 
-class MapReduce final: public DimensionImpl {
+class MapReduce: public DimensionImpl {
 public:
     enum class MapType {
         Absolute,
@@ -51,8 +51,8 @@ public:
         mapType { mapType },
         reduceType { reduceType }
     {}
-    const Size& size() const noexcept override { return domain; }
-    std::size_t hash() const noexcept override {
+    const Size& size() const noexcept final override { return domain; }
+    std::size_t hash() const noexcept final override {
         std::size_t h = std::hash<DimensionType>{}(DimensionType::MapReduce);
         HashCombine(h, mapType);
         HashCombine(h, reduceType);
@@ -60,20 +60,17 @@ public:
         HashCombine(h, domain);
         return h;
     }
-    constexpr DimensionType type() const noexcept override { return DimensionType::MapReduce; }
+    constexpr DimensionType type() const noexcept final override { return DimensionType::MapReduce; }
     void accept(DimVisitor& visitor) const final override;
-    const Color& getColor() const override { return Color::None; }
+    const Color& getColor() const final override { return Color::None; }
 
     MapType getMap() const { return mapType; }
     ReduceType getReduce() const { return reduceType; }
 
     std::size_t getPriority() const { return priority; }
-    std::string getName() const {
-        return "ri_" + std::to_string(priority);
-    }
+
     std::string whatMap() const;
     std::string whatReduce() const;
-    std::string what() const;
 };
 
 } // namespace kas

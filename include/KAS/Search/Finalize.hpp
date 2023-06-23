@@ -40,7 +40,7 @@ public:
         std::size_t maximumTensors;
     };
 
-    static bool FitIntoWeights(const std::vector<std::reference_wrapper<const Dimension>>& current, const WeightOptions& options);
+    static bool FitIntoWeights(const std::vector<Dimension>& current, const WeightOptions& options);
 
     struct DistanceOptions {
         const BindingContext& ctx;
@@ -105,7 +105,7 @@ public:
 
     static std::size_t ShapeComplexity(const Shape& desired, const std::vector<Size>& current, const FinalizeOp::DistanceOptions& options);
 
-    static std::size_t Distance(const std::vector<std::reference_wrapper<const Dimension>>& current, const Shape& desired, const DistanceOptions& options);
+    static std::size_t Distance(const std::vector<Dimension>& current, const Shape& desired, const DistanceOptions& options);
 
     KAS_STATISTICS_DEF(
         GenerateInvocations,

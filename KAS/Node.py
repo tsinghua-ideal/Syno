@@ -130,9 +130,13 @@ class Node:
         child_node = self._node.get_child_from_arc(arc)
         return Node(child_node)
 
+    def get_possible_path(self) -> Path:
+        """Get a possible path of a node."""
+        return Path(self._node.get_possible_path())
+
     def get_composing_arcs(self) -> List[Arc]:
         """Get all composing arcs of a node."""
-        raise NotImplementedError
+        return self._node.get_composing_arcs()
 
     def get_child_description(self, next: PseudoNext) -> Optional[str]:
         """Get the description of Next."""
@@ -207,6 +211,7 @@ class MockNodeMetadata:
         self._mock_sampler = mock_sampler
         assert id is not None
         self._id = id
+        self._path = None
         self._name = name if name is not None else f"MockNode({id})"
         self._is_final = is_final
         self._accuracy = accuracy
@@ -223,6 +228,12 @@ class MockNodeMetadata:
 
     def mock_get_id(self) -> int:
         return self._id
+
+    def mock_get_path(self) -> Union[None, Path]:
+        return self._path
+
+    def mock_set_path(self, path: Path) -> None:
+        self._path = path
 
     def _mock_children(self) -> Dict[Next, 'MockNodeMetadata']:
         return self._mock_sampler.mock_get_children(self._id)
@@ -244,6 +255,12 @@ class MockNodeMetadata:
 
     def get_child_from_arc(self, arc: Next) -> 'MockNodeMetadata':
         return self.get_child(arc)
+
+    def get_possible_path(self) -> Path:
+        return self._path
+
+    def get_composing_arcs(self) -> List[Next]:
+        return self.get_possible_path().abs_path
 
     def _get_child_description_helper(self, next: Next) -> Optional[str]:
         if next in self._mock_children():
@@ -289,6 +306,12 @@ class MockNode(Node):
 
     def mock_get_id(self) -> int:
         return self._node.mock_get_id()
+
+    def mock_get_path(self) -> Union[None, List[Next]]:
+        return self._node.mock_get_path()
+
+    def mock_set_path(self, path: List[Next]) -> None:
+        self._node.mock_set_path(path)
 
     def get_child(self, next: PseudoNext) -> Optional['MockNode']:
         child_node = self._node.get_child(Path.to_next(next))

@@ -237,12 +237,12 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     const SampleOptions& options = sampler.getOptions();
     const BindingContext& ctx = sampler.getBindingContext();
 
-    std::vector<std::reference_wrapper<const Dimension>> onlyWeights, weightsExcluded;
-    for (const Dimension& dim : interface) {
+    std::vector<Dimension> onlyWeights, weightsExcluded;
+    for (const Dimension& dim: interface) {
         if (dim.deduceOrigin() == Dimension::Origin::Weight) {
-            onlyWeights.emplace_back(std::cref(dim));
+            onlyWeights.emplace_back(dim);
         } else {
-            weightsExcluded.emplace_back(std::cref(dim));
+            weightsExcluded.emplace_back(dim);
         }
     }
 

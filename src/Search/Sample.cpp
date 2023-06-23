@@ -189,11 +189,7 @@ void Sampler::ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimensi
     });
 }
 
-std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<std::vector<Dimension>>& tensorView) const {
-    Graph::Builder builder;
-    builder.addTopmost(tensorView | std::views::join);
-    Graph graph = builder.build();
-
+std::vector<Next> Sampler::ConvertGraphToPath(const Graph& graph) {
     std::vector<Next> result;
     // To obtain the path, we need to follow the 3 stages of searching.
 
@@ -237,27 +233,50 @@ std::vector<Next> Sampler::convertTensorViewToPath(const std::vector<std::vector
                 }
             );
         };
-        // The reverse is just a simple fix. We need to generate Next's in canonical order of ShareOp! See ShareOp::IsSharedDimensionCanonical(). TODO.
-        for (const auto& tensor: tensorView | std::views::reverse) {
-            for (const Dimension& dim: tensor) {
-                dfs(dfs, dim);
-            }
+        // We need to generate Next's in canonical order of ShareOp! We need to add ShareOp::IsSharedDimensionCanonical(). TODO.
+        for (const Dimension& dim: graph.getTopmost()) {
+            dfs(dfs, dim);
         }
-    }
-
-    // Finally, Finalize.
-    {
-        // The fixed dimensions should be removed first.
-        std::vector<std::vector<Dimension>> tensors;
-        std::ranges::copy(tensorView, std::back_inserter(tensors));
-        auto& inputTensor = tensors.at(0);
-        for (const auto& [i, _]: fixedDimensions | std::views::reverse) {
-            inputTensor.erase(inputTensor.begin() + i);
-        }
-        result.emplace_back(Next::Type::Finalize, NextFinalizeSlot::GetKey(tensors));
     }
 
     return result;
+}
+
+std::vector<Next> Sampler::convertTensorsToPath(const std::vector<std::vector<Dimension>>& tensors) const {
+    Graph::Builder builder;
+    builder.addTopmost(tensors | std::views::join);
+    Graph graph = builder.build();
+
+    auto result = ConvertGraphToPath(graph);
+
+    // We have now done the previous two stages.
+    // Finally, Finalize.
+    {
+        // The fixed dimensions should be removed first.
+        std::vector<std::vector<Dimension>> tensorsInSearchTree;
+        std::ranges::copy(tensors, std::back_inserter(tensorsInSearchTree));
+        auto& inputTensor = tensorsInSearchTree.at(0);
+        for (const auto& [i, _]: fixedDimensions | std::views::reverse) {
+            inputTensor.erase(inputTensor.begin() + i);
+        }
+        result.emplace_back(Next::Type::Finalize, NextFinalizeSlot::GetKey(tensorsInSearchTree));
+    }
+
+    return result;
+}
+
+std::optional<std::vector<Arc>> Sampler::convertPathToArcs(const std::vector<Next>& path) {
+    std::vector<Arc> result;
+    Node n { this, rootStage.get() };
+    for (const auto& next: path) {
+        auto nextArc = n.getArcFromHandle(next);
+        if (!nextArc) {
+            return std::nullopt;
+        }
+        result.emplace_back(*nextArc);
+        n = n.getChildFromArc(*nextArc);
+    }
+    return std::optional<std::vector<Arc>>(std::in_place, std::move(result));
 }
 
 } // namespace kas
