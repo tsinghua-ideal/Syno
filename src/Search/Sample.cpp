@@ -123,6 +123,18 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     rootStage = std::make_unique<ReductionStage>(*this);
 }
 
+TensorExpression Sampler::getExpressionForTensorNum(std::size_t num) const {
+    std::string_view expr;
+    switch (num) {
+    case 1: expr = options.expressionOneTensor; break;
+    case 2: expr = options.expressionTwoTensors; break;
+    case 3: expr = options.expressionThreeTensors; break;
+    case 4: expr = options.expressionFourTensors; break;
+    default: KAS_CRITICAL("Unsupported number of tensors: {}", num);
+    }
+    return Parser(expr).parseTensorExpression();
+}
+
 Size Sampler::getTotalOutputSize() const {
     Size result = outputShape.totalSize();
     if (!fixedDimensions.empty()) {
@@ -168,17 +180,6 @@ std::optional<std::pair<std::vector<Next>, Node>> Sampler::randomNodeWithPrefix(
         cur = *nextNode;
     };
     return std::optional<std::pair<std::vector<Next>, Node>>(std::in_place, std::move(path), std::move(cur));
-}
-
-std::string Sampler::getArcDescription(Arc arc) const {
-    return arc.match<std::string>(
-        [&](auto op) -> std::string {
-            return op->description(ctx);
-        },
-        [&](auto op) -> std::string {
-            return op->description(ctx);
-        }
-    );
 }
 
 void Sampler::ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimension>>& tensorView) {

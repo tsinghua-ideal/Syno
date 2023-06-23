@@ -46,7 +46,7 @@ TEST_F(semantics_tests, conv2d) {
     // [N, C_out, H, W], the output.
 
     std::vector<Dimension> input { dimN, dimCin_input, dimH, dimW }, weight { dimCout, dimCin_filter, dimK1, dimK2 };
-    // TODO!!! Add bias.
+    // TODO: Add bias.
     auto tensorView = TensorView({ input, weight }, Parser("in_0 * in_1").parseTensorExpression());
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),
 R"(for (int i_0 = 0; i_0 < N; i_0++) {

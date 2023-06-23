@@ -202,7 +202,7 @@ std::optional<std::string> Node::getChildDescription(Next next) const {
         [&](AbstractStage *stage) -> std::optional<std::string> {
             auto arc = stage->getArcFromHandle(next);
             if (!arc) return std::nullopt;
-            return sampler->getArcDescription(*arc);
+            return arc->toString();
         },
         [](std::shared_ptr<TensorView> tensor) -> std::string {
             KAS_UNREACHABLE();

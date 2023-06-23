@@ -212,7 +212,7 @@ void NormalStage::guardGeneratedChildren() {
 std::shared_ptr<TensorView> NormalStage::getFinalize(const FinalizeOp *op) const {
     if (!op) return nullptr;
     // TODO!!!
-    return op->buildTensorView(sampler.getFixedDimensions(), TensorExpression::ProductOfTensors(op->tensors.size()));
+    return op->buildTensorView(sampler.getFixedDimensions(), sampler.getExpressionForTensorNum(op->tensors.size()));
 }
 
 NormalStage *NormalStage::getNextOp(const PrimitiveOp *op) {

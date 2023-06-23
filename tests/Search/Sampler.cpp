@@ -4,7 +4,7 @@
 namespace kas {
 
 TEST_F(search_tests, sampler) {
-    constexpr std::size_t trials = 500;
+    constexpr std::size_t trials = 20;
     std::size_t successes = 0;
     for (int i = 0; i < trials; ++i) {
         auto randomLeaf = sampler.randomNodeWithPrefix({});
@@ -25,13 +25,12 @@ TEST_F(search_tests, sampler) {
         GraphvizGen(tensorView, ctx).generate("./search_viz", "trial_" + std::to_string(i));
 
         if (doRealization) {
-            HalideGen gen(ctx, tensorView, HalideGen::Options());
+            auto cgOpt = HalideGen::Options();
+            cgOpt.scheduler = HalideGen::Options::AutoScheduler::Anderson2021;
+            cgOpt.useGPU = true;
+            HalideGen gen(ctx, tensorView, cgOpt);
             auto name = "search_codegen_test_" + std::to_string(i);
-            try {
-                gen.performTrial<false>(dict, name, true, false, []{});
-            } catch (const Halide::Error& e) {
-                fmt::print("Trial {} failed at runtime: {}\n", i, e.what());
-            }
+            gen.performTrial<false>(dict, name, true, false, []{});
         }
     }
     StatisticsCollector::PrintSummary(std::cout);

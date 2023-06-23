@@ -40,6 +40,11 @@ struct SampleOptions {
     std::size_t maximumVariablesInSize = std::numeric_limits<std::size_t>::max();
     std::size_t maximumVariablesPowersInSize = std::numeric_limits<std::size_t>::max();
 
+    std::string expressionOneTensor = "in_0";
+    std::string expressionTwoTensors = "in_0 * in_1";
+    std::string expressionThreeTensors = "in_0 * in_1 + in_2";
+    std::string expressionFourTensors = "in_0 * in_1 * in_2 + in_3";
+
     // These might better be the same.
     std::size_t maxStridedDimSize = 30;
     std::size_t maxUnfoldKernelSize = 30;
@@ -86,7 +91,7 @@ struct SampleOptions {
     void check() const;
 };
 
-static constexpr SampleOptions DefaultSampleOptions = SampleOptions();
+static const SampleOptions DefaultSampleOptions = SampleOptions();
 
 struct FixedDimension {
     std::size_t index;
@@ -133,6 +138,7 @@ public:
     const Dimensions& getRootInterface() const { return root; }
 
     const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }
+    TensorExpression getExpressionForTensorNum(std::size_t num) const;
     // Taking fixed dimensions into account.
     Size getTotalOutputSize() const;
 
@@ -140,8 +146,6 @@ public:
     std::optional<Node> visit(const std::vector<Next>& path);
     // The path is intended to visit a TensorView, but it may fail, in which case we rely on the search algorithm to penalize it.
     std::optional<std::pair<std::vector<Next>, Node>> randomNodeWithPrefix(const std::vector<Next>& prefix);
-    // Get description of an Op.
-    std::string getArcDescription(Arc arc) const;
 
     static void ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimension>>& tensorView);
     std::vector<Next> convertTensorViewToPath(const std::vector<std::vector<Dimension>>& tensorView) const;

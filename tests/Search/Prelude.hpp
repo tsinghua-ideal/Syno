@@ -13,7 +13,7 @@ namespace kas {
 class search_tests: public ::testing::Test {
 protected:
     int dimH = 64, dimW = 64, dimK1 = 3, dimS1 = 2;
-    bool doRealization = false;
+    bool doRealization = true;
     std::map<std::string, std::size_t> dict { { "H", dimH }, { "W", dimW }, { "k_1", dimK1 }, { "s_1", dimS1 } };
     SampleOptions options = []() {
         SampleOptions options;
