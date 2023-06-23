@@ -182,7 +182,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("__hash__", &Node::hash)
         .def("children_count", &Node::countChildren)
         .def("get_children_handles", &Node::getChildrenHandles)
-        .def("get_arcs", &Node::getArcs)
+        .def("get_children_arcs", &Node::getChildrenArcs)
         .def(
             "get_arc_from_handle", &Node::getArcFromHandle,
             pybind11::arg("next")

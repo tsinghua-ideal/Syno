@@ -314,7 +314,7 @@ std::vector<Next> NormalStage::getChildrenHandles() {
     return guarded([this] { return uncheckedGetChildrenHandles(); });
 }
 
-std::vector<Arc> NormalStage::getArcs() {
+std::vector<Arc> NormalStage::getChildrenArcs() {
     return guarded([this] { return uncheckedGetArcs(); });
 }
 

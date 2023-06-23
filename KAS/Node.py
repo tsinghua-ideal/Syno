@@ -110,9 +110,9 @@ class Node:
             result[str(handle.type)] += 1
         return result
 
-    def get_arcs(self) -> List[Arc]:
+    def get_children_arcs(self) -> List[Arc]:
         """Get all arcs of a node."""
-        return self._node.get_arcs()
+        return self._node.get_children_arcs()
 
     def get_arc_from_handle(self, handle: Next) -> Optional[Arc]:
         """Get the arc from a Next."""
@@ -129,6 +129,10 @@ class Node:
         """Get the child node of a node with an Arc."""
         child_node = self._node.get_child_from_arc(arc)
         return Node(child_node)
+
+    def get_composing_arcs(self) -> List[Arc]:
+        """Get all composing arcs of a node."""
+        raise NotImplementedError
 
     def get_child_description(self, next: PseudoNext) -> Optional[str]:
         """Get the description of Next."""
@@ -229,7 +233,7 @@ class MockNodeMetadata:
     def get_children_handles(self) -> List[Next]:
         return list(self._mock_children().keys())
 
-    def get_arcs(self) -> List[Next]:
+    def get_children_arcs(self) -> List[Next]:
         return self.get_children_handles()
 
     def get_arc_from_handle(self, handle: Next) -> Optional[Next]:

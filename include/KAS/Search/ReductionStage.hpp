@@ -45,7 +45,7 @@ public:
     std::size_t hash() const override;
     std::size_t countChildren() override;
     std::vector<Next> getChildrenHandles() override;
-    std::vector<Arc> getArcs() override;
+    std::vector<Arc> getChildrenArcs() override;
     std::optional<Arc> getArcFromHandle(Next next) override;
     std::optional<Node> getChild(Next next) override;
     Node getChild(Arc arc) override;

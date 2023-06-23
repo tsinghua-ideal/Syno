@@ -111,9 +111,9 @@ std::vector<Next> ReductionStage::getChildrenHandles() {
     return handles;
 }
 
-std::vector<Arc> ReductionStage::getArcs() {
+std::vector<Arc> ReductionStage::getChildrenArcs() {
     std::vector<Arc> arcs = nextReductions.toArcs(&sampler);
-    std::ranges::move(nStage->getArcs(), std::back_inserter(arcs));
+    std::ranges::move(nStage->getChildrenArcs(), std::back_inserter(arcs));
     return arcs;
 }
 

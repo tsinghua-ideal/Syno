@@ -169,9 +169,9 @@ std::vector<Next> Node::getChildrenHandles() const {
     );
 }
 
-std::vector<Arc> Node::getArcs() const {
+std::vector<Arc> Node::getChildrenArcs() const {
     return match<std::vector<Arc>>(
-        [](AbstractStage *stage) { return stage->getArcs(); },
+        [](AbstractStage *stage) { return stage->getChildrenArcs(); },
         [](std::shared_ptr<TensorView> tensor) { return std::vector<Arc>{}; }
     );
 }
