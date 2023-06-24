@@ -21,34 +21,26 @@ def test_mcts():
     sampler = Sampler("[H,W]", "[W]", ["H = 128: 1", "W = 128: 1"], [
                       "s_1=2: 2", "k=3: 4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
     mcts = MCTS(sampler, virtual_loss_constant=1)
-    in_tensor = torch.randn((128, 128))
     for idx in range(10):
         try:
             receipt, trials = mcts.do_rollout(sampler.root())
             _, path = receipt
             node = trials[0]
-            print(f"Iteration {idx}. Sampled {node} for {path}:")
-            # print(path.path_to_strs(sampler))
-            # for i in range(len(node.path)):
-            #     child = sampler.visit(Path(node.path.abs_path[:i]))
-            #     print(f"Node {child} has children:",
-            #           child.get_children_types())
-            # kernel_packs, _ = sampler.realize(net, node, f"test_mcts_{idx}")
-            # sampler.replace(net, kernel_packs)
-            # print(f"Computing forward {idx}...")
-            # print(f"Result: {net(in_tensor)}")
-            mcts.back_propagate(receipt, 1.0)
+            print(f"Iteration {idx}. Sampled {node} for {path}")
+            mcts.back_propagate(receipt, 0.5)
         except Exception as e:
             print(f"Caught error {e}")
             traceback.print_exc()
-        print(f"Garbage collection: size={len(mcts._treenode_store.keys())}->", end="")
-        mcts.garbage_collect()
-        print(len(mcts._treenode_store.keys()))
+        if idx in [3, 7]:
+            print(f"Garbage collection: size={len(mcts._treenode_store.keys())}->", end="")
+            mcts.garbage_collect()
+            print(len(mcts._treenode_store.keys()))
     
     for k, v in mcts.virtual_loss_count.items():
         assert v == 0, f"Virtual loss count for {k} is {v}"
     
     # Test serialize
+    print("Testing serialization and deserialization. ")
     mcts_serialize = mcts.serialize()
     json.dump(mcts_serialize, open("test_mcts.json", "w"), indent=4)
     mcts_recover = MCTS.deserialize(mcts_serialize, sampler)

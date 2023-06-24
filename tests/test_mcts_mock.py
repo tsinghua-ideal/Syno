@@ -17,7 +17,7 @@ def test_remove():
     receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
     _, path = receipt
     node = trials
-    print(f"Sampled {node} for {path}:")
+    print(f"Sampled {node} for {path}")
     mcts.remove(receipt, trials[0][1])
     
     assert mcts.do_rollout(sampler.root()) is None
@@ -35,14 +35,14 @@ def test_final_select():
     receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
     _, path = receipt
     node = trials
-    print(f"Sampled {node} for {path}:")
+    print(f"Sampled {node} for {path}")
     mcts.back_propagate(receipt, 0.5)
     mcts.back_propagate(receipt, 0.5)
     
     receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
     _, path = receipt
     node = trials
-    print(f"Sampled {node} for {path}:")
+    print(f"Sampled {node} for {path}")
     mcts.back_propagate(receipt, 0.5)
     mcts.back_propagate(receipt, 0.5)
     
@@ -59,7 +59,7 @@ def test_mcts():
     
     mcts = MCTS(sampler, virtual_loss_constant=1)
     
-    assert mcts._treenode_store[sampler.root().to_node()].children_count(mcts._treenode_store) == 2, mcts._treenode_store
+    assert mcts._treenode_store[sampler.root().to_node()].children_count(mcts._treenode_store) == 2, mcts._treenode_store[sampler.root().to_node()].children_count(mcts._treenode_store)
     
     for idx in range(2):
         receipt, trials = mcts.do_rollout(sampler.root())
@@ -69,8 +69,8 @@ def test_mcts():
         mcts.back_propagate(receipt, 0.5)
         
     print("Tree after first two iterations", [v for _, v in mcts._treenode_store.items() if v.N > 0])
-    assert len(mcts._treenode_store.keys()) == 4
-    assert len([v for _, v in mcts._treenode_store.items() if v.N > 0]) == 1
+    assert len(mcts._treenode_store.keys()) == 3
+    assert len([v for _, v in mcts._treenode_store.items() if v.N > 0]) == 2
     
     print(f"Garbage collection: size={len(mcts._treenode_store.keys())}->", end="")
     mcts.garbage_collect()
@@ -94,7 +94,7 @@ def test_mcts():
     
     for k, v in mcts.virtual_loss_count.items():
         assert v == 0, f"Virtual loss count for {k} is {v}"
-    assert len([v for _, v in mcts._treenode_store.items() if v.N > 0]) == 3
+    assert len([v for _, v in mcts._treenode_store.items() if v.N > 0]) == 2
     
     # Test serialize
     mcts_serialize = mcts.serialize()
@@ -145,7 +145,7 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
     
     root = mcts._treenode_store[sampler.visit([]).to_node()]
     assert root.N == num_iter * leaf_num, f"Root node has {root.N} visits, should be {num_iter * leaf_num}"
-    assert abs(root.Qs / root.N - 0.9) <= eps, f"Q/N of root is {root.Qs / root.N}, which has absolute error {abs(root.Qs / root.N - 0.9)} > {eps}"
+    assert abs(root.mean - 0.9) <= eps, f"Q/N of root is {root.mean}, which has absolute error {abs(root.mean - 0.9)} > {eps}"
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

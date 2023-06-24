@@ -108,14 +108,24 @@ class TreeNode:
             - q
             - NumVisitToChild
         """
+        # identifications
         self._node = node
         self._is_mid: bool = is_mid
         self._type: Next.Type = type
-        self.Qs: List[float] = [] # TODO: modify to running mean and std
+        
+        # states
+        self.sum: float = 0
+        self.sumsq: float = 0
+        self.N: float = 0
+        
         self._last_T: int = 0
+        self.l_rave: Dict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
+        
+        # flags
         self._is_dead: bool = False
         self._isin_tree: bool = False
-        self.l_rave: Dict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
+        
+        # conditional members
         if node.is_final():
             self.reward: float = -1
             self.filtered: bool = False
@@ -133,7 +143,9 @@ class TreeNode:
         eq_flag = self._node.__eq__(__value._node) and \
             self._is_mid == __value._is_mid and \
             self._type == __value._type and \
-            self.Qs == __value.Qs
+            self.N == __value.N and \
+            self.sum == __value.sum and \
+            self.sumsq == __value.sumsq
         if self._node.is_final():
             eq_flag = eq_flag and self.filtered == __value.filtered
         return eq_flag
@@ -141,33 +153,36 @@ class TreeNode:
     def __hash__(self) -> int:
         return hash((self.to_node(), self._is_mid, self._type))
     
-    def update(self, reward: float, arc: PseudoArc=None) -> None:
-        self.Qs.append(reward)
-        if arc:
-            self.l_rave[arc].update(reward)
         
     @property
     def mean(self) -> float:
-        return mean(self.Qs) if len(self.Qs) > 0 else math.inf
+        return self.sum / self.N if self.N > 0 else 0
     
     @property
     def std(self) -> float:
-        return stdev(self.Qs) if len(self.Qs) > 0 else math.inf
+        return self.sumsq / self.N - self.mean * self.mean if self.N > 1 else 0
     
-    @property
-    def N(self) -> int:
-        return len(self.Qs)
-    
+    def update(self, reward: float, arc: PseudoArc=None) -> None:
+        self.N += 1
+        self.sum += reward
+        self.sumsq += reward * reward
+        if arc:
+            self.l_rave[arc].update(reward)
+            
     @property
     def state_dict(self) -> Dict:
         return {
-            'Qs': self.Qs
+            'N': self.N,
+            'sum': self.sum,
+            'sumsq': self.sumsq,
         }
         
     def load(self, state_dict: Dict) -> Dict:
-        self.Qs = state_dict['Qs']
+        self.N = state_dict['N']
+        self.sum = state_dict['sum']
+        self.sumsq = state_dict['sumsq']
 
-    def children_count(self, factory: Dict[Node, 'TreeNode']) -> int:
+    def children_count(self, factory: Dict[Node, 'TreeNode'], on_tree: bool=False) -> int:
         """Get the number of all children of a node."""
         primitives = self._node.collect_operations()
         if self._is_mid:
@@ -177,11 +192,13 @@ class TreeNode:
                 child = self._node.get_child(Next(self._type, next))
                 if child is None:
                     continue
+                if on_tree and child in factory and not factory[child]._isin_tree:
+                    continue
                 if child not in factory or not factory[child].is_dead_end(factory):
                     count += 1
             return count
         else:
-            return len(self.children) - sum([child.is_dead_end(factory) for child in self.children])
+            return len(self.children) - sum([child.is_dead_end(factory) or (on_tree and not child._isin_tree) for child in self.children])
 
     def is_fully_expanded(self, factory: Dict[Node, 'TreeNode']) -> bool:
         """
@@ -194,22 +211,38 @@ class TreeNode:
                 child = self._node.get_child(Next(self._type, next))
                 if child not in factory or not factory[child]._isin_tree:
                     return False
-        return all([c._isin_tree for c in self.children])
+            return True
+        else:
+            return all([c._isin_tree for c in self.children])
+    
+    def flush_T(self, T:int, factory: Dict[Node, 'TreeNode'], g_rave: Dict[Arc, AverageMeter], c_l: float, b: float) -> None:
+        Tp = math.floor(T ** b)
+        orig_Tp = math.floor(self._last_T ** b)
+        if Tp > orig_Tp:
+            for _ in range(Tp - orig_Tp):
+                if not self.is_fully_expanded(factory):
+                    self.add_new_children(factory, g_rave, c_l)
+        self._last_T = T
     
     def add_new_children(self, factory: Dict[Node, 'TreeNode'], g_rave: Dict[Arc, AverageMeter], c_l: float) -> None:
         """
         Add a new children.
         TOTST
         """
+        logging.debug("Add new children to {}".format(self))
         assert not self.is_fully_expanded(factory)
         def rave(key: Tuple[PseudoTreeNext, TreeNode]) -> float:
             """
             (1-β) l-RAVE + β g-RAVE
             """
             next, _ = key
-            arc = self._node.get_arc_from_handle(next)
+            if self._is_mid:
+                arc = self._node.get_arc_from_handle(Next(self._type, next))
+                assert arc is not None
+            else:
+                arc = next
             beta = c_l / (c_l + self.l_rave[arc].N)
-            return (1-beta) * self.l_rave[arc].avg + beta * g_rave[arc].avg
+            return (1 - beta) * self.l_rave[arc].avg + beta * g_rave[arc].avg
             
         unexpanded_children = self.get_unexpanded_children(factory)
         _, child = max(unexpanded_children, key=rave)
