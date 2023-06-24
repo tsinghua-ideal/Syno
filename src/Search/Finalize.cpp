@@ -36,6 +36,12 @@ std::size_t FinalizeOp::hash() const noexcept {
     return NextFinalizeSlot::GetKey(tensors);
 }
 
+Dimensions FinalizeOp::toDimensions() const {
+    auto result = ranges::to<Dimensions>(tensors | std::views::join);
+    std::ranges::sort(result, Dimension::HashLessThan{});
+    return result;
+}
+
 double FinalizeOp::weightVariance(const ConcreteConsts& consts) const {
     if (tensors.size() <= 1) {
         return 0.0;

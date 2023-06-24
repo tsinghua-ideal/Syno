@@ -197,6 +197,7 @@ public:
         return std::distance(begin(), binarySearch(value));
     }
 
+    bool contains(const Dimension& value) const { return binarySearch(value) != end(); }
     Dimensions substitute1to1(const Dimension& fro, const Dimension& to) const;
     Dimensions substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2) const;
     Dimensions substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const;

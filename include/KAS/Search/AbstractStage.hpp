@@ -125,6 +125,7 @@ public:
     virtual std::vector<Arc> getChildrenArcs() = 0;
     virtual std::optional<Arc> getArcFromHandle(Next next) = 0;
     virtual std::optional<Node> getChild(Next next) = 0;
+    virtual bool canAcceptArc(Arc arc) = 0;
     virtual Node getChild(Arc arc) = 0;
     virtual std::string description() const = 0;
 

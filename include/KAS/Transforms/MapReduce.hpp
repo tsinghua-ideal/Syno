@@ -25,6 +25,7 @@ public:
     const MapReduce *getRaw() const { return this; }
     Dimension getInput() const { return this; }
 
+    bool canApplyToInterface(const Dimensions& interface) const override;
     Dimensions applyToInterface(const Dimensions& interface) const override;
 
     bool operator==(const MapReduceOp& other) const noexcept {

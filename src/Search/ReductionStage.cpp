@@ -141,6 +141,21 @@ std::optional<Node> ReductionStage::getChild(Next next) {
     }
 }
 
+bool ReductionStage::canAcceptArc(Arc arc) {
+    return arc.match<bool>(
+        [&](auto op) -> bool {
+            if (op->getType() == DimensionType::MapReduce) {
+                return getChildSlot(op->opHash()) != nullptr;
+            } else {
+                return nStage->canAcceptArc(arc);
+            }
+        },
+        [&](auto) -> bool {
+            return nStage->canAcceptArc(arc);
+        }
+    );
+}
+
 Node ReductionStage::getChild(Arc arc) {
     return arc.match<Node>(
         [&](auto op) -> Node {

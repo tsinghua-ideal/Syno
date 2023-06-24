@@ -142,6 +142,7 @@ public:
     virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
     virtual std::size_t opHash() const noexcept = 0;
+    virtual bool canApplyToInterface(const Dimensions& interface) const = 0;
     virtual Dimensions applyToInterface(const Dimensions& interface) const = 0;
     virtual std::string description(const BindingContext& ctx) const = 0;
     virtual ~PrimitiveOp() = default;
@@ -203,6 +204,9 @@ public:
     virtual Values value(const Values& known) const = 0;
 
     virtual std::pair<bool, CompactColor> transformColor(CompactColor fro) const { return { true, fro }; }
+    bool canApplyToInterface(const Dimensions& interface) const final override {
+        return interface.contains(output);
+    }
     Dimensions applyToInterface(const Dimensions& interface) const final override {
         return interface.substitute1to1(output, getInput());
     }
@@ -264,6 +268,9 @@ public:
     virtual Values value(const Values& known) const = 0;
 
     virtual std::tuple<bool, CompactColor, CompactColor> transformColor(CompactColor fro) const { return { true, fro, fro }; }
+    bool canApplyToInterface(const Dimensions& interface) const final override {
+        return interface.contains(outputLhs) && interface.contains(outputRhs);
+    }
     Dimensions applyToInterface(const Dimensions& interface) const final override {
         return interface.substitute2to1(outputLhs, outputRhs, getInput());
     }
@@ -332,6 +339,9 @@ public:
     virtual Values value(const Values& known) const = 0;
 
     virtual std::pair<bool, CompactColor> transformColor(CompactColor fro1, CompactColor fro2) const { return { true, fro1 | fro2 }; }
+    bool canApplyToInterface(const Dimensions& interface) const final override {
+        return interface.contains(output);
+    }
     Dimensions applyToInterface(const Dimensions& interface) const final override {
         return interface.substitute1to2(output, getInputL(), getInputR());
     }

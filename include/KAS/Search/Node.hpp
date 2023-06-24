@@ -437,6 +437,7 @@ public:
     std::vector<Arc> getChildrenArcs() const;
     std::optional<Arc> getArcFromHandle(Next next) const;
     std::optional<Node> getChild(Next next) const;
+    bool canAcceptArc(Arc arc) const;
     Node getChildFromArc(Arc arc) const;
     std::vector<Next> getPossiblePath() const;
     std::vector<Arc> getComposingArcs() const;

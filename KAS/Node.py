@@ -125,8 +125,14 @@ class Node:
             return None
         return Node(child_node)
 
-    def get_child_from_arc(self, arc: Arc) -> 'Node':
+    def can_accept_arc(self, arc: Arc) -> bool:
+        """Check if a node can accept an arc."""
+        return self._node.can_accept_arc(arc)
+
+    def get_child_from_arc(self, arc: Arc) -> Optional['Node']:
         """Get the child node of a node with an Arc."""
+        if not self.can_accept_arc(arc):
+            return None
         child_node = self._node.get_child_from_arc(arc)
         return Node(child_node)
 
@@ -253,7 +259,10 @@ class MockNodeMetadata:
     def get_child(self, next: Next) -> Optional['MockNodeMetadata']:
         return self._mock_children().get(next, None)
 
-    def get_child_from_arc(self, arc: Next) -> 'MockNodeMetadata':
+    def can_accep_arc(self, arc: Next) -> bool:
+        return arc in self._mock_children()
+
+    def get_child_from_arc(self, arc: Next) -> Optional['MockNodeMetadata']:
         return self.get_child(arc)
 
     def get_possible_path(self) -> Path:

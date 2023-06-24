@@ -4,6 +4,11 @@
 
 namespace kas {
 
+bool MapReduceOp::canApplyToInterface(const Dimensions& interface) const {
+    // We need to manually apply MapReduceOp to ReductionStage.
+    return false;
+}
+
 Dimensions MapReduceOp::applyToInterface(const Dimensions& interface) const {
     KAS_UNREACHABLE("No need to apply MapReduceOp to interface.");
 }

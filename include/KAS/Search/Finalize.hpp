@@ -42,6 +42,8 @@ public:
     std::size_t hash() const noexcept;
     std::size_t count() const noexcept { return tensors.size(); }
 
+    Dimensions toDimensions() const;
+
     double weightVariance(const ConcreteConsts& consts) const;
     double weightVariance(const BindingContext& ctx) const;
 

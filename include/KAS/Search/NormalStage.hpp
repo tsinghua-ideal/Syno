@@ -145,6 +145,7 @@ public:
     std::vector<Arc> getChildrenArcs() override;
     std::optional<Arc> getArcFromHandle(Next next) override;
     std::optional<Node> getChild(Next next) override;
+    bool canAcceptArc(Arc arc) override;
     Node getChild(Arc arc) override;
     std::string description() const override;
 };

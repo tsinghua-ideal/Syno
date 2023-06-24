@@ -341,6 +341,17 @@ std::optional<Node> NormalStage::getChild(Next next) {
     );});
 }
 
+bool NormalStage::canAcceptArc(Arc arc) {
+    return arc.match<bool>(
+        [&](auto op) -> bool {
+            return op->canApplyToInterface(interface);
+        },
+        [&](const FinalizeOp *op) -> bool {
+            return op->toDimensions() == interface;
+        }
+    );
+}
+
 Node NormalStage::getChild(Arc arc) {
     return arc.match<Node>(
         [&](auto op) -> Node {
