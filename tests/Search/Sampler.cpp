@@ -4,7 +4,7 @@
 namespace kas {
 
 TEST_F(search_tests, sampler) {
-    constexpr std::size_t trials = 20;
+    constexpr std::size_t trials = 500;
     std::size_t successes = 0;
     for (int i = 0; i < trials; ++i) {
         auto randomLeaf = sampler.randomNodeWithPrefix({});

@@ -71,6 +71,8 @@ public:
     // If the dimension is not a ShareR, then all the tags are seen as left tags.
     WeightColor(const Dimension& dim);
 
+    std::size_t countLeftTags() const;
+    std::size_t countRightTags() const;
     // Left tags + right tags.
     std::size_t countTags() const;
 

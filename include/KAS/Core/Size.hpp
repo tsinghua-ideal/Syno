@@ -267,14 +267,14 @@ struct std::hash<kas::Size> {
         kas::HashCombine(h, ps.size());
         for (std::size_t i = 0; i < pc; ++i) {
             if (ps[i] != 0) {
-                kas::HashCombine(h, i);
+                kas::HashCombine(h, std::size_t(1) << (i + kas::Size::MAX_VARIABLES / 2));
                 kas::HashCombine(h, ps[i]);
             }
         }
         kas::HashCombine(h, cs.size());
         for (std::size_t i = 0; i < cc; ++i) {
             if (cs[i] != 0) {
-                kas::HashCombine(h, i);
+                kas::HashCombine(h, std::size_t(1) << (i + 3 * kas::Size::MAX_VARIABLES / 2));
                 kas::HashCombine(h, cs[i]);
             }
         }

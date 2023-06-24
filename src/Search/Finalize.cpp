@@ -1,5 +1,6 @@
 #include <list>
 #include <memory>
+#include <numeric>
 #include <stack>
 
 #include "KAS/Core/Colors.hpp"
@@ -8,6 +9,7 @@
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Utils/Algorithm.hpp"
 #include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/Ranges.hpp"
 
 
 namespace kas {
@@ -496,7 +498,9 @@ struct WeightFragment {
     WeightFragment(const std::vector<ColoredDimension>& interface):
         interface { interface },
         used(interface.size(), false)
-    {}
+    {
+        KAS_ASSERT(std::ranges::all_of(interface, [](const ColoredDimension& dim) { return dim.color.countRightTags() <= 1; }));
+    }
 
     bool canAccept(std::size_t i) const {
         return !used[i] && current.disjointWith(interface[i].color);
@@ -627,6 +631,7 @@ struct CollectedTensorFragments {
         tensor.reserve(mappings.size());
         for (auto mapping: mappings) {
             tensor.emplace_back(interface[mapping]);
+            KAS_ASSERT(used[mapping]);
         }
         weight.reserve(interface.size() - mappings.size());
         for (std::size_t i = 0; i < interface.size(); ++i) {
@@ -634,6 +639,7 @@ struct CollectedTensorFragments {
                 weight.emplace_back(interface[i]);
             }
         }
+        KAS_ASSERT(weight.size() == interface.size() - mappings.size());
         return result;
     }
 };
@@ -709,8 +715,18 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const 
     const auto& desired = options.desired;
 
     auto buildBesideInputTensor = [&](const CollectedTensorFragments& inputCandidate) {
-        auto [inputTensor, weightDims] = inputCandidate.toTensorAndWeightDims(interface);
+        const auto [inputTensor, weightDims] = inputCandidate.toTensorAndWeightDims(interface);
+        KAS_ASSERT(inputTensor.size() == desired.size());
+        KAS_ASSERT(weightDims.size() == interface.size() - desired.size());
         for (auto tensors: AssignToWeights(weightDims, options.maximumTensors - 1)) {
+            // Check whether the results are a partition of interface.
+            {
+                auto solution = inputTensor;
+                std::ranges::copy(tensors | std::views::join, std::back_inserter(solution));
+                std::ranges::sort(solution, Dimension::HashLessThan{});
+                KAS_ASSERT(interface.size() == solution.size());
+                KAS_ASSERT(std::ranges::equal(interface, solution));
+            }
             // Canonicalize order of tensors.
             if (!options.allowWeightPermutation) {
                 auto it = std::adjacent_find(tensors.begin(), tensors.end(), [](const auto& a, const auto& b) {

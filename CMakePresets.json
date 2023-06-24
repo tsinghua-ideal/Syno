@@ -56,31 +56,5 @@
             "configurePreset": "asan",
             "displayName": "AddressSanitizer"
         }
-    ],
-    "testPresets": [
-        {
-            "name": "debug",
-            "configurePreset": "debug",
-            "displayName": "Debug",
-            "output": {
-                "outputOnFailure": true
-            }
-        },
-        {
-            "name": "release",
-            "configurePreset": "release",
-            "displayName": "Release",
-            "output": {
-                "outputOnFailure": true
-            }
-        },
-        {
-            "name": "asan",
-            "configurePreset": "asan",
-            "displayName": "AddressSanitizer",
-            "output": {
-                "outputOnFailure": true
-            }
-        }
     ]
 }

@@ -80,7 +80,7 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     ctx.setMaxVariablesInSize(options.maximumVariablesInSize);
     ctx.setMaxVariablesPowersInSize(options.maximumVariablesPowersInSize);
 
-    // Parse shape from names. TODO: add arithmetics support.
+    // Parse shape from names.
     this->inputShape = ctx.getShape(inputShapeNames);
     this->outputShape = ctx.getShape(outputShapeNames);
 

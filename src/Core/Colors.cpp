@@ -173,6 +173,12 @@ WeightColor::WeightColor(const Dimension& dim):
     }
 }
 
+std::size_t WeightColor::countLeftTags() const {
+    return leftTags.size();
+}
+std::size_t WeightColor::countRightTags() const {
+    return rightTags.size();
+}
 std::size_t WeightColor::countTags() const {
     return leftTags.size() + rightTags.size();
 }
