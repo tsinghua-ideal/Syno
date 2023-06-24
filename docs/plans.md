@@ -26,7 +26,7 @@
 - [x] Early reduction analysis is actually compulsory. Otherwise in autodiff settings, the RDom may be left unmentioned, causing Halide compile errors!
 - [x] Sum -> Avg.
 - [ ] Perform a trial to see if there are uncanonical case. (1 on weight)
-- [ ] Multiple weights. (Minimumize difference.)
+- [x] Multiple weights. (Minimumize difference.)
 - [x] Manual `rfactor` for up to 3x performance.
 - [x] Add support for more arithmetic operations, other than product.
 - [x] Add nested loops codegen for expression.
@@ -62,6 +62,7 @@
 - [ ] Add mechanisms to automatically discover equivalent kernels. (TASO-like?)
 - [ ] Unfolding some dimensions to output iterators seems to be not a good idea.
 - [x] Make dead ends propagate. (By storing parent nodes.)
+- [ ] Add canonicalization of chain of ShareOp back.
 
 ### Bindings
 

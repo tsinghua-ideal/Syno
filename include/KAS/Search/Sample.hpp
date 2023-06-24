@@ -45,6 +45,7 @@ struct SampleOptions {
     std::string expressionThreeTensors = "in_0 * in_1 + in_2";
     std::string expressionFourTensors = "in_0 * in_1 * in_2 + in_3";
     std::size_t maximumFinalizations = 5;
+    bool allowWeightPermutation = true;
 
     // These might better be the same.
     std::size_t maxStridedDimSize = 30;
@@ -116,6 +117,8 @@ class Sampler final {
     std::vector<FixedDimension> fixedDimensions;
     Dimensions root;
 
+    TensorExpression expressionOneTensor, expressionTwoTensors, expressionThreeTensors, expressionFourTensors;
+
     PrimitiveOpStore opStore;
     NormalStageStore normalStageStore;
 
@@ -139,7 +142,7 @@ public:
     const Dimensions& getRootInterface() const { return root; }
 
     const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }
-    TensorExpression getExpressionForTensorNum(std::size_t num) const;
+    const TensorExpression& getExpressionForTensorNum(std::size_t num) const;
     // Taking fixed dimensions into account.
     Size getTotalOutputSize() const;
 

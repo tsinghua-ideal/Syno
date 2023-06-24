@@ -16,6 +16,7 @@ void SampleOptions::check() const {
     KAS_ASSERT(dimLowerBound >= 1);
     KAS_ASSERT(dimUpperBound >= dimLowerBound);
     KAS_ASSERT(maximumTensors >= 1);
+    KAS_ASSERT(maximumTensors <= 4);
     KAS_ASSERT(maxStridedDimSize > 1);
     KAS_ASSERT(maxUnfoldKernelSize > 1);
     KAS_ASSERT(minimumUnfoldRatio >= 1.0f);
@@ -119,20 +120,23 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         root.emplace_back(&it);
     }
 
+    expressionOneTensor = Parser(options.expressionOneTensor).parseTensorExpression();
+    expressionTwoTensors = Parser(options.expressionTwoTensors).parseTensorExpression();
+    expressionThreeTensors = Parser(options.expressionThreeTensors).parseTensorExpression();
+    expressionFourTensors = Parser(options.expressionFourTensors).parseTensorExpression();
+
     // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
     rootStage = std::make_unique<ReductionStage>(*this);
 }
 
-TensorExpression Sampler::getExpressionForTensorNum(std::size_t num) const {
-    std::string_view expr;
+const TensorExpression& Sampler::getExpressionForTensorNum(std::size_t num) const {
     switch (num) {
-    case 1: expr = options.expressionOneTensor; break;
-    case 2: expr = options.expressionTwoTensors; break;
-    case 3: expr = options.expressionThreeTensors; break;
-    case 4: expr = options.expressionFourTensors; break;
-    default: KAS_CRITICAL("Unsupported number of tensors: {}", num);
+        case 1: return expressionOneTensor;
+        case 2: return expressionTwoTensors;
+        case 3: return expressionThreeTensors;
+        case 4: return expressionFourTensors;
+        default: KAS_CRITICAL("Unsupported number of tensors: {}", num);
     }
-    return Parser(expr).parseTensorExpression();
 }
 
 Size Sampler::getTotalOutputSize() const {
