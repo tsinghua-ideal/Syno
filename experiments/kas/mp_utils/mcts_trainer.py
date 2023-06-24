@@ -65,7 +65,7 @@ class MCTSTrainer:
     def get_args(self) -> Dict:
         return self.arguments
 
-    def update_result(self, meta: Tuple[TreeNode, Any], reward: float) -> None:
+    def update_result(self, meta: Tuple[TreeNode, Any], reward: float, path_to_trail: TreePath) -> None:
         """preprocess a path after evaluation. """
         trial, receipt = meta
         assert trial.is_final()
@@ -76,7 +76,7 @@ class MCTSTrainer:
             # update
             if self.best_node is None or self.best_node.reward < reward:
                 self.best_node = trial
-            self.mcts.back_propagate(receipt, reward)
+            self.mcts.back_propagate(receipt, reward, path_to_trail)
             self.reward_list.append(reward)
             self.time_list.append(time() - self.start_time)
             print("Successfully updated MCTS. ")
@@ -110,7 +110,7 @@ class MCTSTrainer:
                 reward = self.get_eval_result(node)
 
                 # update
-                self.mcts.back_propagate(receipt, reward)
+                self.mcts.back_propagate(receipt, reward, path)
                 self.reward_list.append(reward)
                 self.time_list.append(time() - self.start_time)
             else:
@@ -218,7 +218,7 @@ if __name__ == '__main__':
     result = searcher.launch_new_iteration()
     for path, trial in result.items():
         assert trial[0].is_final()
-        searcher.update_result(trial, 0.9)
+        searcher.update_result(trial, 0.9, TreePath.deserialize(path))
     searcher.dump_result('./test_save_folder')
     
     # test loading

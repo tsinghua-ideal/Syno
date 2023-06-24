@@ -249,6 +249,9 @@ class TreeNode:
             return (1 - beta) * self.l_rave[arc].avg + beta * g_rave[arc].avg
             
         unexpanded_children = self.get_unexpanded_children(factory)
+        if len(unexpanded_children) == 0:
+            assert self.is_fully_expanded(factory)
+            return
         _, child = max(unexpanded_children, key=rave)
         child._isin_tree = True
 

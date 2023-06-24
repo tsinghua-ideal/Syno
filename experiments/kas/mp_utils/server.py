@@ -1,12 +1,13 @@
 import json
 import time
+from typing import Dict, List, Any
 
 from http.server import BaseHTTPRequestHandler
 
 from KAS import TreePath
 
-waiting_result_cache = {}  # path -> trial, receipt
-pending_evaluate_cache = {}  # path -> trial, receipt
+waiting_result_cache: Dict[str, Dict[str, Any]] = {}  # path_serial -> pack
+pending_evaluate_cache: Dict[str, Dict[str, Any]] = {}  # path -> pack
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -22,7 +23,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # Detect timeout kernels.
-        timeout_kernels = []
+        timeout_kernels: List[str] = []
         for path, pack in waiting_result_cache.items():
             # 24 hours: 86400 secs
             if time.time() - pack['time'] > 7200:
@@ -30,7 +31,7 @@ class Handler(BaseHTTPRequestHandler):
         for path in timeout_kernels:
             assert path not in pending_evaluate_cache
             assert path in waiting_result_cache
-            self.mcts.update_result(waiting_result_cache.pop(path)['meta'], -1)
+            self.mcts.update_result(waiting_result_cache.pop(path)['meta'], -1, TreePath.deserialize(path))
             print(f' > Timeout kernel: {path}')
 
         if self.path == '/arguments':
@@ -79,7 +80,7 @@ class Handler(BaseHTTPRequestHandler):
             assert path not in pending_evaluate_cache
             assert path in waiting_result_cache, f"{path} not in {waiting_result_cache}"
             self.mcts.update_result(waiting_result_cache.pop(path)[
-                                    'meta'], reward ** 2)
+                                    'meta'], reward ** 2, TreePath.deserialize(path))
             self.mcts.remain_iterations -= 1
             print(f"Remaining iterations: {self.mcts.remain_iterations}")
             if self.mcts.remain_iterations == 0:
@@ -92,7 +93,7 @@ class Handler(BaseHTTPRequestHandler):
             path, state = path.split('$')
             if path in waiting_result_cache:
                 self.mcts.update_result(
-                    waiting_result_cache.pop(path)['meta'], -1)
+                    waiting_result_cache.pop(path)['meta'], -1, TreePath.deserialize(path))
             print(f' > Failed to train {path} because of {state}')
         else:
             print(f' > Testing message ...')
