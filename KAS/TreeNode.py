@@ -143,11 +143,9 @@ class TreeNode:
         eq_flag = self._node.__eq__(__value._node) and \
             self._is_mid == __value._is_mid and \
             self._type == __value._type and \
-            self.N == __value.N and \
-            self.sum == __value.sum and \
-            self.sumsq == __value.sumsq
+            self.state_dict == __value.state_dict
         if self._node.is_final():
-            eq_flag = eq_flag and self.filtered == __value.filtered
+            eq_flag = eq_flag and self.filtered == __value.filtered and self.reward == __value.reward
         return eq_flag
 
     def __hash__(self) -> int:
@@ -175,12 +173,18 @@ class TreeNode:
             'N': self.N,
             'sum': self.sum,
             'sumsq': self.sumsq,
+            '_last_T': self._last_T,
+            '_is_dead': self._is_dead,
+            '_isin_tree': self._isin_tree
         }
         
     def load(self, state_dict: Dict) -> Dict:
         self.N = state_dict['N']
         self.sum = state_dict['sum']
         self.sumsq = state_dict['sumsq']
+        self._last_T = state_dict['_last_T']
+        self._is_dead = state_dict['_is_dead']
+        self._isin_tree = state_dict['_isin_tree']
 
     def children_count(self, factory: Dict[Node, 'TreeNode'], on_tree: bool=False) -> int:
         """Get the number of all children of a node."""

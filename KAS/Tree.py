@@ -19,7 +19,7 @@ class MCTS:
         self._root = sampler.visit([]).to_node()
         root_node = TreeNode(self._root)
         self._treenode_store[self._root] = root_node
-        self.g_rave: Dict[Arc, AverageMeter] = defaultdict(AverageMeter)
+        self.g_rave: Dict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
 
         self._sampler = sampler
         self._exploration_weight = exploration_weight
@@ -201,12 +201,13 @@ class MCTS:
             return None
         return path, node
 
-    def back_propagate(self, receipt: Receipt, reward: float) -> None:
+    def back_propagate(self, receipt: Receipt, reward: float, path_to_trail: TreePath) -> None:
         """
         Send the reward back up to the ancestors of the leaf
-        TODO: update l rave iteratively and g rave once. If T changes, then add new nodes. 
+        Update l rave iteratively and g rave once. If T changes, then add new nodes. 
         """
         assert isinstance(reward, float)
+        assert isinstance(path_to_trail, TreePath)
         assert 0.0 <= reward <= 1.0
 
         node, path = receipt
@@ -222,6 +223,7 @@ class MCTS:
         node = self._treenode_store[node.to_node()]
         for next in path:
             arc = node._node.get_arc_from_handle(next)
+            assert arc is not None or next.key == 0
             update_stats(node, reward, next.type)
             node = node.get_child(next.type, self._treenode_store, on_tree=True)
             assert node is not None
@@ -237,6 +239,9 @@ class MCTS:
         arcs = node._node.get_composing_arcs()
         for arc in arcs:
             self.g_rave[arc].update(reward)
+        update_types = set([next.type for next in path_to_trail])
+        for type in update_types:
+            self.g_rave[type].update(reward)
     
     def remove(self, receipt: Receipt, trial: TreeNode) -> None:
         "Remove the receipt and set this trial to be dead. "
@@ -317,9 +322,27 @@ class MCTS:
             for next, child in father.get_children(self._treenode_store, auto_initialize=False):
                 assert isinstance(next, Next.Type)
                 next_serial = self.next_serializer.serialize_type(next)
+                children = [
+                    (n, index[c.to_node()]) 
+                        for n, c in child.get_children(self._treenode_store, auto_initialize=False) 
+                        if c._node in index
+                ]
+                children_with_rave_score: List[Tuple[PseudoTreeNext, int, Dict[str, Dict]]] = []
+                for n, ind in children:
+                    arc = child._node.get_arc_from_handle(Next(next, n))
+                    assert arc is not None
+                    lrave = child.l_rave[arc].serialize()
+                    grave = self.g_rave[arc].serialize()
+                    rave_score = {
+                        'lrave': lrave,
+                        'grave': grave
+                    }
+                    children_with_rave_score.append((n, ind, rave_score))
                 node_serial['children'][next_serial] = {
                         'state': child.state_dict, 
-                        'children': [(n, index[c.to_node()]) for n, c in child.get_children(self._treenode_store, auto_initialize=False) if c._node in index]
+                        'lrave': father.l_rave[next].serialize(),
+                        'grave': self.g_rave[next].serialize(),
+                        'children': children_with_rave_score
                     }
 
             node_list.append(node_serial)
@@ -354,14 +377,34 @@ class MCTS:
             child_path = path.concat(_type)
             child = TreeNode(node_, is_mid=True, type=_type)
             
+            # Rave
+            tree_node.l_rave[_type] = AverageMeter.deserialize(child_serial['lrave'])
+            g_rave_am = AverageMeter.deserialize(child_serial['grave'])
+            if not self.g_rave[_type].empty():
+                assert g_rave_am == self.g_rave[_type], "g_rave inconsistency found!"
+            else:
+                self.g_rave[_type] = g_rave_am
+            
             child.load(child_serial['state'])
-            for next, grand_child_index in child_serial['children']:
+            for next, grand_child_index, rave_score in child_serial['children']:     
                 grand_child_path = child_path.concat(next)
-                self._add_node(
+                child_node = self._add_node(
                     grand_child_path, 
                     node_factory[grand_child_index], 
                     node_factory
                     )
+                
+                grand_child_next = grand_child_path[-1]
+                assert grand_child_next == Next(_type, next), (grand_child_next, Next(_type, next))
+                grand_child_arc = child._node.get_arc_from_handle(grand_child_next)
+                assert grand_child_arc is not None
+                # Rave
+                child_node.l_rave[grand_child_arc] = AverageMeter.deserialize(rave_score['lrave'])
+                g_rave_am = AverageMeter.deserialize(rave_score['grave'])
+                if grand_child_arc in self.g_rave.keys():
+                    assert g_rave_am == self.g_rave[grand_child_arc], "g_rave inconsistency found!"
+                else:
+                    self.g_rave[grand_child_arc] = g_rave_am
                 
             tree_node.children.append(child)
         if not path.is_root():

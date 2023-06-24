@@ -27,7 +27,7 @@ def test_mcts():
             _, path = receipt
             node = trials[0]
             print(f"Iteration {idx}. Sampled {node} for {path}")
-            mcts.back_propagate(receipt, 0.5)
+            mcts.back_propagate(receipt, 0.5, node[0])
         except Exception as e:
             print(f"Caught error {e}")
             traceback.print_exc()

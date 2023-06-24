@@ -36,15 +36,15 @@ def test_final_select():
     _, path = receipt
     node = trials
     print(f"Sampled {node} for {path}")
-    mcts.back_propagate(receipt, 0.5)
-    mcts.back_propagate(receipt, 0.5)
+    mcts.back_propagate(receipt, 0.5, node[0][0])
+    mcts.back_propagate(receipt, 0.5, node[0][0])
     
     receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
     _, path = receipt
     node = trials
     print(f"Sampled {node} for {path}")
-    mcts.back_propagate(receipt, 0.5)
-    mcts.back_propagate(receipt, 0.5)
+    mcts.back_propagate(receipt, 0.5, node[0][0])
+    mcts.back_propagate(receipt, 0.5, node[0][0])
     
     mcts.do_rollout(sampler.root())
 
@@ -66,7 +66,7 @@ def test_mcts():
         _, path = receipt
         node = trials
         print(f"Iteration {idx}. Sampled {node} for {path}")
-        mcts.back_propagate(receipt, 0.5)
+        mcts.back_propagate(receipt, 0.5, node[0][0])
         
     print("Tree after first two iterations", [v for _, v in mcts._treenode_store.items() if v.N > 0])
     assert len(mcts._treenode_store.keys()) == 3
@@ -89,8 +89,8 @@ def test_mcts():
     for k, v in mcts.virtual_loss_count.items():
         assert v > 0, f"Virtual loss count for {k} is {v}"
     
-    mcts.back_propagate(receipts[0], 0.6)
-    mcts.back_propagate(receipts[1], 0.6)
+    mcts.back_propagate(receipts[0], 0.6, trialss[0][0][0])
+    mcts.back_propagate(receipts[1], 0.6, trialss[1][0][0])
     
     for k, v in mcts.virtual_loss_count.items():
         assert v == 0, f"Virtual loss count for {k} is {v}"
@@ -138,8 +138,8 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
     
     for _ in trange(num_iter):
         receipt, trials = mcts.do_rollout(sampler.root())
-        for _, node in trials:
-            mcts.back_propagate(receipt, node._node.mock_get('reward'))
+        for path, node in trials:
+            mcts.back_propagate(receipt, node._node.mock_get('reward'), path)
         
         root = mcts._treenode_store[sampler.visit([]).to_node()]
     

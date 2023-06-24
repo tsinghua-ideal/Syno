@@ -1,5 +1,5 @@
 from .Bindings import Next
-
+from typing import Dict, Tuple
 
 class NextSerializer:
     def __init__(self):
@@ -29,8 +29,12 @@ class NextSerializer:
 
 class AverageMeter:
     def __init__(self) -> None:
-        self.sum = 0
-        self.N = 0
+        self.sum: float = 0
+        self.N: int = 0
+    
+    def __eq__(self, __value: 'AverageMeter') -> bool:
+        assert isinstance(__value, AverageMeter)
+        return self.sum == __value.sum and self.N == __value.N
     
     def update(self, val: float) -> None:
         self.sum += val
@@ -40,3 +44,18 @@ class AverageMeter:
     def avg(self) -> float:
         if self.N == 0: return 0
         return self.sum / self.N
+    
+    def serialize(self) -> Dict:
+        return (self.sum, self.N)
+
+    @staticmethod
+    def deserialize(serial: Tuple[float, int]) -> 'AverageMeter':
+        am = AverageMeter()
+        am.sum, am.N = serial
+        return am
+    
+    def empty(self) -> bool:
+        return self.sum == 0 and self.N == 0
+    
+    def __repr__(self) -> str:
+        return f"AverageMeter(sum={self.sum}, N={self.N})"
