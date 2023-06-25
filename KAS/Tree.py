@@ -150,7 +150,7 @@ class MCTS:
         # Here, the path is just arbitrary, and depends on how we build the search tree. See doc for `_uct_select`. We only need to make sure we can construct a `TwoStepPath` from `path`.
         path = TreePath([])
         while True:
-            if node.is_terminal() or \
+            if node.is_terminal(self._treenode_store) or \
                 len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) > 0 or \
                     node.children_count(self._treenode_store, on_tree=True) == 0:
                 # node is terminal, unexplored, or a leaf
@@ -191,14 +191,15 @@ class MCTS:
             logging.debug(f"Random selected {next}: {selected_child}")
             return next, selected_child
 
-        while not node.is_terminal():
+        while not node.is_terminal(self._treenode_store):
             random_select_result = random_child(node)
             if random_select_result is None:
                 return None
             next, node = random_select_result
             path = path.concat(next)
-        if not node.is_final(): # is dead end
+        if node.is_dead_end(self._treenode_store): # is dead end
             return None
+        assert node.is_final()
         return path, node
 
     def back_propagate(self, receipt: Receipt, reward: float, path_to_trail: TreePath) -> None:

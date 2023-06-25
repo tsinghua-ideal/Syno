@@ -91,7 +91,8 @@ class MCTSTrainer:
         Launch a new iteration and push some tasks to the task pool. 
         Tasks: Tree parallelization, Leaf parallelization
         """
-
+        start = time()
+        
         # Selecting a node
         logging.info("launching new iterations")
         rollout_result = self.mcts.do_rollout(self.mcts._sampler.root())
@@ -118,6 +119,7 @@ class MCTSTrainer:
             else:
                 logging.warning("Encountered dead trial. Is that desired? ")
 
+        logging.info("This iteration takes {} seconds".format(time() - start))
         return new_path
 
     def dump_result(self, result_save_loc: str = './final_result') -> None:

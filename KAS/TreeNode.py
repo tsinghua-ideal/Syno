@@ -323,11 +323,11 @@ class TreeNode:
                     return child if child._isin_tree else None
             return None
 
-    def is_terminal(self) -> bool:
+    def is_terminal(self, factory: Dict[Node, 'TreeNode']) -> bool:
         """Check if a node is final, which means it can be realized as a Halide kernel."""
         if self._is_mid:
             return False
-        return self._node.is_terminal()
+        return self.is_final() or self.is_dead_end(factory)
     
     def is_dead_end(self, factory: Dict[Node, 'TreeNode']) -> bool:
         """Check if a node is final, which means it can be realized as a Halide kernel."""
