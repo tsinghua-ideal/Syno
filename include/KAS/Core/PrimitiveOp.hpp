@@ -263,7 +263,8 @@ public:
     std::size_t opHash() const noexcept final override {
         std::size_t h = initialHash();
         HashCombineRaw(h, outputLhs.hash());
-        HashCombineRaw(h, outputRhs.hash());
+        constexpr int SizeTypeWidth = std::numeric_limits<std::size_t>::digits;
+        HashCombineRaw(h, std::rotl(outputRhs.hash(), SizeTypeWidth / 2));
         return h;
     }
     virtual Dimension getInput() const = 0;
@@ -315,7 +316,7 @@ public:
         }
         std::size_t hash() const noexcept final override {
             std::size_t h = op->opHash();
-            HashCombine(h, order);
+            HashCombine(h, order == Order::Left ? 0 : std::numeric_limits<std::size_t>::max());
             return h;
         }
         virtual bool is(DimensionTypeWithOrder ty) const noexcept override = 0;

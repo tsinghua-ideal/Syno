@@ -39,7 +39,9 @@ Dimension::Origin Dimension::deduceOrigin() const {
 }
 
 std::string Dimension::description(const BindingContext& ctx) const {
-    return fmt::format("[{}]@{}{:x}", size().toString(ctx), type(), hash());
+    constexpr int SizeTypeWidth = std::numeric_limits<std::size_t>::digits;
+    constexpr int HexDigits = SizeTypeWidth / 4;
+    return fmt::format("[{}]@{}{:0{}x}", size().toString(ctx), type(), hash(), HexDigits);
 }
 
 std::string Dimension::descendantsDescription(const BindingContext& ctx) const {

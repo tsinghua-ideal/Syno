@@ -34,15 +34,17 @@ enum class DimensionType {
 constexpr std::size_t DimensionTypeNum = 8;
 inline std::size_t DimensionTypeHash(DimensionType type) {
     using namespace std::string_view_literals;
+    constexpr int SizeTypeWidth = std::numeric_limits<std::size_t>::digits;
+    constexpr int Shift = SizeTypeWidth / DimensionTypeNum;
     static const std::array<std::size_t, DimensionTypeNum> DimensionTypeHashes = {
-        std::hash<std::string_view>{}("DimensionType::Iterator"sv),
-        std::hash<std::string_view>{}("DimensionType::MapReduce"sv),
-        std::hash<std::string_view>{}("DimensionType::Shift"sv),
-        std::hash<std::string_view>{}("DimensionType::Stride"sv),
-        std::hash<std::string_view>{}("DimensionType::Split"sv),
-        std::hash<std::string_view>{}("DimensionType::Unfold"sv),
-        std::hash<std::string_view>{}("DimensionType::Merge"sv),
-        std::hash<std::string_view>{}("DimensionType::Share"sv),
+        std::rotl(std::hash<std::string_view>{}("DimensionType::Iterator"sv), 0 * Shift),
+        std::rotl(std::hash<std::string_view>{}("DimensionType::MapReduce"sv), 1 * Shift),
+        std::rotl(std::hash<std::string_view>{}("DimensionType::Shift"sv), 2 * Shift),
+        std::rotl(std::hash<std::string_view>{}("DimensionType::Stride"sv), 3 * Shift),
+        std::rotl(std::hash<std::string_view>{}("DimensionType::Split"sv), 4 * Shift),
+        std::rotl(std::hash<std::string_view>{}("DimensionType::Unfold"sv), 5 * Shift),
+        std::rotl(std::hash<std::string_view>{}("DimensionType::Merge"sv), 6 * Shift),
+        std::rotl(std::hash<std::string_view>{}("DimensionType::Share"sv), 7 * Shift),
     };
     return DimensionTypeHashes[static_cast<std::size_t>(type)];
 }
