@@ -63,8 +63,8 @@ if __name__ == '__main__':
             try:
                 self.mcts = searcher
                 super().__init__(*args, **kwargs)
-            except KeyboardInterrupt:
-                print("> Catched keyboard interrupt...... Saving current tree states")
+            except Exception as e:
+                print(f"> Catched Exception {e}...... Trying to save current tree states")
                 self.mcts.dump_result()
                 print(f' > MCTS states dumped. ')
                 exit(0)
