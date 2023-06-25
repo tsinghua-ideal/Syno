@@ -31,6 +31,21 @@ enum class DimensionType {
     Merge,
     Share,
 };
+constexpr std::size_t DimensionTypeNum = 8;
+inline std::size_t DimensionTypeHash(DimensionType type) {
+    using namespace std::string_view_literals;
+    static const std::array<std::size_t, DimensionTypeNum> DimensionTypeHashes = {
+        std::hash<std::string_view>{}("DimensionType::Iterator"sv),
+        std::hash<std::string_view>{}("DimensionType::MapReduce"sv),
+        std::hash<std::string_view>{}("DimensionType::Shift"sv),
+        std::hash<std::string_view>{}("DimensionType::Stride"sv),
+        std::hash<std::string_view>{}("DimensionType::Split"sv),
+        std::hash<std::string_view>{}("DimensionType::Unfold"sv),
+        std::hash<std::string_view>{}("DimensionType::Merge"sv),
+        std::hash<std::string_view>{}("DimensionType::Share"sv),
+    };
+    return DimensionTypeHashes[static_cast<std::size_t>(type)];
+}
 
 enum class DimensionTypeWithOrder {
     // Keep the 6 of them in the same order as DimensionType!
@@ -128,20 +143,8 @@ public:
     std::string descendantsDescription(const BindingContext& ctx) const;
 
     // FOR DEBUG USAGE ONLY!
-    std::string debugDescription() const {
-        if (BindingContext::DebugPublicCtx) {
-            return description(*BindingContext::DebugPublicCtx);
-        } else {
-            return "NO_PUBLIC_CONTEXT";
-        }
-    }
-    std::string debugDescendantsDescription() const {
-        if (BindingContext::DebugPublicCtx) {
-            return descendantsDescription(*BindingContext::DebugPublicCtx);
-        } else {
-            return "NO_PUBLIC_CONTEXT";
-        }
-    }
+    std::string debugDescription() const;
+    std::string debugDescendantsDescription() const;
 };
 
 using ShapeView = AbstractShape<const std::vector<Dimension>&, [](const Dimension& dim) -> const Size& { return dim.size(); }>;
@@ -214,7 +217,7 @@ public:
 } // namespace kas
 
 #define KAS_REPORT_DIMENSION_HASH_COLLISION(dim1, dim2) do { \
-    KAS_WARNING("Duplicate dimensions! Or even worse, hash collision. {}", \
+    KAS_WARNING("Duplicate Dimension's! Or even worse, hash collision. {}", \
         ::kas::BindingContext::DebugPublicCtx != nullptr ? ::fmt::format("Maybe helpful: {} vs {}.", \
             (dim1).descendantsDescription(*::kas::BindingContext::DebugPublicCtx), \
             (dim2).descendantsDescription(*::kas::BindingContext::DebugPublicCtx)) \
@@ -227,7 +230,8 @@ struct std::hash<kas::Dimensions> {
     template<kas::DimensionRange R>
     std::size_t operator()(R&& interface) const noexcept {
         using namespace std::string_view_literals;
-        std::size_t h = std::hash<std::string_view>{}("DimensionRange"sv);
+        static const auto drHash = std::hash<std::string_view>{}("DimensionRange"sv);
+        auto h = drHash;
         kas::HashCombine(h, interface.size());
         for (const kas::Dimension& dim: interface) {
             kas::HashCombineRaw(h, dim.hash());
@@ -242,7 +246,8 @@ struct std::hash<std::vector<kas::Dimensions>> {
     template<kas::TensorRange R>
     std::size_t operator()(R&& tensors) const noexcept {
         using namespace std::string_view_literals;
-        std::size_t h = std::hash<std::string_view>{}("TensorRange"sv);
+        static const auto trHash = std::hash<std::string_view>{}("TensorRange"sv);
+        auto h = trHash;
         kas::HashCombine(h, tensors.size());
         auto hasher = std::hash<kas::Dimensions>{};
         for (const auto& tensor: tensors) {

@@ -35,7 +35,8 @@ bool Arc::operator==(const Arc& rhs) const {
 }
 std::size_t Arc::hash() const {
     using namespace std::string_view_literals;
-    auto h = std::hash<std::string_view>{}("Arc"sv);
+    static const auto arcHash = std::hash<std::string_view>{}("Arc"sv);
+    auto h = arcHash;
     HashCombine(h, inner.index());
     auto contentHash = match<std::size_t>(
         [](const PrimitiveOp *op) {
@@ -89,7 +90,8 @@ bool Node::operator==(const Node& rhs) const {
 
 std::size_t Node::hash() const {
     using namespace std::string_view_literals;
-    auto h = std::hash<std::string_view>{}("Node"sv);
+    static const auto nodeHash = std::hash<std::string_view>{}("Node"sv);
+    auto h = nodeHash;
     HashCombine(h, inner.index());
     auto hashRetriever = [](const auto& content) {
         return content->hash();

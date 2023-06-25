@@ -14,18 +14,22 @@ public:
         index { index },
         domain { std::forward<decltype(domain)>(domain) }
     {}
-    inline const Size& size() const noexcept override { return domain; }
-    inline std::size_t hash() const noexcept override {
-        std::size_t h = std::hash<DimensionType>{}(DimensionType::Iterator);
-        HashCombine(h, index);
+    const Size& size() const noexcept override { return domain; }
+    std::size_t hash() const noexcept override {
+        using namespace std::string_view_literals;
+        constexpr int SizeTypeWidth = std::numeric_limits<std::size_t>::digits;
+        constexpr int ExpectedMaximumIterators = 8;
+        std::size_t h = DimensionTypeHash(DimensionType::Iterator);
+        static const auto iteratorIndexHash = std::hash<std::string_view>{}("IteratorIndex"sv);
+        HashCombine(h, std::rotl(iteratorIndexHash, SizeTypeWidth / ExpectedMaximumIterators * index));
         return h;
     }
     constexpr DimensionType type() const noexcept override { return DimensionType::Iterator; }
     void accept(DimVisitor& visitor) const final override;
     const Color & getColor() const override { return Color::None; }
 
-    inline std::size_t getIndex() const { return index; }
-    inline std::string getName() const {
+    std::size_t getIndex() const { return index; }
+    std::string getName() const {
         return "i_" + std::to_string(index);
     }
 };

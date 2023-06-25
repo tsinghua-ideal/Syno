@@ -4,7 +4,7 @@
 namespace kas {
 
 std::size_t ShiftOp::initialHash() const noexcept {
-    std::size_t h = std::hash<DimensionType>{}(Type);
+    std::size_t h = DimensionTypeHash(Type);
     HashCombine(h, shift);
     return h;
 }

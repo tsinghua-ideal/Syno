@@ -43,6 +43,10 @@ std::string IteratorValue::toString(const BindingContext& ctx) const {
     return printer.toString(*this);
 }
 
+std::string IteratorValue::debugToString() const {
+    return BindingContext::ApplyDebugPublicCtx(&IteratorValue::toString, *this);
+}
+
 const IteratorValue ImmediateValueNode::Zero = ImmediateValueNode::Create(0);
 const IteratorValue ImmediateValueNode::One = ImmediateValueNode::Create(1);
 const IteratorValue ImmediateValueNode::Two = ImmediateValueNode::Create(2);

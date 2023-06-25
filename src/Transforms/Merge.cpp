@@ -17,7 +17,7 @@ const Size& MergeOp::Input::size() const noexcept {
 }
 
 std::size_t MergeOp::initialHash() const noexcept {
-    std::size_t h = std::hash<DimensionType>{}(Type);
+    std::size_t h = DimensionTypeHash(Type);
     HashCombine(h, minorSize);
     return h;
 }

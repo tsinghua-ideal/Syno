@@ -403,6 +403,10 @@ std::string Size::toString(const BindingContext& ctx) const {
     return result.str();
 }
 
+std::string Size::debugToString() const {
+    return BindingContext::ApplyDebugPublicCtx(&Size::toString, *this);
+}
+
 std::pair<int, int> PaddingSolver::evalFractionalCoefficient(const Size& size) const {
     return size.evalFraction<int>(size.coefficientCount, consts.coefficientWrapper(), size.coefficient);
 }

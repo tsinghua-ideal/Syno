@@ -28,7 +28,7 @@ protected:
 public:
     ShareOp(const Dimension& output);
     constexpr DimensionType getType() const noexcept override { return Type; }
-    std::size_t initialHash() const noexcept override { return std::hash<DimensionType>{}(Type); }
+    std::size_t initialHash() const noexcept override { return DimensionTypeHash(Type); }
     Dimension getInputL() const override { return &inputLhs; }
     Dimension getInputR() const override { return &inputRhs; }
     Values value(const Values& known) const override;

@@ -107,6 +107,14 @@ public:
 
     // FOR DEBUG USAGE ONLY!
     static inline const BindingContext *DebugPublicCtx = nullptr;
+    template<typename F>
+    static std::string ApplyDebugPublicCtx(F&& f, auto&& self) {
+        if (BindingContext::DebugPublicCtx) {
+            return std::invoke(std::forward<F>(f), std::forward<decltype(self)>(self), *DebugPublicCtx);
+        } else {
+            return "NO_PUBLIC_CONTEXT";
+        }
+    }
 };
 
 } // namespace kas

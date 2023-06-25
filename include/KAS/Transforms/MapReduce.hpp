@@ -33,6 +33,7 @@ public:
     }
 
     std::string description(const BindingContext& ctx) const override;
+    std::string descendantsDescription(const BindingContext& ctx) const override;
 
     struct GenerateOptions {
         const BindingContext& ctx;

@@ -24,7 +24,7 @@ protected:
 public:
     UnfoldOp(const Dimension& outputLhs, const Dimension& outputRhs);
     constexpr DimensionType getType() const noexcept override { return Type; }
-    std::size_t initialHash() const noexcept override { return std::hash<DimensionType>{}(Type); }
+    std::size_t initialHash() const noexcept override { return DimensionTypeHash(Type); }
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 

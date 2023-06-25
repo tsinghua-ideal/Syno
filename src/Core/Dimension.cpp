@@ -53,14 +53,14 @@ std::string Dimension::descendantsDescription(const BindingContext& ctx) const {
             result = std::to_string(dim.getPriority());
         }
         void visit(const RepeatLikeOp::Input& dim) override {
-            result = dim.getOp()->output.description(ctx);
+            result = dim.getOp()->output.descendantsDescription(ctx);
         }
         void visit(const SplitLikeOp::Input& dim) override {
             auto op = dim.getOp();
-            result = fmt::format("{}, {}", op->outputLhs.description(ctx), op->outputRhs.description(ctx));
+            result = fmt::format("{}, {}", op->outputLhs.descendantsDescription(ctx), op->outputRhs.descendantsDescription(ctx));
         }
         void visit(const MergeLikeOp::Input& dim) override {
-            result = dim.getOp()->output.description(ctx);
+            result = dim.getOp()->output.descendantsDescription(ctx);
         }
         visitor(const BindingContext& ctx): ctx(ctx) {}
         using DimVisitor::visit;
@@ -68,6 +68,13 @@ std::string Dimension::descendantsDescription(const BindingContext& ctx) const {
     visitor v { ctx };
     v.visit(*this);
     return fmt::format("{}({})", description(ctx), std::move(v.result));
+}
+
+std::string Dimension::debugDescription() const {
+    return BindingContext::ApplyDebugPublicCtx(&Dimension::description, *this);
+}
+std::string Dimension::debugDescendantsDescription() const {
+    return BindingContext::ApplyDebugPublicCtx(&Dimension::descendantsDescription, *this);
 }
 
 Dimensions Dimensions::substitute1to1(const Dimension& fro, const Dimension& to) const {

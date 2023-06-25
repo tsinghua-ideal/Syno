@@ -51,7 +51,8 @@ struct Next {
     // For Python.
     std::size_t hash() const noexcept {
         using namespace std::string_view_literals;
-        auto h = std::hash<std::string_view>{}("Next"sv);
+        static const auto nextHash = std::hash<std::string_view>{}("Next"sv);
+        auto h = nextHash;
         HashCombine(h, type);
         HashCombine(h, key);
         return h;

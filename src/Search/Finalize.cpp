@@ -735,7 +735,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const 
             }
             // Canonicalize order of tensors.
             if (!options.allowWeightPermutation) {
-                auto it = std::adjacent_find(tensors.begin(), tensors.end(), [](const auto& a, const auto& b) {
+                auto it = std::ranges::adjacent_find(tensors, [](const auto& a, const auto& b) {
                     return a[0].hash() > b[0].hash();
                 });
                 if (it != tensors.end()) {

@@ -45,6 +45,7 @@
 ### Finalize
 
 - [ ] Split Finalize, determine one weight at a time.
+- [ ] Add canonicalization of chain of ShareOp.
 
 ### Generation
 
@@ -62,7 +63,6 @@
 - [ ] Add mechanisms to automatically discover equivalent kernels. (TASO-like?)
 - [ ] Unfolding some dimensions to output iterators seems to be not a good idea.
 - [x] Make dead ends propagate. (By storing parent nodes.)
-- [ ] Add canonicalization of chain of ShareOp back.
 
 ### Bindings
 

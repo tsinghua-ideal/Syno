@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -160,13 +161,7 @@ public:
     std::string toString(const BindingContext& ctx) const;
 
     // FOR DEBUG USAGE ONLY!
-    inline std::string debugToString() const {
-        if (BindingContext::DebugPublicCtx) {
-            return toString(*BindingContext::DebugPublicCtx);
-        } else {
-            return "NO_PUBLIC_CONTEXT";
-        }
-    }
+    std::string debugToString() const;
 
     template<typename C = decltype([](const std::string&){})>
     static std::vector<std::string> parseNames(std::string_view shape, C&& onNewName = C()) {
@@ -260,22 +255,26 @@ struct Allowance {
 template<>
 struct std::hash<kas::Size> {
     std::size_t operator()(const kas::Size& size) const noexcept {
+        constexpr int SizeTypeWidth = std::numeric_limits<std::size_t>::digits;
         using namespace std::string_view_literals;
-        auto h = std::hash<std::string_view>{}("Size"sv);
+        static const auto sizeHash = std::hash<std::string_view>{}("Size"sv);
+        static const auto primaryHash = std::hash<std::string_view>{}("PrimaryVariable"sv);
+        static const auto coefficientHash = std::hash<std::string_view>{}("CoefficientVariable"sv);
+        auto h = sizeHash;
         std::span<const kas::Size::PowerType> ps = size.getPrimary(), cs = size.getCoefficient();
         const std::size_t pc = ps.size(), cc = cs.size();
-        kas::HashCombine(h, ps.size());
+        kas::HashCombine(h, pc);
         for (std::size_t i = 0; i < pc; ++i) {
             if (ps[i] != 0) {
-                kas::HashCombine(h, std::size_t(1) << (i + kas::Size::MAX_VARIABLES / 2));
-                kas::HashCombine(h, ps[i]);
+                kas::HashCombine(h, std::rotl(primaryHash, SizeTypeWidth / 2 + static_cast<int>(i)));
+                kas::HashCombine(h, std::rotl<std::size_t>(1, SizeTypeWidth / 2 + ps[i]));
             }
         }
-        kas::HashCombine(h, cs.size());
+        kas::HashCombine(h, cc);
         for (std::size_t i = 0; i < cc; ++i) {
             if (cs[i] != 0) {
-                kas::HashCombine(h, std::size_t(1) << (i + 3 * kas::Size::MAX_VARIABLES / 2));
-                kas::HashCombine(h, cs[i]);
+                kas::HashCombine(h, std::rotl(coefficientHash, static_cast<int>(i)));
+                kas::HashCombine(h, std::rotl<std::size_t>(1, SizeTypeWidth / 2 + cs[i]));
             }
         }
         return h;

@@ -2,6 +2,7 @@
 
 #include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/Core/BindingContext.hpp"
+#include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Search/NormalStage.hpp"
 #include "KAS/Search/Sample.hpp"
@@ -304,6 +305,13 @@ NormalStage::NormalStage(Dimensions&& interface, AbstractStage& creator, std::op
         childrenGenerated = true;
         // We cannot propagte, because the parent is now building children.
         determineFinalizability(Finalizability::No);
+    } else {
+        auto it = std::ranges::adjacent_find(interface, [](const Dimension& a, const Dimension& b) {
+            return a.hash() == b.hash();
+        });
+        if (it != interface.end()) {
+            KAS_REPORT_DIMENSION_HASH_COLLISION(*it, *std::next(it));
+        }
     }
 }
 

@@ -73,13 +73,7 @@ public:
     std::string toString(const BindingContext& ctx) const;
 
     // FOR DEBUG USAGE ONLY!
-    std::string debugToString() const {
-        if (BindingContext::DebugPublicCtx) {
-            return toString(*BindingContext::DebugPublicCtx);
-        } else {
-            return "NO_PUBLIC_CONTEXT";
-        }
-    }
+    std::string debugToString() const;
 };
 
 struct VariableValueNode final: public IteratorValueImpl {

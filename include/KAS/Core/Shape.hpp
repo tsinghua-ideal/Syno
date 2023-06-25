@@ -30,41 +30,39 @@ public:
 
         underlying dim;
 
-        inline Iterator(): dim {} {}
-        inline Iterator(underlying dim): dim { dim } {}
-        inline Iterator(const Iterator& other): dim { other.dim } {}
+        Iterator(): dim {} {}
+        Iterator(underlying dim): dim { dim } {}
+        Iterator(const Iterator& other): dim { other.dim } {}
 
-        inline reference operator*() const { return Mapping(*dim); }
-        inline pointer operator->() const { return &Mapping(*dim); }
-        inline reference operator[](std::size_t n) const { return Mapping(dim[n]); }
+        reference operator*() const { return Mapping(*dim); }
+        pointer operator->() const { return &Mapping(*dim); }
+        reference operator[](std::size_t n) const { return Mapping(dim[n]); }
 
-        inline Iterator& operator++() { ++dim; return *this; }
-        inline Iterator operator++(int) { auto res = *this; ++dim; return res; }
-        inline Iterator& operator--() { --dim; return *this; }
-        inline Iterator operator--(int) { auto res = *this; --dim; return res; }
-        inline Iterator& operator+=(difference_type n) { dim += n; return *this; }
-        inline Iterator& operator-=(difference_type n) { dim -= n; return *this; }
-        inline Iterator operator+(difference_type n) const { return dim + n; }
-        friend inline Iterator operator+(difference_type n, const Iterator& it) { return n + it.dim; }
-        inline Iterator operator-(difference_type n) const { return dim - n; }
-        inline difference_type operator-(const Iterator& other) const { return dim - other.dim; }
+        Iterator& operator++() { ++dim; return *this; }
+        Iterator operator++(int) { auto res = *this; ++dim; return res; }
+        Iterator& operator--() { --dim; return *this; }
+        Iterator operator--(int) { auto res = *this; --dim; return res; }
+        Iterator& operator+=(difference_type n) { dim += n; return *this; }
+        Iterator& operator-=(difference_type n) { dim -= n; return *this; }
+        Iterator operator+(difference_type n) const { return dim + n; }
+        friend Iterator operator+(difference_type n, const Iterator& it) { return n + it.dim; }
+        Iterator operator-(difference_type n) const { return dim - n; }
+        difference_type operator-(const Iterator& other) const { return dim - other.dim; }
 
-        inline bool operator==(const Iterator& other) const = default;
-        inline std::strong_ordering operator<=>(const Iterator& other) const = default;
+        bool operator==(const Iterator& other) const = default;
+        std::strong_ordering operator<=>(const Iterator& other) const = default;
     };
 
     AbstractShape() requires(std::is_default_constructible_v<Storage>) = default;
     AbstractShape(auto&& sizes): sizes { std::forward<decltype(sizes)>(sizes) } {}
 
-    inline std::size_t size() const { return sizes.size(); }
-    inline const Size& operator[](std::size_t i) const { return Mapping(sizes[i]); }
+    std::size_t size() const { return sizes.size(); }
+    const Size& operator[](std::size_t i) const { return Mapping(sizes[i]); }
 
-    inline Iterator begin() const { return Iterator { sizes.begin() }; }
-    inline Iterator end() const { return Iterator { sizes.end() }; }
+    Iterator begin() const { return Iterator { sizes.begin() }; }
+    Iterator end() const { return Iterator { sizes.end() }; }
 
-    bool operator==(const Shape& other) const;
-
-    inline Size totalSize() const {
+    Size totalSize() const {
         return Size::Product(*this);
     }
 
@@ -82,19 +80,15 @@ public:
         return eval<ValueType>(consts.primaryWrapper(), consts.coefficientWrapper());
     }
 
-    inline std::string toString(const BindingContext& ctx) const {
+    std::string toString(const BindingContext& ctx) const {
         return VectorToString(*this | std::views::transform([&ctx](const Size& size) {
             return size.toString(ctx);
         }));
     }
 
     // FOR DEBUG USAGE ONLY!
-    inline std::string debugToString() const {
-        if (BindingContext::DebugPublicCtx) {
-            return toString(*BindingContext::DebugPublicCtx);
-        } else {
-            return "NO_PUBLIC_CONTEXT";
-        }
+    std::string debugToString() const {
+        return BindingContext::ApplyDebugPublicCtx(&std::remove_cvref_t<decltype(*this)>::toString, *this);
     }
 };
 

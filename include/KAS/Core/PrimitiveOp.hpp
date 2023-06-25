@@ -145,6 +145,7 @@ public:
     virtual bool canApplyToInterface(const Dimensions& interface) const = 0;
     virtual Dimensions applyToInterface(const Dimensions& interface) const = 0;
     virtual std::string description(const BindingContext& ctx) const = 0;
+    virtual std::string descendantsDescription(const BindingContext& ctx) const = 0;
     virtual ~PrimitiveOp() = default;
 };
 
@@ -152,10 +153,10 @@ template<typename Op>
 concept PrimitiveOpImpl = std::derived_from<Op, PrimitiveOp>;
 
 #define KAS_REPORT_OP_HASH_COLLISION(op1, op2) do { \
-    KAS_WARNING("Duplicate ops! Or even worse, hash collision. {}", \
+    KAS_WARNING("Duplicate PrimitiveOp's! Or even worse, hash collision. {}", \
         ::kas::BindingContext::DebugPublicCtx != nullptr ? ::fmt::format("Maybe helpful: {} vs {}.", \
-            (op1).description(*::kas::BindingContext::DebugPublicCtx), \
-            (op2).description(*::kas::BindingContext::DebugPublicCtx)) \
+            (op1).descendantsDescription(*::kas::BindingContext::DebugPublicCtx), \
+            (op2).descendantsDescription(*::kas::BindingContext::DebugPublicCtx)) \
         : "Please call Sampler._bind_debug_context() for more information."); \
 } while (false)
 
@@ -213,6 +214,9 @@ public:
 
     std::string description(const BindingContext& ctx) const final override {
         return fmt::format("{} -> {}", getInput().description(ctx), output.description(ctx));
+    }
+    std::string descendantsDescription(const BindingContext& ctx) const final override {
+        return fmt::format("{} -> {}", getInput().description(ctx), output.descendantsDescription(ctx));
     }
 };
 
@@ -277,6 +281,9 @@ public:
 
     std::string description(const BindingContext& ctx) const final override {
         return fmt::format("{} -> {}, {}", getInput().description(ctx), outputLhs.description(ctx), outputRhs.description(ctx));
+    }
+    std::string descendantsDescription(const BindingContext& ctx) const final override {
+        return fmt::format("{} -> {}, {}", getInput().description(ctx), outputLhs.descendantsDescription(ctx), outputRhs.descendantsDescription(ctx));
     }
 };
 
@@ -348,6 +355,9 @@ public:
 
     std::string description(const BindingContext& ctx) const final override {
         return fmt::format("{}, {} -> {}", getInputL().description(ctx), getInputR().description(ctx), output.description(ctx));
+    }
+    std::string descendantsDescription(const BindingContext& ctx) const final override {
+        return fmt::format("{}, {} -> {}", getInputL().description(ctx), getInputR().description(ctx), output.descendantsDescription(ctx));
     }
 };
 

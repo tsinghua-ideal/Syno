@@ -18,7 +18,7 @@ StrideOp::StrideOp(const Dimension& output, const Size& stride):
 }
 
 std::size_t StrideOp::initialHash() const noexcept {
-    std::size_t h = std::hash<DimensionType>{}(Type);
+    std::size_t h = DimensionTypeHash(Type);
     HashCombine(h, stride);
     return h;
 }

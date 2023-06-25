@@ -16,6 +16,9 @@ Dimensions MapReduceOp::applyToInterface(const Dimensions& interface) const {
 std::string MapReduceOp::description(const BindingContext& ctx) const {
     return getInput().description(ctx);
 }
+std::string MapReduceOp::descendantsDescription(const BindingContext& ctx) const {
+    return description(ctx);
+}
 
 std::vector<const MapReduceOp *> MapReduceOp::Generate(PrimitiveOpStore& store, const std::vector<const MapReduceOp *>& current, const GenerateOptions& options) {
     const BindingContext& ctx = options.ctx;
