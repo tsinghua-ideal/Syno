@@ -21,6 +21,7 @@ struct StatisticsCollector {
         Op::PrintStatistics(os);
         KAS_COLLECT_STATS_FOR_OP(MergeOp)
         KAS_COLLECT_STATS_FOR_OP(ShareOp)
+        KAS_COLLECT_STATS_FOR_OP(ShiftOp)
         KAS_COLLECT_STATS_FOR_OP(SplitOp)
         KAS_COLLECT_STATS_FOR_OP(StrideOp)
         KAS_COLLECT_STATS_FOR_OP(UnfoldOp)

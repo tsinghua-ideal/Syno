@@ -34,7 +34,7 @@
 
 ## Transforms
 
-- [ ] Implement generation for ShiftOp.
+- [x] Implement generation for ShiftOp.
 - [ ] Add ReverseOp.
 - [ ] Random shuffle convolution.
 - [ ] What is a MergeOp by the way?

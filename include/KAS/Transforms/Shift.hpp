@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
@@ -36,7 +37,16 @@ public:
         return output == other.output && shift == other.shift;
     }
 
-    static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const Dimensions& outputShape);
+    struct GenerateOptions {
+        bool disallowShiftAboveUnfold;
+    };
+    KAS_STATISTICS_DEF(
+        GenerateInvocations,
+        GenerateAttempts,
+        DisallowedAttempts,
+        SuccessfulGenerations,
+    )
+    static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const Dimensions& outputShape, const GenerateOptions& options);
 };
 
 } // namespace kas

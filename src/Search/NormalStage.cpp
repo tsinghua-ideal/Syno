@@ -147,7 +147,12 @@ void NormalStage::guardGeneratedChildren() {
 
     if (remainingDepth() > 0) {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
-        // Shift^{-1}, TODO
+        // Shift^{-1}
+        if (options.maximumShifts == -1 || options.maximumShifts > existingOp<ShiftOp>()) {
+            add(ShiftOp::Generate(store, interface, {
+                .disallowShiftAboveUnfold = options.disallowShiftAboveUnfold,
+            }));
+        }
         // Stride^{-1}
         if (options.maximumStrides == -1 || options.maximumStrides > existingOp<StrideOp>()) {
             add(StrideOp::Generate(store, interface, {
