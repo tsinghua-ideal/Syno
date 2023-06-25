@@ -27,11 +27,13 @@ class MCTSTrainer:
                  mcts_iterations: int = 1000,
                  leaf_parallelization_number: int = 5,
                  virtual_loss_constant: float = 5.,
-                 exploration_weight: float = math.sqrt(2)
+                 exploration_weight: float = math.sqrt(2),
+                 b: float = 0.4,
+                 c_l: float = 40
                  ) -> None:
         
         self.mcts = MCTS(sampler, virtual_loss_constant,
-                         leaf_parallelization_number, exploration_weight)
+                         leaf_parallelization_number, exploration_weight, b, c_l)
 
         print("MCTS initialized")
         self.remain_iterations = mcts_iterations

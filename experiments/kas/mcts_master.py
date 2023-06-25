@@ -27,7 +27,7 @@ from mp_utils import Handler_server, MCTSTrainer
 if __name__ == '__main__':
 
     # set logging level
-    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger().setLevel(logging.INFO)
 
     args = arg_parse()
     print(args)
@@ -60,8 +60,14 @@ if __name__ == '__main__':
 
     class MCTSHandler(Handler_server):
         def __init__(self, *args, **kwargs) -> None:
-            self.mcts = searcher
-            super().__init__(*args, **kwargs)
+            try:
+                self.mcts = searcher
+                super().__init__(*args, **kwargs)
+            except KeyboardInterrupt:
+                print("> Catched keyboard interrupt...... Saving current tree states")
+                self.mcts.dump_result()
+                print(f' > MCTS states dumped. ')
+                exit(0)
 
     # Start HTTP server.
     print(f'Starting listening at {args.host}:{args.port}')
