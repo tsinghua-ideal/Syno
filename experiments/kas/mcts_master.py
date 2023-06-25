@@ -50,13 +50,16 @@ if __name__ == '__main__':
         extra_args["sample_input_shape"]), "cpu")
     kas_sampler = Sampler(net=_model.create_instance(), **sampler_params)
 
-    searcher = MCTSTrainer(
-        kas_sampler,
-        arguments,
-        mcts_iterations=args.kas_iterations,
-        leaf_parallelization_number=args.kas_leaf_parallelization_number,
-        virtual_loss_constant=args.kas_tree_parallelization_virtual_loss_constant
-    )
+    if args.resume:
+        searcher = MCTSTrainer.load(args.resume, mcts_iterations=args.kas_iterations)
+    else:
+        searcher = MCTSTrainer(
+            kas_sampler,
+            arguments,
+            mcts_iterations=args.kas_iterations,
+            leaf_parallelization_number=args.kas_leaf_parallelization_number,
+            virtual_loss_constant=args.kas_tree_parallelization_virtual_loss_constant
+        )
 
     class MCTSHandler(Handler_server):
         def __init__(self, *args, **kwargs) -> None:
