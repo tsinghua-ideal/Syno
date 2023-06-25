@@ -248,13 +248,18 @@ class TreeNode:
             beta = c_l / (c_l + self.l_rave[arc].N)
             return (1 - beta) * self.l_rave[arc].avg + beta * g_rave[arc].avg
             
-        unexpanded_children = self.get_unexpanded_children(factory)
-        if len(unexpanded_children) == 0:
-            assert self.is_fully_expanded(factory)
+        unadded_children = self.get_unadded_children(factory)
+        if len(unadded_children) == 0:
+            assert self.is_fully_expanded(factory), f"{self} is not fully expanded"
             return
-        _, child = max(unexpanded_children, key=rave)
+        _, child = max(unadded_children, key=rave)
         child._isin_tree = True
 
+    def get_unadded_children(self, factory: Dict[Node, 'TreeNode']) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
+        children = self.get_children(factory)
+        unadded_children = [child for child in children if not child[1]._isin_tree]
+        return unadded_children
+    
     def get_unexpanded_children(self, factory: Dict[Node, 'TreeNode'], on_tree: bool=False) -> List[Tuple[PseudoTreeNext, 'TreeNode']]:
         children = self.get_children(factory)
         unexpanded_children = [child for child in children if child[1].N == 0]
