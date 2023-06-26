@@ -19,12 +19,12 @@ void AbstractStage::determineFinalizability(Finalizability yesOrNo) {
     default:
         KAS_CRITICAL("Invalid Finalizability.");
     }
+    // Update this.
+    requestUpdateForFinalizability();
     // Signal parents.
     for (AbstractStage *parent : parents) {
         parent->requestUpdateForFinalizability();
     }
-    // Update this.
-    requestUpdateForFinalizability();
 }
 
 void AbstractStage::updateFinalizabilityIfRequested() {
@@ -35,15 +35,15 @@ void AbstractStage::updateFinalizabilityIfRequested() {
         return;
     }
 
+    KAS_DEFER { updateRequested = false; };
+
     if (state == Finalizability::Yes) {
         // If finalizability is determined, still need to remove dead ends!
         removeDeadChildrenFromSlots();
-        updateRequested = false;
         return;
     } else if (state == Finalizability::No) {
         // Usually this is not needed, becase when we determined Finalizability::No, we would have removed all children.
         removeAllChildrenFromSlots();
-        updateRequested = false;
         return;
     }
 
@@ -99,6 +99,9 @@ std::size_t AbstractStage::remainingDepth() const {
 }
 
 AbstractStage::Finalizability AbstractStage::getFinalizability() const {
+    if (state == Finalizability::Maybe && updateRequested && !isLocked()) {
+        const_cast<AbstractStage*>(this)->updateFinalizabilityIfRequested();
+    }
     return state;
 }
 
