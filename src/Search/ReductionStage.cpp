@@ -166,11 +166,11 @@ Node ReductionStage::getChild(Arc arc) {
                 }
                 return Node { &sampler, slot->nextStage };
             } else {
-                return nStage->getChild(Arc(&sampler, op));
+                return nStage->getChild(arc);
             }
         },
-        [&](auto) -> Node {
-            KAS_CRITICAL("Invalid Arc: applied to a final node.");
+        [&](auto op) -> Node {
+            return nStage->getChild(arc);
         }
     );
 }
