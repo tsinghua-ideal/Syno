@@ -31,6 +31,9 @@ enable_testing()
 find_package(GTest REQUIRED)
 include_directories(${GTEST_INCLUDE_DIRS})
 
+# OpenMP, which is used to speed up tests. Optional.
+find_package(OpenMP)
+
 # Includes and libraries
 include_directories(include)
 

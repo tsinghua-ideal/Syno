@@ -1,2 +1,6 @@
-add_kas_test(semantics-conv2d-tests Conv2d.cpp)
+if(OpenMP_CXX_FOUND)
+    add_kas_test(semantics-conv2d-tests Conv2d.cpp ADDITIONAL_LIBS OpenMP::OpenMP_CXX)
+else()
+    add_kas_test(semantics-conv2d-tests Conv2d.cpp)
+endif()
 add_kas_test(semantics-pool2d-tests Pool2d.cpp)
