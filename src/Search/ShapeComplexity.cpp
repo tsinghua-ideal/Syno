@@ -170,8 +170,14 @@ auto ReshapeGroups::assignCurrent(std::size_t indexCurrent) const -> Generator<R
     co_return;
 }
 
-int ReshapeGroups::countIllegalGroups() const {
-    return static_cast<int>(groups.size()) - static_cast<int>(std::ranges::count_if(groups, &ReshapeGroup::isLegal));
+ReshapeGroups::CurrentCounts ReshapeGroups::currentCount() const {
+    CurrentCounts counts = { .illegalGroups = static_cast<int>(groups.size()) };
+    for (const ReshapeGroup& group: groups) {
+        counts.trivialMerges += group.countTrivialMerges();
+        counts.splits += group.countSplits();
+        counts.illegalGroups -= static_cast<int>(group.isLegal());
+    }
+    return counts;
 }
 
 bool ReshapeGroups::isLegal() const {
@@ -238,7 +244,8 @@ std::size_t Compute(const Shape& desired, const std::vector<Size>& current, cons
     ReshapeGroups root { desired, current };
     // Returns required steps or std::nullopt.
     auto currentMatchingRecursion = [&](const auto& self, const ReshapeGroups& groups, std::size_t currentIndex) -> std::optional<std::size_t> {
-        const auto [trivialMerges, splits] = groups.count();
+        const auto& counts = groups.currentCount();
+        const int &trivialMerges = counts.trivialMerges, &splits = counts.splits, &illegalGroups = counts.illegalGroups;
         if (
             trivialMerges > options.remainingMerges ||
             splits > options.remainingSplits
@@ -246,7 +253,7 @@ std::size_t Compute(const Shape& desired, const std::vector<Size>& current, cons
             return std::nullopt;
         }
         // Need at least one current size to make a group legal.
-        if (groups.countIllegalGroups() > groups.countVacantCurrents()) {
+        if (illegalGroups > groups.countVacantCurrents()) {
             return std::nullopt;
         }
         // Note that in this stage, each vacant current size accounts for at least one step.

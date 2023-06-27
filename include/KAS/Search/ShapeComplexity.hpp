@@ -57,13 +57,15 @@ struct ReshapeGroups {
     struct Counts {
         int trivialMerges;
         int splits;
-        Counts& operator+=(const Counts& other);
     };
     Counts count() const;
 
     Generator<ReshapeGroups> assignDesired(std::size_t indexDesired) const;
     Generator<ReshapeGroups> assignCurrent(std::size_t indexCurrent) const;
-    int countIllegalGroups() const;
+    struct CurrentCounts: Counts {
+        int illegalGroups;
+    };
+    CurrentCounts currentCount() const;
 
     // Call only after assigning all sizes.
     bool isLegal() const;
