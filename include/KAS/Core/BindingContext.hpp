@@ -59,9 +59,9 @@ protected:
     std::vector<ConcreteConsts> allConsts;
 
     using LookUpTable = std::map<std::string, std::size_t>;
-    LookUpTable getPrimaryLookupTable() const;
-    LookUpTable getCoefficientLookupTable() const;
-    Size lookUp(const std::string& name, const LookUpTable& primaryTable, const LookUpTable& coefficientTable) const;
+    LookUpTable primaryLookUpTable, coefficientLookUpTable;
+    void updateLookUpTables();
+    Size getSizeFromFactors(const std::vector<Parser::Factor>& factors) const;
 
 public:
     BindingContext() = default;
@@ -83,9 +83,7 @@ public:
     template<typename... Args>
     requires std::conjunction_v<std::is_convertible<Args, std::string>...>
     auto getSizes(Args&&... args) const -> std::array<Size, sizeof...(Args)> {
-        std::map<std::string, std::size_t> pNameToIndex = getPrimaryLookupTable();
-        std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();
-        return std::array { lookUp(std::forward<Args>(args), pNameToIndex, cNameToIndex)... };
+        return std::array { getSize(std::forward<Args>(args))... };
     }
 
     void setMaxVariablesInSize(std::size_t maximumVariablesInSize);

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Size.hpp"
@@ -28,6 +29,14 @@ TEST(core_parser_tests, parse_specs) {
     auto spec4 = Parser("5: 10").parseSizeSpec();
     auto spec4Expect = Parser::SizeSpec { .quantity = static_cast<std::size_t>(5), .maxOccurrences = static_cast<std::size_t>(10) };
     ASSERT_EQ(spec4, spec4Expect);
+}
+
+TEST(core_parser_tests, parse_size) {
+    auto size1 = Parser("x_1 ^ 2   *x_2* x_3^ -1").parseSize();
+    auto size1Expect = std::vector<Parser::Factor> {{"x_1", 2}, {"x_2", 1}, {"x_3", -1}};
+    ASSERT_EQ(size1, size1Expect);
+    BindingContext ctx(4, 0);
+    ASSERT_EQ(ctx.getSize("x_1 ^ 2   *x_2* x_3^ -1").toString(ctx), "x_1^2*x_2*x_3^-1");
 }
 
 TEST(core_parser_tests, parse_tensor_expression) {

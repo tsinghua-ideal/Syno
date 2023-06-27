@@ -144,6 +144,19 @@ Size Size::operator*(const Size& other) const {
     return newSize;
 }
 
+Size Size::operator^(PowerType power) const {
+    auto newSize = Size(*this);
+    auto& newPrimary = newSize.primary;
+    auto newCoefficient = newSize.coefficient;
+    for (std::size_t i = 0; i < primaryCount; ++i) {
+        newPrimary[i] *= power;
+    }
+    for (std::size_t i = 0; i < coefficientCount; ++i) {
+        newCoefficient[i] *= power;
+    }
+    return newSize;
+}
+
 Size Size::operator/(const Size &other) const {
     KAS_ASSERT(primaryCount == other.primaryCount && coefficientCount == other.coefficientCount);
     auto newSize = Size(*this);

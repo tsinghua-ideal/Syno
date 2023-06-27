@@ -89,7 +89,7 @@ Parser::Parser(std::string_view buffer) {
         return c >= '0' && c <= '9';
     };
     auto isIntegerHead = [](char c) {
-        return (c >= '0' && c <= '9') || c == '+' || c == '-';
+        return (c >= '0' && c <= '9') || c == '-';
     };
     for (char c: buffer) {
         switch (c) {

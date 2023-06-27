@@ -13,7 +13,6 @@ namespace kas {
 class TensorExpression;
 
 class Parser {
-protected:
     enum class Token {
         Identifier, Integer,
         Plus, Times, Power, Comma, Colon, Equal,
@@ -30,9 +29,11 @@ protected:
     Token peek() const;
     std::string consume(Token token);
 
+public:
+    using Factor = std::pair<std::string, int>;
+
     std::string parseIdentifier();
     int parseInteger();
-    using Factor = std::pair<std::string, int>;
     Factor parseBaseAndPower();
     std::vector<Factor> parseSize();
     std::vector<std::vector<Factor>> parseCommaSeparatedSizes();
@@ -40,7 +41,6 @@ protected:
     TensorExpression parseFactorExpression();
     TensorExpression parseTermExpression();
 
-public:
     Parser(std::string_view buffer);
     std::vector<std::vector<Factor>> parseShape();
     std::vector<std::vector<std::vector<Factor>>> parseShapes();

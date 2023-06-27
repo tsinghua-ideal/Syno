@@ -40,21 +40,22 @@ namespace {
     }
 }
 
-BindingContext::LookUpTable BindingContext::getPrimaryLookupTable() const {
-    return GetLookupTable(primaryMetadata);
+void BindingContext::updateLookUpTables() {
+    primaryLookUpTable = GetLookupTable(primaryMetadata);
+    coefficientLookUpTable = GetLookupTable(coefficientMetadata);
 }
 
-BindingContext::LookUpTable BindingContext::getCoefficientLookupTable() const {
-    return GetLookupTable(coefficientMetadata);
-}
-
-Size BindingContext::lookUp(const std::string& name, const LookUpTable& primaryTable, const LookUpTable& coefficientTable) const {
-    if (auto it = primaryTable.find(name); it != primaryTable.end())
-        return getSinglePrimaryVariableSize(it->second);
-    else if (auto it = coefficientTable.find(name); it != coefficientTable.end())
-        return getSingleCoefficientVariableSize(it->second);
-    else
-        throw std::runtime_error("Unknown variable name: " + name);
+Size BindingContext::getSizeFromFactors(const std::vector<Parser::Factor>& factors) const {
+    Size result(getPrimaryCount(), getCoefficientCount());
+    for (const auto& [name, power]: factors) {
+        if (auto it = primaryLookUpTable.find(name); it != primaryLookUpTable.end())
+            result.primary[it->second] += power;
+        else if (auto it = coefficientLookUpTable.find(name); it != coefficientLookUpTable.end())
+            result.coefficient[it->second] += power;
+        else
+            KAS_CRITICAL("Unknown variable name: {}", name);
+    }
+    return result;
 }
 
 BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoefficient):
@@ -71,6 +72,7 @@ BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoeffi
         };
     }
     defaultConsts = realizeConsts({});
+    updateLookUpTables();
 }
 
 BindingContext::BindingContext(std::vector<Metadata> primaryMetadata, std::vector<Metadata> coefficientMetadata):
@@ -78,6 +80,7 @@ BindingContext::BindingContext(std::vector<Metadata> primaryMetadata, std::vecto
     coefficientMetadata { std::move(coefficientMetadata) }
 {
     defaultConsts = realizeConsts({});
+    updateLookUpTables();
 }
 
 std::size_t BindingContext::getPrimaryCount() const {
@@ -120,9 +123,8 @@ Size BindingContext::getSingleCoefficientVariableSize(std::size_t index) const {
 }
 
 Size BindingContext::getSize(const std::string& name) const {
-    auto pNameToIndex = getPrimaryLookupTable();
-    auto cNameToIndex = getCoefficientLookupTable();
-    return lookUp(name, pNameToIndex, cNameToIndex);
+    auto factors = Parser(name).parseSize();
+    return getSizeFromFactors(factors);
 }
 
 void BindingContext::setMaxVariablesInSize(std::size_t maximumVariablesInSize) {
@@ -155,11 +157,9 @@ bool BindingContext::isSizeValid(const Size& size) const {
 }
 
 std::vector<Size> BindingContext::getSizes(const std::vector<std::string>& names) const {
-    std::map<std::string, std::size_t> pNameToIndex = getPrimaryLookupTable();
-    std::map<std::string, std::size_t> cNameToIndex = getCoefficientLookupTable();
     std::vector<Size> result;
     for (const auto& name: names) {
-        result.emplace_back(lookUp(name, pNameToIndex, cNameToIndex));
+        result.emplace_back(getSize(name));
     }
     return result;
 }
@@ -187,6 +187,7 @@ void BindingContext::applySpecs(std::vector<std::pair<std::string, Parser::PureS
         };
     }
     defaultConsts = realizeConsts({});
+    updateLookUpTables();
 }
 
 ConcreteConsts BindingContext::realizeConsts(const std::map<std::string, std::size_t>& mappings) const {
