@@ -65,18 +65,19 @@ if __name__ == '__main__':
             path = TreePath.deserialize(path_serial)
             logging.info(f"Received {path}")
             try:
-                # state, reward = evaluate(
-                #     path, train_data_loader, validation_data_loader, args, _model, kas_sampler, train_args, extra_args)
-                # Mock Evaluator
-                import random
-                r = random.random()
-                if r < 0.5:
-                    state = "FAILURE_MOCK"
+                if args.mock_eval:
+                    import random
+                    r = random.random()
+                    if r < 0.5:
+                        state = "FAILURE_MOCK"
+                    else:
+                        state, reward = "SUCCESS", (random.random(), {
+                            "syn_flow": 0,
+                            "naswot": 0
+                        })
                 else:
-                    state, reward = "SUCCESS", (random.random(), {
-                        "syn_flow": 0,
-                        "naswot": 0
-                    })
+                    state, reward = evaluate(
+                        path, train_data_loader, validation_data_loader, args, _model, kas_sampler, train_args, extra_args)
             except Exception as e:
                 if isinstance(e, KeyboardInterrupt):
                     break

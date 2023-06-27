@@ -256,6 +256,8 @@ def arg_parse():
 
     parser.add_argument('--host', type=str, metavar='HOST', default='0.0.0.0')
     parser.add_argument('--port', type=int, metavar='PORT', default='1104')
+    
+    parser.add_argument('--mock_eval', action='store_true', default=False)
 
     # Parse program arguments, add timestamp information, and checks.
     args = parser.parse_args()
