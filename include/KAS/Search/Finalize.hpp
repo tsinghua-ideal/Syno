@@ -143,7 +143,7 @@ public:
     static std::vector<FinalizeOp> Generate(const Dimensions& interface, const Graph& graph, const GenerateOptions& options);
 };
 
-struct NextFinalizeSlot: NextSlot<Next::Type::Finalize> {
+struct NextFinalizeSlot: Next {
     FinalizeOp finalization;
     template<TensorRange TR>
     static std::size_t GetKey(TR&& tensors) { return std::hash<std::vector<Dimensions>>{}(tensors); }

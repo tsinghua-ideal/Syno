@@ -79,6 +79,13 @@ std::string Dimension::debugDescendantsDescription() const {
     return BindingContext::ApplyDebugPublicCtx(&Dimension::descendantsDescription, *this);
 }
 
+Dimensions Dimensions::insert1(const Dimension& value) const {
+    auto newInterface = *this;
+    auto insertionPoint = std::lower_bound(newInterface.begin(), newInterface.end(), value, Dimension::HashLessThan{});
+    newInterface.insert(insertionPoint, value);
+    return newInterface;
+}
+
 Dimensions Dimensions::substitute1to1(const Dimension& fro, const Dimension& to) const {
     auto newInterface = *this;
     bool res = WeakOrderedSubstituteVector1To1IfAny(newInterface, fro, to, Dimension::HashLessThan{});

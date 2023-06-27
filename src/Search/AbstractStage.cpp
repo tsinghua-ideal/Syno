@@ -4,56 +4,80 @@
 namespace kas {
 
 void AbstractStage::determineFinalizability(Finalizability yesOrNo) {
-    KAS_ASSERT(state == Finalizability::Maybe, "Finalizability has already been determined.");
+    KAS_ASSERT(!isFinalizabilityDetermined(), "Finalizability has already been determined.");
     switch (yesOrNo) {
     case Finalizability::Yes:
         --CountFinalizabilityMaybe;
         ++CountFinalizabilityYes;
-        state = Finalizability::Yes;
+        state = FinalizabilityState::LocalYes;
         break;
     case Finalizability::No:
         --CountFinalizabilityMaybe;
         ++CountFinalizabilityNo;
-        state = Finalizability::No;
+        state = FinalizabilityState::LocalNo;
         break;
     default:
         KAS_CRITICAL("Invalid Finalizability.");
     }
-    // Update this.
-    requestUpdateForFinalizability();
-    // Signal parents.
-    for (AbstractStage *parent : parents) {
-        parent->requestUpdateForFinalizability();
-    }
+    updateFinalizability();
 }
 
-void AbstractStage::updateFinalizabilityIfRequested() {
-    // First we need to guarantee that we have unique access to the state.
-    auto guard = acquireFinalizabilityLock();
-
-    if (!updateRequested) {
+void AbstractStage::updateFinalizability() {
+    if (inConstruction()) {
+        // If we are in construction, do nothing. Because we know that this function will later be called.
         return;
     }
 
-    KAS_DEFER { updateRequested = false; };
+    auto signalParents = [this] {
+        if (state == FinalizabilityState::LocalYes) {
+            state = FinalizabilityState::PropagatedYes;
+        } else if (state == FinalizabilityState::LocalNo) {
+            state = FinalizabilityState::PropagatedNo;
+        }
+        for (auto parent: parents) {
+            parent->updateFinalizability();
+        }
+    };
 
-    if (state == Finalizability::Yes) {
-        // If finalizability is determined, still need to remove dead ends!
+    switch (state) {
+    case FinalizabilityState::Maybe: {
+        // First carry out check.
+        Finalizability newFinalizability = checkForFinalizableChildren();
+        if (newFinalizability == Finalizability::Maybe) {
+            // Well, nothing new.
+            // But we still need to remove the dead ends.
+            removeDeadChildrenFromSlots();
+        } else {
+            // Otherwise, we have determined the finalizability.
+            determineFinalizability(newFinalizability);
+            // Since this function is called again, we do not need to propagate the change.
+        }
+        break;
+    }
+    case FinalizabilityState::LocalYes: {
+        // Still need to remove dead ends.
         removeDeadChildrenFromSlots();
-        return;
-    } else if (state == Finalizability::No) {
+        // And we need to signal parents.
+        signalParents();
+        break;
+    }
+    case FinalizabilityState::LocalNo: {
         // Usually this is not needed, becase when we determined Finalizability::No, we would have removed all children.
         removeAllChildrenFromSlots();
-        return;
+        // And propagate.
+        signalParents();
+        break;
     }
-
-    // Next, we need to check if this is finalizable. If we determine the Finalizability, we must propagate it.
-    Finalizability newFinalizability = checkForFinalizableChildren();
-    if (newFinalizability != Finalizability::Maybe) {
-        determineFinalizability(newFinalizability);
-        guard.releaseAndPropagateChanges(); // Call this function again.
-    } else {
+    case FinalizabilityState::PropagatedYes: {
+        // Remove dead ends and no need to propagate.
         removeDeadChildrenFromSlots();
+        break;
+    }
+    case FinalizabilityState::PropagatedNo: {
+        // Remove all children and no need to propagate.
+        removeAllChildrenFromSlots();
+        break;
+    }
     }
 }
 
@@ -62,7 +86,10 @@ AbstractStage::AbstractStage(Sampler& sampler):
     parents {},
     depth { 0 },
     existingOps {}
-{}
+{
+    ++CountCreations;
+    ++CountFinalizabilityMaybe;
+}
 
 AbstractStage::AbstractStage(AbstractStage& creator, std::optional<Next::Type> optionalDeltaOp):
     sampler { creator.sampler },
@@ -99,17 +126,10 @@ std::size_t AbstractStage::remainingDepth() const {
 }
 
 AbstractStage::Finalizability AbstractStage::getFinalizability() const {
-    if (state == Finalizability::Maybe && updateRequested && !isLocked()) {
-        const_cast<AbstractStage*>(this)->updateFinalizabilityIfRequested();
+    if (inConstruction()) {
+        return Finalizability::Maybe;
     }
-    return state;
-}
-
-void AbstractStage::requestUpdateForFinalizability() {
-    updateRequested = true;
-    if (!isLocked()) {
-        updateFinalizabilityIfRequested();
-    }
+    return GetFinalizabilityFromState(state);
 }
 
 } // namespace kas

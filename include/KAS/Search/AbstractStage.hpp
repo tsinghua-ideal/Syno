@@ -29,57 +29,72 @@ protected:
     Next::OpTypeCounter existingOps {};
 
 private:
-    Finalizability state = Finalizability::Maybe;
-    bool updateRequested = false;
+    enum class FinalizabilityState {
+        Maybe,
+        LocalYes, LocalNo,
+        PropagatedYes, PropagatedNo,
+    };
+    FinalizabilityState state = FinalizabilityState::Maybe;
+    bool isFinalizabilityDetermined() const { return state != FinalizabilityState::Maybe; }
+    bool isFinalizabilityDeterminedButNotPropagated() const { return state == FinalizabilityState::LocalYes || state == FinalizabilityState::LocalNo; }
+    bool isFinalizabilityDeterminedAndPropagated() const { return state == FinalizabilityState::PropagatedYes || state == FinalizabilityState::PropagatedNo; }
+    static constexpr Finalizability GetFinalizabilityFromState(FinalizabilityState state) {
+        switch (state) {
+        case FinalizabilityState::Maybe: return Finalizability::Maybe;
+        case FinalizabilityState::LocalYes: return Finalizability::Yes;
+        case FinalizabilityState::LocalNo: return Finalizability::No;
+        case FinalizabilityState::PropagatedYes: return Finalizability::Yes;
+        case FinalizabilityState::PropagatedNo: return Finalizability::No;
+        default: KAS_UNREACHABLE();
+        }
+    }
 
-    // When executing guarded(), we do not allow propagating over this Stage. In this case, requestUpdateForFinalizability() only sets the state to UpdateRequested.
-    bool guardLock = false;
-
-    bool isLocked() const { return guardLock; }
+    enum class ConstructionState {
+        InitialConstruction,
+        Normal,
+        InConstruction,
+    };
+    ConstructionState constructionState = ConstructionState::InitialConstruction;
+    bool inConstruction() const { return constructionState != ConstructionState::Normal; }
 
 protected:
-    // When locked, disallow any updateFinalizabilityOnRequest(). When unlocked, call updateFinalizabilityOnRequest() if needed.
-    class FinalizabilityStateGuard {
-        friend AbstractStage;
-        AbstractStage *stage = nullptr;
-        FinalizabilityStateGuard(AbstractStage *stage): stage { stage } {
-            KAS_ASSERT(!stage->guardLock, "Cannot guard a stage twice!");
-            stage->guardLock = true;
-        }
-    public:
-        FinalizabilityStateGuard(const FinalizabilityStateGuard&) = delete;
-        FinalizabilityStateGuard(FinalizabilityStateGuard&& other): stage { other.stage } {
-            other.stage = nullptr;
-        }
-        void releaseAndPropagateChanges() {
-            KAS_ASSERT(stage, "Guard invalid!");
-            stage->guardLock = false;
-            KAS_DEFER { stage = nullptr; };
-            stage->updateFinalizabilityIfRequested();
-        }
-        ~FinalizabilityStateGuard() {
-            if (!stage) return;
-            KAS_ASSERT(stage->guardLock, "guardLock can only be modified by StateGuard!");
-            stage->guardLock = false;
-        }
-    };
-    [[nodiscard]] FinalizabilityStateGuard acquireFinalizabilityLock() {
-        return FinalizabilityStateGuard { this };
+    // Call this at the end of constructor!
+    void finishInitialConstruction() {
+        KAS_ASSERT(constructionState == ConstructionState::InitialConstruction);
+        constructionState = ConstructionState::Normal;
+        updateFinalizability();
+    }
+
+    template<typename F>
+    void construct(F&& f) {
+        KAS_ASSERT(constructionState != ConstructionState::InitialConstruction, "You forgot to call finishInitialConstruction()");
+        KAS_ASSERT(constructionState != ConstructionState::InConstruction, "construct() is called recursively!");
+        constructionState = ConstructionState::InConstruction;
+        KAS_DEFER {
+            KAS_ASSERT(constructionState == ConstructionState::InConstruction, "constructionState is mistakenly unset!");
+            constructionState = ConstructionState::Normal;
+            // Note that if the following line throws, the program terminates.
+            // This is desired. Because we do not want the program in inconsistent state.
+            updateFinalizability();
+        };
+        f();
     }
 
     // When the finalizability is determined, call parents to update their finalizability.
+    // When in construction, this function does not call the update. Otherwise, update is called.
     void determineFinalizability(Finalizability yesOrNo);
 
-    // When accessing any property used by the following function (from other functions), you must acquireFinalizabilityLock()!
+    // When accessing any property used by the following function (from other functions), you must wrap it in construct()! Before this is called, it is asserted that we are not in construction.
     virtual void removeDeadChildrenFromSlots() = 0;
-    // When accessing any property used by the following function (from other functions), you must acquireFinalizabilityLock()!
+    // When accessing any property used by the following function (from other functions), you must wrap it in construct()! Before this is called, it is asserted that we are not in construction.
     virtual void removeAllChildrenFromSlots() = 0;
-    // When accessing any property used by the following function (from other functions), you must acquireFinalizabilityLock()!
+    // When accessing any property used by the following function (from other functions), you must wrap it in construct()! Before this is called, it is asserted that we are not in construction.
     virtual Finalizability checkForFinalizableChildren() const = 0;
 
 private:
-    // This tries to acquire the lock (to verify correctness). Do not call this if isLocked()!
-    void updateFinalizabilityIfRequested();
+    // Update finalizability, if not in construction.
+    // If the state is not propagated, then notify the parents.
+    void updateFinalizability();
 
 public:
     KAS_STATISTICS_DEF(
@@ -113,10 +128,8 @@ public:
     template<PrimitiveOpImpl Op>
     int existingOp() const { return existingOps[Next::TypeOf<Op>()]; }
 
+    // When in construction, this function returns Maybe. Otherwise, it returns the state.
     Finalizability getFinalizability() const;
-
-    // A child of this stage calls this to signal that its finalizability has been updated.
-    void requestUpdateForFinalizability();
 
     // Python.
     virtual std::size_t hash() const = 0;

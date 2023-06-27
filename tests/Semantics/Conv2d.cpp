@@ -108,7 +108,9 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
         auto in_1_grad = new float[c_out][c_in][k][k]();
         constexpr float eps = 1e-4;
         std::atomic<std::int64_t> cntCorrect = 0, cntIncorrect = 0;
+        #ifndef __clang__ // This is weird: clangd crashes upon this pragma.
         #pragma omp parallel for reduction(+:in_1_grad[:c_out][:c_in][:k][:k])
+        #endif
         for (int N = 0; N < n; ++N) {
             for (int C_out = 0; C_out < c_out; ++C_out) {
                 for (int H = 0; H < h; ++H) {
