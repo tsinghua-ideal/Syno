@@ -48,7 +48,7 @@ def arg_parse():
         description='KAS MNIST trainer/searcher')
 
     # Dataset.
-    parser.add_argument('--dataset', type=str, default='mnist')
+    parser.add_argument('--dataset', type=str, default='cifar10')
     parser.add_argument('--seed', type=int, default=42, metavar='S',
                         help='Random seed (default: 42)')
     parser.add_argument('--batch-size', metavar='N', type=int, default=100,

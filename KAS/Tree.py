@@ -77,8 +77,6 @@ class MCTS:
         
         If the tree is exhausted, then return None. 
         """
-        logging.debug(
-            f"Rolling out from {node}.")
         while True:
             if self._treenode_store[node.to_node()].is_dead_end(self._treenode_store):
                 logging.info("The tree is exhausted. ")
@@ -111,7 +109,7 @@ class MCTS:
             logging.debug("Selected final node, return immediately. ")
             return path, [(path, leaf) for _ in range(self.leaf_num)]
         if leaf.children_count(self._treenode_store, on_tree=True) == 0:
-            if not leaf.is_fully_expanded(self._treenode_store):
+            if not leaf.is_fully_in_tree(self._treenode_store):
                 leaf.add_new_children(self._treenode_store, self.g_rave, self._c_l)
                 assert leaf.children_count(self._treenode_store, on_tree=True) > 0
             else:
@@ -184,20 +182,23 @@ class MCTS:
             """
             assert isinstance(node, TreeNode)
             children = node.get_children(self._treenode_store)
-            logging.debug(f"{node} has children {children}")
+            # logging.debug(f"{node} has children {children}")
             if len(children) == 0:
                 return None
             next, selected_child = random.choice(children)
-            logging.debug(f"Random selected {next}: {selected_child}")
+            # logging.debug(f"Random selected {next}: {selected_child}")
             return next, selected_child
 
         while not node.is_terminal(self._treenode_store):
             random_select_result = random_child(node)
             if random_select_result is None:
+                logging.debug(f"Simulation Encountered dead father {node}")
+                assert node.is_dead_end(self._treenode_store)
                 return None
             next, node = random_select_result
             path = path.concat(next)
         if node.is_dead_end(self._treenode_store): # is dead end
+            logging.debug(f"Simulation Encountered dead end {node}")
             return None
         assert node.is_final()
         return path, node

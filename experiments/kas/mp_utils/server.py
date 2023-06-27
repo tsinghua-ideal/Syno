@@ -40,8 +40,20 @@ class Handler(BaseHTTPRequestHandler):
             response_json = {'path': ''}
             if self.mcts.remain_iterations > 0:
                 while len(pending_evaluate_cache.keys()) == 0:
-                    pending_evaluate_cache.update(
-                        self.mcts.launch_new_iteration())
+                    new_path = self.mcts.launch_new_iteration()
+                    if new_path is not None:
+                        pending_evaluate_cache.update(new_path)
+                    else:
+                        self.mcts.dump_result()
+                        print(f"Tree exhausted with remaining iterations: {self.mcts.remain_iterations}")
+                        self.mcts.remain_iterations = 0
+                        print(f' > MCTS iteration complete. ')
+                        response_json['path'] = 'ENDTOKEN'
+                        self.send_response(200)
+                        self.send_header('Content-type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps(response_json).encode())
+                        return
                 selected_path, meta_data = pending_evaluate_cache.popitem()
                 print(
                     f' > Response kernel: {TreePath.deserialize(selected_path)}')
@@ -73,30 +85,30 @@ class Handler(BaseHTTPRequestHandler):
             path = None
         if self.mcts.remain_iterations <= 0:
             print("> Search ended, not receiving new inputs")
-            return
-        if self.path.startswith('/success'):
-            path, state, reward, proxy_syn, proxy_naswot = path.split('$')
-            reward = float(reward)
-            assert path not in pending_evaluate_cache
-            assert path in waiting_result_cache, f"{path} not in {waiting_result_cache}"
-            self.mcts.update_result(waiting_result_cache.pop(path)[
-                                    'meta'], reward ** 2, TreePath.deserialize(path))
-            self.mcts.remain_iterations -= 1
-            print(f"Remaining iterations: {self.mcts.remain_iterations}")
-            if self.mcts.remain_iterations == 0:
-                self.mcts.dump_result()
-                print(f' > MCTS iteration complete. ')
-                return
-            print(
-                f' > Successfully trained: {TreePath.deserialize(path)}, accuracy {reward}, proxy_syn {proxy_syn}, proxy_naswot {proxy_naswot}')
-        elif self.path.startswith('/failure'):
-            path, state = path.split('$')
-            if path in waiting_result_cache:
-                self.mcts.update_result(
-                    waiting_result_cache.pop(path)['meta'], -1, TreePath.deserialize(path))
-            print(f' > Failed to train {path} because of {state}')
         else:
-            print(f' > Testing message ...')
+            if self.path.startswith('/success'):
+                path, state, reward, proxy_syn, proxy_naswot = path.split('$')
+                reward = float(reward)
+                assert path not in pending_evaluate_cache
+                assert path in waiting_result_cache, f"{path} not in {waiting_result_cache}"
+                self.mcts.update_result(waiting_result_cache.pop(path)[
+                                        'meta'], reward ** 2, TreePath.deserialize(path))
+                self.mcts.remain_iterations -= 1
+                print(f"Remaining iterations: {self.mcts.remain_iterations}")
+                if self.mcts.remain_iterations == 0:
+                    self.mcts.dump_result()
+                    print(f' > MCTS iteration complete. ')
+                else:
+                    print(
+                        f' > Successfully trained: {TreePath.deserialize(path)}, accuracy {reward}, proxy_syn {proxy_syn}, proxy_naswot {proxy_naswot}')
+            elif self.path.startswith('/failure'):
+                path, state = path.split('$')
+                if path in waiting_result_cache:
+                    self.mcts.update_result(
+                        waiting_result_cache.pop(path)['meta'], -1, TreePath.deserialize(path))
+                print(f' > Failed to train {path} because of {state}')
+            else:
+                print(f' > Testing message ...')
         self.send_response(200)
         self.send_header('Content-type', 'text')
         self.end_headers()

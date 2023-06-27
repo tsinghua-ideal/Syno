@@ -27,7 +27,7 @@ from mp_utils import Handler_server, MCTSTrainer
 if __name__ == '__main__':
 
     # set logging level
-    logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger().setLevel(logging.DEBUG)
 
     args = arg_parse()
     print(args)
@@ -66,7 +66,7 @@ if __name__ == '__main__':
             try:
                 self.mcts = searcher
                 super().__init__(*args, **kwargs)
-            except Exception as e:
+            except KeyboardInterrupt as e:
                 print(f"> Catched Exception {e}...... Trying to save current tree states")
                 self.mcts.dump_result()
                 print(f' > MCTS states dumped. ')

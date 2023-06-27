@@ -204,7 +204,7 @@ class TreeNode:
         else:
             return len(self.children) - sum([child.is_dead_end(factory) or (on_tree and not child._isin_tree) for child in self.children])
 
-    def is_fully_expanded(self, factory: Dict[Node, 'TreeNode']) -> bool:
+    def is_fully_in_tree(self, factory: Dict[Node, 'TreeNode']) -> bool:
         """
         Get all nexts of a node. 
         """
@@ -213,7 +213,7 @@ class TreeNode:
             nexts = primitives[self._type]
             for next in nexts:
                 child = self._node.get_child(Next(self._type, next))
-                if child not in factory or not factory[child]._isin_tree:
+                if child not in factory or not (factory[child]._isin_tree or factory[child].is_dead_end(factory)):
                     return False
             return True
         else:
@@ -224,7 +224,7 @@ class TreeNode:
         orig_Tp = math.floor(self._last_T ** b)
         if Tp > orig_Tp:
             for _ in range(Tp - orig_Tp):
-                if not self.is_fully_expanded(factory):
+                if not self.is_fully_in_tree(factory):
                     self.add_new_children(factory, g_rave, c_l)
         self._last_T = T
     
@@ -234,7 +234,7 @@ class TreeNode:
         TOTST
         """
         logging.debug("Add new children to {}".format(self))
-        assert not self.is_fully_expanded(factory)
+        assert not self.is_fully_in_tree(factory)
         def rave(key: Tuple[PseudoTreeNext, TreeNode]) -> float:
             """
             (1-β) l-RAVE + β g-RAVE
@@ -250,7 +250,7 @@ class TreeNode:
             
         unadded_children = self.get_unadded_children(factory)
         if len(unadded_children) == 0:
-            assert self.is_fully_expanded(factory), f"{self} is not fully expanded"
+            assert self.is_fully_in_tree(factory), f"{self} is not fully expanded"
             return
         _, child = max(unadded_children, key=rave)
         child._isin_tree = True
@@ -295,6 +295,8 @@ class TreeNode:
             nexts = [child._type for child in children]
             self.children = children
         assert len(nexts) == len(children)
+        if auto_initialize and not on_tree and len(children) == 0: # No children exists
+            self._is_dead = True
         if on_tree:
             return [(nxt, c) for nxt, c in zip(nexts, children) if c._isin_tree]
         return list(zip(nexts, children))

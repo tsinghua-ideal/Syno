@@ -7,7 +7,7 @@ import os, sys
 import json
 import logging
 from time import time, sleep
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
 from copy import deepcopy
 
 # KAS
@@ -86,7 +86,7 @@ class MCTSTrainer:
             Statistics.Print()
             print("**************** Logged Summary ******************")
 
-    def launch_new_iteration(self) -> Dict[str, Tuple[TreeNode, Any]]:
+    def launch_new_iteration(self) -> Optional[Dict[str, Tuple[TreeNode, Any]]]:
         """
         Launch a new iteration and push some tasks to the task pool. 
         Tasks: Tree parallelization, Leaf parallelization
@@ -99,8 +99,7 @@ class MCTSTrainer:
         
         if rollout_result is None:
             logging.info("The tree is exhausted......")
-            while True:
-                pass
+            return None
             
         receipt, trials = rollout_result
 
@@ -116,6 +115,7 @@ class MCTSTrainer:
                 self.mcts.back_propagate(receipt, reward, path)
                 self.reward_list.append(reward)
                 self.time_list.append(time() - self.start_time)
+                self.remain_iterations -= 1
             else:
                 logging.warning("Encountered dead trial. Is that desired? ")
 
