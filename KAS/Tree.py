@@ -182,6 +182,7 @@ class MCTS:
             """
             assert isinstance(node, TreeNode)
             children = node.get_children(self._treenode_store)
+            assert all([not c.is_dead_end(self._treenode_store) for _, c in children])
             # logging.debug(f"{node} has children {children}")
             if len(children) == 0:
                 return None
@@ -437,10 +438,11 @@ class MCTS:
             """Return a boolean value indicating whether the node contains a final descendant. """
             assert isinstance(node, TreeNode)
             children = node.get_children(self._treenode_store, False)
-            alive_flag = node.N > 0 or node.is_final() or (keep_tree_node and node._isin_tree and not node.is_dead_end(self._treenode_store))
-            for _, child in children:
-                child_alive_flag = label_alive(child)
-                alive_flag = alive_flag or child_alive_flag
+            alive_flag = node.N > 0 or node.is_final() or (keep_tree_node and node._isin_tree) or node.is_dead_end(self._treenode_store)
+            if not node.is_dead_end(self._treenode_store):
+                for _, child in children:
+                    child_alive_flag = label_alive(child)
+                    alive_flag = alive_flag or child_alive_flag
             if alive_flag:
                 alive_nodes.add(node.to_node())
             return alive_flag

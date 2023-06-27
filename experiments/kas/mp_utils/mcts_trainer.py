@@ -163,7 +163,7 @@ class MCTSTrainer:
         perf_dict = json.load(open(perf_path))
         result_dict = json.load(open(result_path))
         
-        sampler_params = arguments['sampler_args']
+        sampler_params = deepcopy(arguments['sampler_args'])
         extra_args = arguments['extra_args']
         model_type = getattr(model_factory, extra_args['model_type'])
         _model = ModelBackup(model_type, torch.randn(
@@ -187,6 +187,7 @@ class MCTSTrainer:
                 mcts_trainer.best_node = tree_node
                 break
         assert mcts_trainer.best_node is not None, "The tree has no best node! (i.e., it does not contain any result). "
+        print("Loaded Past trainer: {} nodes. ".format(len(mcts_trainer.mcts._treenode_store.keys())))
         
         return mcts_trainer
 

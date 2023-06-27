@@ -67,7 +67,7 @@ if __name__ == '__main__':
                 self.mcts = searcher
                 super().__init__(*args, **kwargs)
             except KeyboardInterrupt as e:
-                print(f"> Catched Exception {e}...... Trying to save current tree states")
+                print(f"> Catched {e}...... Trying to save current tree states")
                 self.mcts.dump_result()
                 print(f' > MCTS states dumped. ')
                 exit(0)
@@ -75,4 +75,7 @@ if __name__ == '__main__':
     # Start HTTP server.
     print(f'Starting listening at {args.host}:{args.port}')
     server = HTTPServer((args.host, args.port), MCTSHandler)
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt as e:
+        print(f' > Shut down server. ')

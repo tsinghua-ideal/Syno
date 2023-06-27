@@ -217,7 +217,7 @@ class TreeNode:
                     return False
             return True
         else:
-            return all([c._isin_tree for c in self.children])
+            return all([c._isin_tree for _, c in self.get_children(factory)])
     
     def flush_T(self, T:int, factory: Dict[Node, 'TreeNode'], g_rave: Dict[Arc, AverageMeter], c_l: float, b: float) -> None:
         Tp = math.floor(T ** b)
@@ -320,15 +320,13 @@ class TreeNode:
             return factory[child]
         else:
             assert isinstance(next, Next.Type)
-            for child in self.children:
+            for _, child in self.get_children(factory):
                 if child._type == next:
                     return child if child._isin_tree else None
             return None
 
     def is_terminal(self, factory: Dict[Node, 'TreeNode']) -> bool:
         """Check if a node is final, which means it can be realized as a Halide kernel."""
-        if self._is_mid:
-            return False
         return self.is_final() or self.is_dead_end(factory)
     
     def is_dead_end(self, factory: Dict[Node, 'TreeNode']) -> bool:
@@ -354,6 +352,7 @@ class TreeNode:
             self._is_dead = True
             return True
         else:
+            self.get_children(factory)
             if len(self.children) == 0 or all([child.is_dead_end(factory) for child in self.children]):
                 self.is_dead = True
                 return True
