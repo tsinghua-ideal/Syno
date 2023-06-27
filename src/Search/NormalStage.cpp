@@ -177,6 +177,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
         .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
         .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),
         .remainingUnfolds = remaining(options.maximumUnfolds, Next::Type::Unfold),
+        .overflow = remainingDepth(),
     });
     if (distance > remainingDepth()) {
         ++CountShapeDeviatesTooMuch;
