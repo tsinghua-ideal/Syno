@@ -23,6 +23,7 @@
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/NormalStage.hpp"
 #include "KAS/Search/ReductionStage.hpp"
+#include "KAS/Transforms/PrimitiveOpStore.hpp"
 
 
 namespace kas {
@@ -120,7 +121,7 @@ class Sampler final {
     TensorExpression expressionOneTensor, expressionTwoTensors, expressionThreeTensors, expressionFourTensors;
 
     PrimitiveOpStore opStore;
-    NormalStageStore normalStageStore;
+    DimensionsStageStore stageStore;
 
     std::unique_ptr<ReductionStage> rootStage;
 
@@ -138,7 +139,7 @@ public:
     Shape& getOutputShape() { return outputShape; }
     const SampleOptions& getOptions() const { return options; }
     PrimitiveOpStore& getOpStore() { return opStore; }
-    NormalStageStore& getNormalStageStore() { return normalStageStore; }
+    DimensionsStageStore& getStageStore() { return stageStore; }
     const Dimensions& getRootInterface() const { return root; }
 
     const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }

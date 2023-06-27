@@ -48,6 +48,7 @@ struct Next {
 
     // For Python.
     bool operator==(const Next& rhs) const noexcept = default;
+    std::weak_ordering operator<=>(const Next& rhs) const noexcept = default;
     // For Python.
     std::size_t hash() const noexcept {
         using namespace std::string_view_literals;
@@ -76,6 +77,7 @@ struct Next {
     }
     static constexpr Type TypeOf(DimensionType t) {
         switch (t) {
+        case DimensionType::MapReduce: return Type::MapReduce;
         case DimensionType::Shift: return Type::Shift;
         case DimensionType::Stride: return Type::Stride;
         case DimensionType::Split: return Type::Split;
@@ -84,20 +86,6 @@ struct Next {
         case DimensionType::Share: return Type::Share;
         default: KAS_CRITICAL("Unknown type of DimensionType.");
         }
-    }
-};
-
-template<Next::Type _SlotType>
-struct NextSlot {
-    static constexpr Next::Type SlotType = _SlotType;
-
-    // This is the key, used for indexing.
-    std::size_t key;
-
-    bool operator==(const NextSlot& rhs) const noexcept = default;
-
-    Next toNext() const {
-        return Next { SlotType, key };
     }
 };
 
@@ -135,6 +123,10 @@ public:
     const T *as() const {
         return std::get<const T *>(inner);
     }
+    template<typename T>
+    const T *tryAs() const {
+        return std::holds_alternative<const T *>(inner) ? std::get<const T *>(inner) : nullptr;
+    }
 
     bool operator==(const Arc& rhs) const;
     std::size_t hash() const;
@@ -142,51 +134,71 @@ public:
     std::string toString() const;
 };
 
-template<typename Slot>
-requires
-    std::derived_from<Slot, NextSlot<Slot::SlotType>>
-    && std::move_constructible<Slot>
-class NextSlotStore {
-    using Self = NextSlotStore<Slot>;
+class DimensionsStage;
 
+struct NextDimensionsStageSlot: Next {
+    const PrimitiveOp *op;
+    DimensionsStage *nextStage;
+    bool operator==(const NextDimensionsStageSlot& rhs) const noexcept {
+        // This is enough for equality.
+        return op == rhs.op;
+    }
+    // Compare the slots as Next. That is, first compare the type, then compare the hash.
+    std::weak_ordering operator<=>(const NextDimensionsStageSlot& rhs) const noexcept {
+        return static_cast<const Next&>(*this) <=> static_cast<const Next&>(rhs);
+    }
+    static std::size_t GetKey(const PrimitiveOp *op) { return op->opHash(); }
+    Arc toArc(const Sampler *sampler) const { return Arc(sampler, op); }
+};
+
+template<typename Slot>
+class GenericNextSlotStore {
     std::vector<Slot> slots;
 
 public:
-    NextSlotStore() = default;
-    NextSlotStore(const NextSlotStore&) = delete;
-    NextSlotStore(NextSlotStore&&) = delete;
+    GenericNextSlotStore() = default;
+    GenericNextSlotStore(const GenericNextSlotStore&) = delete;
+    GenericNextSlotStore(GenericNextSlotStore&&) = delete;
 
     const std::vector<Slot>& getRawSlots() const { return slots; }
 
     std::size_t size() const { return slots.size(); }
 
-    // A slot can be found by its key, because we have sorted the slots by key.
-    std::vector<Slot>::const_iterator findSlot(std::size_t key) const {
-        return std::ranges::lower_bound(slots, key, std::less{}, &Slot::key);;
+    // A slot can be found by its type and key, because we have sorted the slots by type and key.
+    std::vector<Slot>::const_iterator findSlot(Next next) const {
+        return std::ranges::lower_bound(slots, next);
     }
-    std::vector<Slot>::iterator findSlot(std::size_t key) {
-        return std::ranges::lower_bound(slots, key, std::less{}, &Slot::key);;
+    std::vector<Slot>::iterator findSlot(Next next) {
+        return std::ranges::lower_bound(slots, next);
     }
-    const Slot *getSlot(std::size_t key) const {
-        auto it = findSlot(key);
-        if (it == slots.end() || it->key != key) {
+    const Slot *getSlot(Next next) const {
+        auto it = findSlot(next);
+        if (it == slots.end() || next != *it) {
             return nullptr;
         }
         return &*it;
     }
-    Slot *getSlot(std::size_t key) { return const_cast<Slot *>(std::as_const(*this).getSlot(key)); }
+    Slot *getSlot(Next next) { return const_cast<Slot *>(std::as_const(*this).getSlot(next)); }
+
+    template<typename R, typename F>
+    requires std::convertible_to<std::invoke_result_t<F, const Slot&>, R>
+    std::optional<R> findTransform(Next next, F&& f) const {
+        auto ptr = getSlot(next);
+        if (!ptr) return std::nullopt;
+        return std::optional<R>(std::in_place, std::invoke(f, *ptr));
+    }
 
     // Fill the slots with the the given range, and then sort by key.
     template<std::ranges::input_range R, typename F>
     requires std::convertible_to<std::invoke_result_t<F, std::ranges::range_reference_t<R>>, Slot>
-    Self& fill(R&& rawStream, F&& builder) {
+    GenericNextSlotStore& fill(R&& rawStream, F&& builder) {
         std::ranges::move(std::views::transform(builder)(rawStream), std::back_inserter(slots));
-        std::ranges::sort(slots, std::less{}, &Slot::key);
+        std::ranges::sort(slots);
         return *this;
     }
 
     // Add a new slot to the end of slots.
-    Self& append(auto&& slot) {
+    GenericNextSlotStore& append(auto&& slot) {
         slots.emplace_back(std::forward<decltype(slot)>(slot));
         if (slots.size() > 1) {
             KAS_ASSERT(slots.back().key >= slots[slots.size() - 2].key, "Slots must be sorted by key.");
@@ -197,7 +209,7 @@ public:
     // Remove all slots that satisfy the predicate.
     template<typename Pred, typename Callback>
     requires std::predicate<Pred, Slot> && std::invocable<Callback, Slot>
-    Self& remove(Pred&& pred, Callback&& callback) {
+    GenericNextSlotStore& remove(Pred&& pred, Callback&& callback) {
         auto [first, last] = std::ranges::remove_if(slots, std::forward<Pred>(pred));
         std::ranges::for_each(first, last, std::forward<Callback>(callback));
         slots.erase(first, last);
@@ -205,31 +217,31 @@ public:
     }
     template<typename Pred>
     requires std::predicate<Pred, Slot>
-    Self& remove(Pred&& pred) {
+    GenericNextSlotStore& remove(Pred&& pred) {
         return remove(std::forward<Pred>(pred), [](const Slot&){});
     }
 
-    Self& clear() {
+    GenericNextSlotStore& clear() {
         slots.clear();
         return *this;
     }
 
     template<typename F>
     requires std::invocable<F, Slot&>
-    Self& forEach(F&& f) {
+    GenericNextSlotStore& forEach(F&& f) {
         std::ranges::for_each(slots, std::forward<F>(f));
         return *this;
     }
     template<typename F>
     requires std::invocable<F, Slot&>
-    const Self& forEach(F&& f) const {
+    const GenericNextSlotStore& forEach(F&& f) const {
         std::ranges::for_each(slots, std::forward<F>(f));
         return *this;
     }
 
     std::vector<Next> toNexts() const {
         std::vector<Next> nexts;
-        std::ranges::move(slots | std::views::transform(&Slot::toNext), std::back_inserter(nexts));
+        std::ranges::copy(slots, std::back_inserter(nexts));
         return nexts;
     }
 
@@ -247,7 +259,7 @@ public:
 
     void checkHashCollisionAndRemove() {
         if (auto it = std::ranges::adjacent_find(slots); it != slots.end()) {
-            KAS_WARNING("Hash collision {} detected. Now removing.", it->toNext().toString());
+            KAS_WARNING("Hash collision {} detected. Now removing.", it->toString());
         } else {
             return;
         }
@@ -267,93 +279,12 @@ public:
         slots = std::move(newSlots);
     }
 };
+using NextSlotStore = GenericNextSlotStore<NextDimensionsStageSlot>;
 
-class TensorView;
 class AbstractStage;
 class ReductionStage;
 class NormalStage;
-
-template<PrimitiveOpImpl Op>
-struct NextOpSlot: NextSlot<Next::TypeOf<Op>()> {
-    const Op *op;
-    NormalStage *nextStage;
-    static std::size_t GetKey(const Op *op) { return op->opHash(); }
-    Arc toArc(const Sampler *sampler) const { return Arc(sampler, op); }
-};
-
-template<>
-struct NextOpSlot<MapReduceOp>: NextSlot<Next::Type::MapReduce> {
-    const MapReduceOp *op;
-    ReductionStage *nextStage;
-    static std::size_t GetKey(const MapReduceOp *op) { return op->opHash(); }
-    Arc toArc(const Sampler *sampler) const { return Arc(sampler, op); }
-};
-
-template<PrimitiveOpImpl Op>
-using NextOpStore = NextSlotStore<NextOpSlot<Op>>;
-template<typename... Ops>
-struct NextOpStores {
-    using Primitives = std::tuple<Ops...>;
-    std::tuple<NextOpStore<Ops>...> stores;
-    template<PrimitiveOpImpl Op>
-    NextOpStore<Op>& get() {
-        return std::get<NextOpStore<Op>>(stores);
-    }
-    template<PrimitiveOpImpl Op>
-    const NextOpStore<Op>& get() const {
-        return std::get<NextOpStore<Op>>(stores);
-    }
-    template<typename F>
-    requires std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...>
-    void forEach(F&& f) {
-        std::apply([&f](auto&... store) {
-            (f(store), ...);
-        }, stores);
-    }
-    template<typename F>
-    requires std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...>
-    void forEach(F&& f) const {
-        std::apply([&f](auto&... store) {
-            (f(store), ...);
-        }, stores);
-    }
-    template<typename F>
-    requires std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...>
-    auto heterogeneousMap(F&& f) {
-        return std::apply([&f](auto&... store) {
-            return std::tuple<std::invoke_result_t<F, Ops>...> { f(store)... };
-        }, stores);
-    }
-    template<typename F, typename R = std::invoke_result_t<F, NextOpStore<std::tuple_element_t<0, std::tuple<Ops...>>>&>>
-    requires
-        std::conjunction_v<std::is_invocable<F, NextOpStore<Ops>&>...> &&
-        std::conjunction_v<std::is_same<R, std::invoke_result_t<F, NextOpStore<Ops>&>>...>
-    auto homogeneousMap(F&& f) {
-        std::vector<R> results;
-        results.reserve(sizeof...(Ops));
-        std::apply([&f, &results](auto&... store) {
-            (results.emplace_back(f(store)), ...);
-        }, stores);
-        return results;
-    }
-    std::size_t size() const {
-        return std::apply([](const auto&... store) {
-            return (store.size() + ...);
-        }, stores);
-    }
-    std::vector<Next> toNexts() const {
-        auto results = const_cast<NextOpStores<Ops...>&>(*this).homogeneousMap([](const auto& store) { return store.toNexts(); });
-        std::vector<Next> flattened;
-        std::ranges::move(results | std::views::join, std::back_inserter(flattened));
-        return flattened;
-    }
-    std::vector<Arc> toArcs(const Sampler *sampler) const {
-        auto results = const_cast<NextOpStores<Ops...>&>(*this).homogeneousMap([=](const auto& store) { return store.toArcs(sampler); });
-        std::vector<Arc> flattened;
-        std::ranges::move(results | std::views::join, std::back_inserter(flattened));
-        return flattened;
-    }
-};
+class TensorView;
 
 class Node {
     friend struct Next;

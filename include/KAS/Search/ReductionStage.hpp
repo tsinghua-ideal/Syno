@@ -1,49 +1,25 @@
 #pragma once
 
-#include <limits>
-#include <variant>
-
-#include "KAS/Core/MapReduce.hpp"
-#include "KAS/Search/AbstractStage.hpp"
-#include "KAS/Search/Node.hpp"
-#include "KAS/Search/NormalStage.hpp"
+#include "KAS/Search/DimensionsStage.hpp"
+#include "KAS/Transforms/MapReduce.hpp"
 
 
 namespace kas {
 
-class ReductionStage final: public AbstractStage {
-    std::vector<const MapReduceOp *> reductions;
-
-    // Since the stages are unique, we do not need a shared common store to store ReductionStage's.
-    std::vector<std::unique_ptr<ReductionStage>> nextReductionStages;
-    template<typename... Args>
-    ReductionStage *make(Args&&... args) {
-        nextReductionStages.emplace_back(std::make_unique<ReductionStage>(std::forward<Args>(args)...));
-        return nextReductionStages.back().get();
-    }
-    NextSlotStore<NextOpSlot<MapReduceOp>> nextReductions;
-
+class ReductionStage final: public DimensionsStage {
     // The stage that is directly constructed, without appending any reduction.
     std::unique_ptr<NormalStage> nStage;
 
     void expand();
 
-    void removeDeadChildrenFromSlots() override;
     void removeAllChildrenFromSlots() override;
     Finalizability checkForFinalizableChildren() const override;
 
-    const NextOpSlot<MapReduceOp> *getChildSlot(std::size_t key) const;
-
 public:
-    ReductionStage(ReductionStage& current, const MapReduceOp *nextReduction);
     // This is the root.
     ReductionStage(Sampler& sampler);
+    ReductionStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp);
 
-    const std::vector<const MapReduceOp *>& getReductions() const { return reductions; }
-    const MapReduceOp *lastReduction() const { return reductions.size() ? reductions.back() : nullptr; }
-    const Dimensions& getInterface() const override;
-
-    std::size_t hash() const override;
     std::size_t countChildren() override;
     std::vector<Next> getChildrenHandles() override;
     std::vector<Arc> getChildrenArcs() override;
@@ -51,7 +27,6 @@ public:
     std::optional<Node> getChild(Next next) override;
     bool canAcceptArc(Arc arc) override;
     Node getChild(Arc arc) override;
-    std::string description() const override;
 };
 
 } // namespace kas

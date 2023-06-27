@@ -5,12 +5,11 @@
 namespace kas {
 
 bool MapReduceOp::canApplyToInterface(const Dimensions& interface) const {
-    // We need to manually apply MapReduceOp to ReductionStage.
-    return false;
+    KAS_CRITICAL("You cannot decide whether a MapReduceOp can be applied to an interface without the StageStore.");
 }
 
 Dimensions MapReduceOp::applyToInterface(const Dimensions& interface) const {
-    KAS_UNREACHABLE("No need to apply MapReduceOp to interface.");
+    return interface.insert1(getInput());
 }
 
 std::string MapReduceOp::description(const BindingContext& ctx) const {
