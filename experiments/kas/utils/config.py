@@ -7,13 +7,6 @@ import random
 from KAS.Bindings import CodeGenOptions
 
 def parameters(args):
-
-    use_cuda = torch.cuda.is_available()
-    training_params = dict(
-        val_period=1,
-        use_cuda=use_cuda
-    )
-
     if 'mnist' in args.dataset:
         sampler_params = dict(
             input_shape="[N,C_in]",
@@ -30,7 +23,7 @@ def parameters(args):
             maximum_reductions=2,
             max_flops=int(args.kas_max_macs * 1e9) * 2,
             save_path=args.kas_sampler_save_dir,
-            cuda=use_cuda,
+            cuda=True,
             autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021
         )
 
@@ -43,7 +36,7 @@ def parameters(args):
             model_type="KASFC",  # TODO: dynamically load the module
             batch_size=args.batch_size,
             sample_input_shape=(args.batch_size, *args.input_size),
-            device="cuda" if use_cuda else "cpu"
+            device="cuda"
         )
 
     elif 'cifar10' in args.dataset:
@@ -62,7 +55,7 @@ def parameters(args):
             maximum_reductions=4,
             max_flops=int(args.kas_max_macs * 1e9),  # manual conv size
             save_path=args.kas_sampler_save_dir,
-            cuda=use_cuda,
+            cuda=True,
             autoscheduler=CodeGenOptions.AutoScheduler.Anderson2021
         )
 
@@ -75,10 +68,10 @@ def parameters(args):
             model_type="KASConv",  # TODO: dynamically load the module
             batch_size=args.batch_size,
             sample_input_shape=(args.batch_size, *args.input_size),
-            device="cuda" if use_cuda else "cpu"
+            device="cuda"
         )
     
     else:
         raise NotImplementedError(f"Dataset {args.dataset} is not supported yet.")
 
-    return training_params, sampler_params, extra_args
+    return sampler_params, extra_args
