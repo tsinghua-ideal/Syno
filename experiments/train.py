@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 
 import time
 import logging
+import random
 from typing import Tuple, List
 from timm.optim import create_optimizer_v2, optimizer_kwargs
 from timm.scheduler import create_scheduler
@@ -21,6 +22,7 @@ def train(
     args,
 ) -> Tuple[List[float], List[float]]:
     # Use CUDA by default
+    torch.backends.cudnn.benchmark = True
     assert torch.cuda.is_available(), 'CUDA is not supported.'
     model.cuda()
 
@@ -29,10 +31,12 @@ def train(
     optimizer = create_optimizer_v2(model, **optimizer_kwargs(cfg=args))
     scheduler, sched_epochs = create_scheduler(args, optimizer)
 
-    best_model_state_dict = {}
-
     train_errors = []
     val_errors = []
+
+    if args.fetch_all_to_gpu:
+        train_loader = [(image, label) for (image, label) in train_loader]
+        val_loader = [(image, label) for (image, label) in val_loader]
 
     start = time.time()
     num_updates = 0
@@ -41,6 +45,8 @@ def train(
         start_time = time.time()
         model.train()
         loss_meter = AverageMeter()
+        if args.fetch_all_to_gpu:
+            random.shuffle(train_loader)
         for i, (image, label) in enumerate(train_loader):
             # Forward
             logits = model(image)
@@ -72,13 +78,11 @@ def train(
                 correct += torch.sum(pred == label).item()
                 total += label.size(0)
             val_errors.append(1 - correct / total)
-            if val_errors[-1] == min(val_errors):
-                best_model_state_dict = model.state_dict()
         elapsed_valid_time = time.time() - start_time
         logging.info(f'Epoch [{epoch + 1}/{sched_epochs}], train loss: {loss_meter.avg}, test accuracy: {correct / total}, training time: {elapsed_train_time}, validation time: {elapsed_valid_time}')
 
     print(f'Training complete, accuracy: {1 - min(val_errors)}')
-    return train_errors, val_errors, best_model_state_dict
+    return train_errors, val_errors, None
 
 
 if __name__ == '__main__':

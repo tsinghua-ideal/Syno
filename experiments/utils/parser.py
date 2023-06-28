@@ -60,6 +60,8 @@ def arg_parse():
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--use-multi-epochs-loader', action='store_true', default=True,
                         help='Use the multi-epochs-loader to save time at the beginning of every epoch')
+    parser.add_argument('--fetch-all-to-gpu', action='store_true', default=True,
+                        help='Fetch all data to GPU before training (default: True)')
 
     # Dataset augmentation. (Unused)
     parser.add_argument('--no-aug', action='store_true', default=True,

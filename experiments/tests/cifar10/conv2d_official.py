@@ -24,7 +24,7 @@ if __name__ == '__main__':
     assert 'cifar10' in args.dataset
     print(args)
 
-    training_params, sampler_params, extra_args = parameters(args)
+    sampler_params, extra_args = parameters(args)
     train_data_loader, validation_data_loader = get_dataloader(args)
     model_ = ModelBackup(ConvNet, torch.randn(
         extra_args["sample_input_shape"]), "cpu")
@@ -32,7 +32,7 @@ if __name__ == '__main__':
 
     start = time.time()
     train_error, val_error, _ = train(
-        model, train_data_loader, validation_data_loader, args, **training_params, verbose=True)
+        model, train_data_loader, validation_data_loader, args)
     accuracy = 1. - min(val_error)
 
     print("Test Complete, elapsed {} seconds, accuracy {}. ".format(
