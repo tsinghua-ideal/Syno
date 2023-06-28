@@ -28,6 +28,11 @@ if __name__ == '__main__':
 
     # set logging level
     logging.getLogger().setLevel(logging.DEBUG)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s %(levelname)s %(threadName)s %(name)s %(message)s",
+        datefmt='%m-%d %H:%M',
+    )
 
     args = arg_parse()
     print(args)

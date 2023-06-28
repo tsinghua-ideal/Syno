@@ -35,7 +35,7 @@ def dense(assembler: Assembler) -> Assembled:
     w_out_C.output(1)
     shared_C_in.mean(0)
 
-    return assembler.assemble([in_N, in_C], [w_in_C, w_out_C])
+    return assembler.assemble('in_0 * in_1', [in_N, in_C], [w_in_C, w_out_C])
 
 
 if __name__ == '__main__':
@@ -46,6 +46,7 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
 
     args = arg_parse()
+    assert args.dataset == 'mnist'
     training_params, sampler_params, extra_args = parameters(args)
     use_cuda = torch.cuda.is_available()
 

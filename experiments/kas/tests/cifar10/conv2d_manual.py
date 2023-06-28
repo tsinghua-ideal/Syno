@@ -47,7 +47,7 @@ def conv2d(assembler: Assembler) -> Assembled:
     shared_k_2.mean(1)
     shared_C_in.mean(2)
 
-    return assembler.assemble([in_N, in_C, in_H, in_W], [out_C, w_in_C, w_k_1, w_k_2])
+    return assembler.assemble('in_0 * in_1', [in_N, in_C, in_H, in_W], [out_C, w_in_C, w_k_1, w_k_2])
 
 
 if __name__ == '__main__':
@@ -58,6 +58,7 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
 
     args = arg_parse()
+    assert args.dataset == 'cifar10'
     training_params, sampler_params, extra_args = parameters(args)
     use_cuda = torch.cuda.is_available()
 
