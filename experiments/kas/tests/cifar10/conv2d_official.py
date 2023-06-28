@@ -21,6 +21,7 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
 
     args = arg_parse()
+    assert args.dataset == 'cifar10'
     print(args)
 
     training_params, sampler_params, extra_args = parameters(args)
