@@ -35,6 +35,7 @@ def train(
     val_errors = []
 
     start = time.time()
+    num_updates = 0
     for epoch in range(sched_epochs):
         # Train
         start_time = time.time()
@@ -51,8 +52,9 @@ def train(
             optimizer.step()
 
             # Update loss and scheduler
+            num_updates += 1
             loss_meter.update(loss.item(), image.size(0))
-            scheduler.step_update(num_updates=epoch * len(train_loader) + i + 1, metric=loss_meter.avg)
+            scheduler.step_update(num_updates=num_updates, metric=loss_meter.avg)
         elapsed_train_time = time.time() - start_time
 
         # Valiation
