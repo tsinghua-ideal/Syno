@@ -12,7 +12,7 @@ from utils.parser import arg_parse
 from utils.config import parameters
 
 args = arg_parse()
-assert args.dataset == 'cifar10'
+assert 'cifar10' in args.dataset
 training_params, sampler_params, extra_args = parameters(args)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model_ = ModelBackup(KASConv, torch.randn(

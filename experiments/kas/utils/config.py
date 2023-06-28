@@ -14,7 +14,7 @@ def parameters(args):
         use_cuda=use_cuda
     )
 
-    if args.dataset == 'mnist':
+    if 'mnist' in args.dataset:
         sampler_params = dict(
             input_shape="[N,C_in]",
             output_shape="[N,C_out]",
@@ -46,7 +46,7 @@ def parameters(args):
             device="cuda" if use_cuda else "cpu"
         )
 
-    elif args.dataset == 'cifar10':
+    elif 'cifar10' in args.dataset:
         sampler_params = dict(
             input_shape="[N,C_in,H,W]",
             output_shape="[N,C_out,H,W]",
