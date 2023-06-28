@@ -232,7 +232,6 @@ if __name__ == '__main__':
         lr=0.1,
         momentum=0.9,
         epochs=30,
-        val_period=5,
         use_cuda=use_cuda
     )
 

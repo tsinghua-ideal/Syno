@@ -4,7 +4,7 @@ import math
 
 
 def default_parser(dataset):
-    if dataset == 'mnist':
+    if 'mnist' in dataset:
         return dict(
             num_classes=10,
             input_size=(1, 28, 28),
@@ -22,7 +22,7 @@ def default_parser(dataset):
             kas_min_params=0,
             kas_max_params=3
         )
-    elif dataset == 'cifar10':
+    elif 'cifar10' in dataset:
         return dict(
             num_classes=10,
             input_size=(3, 32, 32),
@@ -49,20 +49,21 @@ def arg_parse():
         description='KAS trainer/searcher')
 
     # Dataset.
-    parser.add_argument('--dataset', type=str, default='cifar10')
+    parser.add_argument('--dataset', type=str, default='torch/mnist')
+    parser.add_argument('--root', type=str, default='~/data')
     parser.add_argument('--seed', type=int, default=42, metavar='S',
                         help='Random seed (default: 42)')
-    parser.add_argument('--batch-size', metavar='N', type=int, default=100,
+    parser.add_argument('--batch-size', metavar='N', type=int, default=128,
                         help='Batch size')
-    parser.add_argument('-j', '--num-workers', type=int, default=2, metavar='N',
+    parser.add_argument('-j', '--num-workers', type=int, default=8, metavar='N',
                         help='How many training processes to use (default: 2)')
     parser.add_argument('--pin-memory', action='store_true', default=True,
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
-    parser.add_argument('--use-multi-epochs-loader', action='store_true', default=False,
+    parser.add_argument('--use-multi-epochs-loader', action='store_true', default=True,
                         help='Use the multi-epochs-loader to save time at the beginning of every epoch')
 
     # Dataset augmentation. (Unused)
-    parser.add_argument('--no-aug', action='store_true', default=False,
+    parser.add_argument('--no-aug', action='store_true', default=True,
                         help='Disable all training augmentation, override other train aug args')
     parser.add_argument('--scale', type=float, nargs='+', default=[0.08, 1.0], metavar='PCT',
                         help='Random resize scale (default: 0.08 1.0)')

@@ -1,1 +1,1 @@
-add_library(search-lib STATIC AbstractStage.cpp DimensionsStage.cpp Finalize.cpp Node.cpp NormalStage.cpp ReductionStage.cpp Sample.cpp)
+add_library(search-lib STATIC AbstractStage.cpp DimensionsStage.cpp Finalize.cpp Node.cpp NormalStage.cpp ReductionStage.cpp Sample.cpp ShapeComplexity.cpp)
