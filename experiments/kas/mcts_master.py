@@ -63,7 +63,10 @@ if __name__ == '__main__':
             arguments,
             mcts_iterations=args.kas_iterations,
             leaf_parallelization_number=args.kas_leaf_parallelization_number,
-            virtual_loss_constant=args.kas_tree_parallelization_virtual_loss_constant
+            virtual_loss_constant=args.kas_tree_parallelization_virtual_loss_constant,
+            exploration_weight=args.mcts_ce,
+            b=args.mcts_b,
+            c_l=args.mcts_cl,
         )
 
     class MCTSHandler(Handler_server):

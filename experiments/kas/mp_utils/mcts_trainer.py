@@ -25,12 +25,22 @@ class MCTSTrainer:
                  sampler: Sampler,
                  arguments: Dict,
                  mcts_iterations: int = 1000,
-                 leaf_parallelization_number: int = 5,
-                 virtual_loss_constant: float = 5.,
+                 leaf_parallelization_number: int = 1,
+                 virtual_loss_constant: float = 1.,
                  exploration_weight: float = math.sqrt(2),
                  b: float = 0.4,
                  c_l: float = 40
                  ) -> None:
+        """
+        sampler: the KAS Sampler.
+        arguments: the arguments, stored for evaluators. 
+        mcts_iterations: the number of iterations to run.
+        leaf_parallelization_number: the number of leaf nodes to be expanded in parallel.
+        virtual_loss_constant: the virtual loss constant, multiplied with number of accesses of each node to get penalty. (penalty = virtual_loss_constant * number_of_accesses)
+        exploration_weight: the exploration weight in UCB formula.
+        b: parameter for progressive widening. At start all children are hidden from the parent, and one child with highest RAVE score is revealed to its parent `p` when `p.N ** b` increases by 1. 
+        c_l: parameter to control the mixture between l-RAVE and g-RAVE (local and global information). In progressive widening, RAVE score = `(1-beta) * l-RAVE + beta * g-RAVE`, where `beta = c_l / (c_l + t_l)` and `t_l` is the number of updates to l-RAVE. 
+        """
         
         self.mcts = MCTS(sampler, virtual_loss_constant,
                          leaf_parallelization_number, exploration_weight, b, c_l)

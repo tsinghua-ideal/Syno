@@ -353,7 +353,9 @@ class MCTS:
         packed_args = dict(
             virtual_loss_constant=self.virtual_loss_constant,
             leaf_num=self.leaf_num,
-            exploration_weight=self._exploration_weight
+            exploration_weight=self._exploration_weight,
+            b=self._b,
+            c_l=self._c_l
         )
         j = dict(
             node_list=node_list,

@@ -1,5 +1,6 @@
 import argparse
 import time
+import math
 
 
 def default_parser(dataset):
@@ -45,7 +46,7 @@ def default_parser(dataset):
 
 def arg_parse():
     parser = argparse.ArgumentParser(
-        description='KAS MNIST trainer/searcher')
+        description='KAS trainer/searcher')
 
     # Dataset.
     parser.add_argument('--dataset', type=str, default='cifar10')
@@ -253,6 +254,14 @@ def arg_parse():
                         help='Selector working directory')
     parser.add_argument('--kas-selector-save-dir', default='./kas_save',
                         help='Selector saving directory')
+    
+    # MCTS parameters
+    parser.add_argument('--mcts-ce', type=float, default=math.sqrt(2),
+                        help='MCTS exploration weight')
+    parser.add_argument('--mcts-b', type=float, default=0.4,
+                        help='MCTS b for progressive widening.')
+    parser.add_argument('--mcts-cl', type=float, default=40,
+                        help='MCTS c_l for RAVE score')
 
     parser.add_argument('--host', type=str, metavar='HOST', default='0.0.0.0')
     parser.add_argument('--port', type=int, metavar='PORT', default='1104')
