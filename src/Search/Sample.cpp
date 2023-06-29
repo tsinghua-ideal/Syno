@@ -119,7 +119,8 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     stageStore { MutexCountFromNumWorkers(numWorkerThreads) },
     countMutexesInLayer { MutexCountFromNumWorkers(numWorkerThreads) },
     mutexes(options.depth + 1),
-    pruner { *this }
+    pruner {},
+    expander { numWorkerThreads }
 {
     KAS_ASSERT(numWorkerThreads > 0);
     for (auto& mutexes: this->mutexes) {
@@ -208,11 +209,6 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         this->rootStage = dynamic_cast<ReductionStage *>(stageStore.insert(std::move(rootStage), lock));
     }
     KAS_ASSERT(this->rootStage);
-
-    // Launch the pruner thread.
-    prunerThread = std::jthread([this](std::stop_token stopToken) {
-        pruner(std::move(stopToken));
-    });
 }
 
 const TensorExpression& Sampler::getExpressionForTensorNum(std::size_t num) const {
@@ -386,32 +382,105 @@ void Sampler::Pruner::handleUpdates(std::set<AbstractStage *>& updates) {
     }
 }
 
-void Sampler::Pruner::operator()(std::stop_token stopToken) {
-    std::set<AbstractStage *> processing;
-    while (!stopToken.stop_requested()) {
-        decltype(inbox) newInbox;
-        {
-            std::unique_lock lock { mutex };
-            cv.wait(lock, stopToken, [this] {
-                return !inbox.empty();
-            });
-            newInbox.swap(inbox);
+Sampler::Pruner::Pruner() {
+    thread = std::jthread([this](std::stop_token stopToken) {
+        std::set<AbstractStage *> processing;
+        while (!stopToken.stop_requested()) {
+            decltype(inbox) newInbox;
+            {
+                std::unique_lock lock { mutex };
+                cv.wait(lock, stopToken, [this] {
+                    return !inbox.empty();
+                });
+                newInbox.swap(inbox);
+            }
+            while (!newInbox.empty()) {
+                processing.emplace(newInbox.front());
+                newInbox.pop();
+            }
+            handleUpdates(processing);
         }
-        while (!newInbox.empty()) {
-            processing.emplace(newInbox.front());
-            newInbox.pop();
-        }
-        handleUpdates(processing);
-    }
+    });
 }
-
-Sampler::Pruner::Pruner(Sampler& sampler): sampler { sampler } {}
 
 void Sampler::Pruner::requestFinalizabilityUpdate(AbstractStage *stage, const AbstractStage *requestor) {
     std::unique_lock lock { mutex };
     inbox.emplace(stage);
     lock.unlock();
     cv.notify_one();
+}
+
+Sampler::Pruner::~Pruner() {
+    thread.request_stop();
+}
+
+void Sampler::Expander::finish() {
+    std::unique_lock lock { mutex };
+    ++finished;
+    if (submitted == finished) {
+        ready = true;
+        lock.unlock();
+        cvReady.notify_all();
+    } else {
+        lock.unlock();
+    }
+}
+
+Sampler::Expander::Expander(std::size_t numThreads) {
+    for (std::size_t i = 0; i < numThreads; ++i) {
+        threads.emplace_back([this](std::stop_token stopToken) {
+            static thread_local std::mt19937_64 rng { std::random_device{}() };
+            while (!stopToken.stop_requested()) {
+                std::unique_lock lock { mutex };
+                cv.wait(lock, stopToken, [this] {
+                    return !inbox.empty();
+                });
+                if (!inbox.empty()) {
+                    auto [node, layers] = inbox.front();
+                    inbox.pop();
+                    lock.unlock();
+                    if (layers > 0) {
+                        auto nexts = node.getChildrenHandles();
+                        std::shuffle(nexts.begin(), nexts.end(), rng);
+                        for (auto next: nexts) {
+                            auto newNode = node.getChild(next);
+                            if (newNode.has_value()) {
+                                expand(*newNode, layers - 1);
+                            }
+                        }
+                    }
+                    finish();
+                }
+            }
+        });
+    }
+}
+
+void Sampler::Expander::expand(Node node, int layers) {
+    std::unique_lock lock { mutex };
+    ++submitted;
+    ready = false;
+    inbox.emplace(node, layers);
+    lock.unlock();
+    cv.notify_one();
+}
+
+void Sampler::Expander::expandSync(Node node, int layers) {
+    expand(node, layers);
+    std::unique_lock lock { mutex };
+    cvReady.wait(lock, [this] {
+        return ready;
+    });
+}
+
+void Sampler::Expander::sync() {
+
+}
+
+Sampler::Expander::~Expander() {
+    for (auto& thread: threads) {
+        thread.request_stop();
+    }
 }
 
 std::recursive_mutex& Sampler::getMutex(std::size_t depth, const Dimensions& interface) {

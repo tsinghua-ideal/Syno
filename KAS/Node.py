@@ -144,6 +144,10 @@ class Node:
         """Get all composing arcs of a node."""
         return self._node.get_composing_arcs()
 
+    def expand(self, layers: int) -> None:
+        """Expand a node given layers deeper."""
+        self._node.expand(layers)
+
     def get_child_description(self, next: PseudoNext) -> Optional[str]:
         """Get the description of Next."""
         return self._node.get_child_description(Path.to_next(next))

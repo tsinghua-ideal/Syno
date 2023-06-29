@@ -195,29 +195,48 @@ public:
     std::optional<std::vector<Arc>> convertPathToArcs(const std::vector<Next>& path);
 
     class Pruner {
-        friend class Sampler;
-        Sampler& sampler;
         std::mutex mutex;
         std::condition_variable_any cv;
         std::queue<AbstractStage *> inbox;
+        std::jthread thread;
         void handleUpdates(std::set<AbstractStage *>& updates);
-        void operator()(std::stop_token stopToken);
     public:
-        Pruner(Sampler& sampler);
+        Pruner();
         void requestFinalizabilityUpdate(AbstractStage *stage, const AbstractStage *requestor);
+        ~Pruner();
+    };
+    class Expander {
+        struct Task {
+            Node node;
+            int layers;
+        };
+        // A thread pool that accepts the tasks.
+        std::vector<std::jthread> threads;
+        // A queue of tasks.
+        std::mutex mutex;
+        std::condition_variable_any cv;
+        std::queue<Task> inbox;
+        std::size_t submitted = 0;
+        std::size_t finished = 0;
+        bool ready = true;
+        std::condition_variable cvReady;
+        void finish();
+    public:
+        Expander(std::size_t numThreads);
+        void expand(Node node, int layers);
+        void expandSync(Node node, int layers);
+        void sync();
+        ~Expander();
     };
 private:
     const std::size_t countMutexesInLayer;
     std::vector<std::vector<std::recursive_mutex>> mutexes;
     Pruner pruner;
-    std::jthread prunerThread;
+    Expander expander;
 public:
-    Pruner& getPruner() { return pruner; }
     std::recursive_mutex& getMutex(std::size_t depth, const Dimensions& interface);
-
-    ~Sampler() {
-        prunerThread.request_stop();
-    }
+    Pruner& getPruner() { return pruner; }
+    Expander& getExpander() { return expander; }
 };
 
 } // namespace kas

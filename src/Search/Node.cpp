@@ -234,6 +234,10 @@ std::vector<Arc> Node::getComposingArcs() const {
     return std::move(*arcs);
 }
 
+void Node::expand(int layers) const {
+    sampler->getExpander().expandSync(*this, layers);
+}
+
 std::optional<std::string> Node::getChildDescription(Next next) const {
     return match<std::optional<std::string>>(
         [&](AbstractStage *stage) -> std::optional<std::string> {
