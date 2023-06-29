@@ -6,19 +6,19 @@
 
 namespace kas {
 
-void NormalStage::removeDeadChildrenFromSlots() {
+void NormalStage::removeDeadChildrenFromSlots(const CollectedFinalizabilities& collected) {
     if(!childrenGenerated) {
         return;
     }
-    DimensionsStage::removeDeadChildrenFromSlots();
+    Base::removeDeadChildrenFromSlots(collected);
 }
 
 void NormalStage::removeAllChildrenFromSlots() {
     KAS_ASSERT(childrenGenerated);
-    DimensionsStage::removeAllChildrenFromSlots();
+    Base::removeAllChildrenFromSlots();
 }
 
-AbstractStage::Finalizability NormalStage::checkForFinalizableChildren() const {
+Finalizability NormalStage::checkForFinalizableChildren(const CollectedFinalizabilities& collected) const {
     if(!childrenGenerated) {
         return Finalizability::Maybe;
     }
@@ -27,7 +27,7 @@ AbstractStage::Finalizability NormalStage::checkForFinalizableChildren() const {
         return Finalizability::Yes;
     }
     // Otherwise, check children.
-    return DimensionsStage::checkForFinalizableChildren();
+    return Base::checkForFinalizableChildren(collected);
 }
 
 void NormalStage::guardGeneratedChildren() {
@@ -41,8 +41,6 @@ void NormalStage::guardGeneratedChildren() {
     PrimitiveOpStore& store = sampler.getOpStore();
     Graph graph = interface.buildGraph();
 
-    construct([&] { // Now we start to modify the states.
-
     // First add finalizations.
     nextFinalizations.fill(FinalizeOp::Generate(interface, graph, {
         .ctx = ctx,
@@ -55,18 +53,23 @@ void NormalStage::guardGeneratedChildren() {
     });
     nextFinalizations.checkHashCollisionAndRemove();
 
-    // Wrap the generated Op in a NextOpSlot.
+    std::vector<NextStageSlot> children;
+    std::map<AbstractStage *, Finalizability> childrenFinalizabilities;
+    // Wrap the generated Op in a NextStageSlot.
     auto add = [&]<PrimitiveOpImpl Op>(const std::vector<const Op *>& newOps) {
-        nextSlotStore.fill(
-            newOps,
-            [&](const Op *op) {
-                return NextDimensionsStageSlot({Next::TypeOf<Op>(), NextDimensionsStageSlot::GetKey(op)}, op, getNextOp<NormalStage>(op));
+        children.reserve(children.size() + newOps.size());
+        for (const Op *op: newOps) {
+            AbstractStage *stage;
+            Finalizability fin;
+            {
+                Lock lock;
+                std::tie(stage, lock) = getNextOp(op);
+                fin = stage->getFinalizability(lock);
             }
-        );
-        const auto& rawSlots = nextSlotStore.getRawSlots();
-        if (auto it = std::ranges::adjacent_find(rawSlots); it != rawSlots.end()) {
-            KAS_REPORT_OP_HASH_COLLISION(*it->op, *std::next(it)->op);
-            nextSlotStore.checkHashCollisionAndRemove();
+            if (fin != Finalizability::No) {
+                children.emplace_back(Next{Next::TypeOf<Op>(), NextStageSlot::GetKey(op)}, op, stage);
+                childrenFinalizabilities.emplace(stage, fin);
+            }
         }
     };
 
@@ -133,12 +136,26 @@ void NormalStage::guardGeneratedChildren() {
         }
     }
 
+    nextSlotStore.fill(children, [](NextStageSlot& child) -> NextStageSlot&& { return std::move(child); });
+    const auto& rawSlots = nextSlotStore.getRawSlots();
+    if (auto it = std::ranges::adjacent_find(rawSlots); it != rawSlots.end()) {
+        KAS_REPORT_OP_HASH_COLLISION(*it->op, *std::next(it)->op);
+        nextSlotStore.checkHashCollisionAndRemove();
+    }
+    Finalizability fin = nextFinalizations.size() > 0 ? Finalizability::Yes : Finalizability::No;
+    nextSlotStore.forEach([&](const NextStageSlot& slot) {
+        auto f = childrenFinalizabilities[slot.nextStage];
+        fin += f;
+    });
+
     CountChildrenFinalize += nextFinalizations.size();
 
     generatingChildren = false;
     childrenGenerated = true;
 
-    }); // End construction.
+    if (fin != Finalizability::Maybe) {
+        determineFinalizability(fin, true);
+    }
 }
 
 std::shared_ptr<TensorView> NormalStage::getFinalize(const FinalizeOp *op) const {
@@ -188,19 +205,19 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
 }
 
 std::size_t NormalStage::uncheckedCountChildren() const {
-    return nextFinalizations.size() + DimensionsStage::uncheckedCountChildren();
+    return nextFinalizations.size() + Base::countChildrenImpl();
 }
 
 std::vector<Next> NormalStage::uncheckedGetChildrenHandles() const {
     auto nextF = nextFinalizations.toNexts();
-    auto nexts = DimensionsStage::uncheckedGetChildrenHandles();
+    auto nexts = Base::getChildrenHandlesImpl();
     nexts.insert(nexts.begin(), nextF.begin(), nextF.end());
     return nexts;
 }
 
 std::vector<Arc> NormalStage::uncheckedGetChildrenArcs() const {
     auto arcsF = nextFinalizations.toArcs(&sampler);
-    auto arcs = DimensionsStage::uncheckedGetChildrenArcs();
+    auto arcs = Base::getChildrenArcsImpl();
     arcs.insert(arcs.begin(), arcsF.begin(), arcsF.end());
     return arcs;
 }
@@ -209,15 +226,16 @@ const NextFinalizeSlot *NormalStage::getChildFinalizeSlot(Next next) const {
     return nextFinalizations.getSlot(next);
 }
 
-NormalStage::NormalStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp):
-    DimensionsStage { std::move(interface), creator, std::move(deltaOp) }
+NormalStage::NormalStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
+    Base { std::move(interface), creator, std::move(deltaOp), std::move(lock) }
 {
     // Perform experimental finalization, i.e., compute the ShapeComplexity of the interface.
     if (!possibleToFinalizeByExperimenting()) {
         // If proved to be not finalizable, no need to generate children.
         childrenGenerated = true;
         // We cannot propagte, because the parent is now building children.
-        determineFinalizability(Finalizability::No);
+        // Luckily our parent will first check the finalizability of this.
+        determineFinalizability(Finalizability::No, false);
     } else {
         auto it = std::ranges::adjacent_find(interface, [](const Dimension& a, const Dimension& b) {
             return a.hash() == b.hash();
@@ -226,55 +244,54 @@ NormalStage::NormalStage(Dimensions interface, AbstractStage& creator, std::opti
             KAS_REPORT_DIMENSION_HASH_COLLISION(*it, *std::next(it));
         }
     }
-    finishInitialConstruction();
 }
 
-std::size_t NormalStage::countChildren() {
+std::size_t NormalStage::countChildrenImpl() {
     return guarded([this] { return uncheckedCountChildren(); });
 }
 
-std::vector<Next> NormalStage::getChildrenHandles() {
+std::vector<Next> NormalStage::getChildrenHandlesImpl() {
     return guarded([this] { return uncheckedGetChildrenHandles(); });
 }
 
-std::vector<Arc> NormalStage::getChildrenArcs() {
+std::vector<Arc> NormalStage::getChildrenArcsImpl() {
     return guarded([this] { return uncheckedGetChildrenArcs(); });
 }
 
-std::optional<Arc> NormalStage::getArcFromHandle(Next next) {
+std::optional<Arc> NormalStage::getArcFromHandleImpl(Next next) {
     return guarded([&next, this] {
         if (next.type == Next::Type::Finalize) {
             return nextFinalizations.findTransform<Arc>(next, [this](const NextFinalizeSlot& slot) -> Arc {
                 return { &sampler, &slot.finalization };
             });
         }
-        return DimensionsStage::uncheckedGetArcFromHandle(next);
+        return Base::getArcFromHandleImpl(next);
     });
 }
 
-std::optional<Node> NormalStage::getChild(Next next) {
+std::optional<Node> NormalStage::getChildImpl(Next next) {
     return guarded([&next, this] {
         if (next.type == Next::Type::Finalize) {
             return nextFinalizations.findTransform<Node>(next, [this](const NextFinalizeSlot& slot) -> Node {
                 return { &sampler, getFinalize(&slot.finalization) };
             });
         }
-        return DimensionsStage::uncheckedGetChild<NormalStage>(next);
+        return Base::getChildImpl(next);
     });
 }
 
-bool NormalStage::canAcceptArc(Arc arc) {
+bool NormalStage::canAcceptArcImpl(Arc arc) {
     if (auto ptr = arc.tryAs<PrimitiveOp>(); ptr && ptr->getType() == DimensionType::MapReduce) {
         // We have left ReductionStage.
         return false;
     }
-    return DimensionsStage::canAcceptArc(arc);
+    return Base::canAcceptArcImpl(arc);
 }
 
-Node NormalStage::getChild(Arc arc) {
+Node NormalStage::getChildImpl(Arc arc) {
     return arc.match<Node>(
         [&](auto op) -> Node {
-            return { &sampler, getNextOp<NormalStage>(op) };
+            return { &sampler, getNextOpWithoutLock(op) };
         },
         [&](auto op) -> Node {
             return { &sampler, getFinalize(op) };

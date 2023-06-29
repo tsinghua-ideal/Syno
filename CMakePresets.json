@@ -38,6 +38,14 @@
             "description": "Enable AddressSanitizer.",
             "binaryDir": "${sourceDir}/build/ASAN",
             "toolchainFile": "cmake/toolchain.asan.cmake"
+        },
+        {
+            "name": "ubsan",
+            "inherits": "base",
+            "displayName": "UndefinedBehaviorSanitizer",
+            "description": "Enable UndefinedBehaviorSanitizer.",
+            "binaryDir": "${sourceDir}/build/UBSAN",
+            "toolchainFile": "cmake/toolchain.ubsan.cmake"
         }
     ],
     "buildPresets": [
@@ -55,6 +63,11 @@
             "name": "asan",
             "configurePreset": "asan",
             "displayName": "AddressSanitizer"
+        },
+        {
+            "name": "ubsan",
+            "configurePreset": "ubsan",
+            "displayName": "UndefinedBehaviorSanitizer"
         }
     ]
 }

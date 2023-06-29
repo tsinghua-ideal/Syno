@@ -184,6 +184,10 @@ class Graph;
 class Dimensions: public std::vector<Dimension> {
 public:
     using std::vector<Dimension>::vector;
+    // This is required to make the Dimensions legal.
+    void sort() { std::ranges::sort(*this, Dimension::HashLessThan{}); }
+    bool is_sorted() const { return std::ranges::is_sorted(*this, Dimension::HashLessThan{}); }
+    std::size_t hash() const;
 
     std::size_t maximumTags() const;
     std::size_t countDataDiscardingDims() const;

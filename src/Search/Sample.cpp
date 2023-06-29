@@ -5,6 +5,9 @@
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
+#include "KAS/Search/AbstractStage.hpp"
+#include "KAS/Search/NormalStage.hpp"
+#include "KAS/Search/ReductionStage.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Utils/Common.hpp"
@@ -26,6 +29,57 @@ void SampleOptions::check() const {
     KAS_ASSERT(disallowSplitRAboveStride + disallowStrideAboveSplit <= 1);
     KAS_ASSERT(disallowMergeWithLargeBlockAboveStride + disallowStrideAboveMergeR <= 1);
     KAS_ASSERT(disallowUnfoldLAboveShift + disallowShiftAboveUnfold <= 1);
+}
+
+std::size_t StageStore::Hash::operator()(const Query& query) const noexcept {
+    return query.hash;
+}
+
+std::size_t StageStore::Hash::operator()(AbstractStage *stage) const noexcept {
+    return stage->getInterface().hash();
+}
+
+bool StageStore::Equal::operator()(const Dimensions& lhs, const Dimensions& rhs) const noexcept {
+    return std::ranges::equal(lhs, rhs);
+}
+bool StageStore::Equal::operator()(const Query& lhs, const Query& rhs) const noexcept {
+    return (*this)(lhs.interface, rhs.interface);
+}
+bool StageStore::Equal::operator()(const Query& lhs, AbstractStage *rhs) const noexcept {
+    return (*this)(lhs.interface, rhs->getInterface());
+}
+bool StageStore::Equal::operator()(AbstractStage *lhs, const Query& rhs) const noexcept {
+    return (*this)(lhs->getInterface(), rhs.interface);
+}
+bool StageStore::Equal::operator()(AbstractStage *lhs, AbstractStage *rhs) const noexcept {
+    return (*this)(lhs->getInterface(), rhs->getInterface());
+}
+
+AbstractStage *StageStore::find(const Dimensions& interface, std::unique_lock<std::recursive_mutex>& lock) const {
+    KAS_ASSERT(interface.is_sorted(), "Interface is not sorted.");
+    Query q = { .interface = interface, .hash = interface.hash() };
+    const auto& bucket = bucketsOfStages[q.hash % buckets];
+    if (auto it = bucket.find(q); it != bucket.end()) {
+        return *it;
+    } else {
+        return nullptr;
+    }
+}
+
+AbstractStage *StageStore::insert(std::unique_ptr<AbstractStage> stage, std::unique_lock<std::recursive_mutex>& lock) {
+    std::size_t bucketIndex = stage->getInterface().hash() % buckets;
+    auto& bucket = bucketsOfStages[bucketIndex];
+    auto [it, inserted] = bucket.insert(stage.get());
+    [[maybe_unused]] auto _ = stage.release();
+    return inserted ? *it : nullptr;
+}
+
+StageStore::~StageStore() {
+    for (auto& bucket: bucketsOfStages) {
+        for (auto stage: bucket) {
+            delete stage;
+        }
+    }
 }
 
 namespace {
@@ -50,10 +104,29 @@ namespace {
     }
 }
 
-Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const std::vector<std::pair<std::size_t, std::size_t>>& fixedIODims, const SampleOptions& options):
+namespace {
+
+// By birthday paradox, about 1/8 probability of collision.
+std::size_t MutexCountFromNumWorkers(std::size_t numWorkerThreads) {
+    return 4 * numWorkerThreads * numWorkerThreads;
+}
+
+}
+
+Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const std::vector<std::pair<std::size_t, std::size_t>>& fixedIODims, const SampleOptions& options, std::size_t numWorkerThreads):
     rng { options.seed },
-    options { options }
+    options { options },
+    stageStore { MutexCountFromNumWorkers(numWorkerThreads) },
+    countMutexesInLayer { MutexCountFromNumWorkers(numWorkerThreads) },
+    mutexes(options.depth + 1),
+    pruner { *this }
 {
+    KAS_ASSERT(numWorkerThreads > 0);
+    for (auto& mutexes: this->mutexes) {
+        std::vector<std::recursive_mutex> v(countMutexesInLayer);
+        mutexes = std::move(v);
+    }
+
     // First parse the variable names in specifications. Unnamed variables are named by x_i and c_i.
     std::map<std::string, Parser::SizeSpec> primaryVars;
     std::map<std::string, Parser::SizeSpec> coefficientVars;
@@ -125,8 +198,21 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     expressionThreeTensors = Parser(options.expressionThreeTensors).parseTensorExpression();
     expressionFourTensors = Parser(options.expressionFourTensors).parseTensorExpression();
 
-    // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
-    rootStage = std::make_unique<ReductionStage>(*this);
+    Dimensions interface = getRootInterface();
+    interface.sort();
+    std::unique_ptr<ReductionStage> rootStage;
+    {
+        std::unique_lock<std::recursive_mutex> lock;
+        // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
+        std::tie(rootStage, lock) = ReductionStage::Create(*this, std::move(interface), std::unique_lock<std::recursive_mutex>{});
+        this->rootStage = dynamic_cast<ReductionStage *>(stageStore.insert(std::move(rootStage), lock));
+    }
+    KAS_ASSERT(this->rootStage);
+
+    // Launch the pruner thread.
+    prunerThread = std::jthread([this](std::stop_token stopToken) {
+        pruner(std::move(stopToken));
+    });
 }
 
 const TensorExpression& Sampler::getExpressionForTensorNum(std::size_t num) const {
@@ -149,7 +235,7 @@ Size Sampler::getTotalOutputSize() const {
 }
 
 std::optional<Node> Sampler::visit(const std::vector<Next>& path) {
-    Node n { this, rootStage.get() };
+    Node n { this, rootStage };
     for (const auto& next: path) {
         auto nextNode = n.getChild(next);
         if (!nextNode) {
@@ -172,7 +258,7 @@ std::optional<std::pair<std::vector<Next>, Node>> Sampler::randomNodeWithPrefix(
         auto cnt = cur.countChildren();
         if (cnt == 0) {
             auto stage = cur.tryAsStage();
-            KAS_ASSERT(!stage || stage->getFinalizability() == AbstractStage::Finalizability::No);
+            KAS_ASSERT(!stage || stage->getFinalizability() == Finalizability::No);
             break;
         }
         auto next = cur.getChildrenHandles()[random(cnt)];
@@ -271,7 +357,7 @@ std::vector<Next> Sampler::convertTensorsToPath(const std::vector<std::vector<Di
 
 std::optional<std::vector<Arc>> Sampler::convertPathToArcs(const std::vector<Next>& path) {
     std::vector<Arc> result;
-    Node n { this, rootStage.get() };
+    Node n { this, rootStage };
     for (const auto& next: path) {
         auto nextArc = n.getArcFromHandle(next);
         if (!nextArc) {
@@ -281,6 +367,55 @@ std::optional<std::vector<Arc>> Sampler::convertPathToArcs(const std::vector<Nex
         n = n.getChildFromArc(*nextArc);
     }
     return std::optional<std::vector<Arc>>(std::in_place, std::move(result));
+}
+
+void Sampler::Pruner::handleUpdates(std::set<AbstractStage *>& updates) {
+    // Here we just repeatedly try to acquire the lock and update the finalizability.
+    // TODO: When the stages release the lock, make them signal the condition variable.
+    while (!updates.empty()) {
+        std::set<AbstractStage *> remaining;
+        for (auto stage: updates) {
+            auto lock = stage->tryAcquireLock();
+            if (!lock.owns_lock()) {
+                remaining.emplace(stage);
+            } else {
+                stage->updateFinalizability(lock);
+            }
+        }
+        updates.swap(remaining);
+    }
+}
+
+void Sampler::Pruner::operator()(std::stop_token stopToken) {
+    std::set<AbstractStage *> processing;
+    while (!stopToken.stop_requested()) {
+        decltype(inbox) newInbox;
+        {
+            std::unique_lock lock { mutex };
+            cv.wait(lock, stopToken, [this] {
+                return !inbox.empty();
+            });
+            newInbox.swap(inbox);
+        }
+        while (!newInbox.empty()) {
+            processing.emplace(newInbox.front());
+            newInbox.pop();
+        }
+        handleUpdates(processing);
+    }
+}
+
+Sampler::Pruner::Pruner(Sampler& sampler): sampler { sampler } {}
+
+void Sampler::Pruner::requestFinalizabilityUpdate(AbstractStage *stage, const AbstractStage *requestor) {
+    std::unique_lock lock { mutex };
+    inbox.emplace(stage);
+    lock.unlock();
+    cv.notify_one();
+}
+
+std::recursive_mutex& Sampler::getMutex(std::size_t depth, const Dimensions& interface) {
+    return mutexes[depth][interface.hash() % countMutexesInLayer];
 }
 
 } // namespace kas

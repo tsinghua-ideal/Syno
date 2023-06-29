@@ -1,5 +1,6 @@
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Search/Node.hpp"
+#include "KAS/Search/NormalStage.hpp"
 #include "KAS/Search/ReductionStage.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Utils/Hash.hpp"
@@ -11,11 +12,18 @@ void ReductionStage::expand() {
     const auto& options = sampler.getOptions();
 
     // First create the corresponding NormalStage.
-    nStage = std::make_unique<NormalStage>(Dimensions(getInterface()), *this, std::nullopt);
+    // Note: you cannot getNextOp, because it shares the same hash with us.
+    Finalizability fin;
+    {
+        // Actually this lock is same as initialLock, because we share the same hash and depth.
+        // This is OK because we use std::recursive_lock.
+        Lock lock;
+        std::tie(nStage, lock) = NormalStage::Create(getInterface(), *this, std::nullopt, Lock{});
+        fin = nStage->getFinalizability(lock);
+    }
 
     // Then attempt to generate new reductions.
     if (existingOp<MapReduceOp>() == options.maximumReductions) {
-        finishInitialConstruction(); // Finish modifying states.
         return;
     }
 
@@ -24,88 +32,101 @@ void ReductionStage::expand() {
     KAS_ASSERT(reductions.size() == existingOp<MapReduceOp>());
     std::ranges::sort(reductions, std::less<>{}, &MapReduceOp::getPriority);
 
-    auto nextReductions = MapReduceOp::Generate(sampler.getOpStore(), reductions, {
+    std::vector<NextStageSlot> nextReductions;
+    std::map<AbstractStage *, Finalizability> childrenFinalizabilities;
+    for (auto op: MapReduceOp::Generate(sampler.getOpStore(), reductions, {
         .ctx = sampler.getBindingContext(),
         .dimUpperBound = options.dimUpperBound,
         .outputSize = sampler.getTotalOutputSize(),
         .maxFLOPs = options.maxFLOPs,
-    });
-    nextSlotStore.fill(nextReductions, [&](const MapReduceOp *op) -> NextDimensionsStageSlot {
-        return {{Next::Type::MapReduce, NextDimensionsStageSlot::GetKey(op)}, op, getNextOp<ReductionStage>(op)};
+    })) {
+        ReductionStage *stage;
+        Finalizability f;
+        {
+            Lock lock;
+            std::tie(stage, lock) = getNextOp(op);
+            f = stage->getFinalizability(lock);
+        }
+        if (f != Finalizability::No) {
+            nextReductions.emplace_back(Next{Next::Type::MapReduce, NextStageSlot::GetKey(op)}, op, stage);
+            childrenFinalizabilities.emplace(stage, f);
+        }
+    }
+    nextSlotStore.fill(nextReductions, [](NextStageSlot& slot) -> NextStageSlot&& {
+        return std::move(slot);
     });
     nextSlotStore.checkHashCollisionAndRemove();
-
-    finishInitialConstruction(); // Finish modifying states.
-}
-
-void ReductionStage::removeAllChildrenFromSlots() {
-    KAS_ASSERT(nStage->getFinalizability() == Finalizability::No);
-    DimensionsStage::removeAllChildrenFromSlots();
-}
-
-AbstractStage::Finalizability ReductionStage::checkForFinalizableChildren() const {
-    auto nStageFinalizability = nStage->getFinalizability();
-    auto rStageFinalizability = DimensionsStage::checkForFinalizableChildren();
-    if (nStageFinalizability == Finalizability::Yes || rStageFinalizability == Finalizability::Yes) {
-        return Finalizability::Yes;
-    } else if (nStageFinalizability == Finalizability::No && rStageFinalizability == Finalizability::No) {
-        return Finalizability::No;
-    } else {
-        return Finalizability::Maybe;
+    nextSlotStore.forEach([&](const NextStageSlot& slot) {
+        auto f = childrenFinalizabilities[slot.nextStage];
+        fin += f;
+    });
+    if (fin != Finalizability::Maybe) {
+        // No need to propagate because the reductions are built recursively.
+        determineFinalizability(fin, false);
     }
 }
 
-ReductionStage::ReductionStage(Sampler& sampler):
-    DimensionsStage { sampler, sampler.getRootInterface() }
+ReductionStage::CollectedFinalizabilities ReductionStage::collectFinalizabilities() {
+    return { Base::collectFinalizabilities(), nStage->getFinalizability() };
+}
+
+Finalizability ReductionStage::checkForFinalizableChildren(const CollectedFinalizabilities& collected) const {
+    auto rStageFinalizability = Base::checkForFinalizableChildren(collected);
+    return rStageFinalizability + collected.nStageFinalizability;
+}
+
+ReductionStage::ReductionStage(Sampler& sampler, Dimensions interface, Lock lock):
+    Base { sampler, std::move(interface), std::move(lock) }
 {
     expand();
 }
 
-ReductionStage::ReductionStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp):
-    DimensionsStage { std::move(interface), creator, std::move(deltaOp) }
+ReductionStage::ReductionStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
+    Base { std::move(interface), creator, std::move(deltaOp), std::move(lock) }
 {
     expand();
 }
 
-std::size_t ReductionStage::countChildren() {
-    return uncheckedCountChildren() + nStage->countChildren();
+std::size_t ReductionStage::countChildrenImpl() {
+    return Base::countChildrenImpl() + nStage->countChildren();
 }
 
-std::vector<Next> ReductionStage::getChildrenHandles() {
-    std::vector<Next> handles = uncheckedGetChildrenHandles();
+std::vector<Next> ReductionStage::getChildrenHandlesImpl() {
+    std::vector<Next> handles = Base::getChildrenHandlesImpl();
     std::ranges::move(nStage->getChildrenHandles(), std::back_inserter(handles));
     return handles;
 }
 
-std::vector<Arc> ReductionStage::getChildrenArcs() {
-    std::vector<Arc> arcs = uncheckedGetChildrenArcs();
+std::vector<Arc> ReductionStage::getChildrenArcsImpl() {
+    std::vector<Arc> arcs = Base::getChildrenArcsImpl();
     std::ranges::move(nStage->getChildrenArcs(), std::back_inserter(arcs));
     return arcs;
 }
 
-std::optional<Arc> ReductionStage::getArcFromHandle(Next next) {
+std::optional<Arc> ReductionStage::getArcFromHandleImpl(Next next) {
     if(next.type == Next::Type::MapReduce) {
-        return uncheckedGetArcFromHandle(next);
+        return Base::getArcFromHandleImpl(next);
     } else {
         return nStage->getArcFromHandle(next);
     }
 }
 
-std::optional<Node> ReductionStage::getChild(Next next) {
+std::optional<Node> ReductionStage::getChildImpl(Next next) {
     if(next.type == Next::Type::MapReduce) {
-        return uncheckedGetChild<ReductionStage>(next);
+        return Base::getChildImpl(next);
     } else {
         return nStage->getChild(next);
     }
 }
 
-bool ReductionStage::canAcceptArc(Arc arc) {
+bool ReductionStage::canAcceptArcImpl(Arc arc) {
     return arc.match<bool>(
         [&](const PrimitiveOp *op) -> bool {
             if (op->getType() == DimensionType::MapReduce) {
                 // We have to manually find if this is in the search space.
                 auto newInterface = op->applyToInterface(getInterface());
-                return getStageStore().find(newInterface) != nullptr;
+                Lock lock = Lock { sampler.getMutex(depth + 1, newInterface)};
+                return sampler.getStageStore().find(newInterface, lock) != nullptr;
             } else {
                 return nStage->canAcceptArc(arc);
             }
@@ -116,13 +137,13 @@ bool ReductionStage::canAcceptArc(Arc arc) {
     );
 }
 
-Node ReductionStage::getChild(Arc arc) {
+Node ReductionStage::getChildImpl(Arc arc) {
     return arc.match<Node>(
         [&](auto op) -> Node {
             if (op->getType() == DimensionType::MapReduce) {
-                return { &sampler, getNextOp<ReductionStage>(op) };
+                return { &sampler, getNextOpWithoutLock(op) };
             } else {
-                return nStage->getChild(arc);
+                return nStage->getChildImpl(arc);
             }
         },
         [&](auto op) -> Node {
