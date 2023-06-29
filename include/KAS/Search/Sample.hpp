@@ -125,16 +125,22 @@ class StageStore {
     };
 
 private:
+    const std::size_t bigBuckets;
     const std::size_t buckets;
-    std::vector<std::unordered_set<AbstractStage *, Hash, Equal>> bucketsOfStages;
+    std::vector<std::vector<std::unordered_set<AbstractStage *, Hash, Equal>>> bucketsOfStages;
 
 public:
-    StageStore(std::size_t buckets):
+    StageStore(std::size_t depth, std::size_t buckets):
+        bigBuckets { depth },
         buckets { buckets },
-        bucketsOfStages(buckets)
-    {}
-    AbstractStage *find(const Dimensions& interface, std::unique_lock<std::recursive_mutex>& lock) const;
-    AbstractStage *insert(std::unique_ptr<AbstractStage> stage, std::unique_lock<std::recursive_mutex>& lock);
+        bucketsOfStages(bigBuckets)
+    {
+        for (auto& bucket : bucketsOfStages) {
+            bucket.resize(buckets);
+        }
+    }
+    AbstractStage *find(std::size_t depth, const Dimensions& interface, std::unique_lock<std::recursive_mutex>& lock) const;
+    AbstractStage *insert(std::size_t depth, std::unique_ptr<AbstractStage> stage, std::unique_lock<std::recursive_mutex>& lock);
     ~StageStore();
 };
 

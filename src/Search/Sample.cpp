@@ -55,10 +55,11 @@ bool StageStore::Equal::operator()(AbstractStage *lhs, AbstractStage *rhs) const
     return (*this)(lhs->getInterface(), rhs->getInterface());
 }
 
-AbstractStage *StageStore::find(const Dimensions& interface, std::unique_lock<std::recursive_mutex>& lock) const {
+AbstractStage *StageStore::find(std::size_t depth, const Dimensions& interface, std::unique_lock<std::recursive_mutex>& lock) const {
     KAS_ASSERT(interface.is_sorted(), "Interface is not sorted.");
+    KAS_ASSERT(lock.owns_lock());
     Query q = { .interface = interface, .hash = interface.hash() };
-    const auto& bucket = bucketsOfStages[q.hash % buckets];
+    const auto& bucket = bucketsOfStages[depth][q.hash % buckets];
     if (auto it = bucket.find(q); it != bucket.end()) {
         return *it;
     } else {
@@ -66,18 +67,21 @@ AbstractStage *StageStore::find(const Dimensions& interface, std::unique_lock<st
     }
 }
 
-AbstractStage *StageStore::insert(std::unique_ptr<AbstractStage> stage, std::unique_lock<std::recursive_mutex>& lock) {
+AbstractStage *StageStore::insert(std::size_t depth, std::unique_ptr<AbstractStage> stage, std::unique_lock<std::recursive_mutex>& lock) {
+    KAS_ASSERT(lock.owns_lock());
     std::size_t bucketIndex = stage->getInterface().hash() % buckets;
-    auto& bucket = bucketsOfStages[bucketIndex];
+    auto& bucket = bucketsOfStages[depth][bucketIndex];
     auto [it, inserted] = bucket.insert(stage.get());
     [[maybe_unused]] auto _ = stage.release();
     return inserted ? *it : nullptr;
 }
 
 StageStore::~StageStore() {
-    for (auto& bucket: bucketsOfStages) {
-        for (auto stage: bucket) {
-            delete stage;
+    for (auto& bigBucket: bucketsOfStages) {
+        for (auto& bucket: bigBucket) {
+            for (auto stage: bucket) {
+                delete stage;
+            }
         }
     }
 }
@@ -116,7 +120,7 @@ std::size_t MutexCountFromNumWorkers(std::size_t numWorkerThreads) {
 Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const std::vector<std::pair<std::size_t, std::size_t>>& fixedIODims, const SampleOptions& options, std::size_t numWorkerThreads):
     rng { options.seed },
     options { options },
-    stageStore { MutexCountFromNumWorkers(numWorkerThreads) },
+    stageStore { options.depth + 1, MutexCountFromNumWorkers(numWorkerThreads) },
     countMutexesInLayer { MutexCountFromNumWorkers(numWorkerThreads) },
     mutexes(options.depth + 1),
     pruner {},
@@ -206,7 +210,7 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         std::unique_lock<std::recursive_mutex> lock;
         // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
         std::tie(rootStage, lock) = ReductionStage::Create(*this, std::move(interface), std::unique_lock<std::recursive_mutex>{});
-        this->rootStage = dynamic_cast<ReductionStage *>(stageStore.insert(std::move(rootStage), lock));
+        this->rootStage = dynamic_cast<ReductionStage *>(stageStore.insert(0, std::move(rootStage), lock));
     }
     KAS_ASSERT(this->rootStage);
 }

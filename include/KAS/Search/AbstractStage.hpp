@@ -327,14 +327,14 @@ protected:
         StageStore& store = sampler.getStageStore();
         auto newInterface = op->applyToInterface(interface);
         Lock lock = std::unique_lock { sampler.getMutex(depth + 1, newInterface) };
-        if (AbstractStage *found = store.find(newInterface, lock); found) {
+        if (AbstractStage *found = store.find(depth + 1, newInterface, lock); found) {
             found->addParent(*this, lock);
             auto childStage = dynamic_cast<ChildStageType *>(found);
             KAS_ASSERT(childStage);
             return { childStage, std::move(lock) };
         } else {
             auto [tempStage, newLock] = ChildStageType::Create(std::move(newInterface), *this, Next::TypeOf(op->getType()), std::move(lock));
-            if(auto it = store.insert(std::move(tempStage), newLock); it) {
+            if (auto it = store.insert(depth + 1, std::move(tempStage), newLock); it) {
                 auto childStage = dynamic_cast<ChildStageType *>(it);
                 KAS_ASSERT(childStage);
                 return { childStage, std::move(newLock) };
