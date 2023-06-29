@@ -238,6 +238,10 @@ void Node::expand(int layers) const {
     sampler->getExpander().expandSync(*this, layers);
 }
 
+void Node::expandAsync(int layers) const {
+    sampler->getExpander().expand(*this, layers);
+}
+
 std::optional<std::string> Node::getChildDescription(Next next) const {
     return match<std::optional<std::string>>(
         [&](AbstractStage *stage) -> std::optional<std::string> {

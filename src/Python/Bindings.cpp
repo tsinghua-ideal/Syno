@@ -211,6 +211,10 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("layers")
         )
         .def(
+            "expand_async", &Node::expandAsync,
+            pybind11::arg("layers")
+        )
+        .def(
             "get_child_description", &Node::getChildDescription,
             pybind11::arg("next")
         )
