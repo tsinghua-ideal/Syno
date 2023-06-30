@@ -35,7 +35,10 @@ struct PointeeEqual {
 };
 
 template<PrimitiveOpImpl Op>
-using OpStore = std::unordered_set<Pointer<Op>, OpHash<Op>, PointeeEqual<Op>>;
+struct OpStore {
+    std::unordered_set<Pointer<Op>, OpHash<Op>, PointeeEqual<Op>> store;
+    std::mutex mutex;
+};
 
 template<typename... Ops>
 struct OpStores {
@@ -86,19 +89,23 @@ public:
     PrimitiveOpStore(PrimitiveOpStore&&) = delete;
     template<PrimitiveOpImpl Op, typename... Args>
     const Op *get(Args&&... args) {
-        auto& store = stores.get<Op>();
+        auto& [store, mutex] = stores.get<Op>();
         static_assert(std::is_same_v<typename std::remove_reference_t<decltype(store)>::key_type, detail::Pointer<Op>>);
         auto op = std::make_unique<Op>(std::forward<Args>(args)...);
-        auto [it, inserted] = store.insert(op.get());
-        if (!inserted) {
-            // Newly allocated op is automatically destroyed.
-            return *it;
+        // Critical section here!
+        {
+            std::lock_guard lock { mutex };
+            auto [it, inserted] = store.insert(op.get());
+            if (!inserted) {
+                // Newly allocated op is automatically destroyed.
+                return *it;
+            }
+            return op.release();
         }
-        return op.release();
     }
     ~PrimitiveOpStore() {
         auto deleteOp = [](auto&& store) {
-            for (auto&& op: store) {
+            for (auto&& op: store.store) {
                 delete op;
             }
         };

@@ -17,14 +17,7 @@ class Explorer:
         self._collected.add(node.to_node())
 
     def _expand(self, fro: Node, depth: int) -> None:
-        if depth <= 0:
-            return
-        for next in fro.get_children_handles():
-            to = fro.get_child(next)
-            if to is None:
-                continue
-            self._add_node(to)
-            self._expand(to, depth - 1)
+        fro.expand(depth)
 
     def interactive(self, working_dir: str = '.') -> None:
         """

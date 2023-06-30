@@ -26,7 +26,7 @@ protected:
         options.maxFLOPs = 1e7;
         return options;
     }();
-    Sampler sampler = {"[N,H,W]", "[N,H,W]", {"N=3:0"}, {"k_1=3:4", "s_1=2"}, {dict}, {{0, 0}}, options};
+    Sampler sampler = {"[N,H,W]", "[N,H,W]", {"N=3:0"}, {"k_1=3:4", "s_1=2"}, {dict}, {{0, 0}}, options, 12};
     const BindingContext& ctx = sampler.getBindingContext();
     search_tests() {
         BindingContext::DebugPublicCtx = &ctx; // For debugging.

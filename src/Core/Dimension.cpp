@@ -79,6 +79,10 @@ std::string Dimension::debugDescendantsDescription() const {
     return BindingContext::ApplyDebugPublicCtx(&Dimension::descendantsDescription, *this);
 }
 
+std::size_t Dimensions::hash() const {
+    return std::hash<Dimensions>{}(*this);
+}
+
 Dimensions Dimensions::insert1(const Dimension& value) const {
     auto newInterface = *this;
     auto insertionPoint = std::lower_bound(newInterface.begin(), newInterface.end(), value, Dimension::HashLessThan{});

@@ -1,20 +1,22 @@
 #pragma once
 
-#include "KAS/Search/DimensionsStage.hpp"
-#include "KAS/Search/Finalize.hpp"
+#include "KAS/Search/AbstractStage.hpp"
+
 
 namespace kas {
 
-class NormalStage final: public DimensionsStage {
+class NormalStage final: public AbstractStageBase<NormalStage> {
+    friend class AbstractStageBase<NormalStage>;
+
     // Lazily generate children.
     bool childrenGenerated = false;
     bool generatingChildren = false;
 
     GenericNextSlotStore<NextFinalizeSlot> nextFinalizations;
-
-    void removeDeadChildrenFromSlots() override;
-    void removeAllChildrenFromSlots() override;
-    Finalizability checkForFinalizableChildren() const override;
+    using Base::CollectedFinalizabilities;
+    void removeDeadChildrenFromSlots(const CollectedFinalizabilities& collected);
+    void removeAllChildrenFromSlots();
+    Finalizability checkForFinalizableChildren(const CollectedFinalizabilities& collected) const;
 
     // This checks whether the nexts are evaluated. If not, it evaluates them.
     void guardGeneratedChildren();
@@ -38,7 +40,7 @@ class NormalStage final: public DimensionsStage {
     template<typename R, typename FP, typename FF>
     requires
         std::convertible_to<std::invoke_result_t<FF, const NextFinalizeSlot&>, R> &&
-        std::convertible_to<std::invoke_result_t<FP, const NextDimensionsStageSlot&>, R>
+        std::convertible_to<std::invoke_result_t<FP, const NextStageSlot&>, R>
     std::optional<R> findTransform(Next next, FP&& fp, FF&& ff) const {
         switch (next.type) {
         case Next::Type::Finalize: {
@@ -60,15 +62,15 @@ public:
         ShapeDeviatesTooMuch,
     );
     // NormalStage cannot be root.
-    NormalStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp);
+    NormalStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock);
 
-    std::size_t countChildren() override;
-    std::vector<Next> getChildrenHandles() override;
-    std::vector<Arc> getChildrenArcs() override;
-    std::optional<Arc> getArcFromHandle(Next next) override;
-    std::optional<Node> getChild(Next next) override;
-    bool canAcceptArc(Arc arc) override;
-    Node getChild(Arc arc) override;
+    std::size_t countChildrenImpl();
+    std::vector<Next> getChildrenHandlesImpl();
+    std::vector<Arc> getChildrenArcsImpl();
+    std::optional<Arc> getArcFromHandleImpl(Next next);
+    std::optional<Node> getChildImpl(Next next);
+    bool canAcceptArcImpl(Arc arc);
+    Node getChildImpl(Arc arc);
 };
 
 } // namespace kas
