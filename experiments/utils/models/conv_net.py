@@ -1,12 +1,11 @@
-from torch import nn, Tensor, Size
-from thop import profile
-from typing import List, Callable
+from torch import nn
+from KAS import Placeholder
 
-from KAS import Placeholder, KernelPack, Sampler
-from .models import KASModule, mapping_func_conv, mapping_func_gray_conv, mapping_func_linear
+from .model import KASModel
+from .mapping import mapping_func_conv, mapping_func_gray_conv
 
 
-class ConvNet(KASModule):
+class ConvNet(KASModel):
     """CNN architecture follows the implementation of DeepOBS (https://github.com/fsschneider/DeepOBS/blob/master/deepobs/tensorflow/testproblems/cifar10_3c3d.py)"""
 
     def __init__(self) -> None:
@@ -26,22 +25,25 @@ class ConvNet(KASModule):
             nn.MaxPool2d(3, 2, 1),
         )
         self.dense = nn.Sequential(
-            nn.Linear(4*4*128, 128),
+            nn.Linear(4 * 4 * 128, 128),
             nn.ReLU(),
             nn.Linear(128, 128),
             nn.ReLU(),
             nn.Linear(128, 10),
         )
 
+    @staticmethod
+    def sample_input_shape():
+        return (3, 32, 32)
+
     def forward(self, image):
-        B = image.size(0)
-        image = image.view(B, 3, 32, 32)
+        batch_size = image.size(0)
         feats = self.conv(image)
-        return self.dense(feats.view(B, -1))
+        return self.dense(feats.view(batch_size, -1))
 
 
-class KASConv(KASModule):
-    def __init__(self) -> None:
+class KASConvNet(KASModel):
+    def __init__(self):
         super().__init__()
         self.conv = nn.Sequential(
             Placeholder(
@@ -75,15 +77,17 @@ class KASConv(KASModule):
             nn.Linear(256, 10),
         )
 
-    def forward(self, image: Tensor) -> Tensor:
-        B = image.size(0)
-        image = image.view(B, 3, 32, 32)
+    def sample_input_shape(self):
+        return (3, 32, 32)
+
+    def forward(self, image):
+        batch_size = image.size(0)
         feats = self.conv(image)
-        return self.dense(feats.view(B, -1))
+        return self.dense(feats.view(batch_size, -1))
 
 
-class KASGrayConv(KASModule):
-    def __init__(self) -> None:
+class KASGrayConvNet(KASModel):
+    def __init__(self):
         super().__init__()
 
         self.conv = nn.Sequential(
@@ -95,9 +99,12 @@ class KASGrayConv(KASModule):
             nn.ReLU(),
             nn.MaxPool2d(4, 4),
         )
-        self.linear = nn.Linear(32*7*7, 10)
+        self.dense = nn.Linear(32 * 7 * 7, 10)
 
-    def forward(self, image: Tensor) -> Tensor:
-        B = image.size(0)
+    def sample_input_shape(self):
+        return (1, 28, 28)
+
+    def forward(self, image):
+        batch_size = image.size(0)
         x = self.conv(image.squeeze(1))
-        return self.linear(x.view(B, -1))
+        return self.dense(x.view(batch_size, -1))
