@@ -71,7 +71,7 @@ BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoeffi
             .alias = "c_" + std::to_string(i),
         };
     }
-    defaultConsts = realizeConsts({});
+    defaultConsts = realizeConsts({}, true);
     updateLookUpTables();
 }
 
@@ -79,7 +79,7 @@ BindingContext::BindingContext(std::vector<Metadata> primaryMetadata, std::vecto
     primaryMetadata { std::move(primaryMetadata) },
     coefficientMetadata { std::move(coefficientMetadata) }
 {
-    defaultConsts = realizeConsts({});
+    defaultConsts = realizeConsts({}, true);
     updateLookUpTables();
 }
 
@@ -100,12 +100,6 @@ std::string BindingContext::getPrimaryAlias(std::size_t index) const {
 }
 std::string BindingContext::getCoefficientAlias(std::size_t index) const {
     return coefficientMetadata.at(index).alias;
-}
-std::size_t BindingContext::getPrimaryEstimate(std::size_t index) const {
-    return primaryMetadata.at(index).estimate;
-}
-std::size_t BindingContext::getCoefficientEstimate(std::size_t index) const {
-    return coefficientMetadata.at(index).estimate;
 }
 
 Size BindingContext::getSinglePrimaryVariableSize(std::size_t index) const {
@@ -174,7 +168,7 @@ void BindingContext::applySpecs(std::vector<std::pair<std::string, Parser::PureS
         primaryMetadata[i] = Metadata {
             .alias = std::move(name),
             .maximumOccurrence = spec.maxOccurrences.value_or(3),
-            .estimate = spec.size.value_or(128),
+            .estimate = spec.size,
         };
     }
     for (std::size_t i = 0; i < coefficientSpecs.size(); ++i) {
@@ -183,34 +177,48 @@ void BindingContext::applySpecs(std::vector<std::pair<std::string, Parser::PureS
             .alias = std::move(name),
             .isOdd = spec.size.value_or(0) % 2 == 1,
             .maximumOccurrence = spec.maxOccurrences.value_or(3),
-            .estimate = spec.size.value_or(3),
+            .estimate = spec.size,
         };
     }
-    defaultConsts = realizeConsts({});
+    defaultConsts = realizeConsts({}, true);
     updateLookUpTables();
 }
 
-ConcreteConsts BindingContext::realizeConsts(const std::map<std::string, std::size_t>& mappings) const {
+ConcreteConsts BindingContext::realizeConsts(const std::map<std::string, std::size_t>& mappings, bool defaultFallback) const {
     ConcreteConsts consts;
-    for (std::size_t i = 0; const auto& metadata: primaryMetadata) {
-        int concrete;
+    for (const auto& metadata: primaryMetadata) {
+        std::size_t concrete;
         if (auto it = mappings.find(metadata.alias); it != mappings.end()) {
-            concrete = static_cast<int>(it->second);
+            concrete = it->second;
         } else {
-            concrete = static_cast<int>(getPrimaryEstimate(i));
+            if (metadata.estimate.has_value()) {
+                concrete = *metadata.estimate;
+            } else {
+                if (defaultFallback) {
+                    concrete = 128;
+                } else {
+                    KAS_CRITICAL("No estimate for primary variable {}", metadata.alias);
+                }
+            }
         }
-        consts.primary.emplace_back(concrete);
-        ++i;
+        consts.primary.emplace_back(static_cast<int>(concrete));
     }
-    for (std::size_t i = 0; const auto& metadata: coefficientMetadata) {
-        int concrete;
+    for (const auto& metadata: coefficientMetadata) {
+        std::size_t concrete;
         if (auto it = mappings.find(metadata.alias); it != mappings.end()) {
-            concrete = static_cast<int>(it->second);
+            concrete = it->second;
         } else {
-            concrete = static_cast<int>(getCoefficientEstimate(i));
+            if (metadata.estimate.has_value()) {
+                concrete = *metadata.estimate;
+            } else {
+                if (defaultFallback) {
+                    concrete = 3;
+                } else {
+                    KAS_CRITICAL("No estimate for coefficient variable {}", metadata.alias);
+                }
+            }
         }
-        consts.coefficient.emplace_back(concrete);
-        ++i;
+        consts.coefficient.emplace_back(static_cast<int>(concrete));
     }
     return consts;
 }
