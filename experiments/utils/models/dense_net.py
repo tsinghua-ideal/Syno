@@ -20,9 +20,8 @@ class FCNet(KASModel):
     def sample_input_shape():
         return (1, 28, 28)
 
-    def forward(self, image):
-        B = image.size(0)
-        x = image.view(B, -1)
+    def forward(self, x):
+        x = x.view(x.size(0), -1)
         x = self.layers(x)
         return x
 
@@ -45,15 +44,14 @@ class KASFCNet(KASModel):
     @staticmethod
     def sampler_parameters():
         return {
-            'input_shape': '[N,C_i]',
-            'output_shape': '[N,C_out]',
-            'primary_specs': ['N=512: 0', 'C_in=200: 2', 'C_out=20: 1'],
+            'input_shape': '[N, C_in]',
+            'output_shape': '[N, C_out]',
+            'primary_specs': ['N: 0', 'C_in: 2', 'C_out: 1'],
             'coefficient_specs': ['k=3: 2'],
             'fixed_io_pairs': [(0, 0)],
         }
 
-    def forward(self, image):
-        B = image.size(0)
-        x = image.view(B, -1)
+    def forward(self, x):
+        x = x.view(x.size(0), -1)
         x = self.layers(x)
         return x

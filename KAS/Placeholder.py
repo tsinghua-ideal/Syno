@@ -6,7 +6,7 @@ from .KernelPack import KernelPack
 
 
 class Placeholder(nn.Module):
-    def __init__(self, mappings: Dict[str, int] = None, refered_layer: nn.Module = None, mapping_func=None) -> None:
+    def __init__(self, mappings: Dict, refered_layer: nn.Module = None, mapping_func=None) -> None:
         super(Placeholder, self).__init__()
         assert mappings is not None or refered_layer is not None
         self.mappings = mappings
@@ -24,7 +24,7 @@ class Placeholder(nn.Module):
 
     def forward(self, x) -> torch.Tensor:
         x_size = x.size()
-        out = self.refered_layer(x) if self.kernel is None else x
+        out = self.refered_layer(x) if self.kernel is None else self.kernel(x)
         
         if self.build_mapping_mode:
             assert self.mapping_func is not None

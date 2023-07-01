@@ -29,6 +29,7 @@ def get_model_and_sampler(args):
     print(f'Reference model {args.model} has {macs * 2 / 1e9:.5f}G FLOPs and {params / 1e6:.2f}M parameters')
 
     # Replace kernel
+    sampler = None
     if args.kas_replace_placeholder is not None:
         # Build mapping with the correct batch size
         sample_input = torch.randn((args.batch_size, *model_cls.sample_input_shape())).cuda()
