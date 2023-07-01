@@ -72,15 +72,20 @@ class AverageMeter:
         else:
             return (False, (self.sum, self.N))
 
-    @staticmethod
-    def deserialize(serial: Tuple[bool, Union[Tuple[float, float, int], Tuple[float, int]]]) -> 'AverageMeter':
+    def load(self, serial: Tuple[bool, Union[Tuple[float, float, int], Tuple[float, int]]]) -> None:
         std_flag, state = serial
-        am = AverageMeter(support_std=std_flag)
-        if std_flag:
-            am.sum, am.sumsq, am.N = state
+        if self.empty():
+            self.support_std = std_flag
+            if std_flag:
+                self.sum, self.sumsq, self.N = state
+            else:
+                self.sum, self.N = state
         else:
-            am.sum, am.N = state
-        return am
+            assert self.support_std == std_flag, "g_rave inconsistency found!"
+            if std_flag:
+                assert (self.sum, self.sumsq, self.N) == state, "g_rave inconsistency found!"
+            else:
+                assert (self.sum, self.N) == state, "g_rave inconsistency found!"
     
     def empty(self) -> bool:
         if self.support_std:

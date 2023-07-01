@@ -1,4 +1,4 @@
-from typing import List, Union, Optional, Dict, Tuple
+from typing import List, Union, Optional, Dict, Tuple, DefaultDict
 import logging
 import math
 from statistics import mean, stdev
@@ -118,7 +118,7 @@ class TreeNode:
         self._is_dead: bool = False
         self._isin_tree: bool = False
         
-        self.l_rave: Dict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
+        self.l_rave: DefaultDict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
         
         # conditional members
         if node.is_final():
@@ -178,7 +178,7 @@ class TreeNode:
         }
         
     def load(self, state_dict: Dict) -> None:
-        self.state = AverageMeter.deserialize(state_dict["state"])
+        self.state.load(state_dict["state"])
         self._last_T = state_dict["_last_T"]
         self._is_dead = state_dict["_is_dead"]
         self._isin_tree = state_dict["_isin_tree"]

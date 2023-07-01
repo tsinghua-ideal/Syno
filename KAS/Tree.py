@@ -1,8 +1,8 @@
 import random
 import math
 import logging
-from collections import defaultdict, OrderedDict
-from typing import List, Tuple, Any, Optional, Dict, MutableSet, Union
+from collections import defaultdict, OrderedDict as ODict
+from typing import List, Tuple, Any, Optional, DefaultDict, MutableSet, Union, OrderedDict, Dict
 
 from .Node import Path, VisitedNode, Node
 from .Sampler import Sampler
@@ -15,11 +15,11 @@ MockArc = Union[Next, Arc]
 class MCTS:
     def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20) -> None:
 
-        self._treenode_store: Dict[Node, TreeNode] = OrderedDict()
+        self._treenode_store: OrderedDict[Node, TreeNode] = ODict()
         self._root = sampler.visit([]).to_node()
         root_node = TreeNode(self._root)
         self._treenode_store[self._root] = root_node
-        self.g_rave: Dict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
+        self.g_rave: DefaultDict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
 
         self._sampler = sampler
         self._exploration_weight = exploration_weight
@@ -29,7 +29,7 @@ class MCTS:
 
         # Tree Parallelization
         self.virtual_loss_constant = virtual_loss_constant
-        self.virtual_loss_count: Dict[TreeNode, int] = defaultdict(
+        self.virtual_loss_count: DefaultDict[TreeNode, int] = defaultdict(
             int)  # node -> virtual loss count
 
         # Leaf Parallelization
@@ -379,12 +379,8 @@ class MCTS:
             child_node = TreeNode(node_, is_mid=True, type=_type)
             
             # Rave
-            tree_node.l_rave[_type] = AverageMeter.deserialize(child_serial["lrave"])
-            g_rave_am = AverageMeter.deserialize(child_serial["grave"])
-            if not self.g_rave[_type].empty():
-                assert g_rave_am == self.g_rave[_type], "g_rave inconsistency found!"
-            else:
-                self.g_rave[_type] = g_rave_am
+            tree_node.l_rave[_type].load(child_serial["lrave"])
+            self.g_rave[_type].load(child_serial["grave"])
             
             child_node.load(child_serial["state"])
             for next, grand_child_index, edge_serial, rave_score in child_serial["children"]:     
@@ -399,14 +395,10 @@ class MCTS:
                 assert grand_child_next == Next(_type, next), (grand_child_next, Next(_type, next))
                 grand_child_arc = child_node._node.get_arc_from_handle(grand_child_next)
                 assert grand_child_arc is not None
-                child_node.edge_states[grand_child_next.key] = AverageMeter.deserialize(edge_serial)
+                child_node.edge_states[grand_child_next.key].load(edge_serial)
                 # Rave
-                child_node.l_rave[grand_child_arc] = AverageMeter.deserialize(rave_score["lrave"])
-                g_rave_am = AverageMeter.deserialize(rave_score["grave"])
-                if grand_child_arc in self.g_rave.keys():
-                    assert g_rave_am == self.g_rave[grand_child_arc], "g_rave inconsistency found!"
-                else:
-                    self.g_rave[grand_child_arc] = g_rave_am
+                child_node.l_rave[grand_child_arc].load(rave_score["lrave"])
+                self.g_rave[grand_child_arc].load(rave_score["grave"])
                 
             tree_node.children.append(child_node)
         if not path.is_root():
@@ -452,3 +444,13 @@ class MCTS:
         for node in key_list:
             if node not in alive_nodes and not node.is_final():
                 self._treenode_store.pop(node)
+        
+        # Clean RAVE dict
+        for k, rave_score in list(self.g_rave.items()):
+            if rave_score.empty():
+                self.g_rave.pop(k)
+                
+        for node, tree_node in self._treenode_store.items():
+            for k, rave_score in list(tree_node.l_rave.items()):
+                if rave_score.empty():
+                    tree_node.l_rave.pop(k)
