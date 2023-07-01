@@ -232,6 +232,7 @@ cython_debug/
 /save/
 /samples/
 /experiments/save
+/experiments/sampler-results
 
 # Files for debug purpose.
 /scaffolding/

@@ -13,6 +13,7 @@
 #include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Utils/Hash.hpp"
+#include "KAS/Utils/Ranges.hpp"
 
 namespace kas {
 
@@ -134,17 +135,17 @@ public:
     std::string toString() const;
 };
 
-class DimensionsStage;
+class AbstractStage;
 
-struct NextDimensionsStageSlot: Next {
+struct NextStageSlot: Next {
     const PrimitiveOp *op;
-    DimensionsStage *nextStage;
-    bool operator==(const NextDimensionsStageSlot& rhs) const noexcept {
+    AbstractStage *nextStage;
+    bool operator==(const NextStageSlot& rhs) const noexcept {
         // This is enough for equality.
         return op == rhs.op;
     }
     // Compare the slots as Next. That is, first compare the type, then compare the hash.
-    std::weak_ordering operator<=>(const NextDimensionsStageSlot& rhs) const noexcept {
+    std::weak_ordering operator<=>(const NextStageSlot& rhs) const noexcept {
         return static_cast<const Next&>(*this) <=> static_cast<const Next&>(rhs);
     }
     static std::size_t GetKey(const PrimitiveOp *op) { return op->opHash(); }
@@ -208,7 +209,7 @@ public:
 
     // Remove all slots that satisfy the predicate.
     template<typename Pred, typename Callback>
-    requires std::predicate<Pred, Slot> && std::invocable<Callback, Slot>
+    requires std::predicate<Pred, const Slot&> && std::invocable<Callback, const Slot&>
     GenericNextSlotStore& remove(Pred&& pred, Callback&& callback) {
         auto [first, last] = std::ranges::remove_if(slots, std::forward<Pred>(pred));
         std::ranges::for_each(first, last, std::forward<Callback>(callback));
@@ -216,9 +217,22 @@ public:
         return *this;
     }
     template<typename Pred>
-    requires std::predicate<Pred, Slot>
+    requires std::predicate<Pred, const Slot&>
     GenericNextSlotStore& remove(Pred&& pred) {
         return remove(std::forward<Pred>(pred), [](const Slot&){});
+    }
+
+    template<typename Pred>
+    requires std::predicate<Pred, std::size_t>
+    GenericNextSlotStore& removeByIndex(Pred&& pred) {
+        decltype(slots) newSlots;
+        for (std::size_t i = 0; i < slots.size(); ++i) {
+            if (!std::invoke(std::forward<Pred>(pred), i)) {
+                newSlots.emplace_back(std::move(slots[i]));
+            }
+        }
+        slots = std::move(newSlots);
+        return *this;
     }
 
     GenericNextSlotStore& clear() {
@@ -233,10 +247,16 @@ public:
         return *this;
     }
     template<typename F>
-    requires std::invocable<F, Slot&>
+    requires std::invocable<F, const Slot&>
     const GenericNextSlotStore& forEach(F&& f) const {
         std::ranges::for_each(slots, std::forward<F>(f));
         return *this;
+    }
+
+    template<typename F>
+    requires std::invocable<F, const Slot&>
+    auto map(F&& f) const -> std::vector<std::decay_t<std::invoke_result_t<F, const Slot&>>> {
+        return ranges::to<std::vector<std::decay_t<std::invoke_result_t<F, const Slot&>>>>(std::views::transform(slots, std::forward<F>(f)));
     }
 
     std::vector<Next> toNexts() const {
@@ -279,7 +299,7 @@ public:
         slots = std::move(newSlots);
     }
 };
-using NextSlotStore = GenericNextSlotStore<NextDimensionsStageSlot>;
+using NextSlotStore = GenericNextSlotStore<NextStageSlot>;
 
 class AbstractStage;
 class ReductionStage;
@@ -373,6 +393,8 @@ public:
     Node getChildFromArc(Arc arc) const;
     std::vector<Next> getPossiblePath() const;
     std::vector<Arc> getComposingArcs() const;
+    void expand(int layers) const;
+    void expandAsync(int layers) const;
     std::optional<std::string> getChildDescription(Next next) const;
     bool isFinal() const { return type() == Type::Final; }
     bool isDeadEnd() const;

@@ -138,9 +138,9 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
                     }
                 }
             }
-            fmt::print("Output tensor: N = {} done. Total correct = {}, incorrect = {}\n", N, cntCorrect, cntIncorrect);
+            fmt::print("Output tensor: N = {} done. Total correct = {}, incorrect = {}\n", N, cntCorrect.load(), cntIncorrect.load());
         }
-        fmt::print("Output tensor: Total correct = {}, incorrect = {}\n", cntCorrect, cntIncorrect);
+        fmt::print("Output tensor: Total correct = {}, incorrect = {}\n", cntCorrect.load(), cntIncorrect.load());
         if (cntIncorrect > 0) {
             success = false;
         }
@@ -159,9 +159,9 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
                     }
                 }
             }
-            fmt::print("Input tensor: N = {} done. Total correct = {}, incorrect = {}\n", N, cntCorrect, cntIncorrect);
+            fmt::print("Input tensor: N = {} done. Total correct = {}, incorrect = {}\n", N, cntCorrect.load(), cntIncorrect.load());
         }
-        fmt::print("Input tensor: Total correct = {}, incorrect = {}\n", cntCorrect, cntIncorrect);
+        fmt::print("Input tensor: Total correct = {}, incorrect = {}\n", cntCorrect.load(), cntIncorrect.load());
         if (cntIncorrect > 0) {
             success = false;
         }
@@ -181,7 +181,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
                 }
             }
         }
-        fmt::print("Weight tensor: Total correct = {}, incorrect = {}\n", cntCorrect, cntIncorrect);
+        fmt::print("Weight tensor: Total correct = {}, incorrect = {}\n", cntCorrect.load(), cntIncorrect.load());
         if (cntIncorrect > 0) {
             success = false;
         }

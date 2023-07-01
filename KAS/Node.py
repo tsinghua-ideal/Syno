@@ -144,6 +144,14 @@ class Node:
         """Get all composing arcs of a node."""
         return self._node.get_composing_arcs()
 
+    def expand(self, layers: int) -> None:
+        """Expand a node given layers deeper."""
+        self._node.expand(layers)
+
+    def expand_async(self, layers: int) -> None:
+        """Expand a node given layers deeper asynchronously."""
+        self._node.expand_async(layers)
+
     def get_child_description(self, next: PseudoNext) -> Optional[str]:
         """Get the description of Next."""
         return self._node.get_child_description(Path.to_next(next))
@@ -270,6 +278,12 @@ class MockNodeMetadata:
 
     def get_composing_arcs(self) -> List[Next]:
         return self.get_possible_path().abs_path
+
+    def expand(self, layers: int) -> None:
+        pass
+
+    def expand_async(self, layers: int) -> None:
+        pass
 
     def _get_child_description_helper(self, next: Next) -> Optional[str]:
         if next in self._mock_children():

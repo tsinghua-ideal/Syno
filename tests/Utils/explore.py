@@ -36,6 +36,7 @@ sampler = Sampler(
     maximum_tensors=3,
     dim_lower=2,
     dim_upper=8,
+    num_worker_threads=12,
     save_path='./saves',
     cuda=torch.cuda.is_available(),
     net=model,

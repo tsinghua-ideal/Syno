@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <iostream>
 
 
@@ -23,9 +24,9 @@
 
 
 #define KAS_STATISTICS_SINGLE(name) \
-    static inline std::size_t Count##name = 0;
+    static inline std::atomic<std::size_t> Count##name = 0;
 #define KAS_STATISTICS_PRINT_SINGLE(name) \
-    os << "  " << #name << " = " << Count##name << std::endl;
+    os << "  " << #name << " = " << Count##name.load() << std::endl;
 
 #define KAS_STATISTICS_DEF(...) \
     KAS_FOR_EACH(KAS_STATISTICS_SINGLE, __VA_ARGS__) \

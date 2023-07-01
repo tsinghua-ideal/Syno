@@ -234,6 +234,14 @@ std::vector<Arc> Node::getComposingArcs() const {
     return std::move(*arcs);
 }
 
+void Node::expand(int layers) const {
+    sampler->getExpander().expandSync(*this, layers);
+}
+
+void Node::expandAsync(int layers) const {
+    sampler->getExpander().expand(*this, layers);
+}
+
 std::optional<std::string> Node::getChildDescription(Next next) const {
     return match<std::optional<std::string>>(
         [&](AbstractStage *stage) -> std::optional<std::string> {
@@ -249,14 +257,14 @@ std::optional<std::string> Node::getChildDescription(Next next) const {
 
 bool Node::isDeadEnd() const {
     return match<bool>(
-        [](AbstractStage *stage) { return stage->getFinalizability() == AbstractStage::Finalizability::No; },
+        [](AbstractStage *stage) { return stage->getFinalizability() == Finalizability::No; },
         [](std::shared_ptr<TensorView> tensor) { return false; }
     );
 }
 
 bool Node::discoveredFinalDescendant() const {
     return match<bool>(
-        [](AbstractStage *stage) { return stage->getFinalizability() == AbstractStage::Finalizability::Yes; },
+        [](AbstractStage *stage) { return stage->getFinalizability() == Finalizability::Yes; },
         [](std::shared_ptr<TensorView> tensor) { return true; }
     );
 }

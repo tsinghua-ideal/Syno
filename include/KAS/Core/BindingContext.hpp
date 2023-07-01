@@ -44,7 +44,7 @@ public:
         std::string alias = "D";
         bool isOdd = false;
         std::size_t maximumOccurrence = 3;
-        std::size_t estimate = 128;
+        std::optional<std::size_t> estimate = std::nullopt;
     };
 
 protected:
@@ -74,8 +74,6 @@ public:
     std::span<const Metadata> getCoefficientMetadata() const;
     std::string getPrimaryAlias(std::size_t index) const;
     std::string getCoefficientAlias(std::size_t index) const;
-    std::size_t getPrimaryEstimate(std::size_t index) const;
-    std::size_t getCoefficientEstimate(std::size_t index) const;
 
     Size getSinglePrimaryVariableSize(std::size_t index) const;
     Size getSingleCoefficientVariableSize(std::size_t index) const;
@@ -97,7 +95,7 @@ public:
     // This overwrites the current metadata.
     void applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs);
 
-    ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings) const;
+    ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings, bool defaultFallback = false) const;
     // This overwrites the current allConsts.
     void applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings);
     const std::vector<ConcreteConsts>& getAllConsts() const { return allConsts; }

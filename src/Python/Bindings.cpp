@@ -207,6 +207,14 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("get_possible_path", &Node::getPossiblePath)
         .def("get_composing_arcs", &Node::getComposingArcs)
         .def(
+            "expand", &Node::expand,
+            pybind11::arg("layers")
+        )
+        .def(
+            "expand_async", &Node::expandAsync,
+            pybind11::arg("layers")
+        )
+        .def(
             "get_child_description", &Node::getChildDescription,
             pybind11::arg("next")
         )
@@ -283,8 +291,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<Sampler>(m, "Sampler")
         .def(
-            pybind11::init<std::string, std::string, std::vector<std::string>, std::vector<std::string>, std::vector<std::map<std::string, std::size_t>>, std::vector<std::pair<std::size_t, std::size_t>>, SampleOptions>(),
-            pybind11::arg("input_shape"), pybind11::arg("output_shape"), pybind11::arg("primary_specs"), pybind11::arg("coefficient_specs"), pybind11::arg("all_mappings"), pybind11::arg("fixed_io_pairs"), pybind11::arg("options"))
+            pybind11::init<std::string, std::string, std::vector<std::string>, std::vector<std::string>, std::vector<std::map<std::string, std::size_t>>, std::vector<std::pair<std::size_t, std::size_t>>, SampleOptions, std::size_t>(),
+            pybind11::arg("input_shape"), pybind11::arg("output_shape"), pybind11::arg("primary_specs"), pybind11::arg("coefficient_specs"), pybind11::arg("all_mappings"), pybind11::arg("fixed_io_pairs"), pybind11::arg("options"), pybind11::arg("num_worker_threads") = 1)
         .def(
             "visit", &Sampler::visit,
             pybind11::arg("path")
