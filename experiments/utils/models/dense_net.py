@@ -2,7 +2,7 @@ from torch import nn
 from KAS import Placeholder
 
 from .model import KASModel
-from .mapping import mapping_func_linear
+from .placeholder import DensePlaceholder
 
 
 class FCNet(KASModel):
@@ -32,10 +32,7 @@ class KASFCNet(KASModel):
         super().__init__()
 
         self.layers = nn.Sequential(
-            Placeholder(
-                refered_layer=nn.Linear(28 * 28, 64),
-                mapping_func=mapping_func_linear
-            ),
+            DensePlaceholder(28 * 28, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Linear(64, 10)
@@ -48,9 +45,9 @@ class KASFCNet(KASModel):
     @staticmethod
     def sampler_parameters():
         return {
-            'input_shape': '[N,C_in]',
+            'input_shape': '[N,C_i]',
             'output_shape': '[N,C_out]',
-            'primary_specs': ['N=64: 0', 'C_in=200: 2', 'C_out=20: 1'],
+            'primary_specs': ['N=512: 0', 'C_in=200: 2', 'C_out=20: 1'],
             'coefficient_specs': ['k=3: 2'],
             'fixed_io_pairs': [(0, 0)],
         }

@@ -2,7 +2,6 @@ from torch import nn
 from KAS import Placeholder
 
 from .model import KASModel
-from .mapping import mapping_func_conv, mapping_func_gray_conv
 
 
 class ConvNet(KASModel):
