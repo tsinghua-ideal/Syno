@@ -207,7 +207,6 @@ class MCTS:
     def back_propagate(self, receipt: Receipt, reward: float, path_to_trail: TreePath) -> None:
         """
         Send the reward back up to the ancestors of the leaf
-        TODO: update l rave iteratively and g rave once. If T changes, then add new nodes. 
         """
         assert isinstance(reward, float)
         assert isinstance(path_to_trail, TreePath)

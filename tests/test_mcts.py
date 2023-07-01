@@ -18,10 +18,10 @@ class Model(nn.Module):
 
 def test_mcts():
     net = Model()
-    sampler = Sampler("[H,W]", "[W]", ["H = 128: 1", "W = 128: 1"], [
-                      "s_1=2: 2", "k=3: 4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
+    sampler = Sampler("[H,W]", "[H,W]", ["H:2", "W:2"], [
+                      "s=3:2", "k=4:4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
     mcts = MCTS(sampler, virtual_loss_constant=1)
-    for idx in range(10):
+    for idx in range(30):
         try:
             receipt, trials = mcts.do_rollout(sampler.root())
             _, path = receipt
