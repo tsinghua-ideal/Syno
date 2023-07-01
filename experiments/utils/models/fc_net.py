@@ -2,7 +2,7 @@ from torch import nn
 from KAS import Placeholder
 
 from .model import KASModel
-from .placeholder import DensePlaceholder
+from .placeholder import LinearPlaceholder
 
 
 class FCNet(KASModel):
@@ -10,28 +10,7 @@ class FCNet(KASModel):
         super().__init__()
 
         self.layers = nn.Sequential(
-            nn.Linear(28 * 28, 64, bias=False),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Linear(64, 10, bias=False),
-        )
-
-    @staticmethod
-    def sample_input_shape():
-        return (1, 28, 28)
-
-    def forward(self, x):
-        x = x.view(x.size(0), -1)
-        x = self.layers(x)
-        return x
-
-
-class KASFCNet(KASModel):
-    def __init__(self) -> None:
-        super().__init__()
-
-        self.layers = nn.Sequential(
-            DensePlaceholder(28 * 28, 64),
+            LinearPlaceholder(28 * 28, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.Linear(64, 10)

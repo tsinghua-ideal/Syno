@@ -1,3 +1,4 @@
+import logging
 import random
 import sys
 import torch
@@ -7,8 +8,8 @@ from KAS.Bindings import CodeGenOptions
 from KAS.Placeholder import build_placeholder_mappings
 
 from . import placeholder
-from .conv_net import ConvNet, KASConvNet, KASGrayConvNet
-from .dense_net import FCNet, KASFCNet
+from .conv_net import ConvNet
+from .fc_net import FCNet
 
 
 def get_model_input_size(args):
