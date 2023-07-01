@@ -114,13 +114,11 @@ class TreeNode:
         
         # states
         self.state = AverageMeter(support_std=True)
-        
         self._last_T: int = 0
-        self.l_rave: Dict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
-        
-        # flags
         self._is_dead: bool = False
         self._isin_tree: bool = False
+        
+        self.l_rave: Dict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
         
         # conditional members
         if node.is_final():
@@ -138,9 +136,12 @@ class TreeNode:
         eq_flag = self._node.__eq__(__value._node) and \
             self._is_mid == __value._is_mid and \
             self._type == __value._type and \
-            self.state_dict == __value.state_dict
+            self.state_dict == __value.state_dict and \
+            self.l_rave == __value.l_rave
         if self._node.is_final():
             eq_flag = eq_flag and self.filtered == __value.filtered and self.reward == __value.reward
+        if self.is_mid:
+            eq_flag = eq_flag and self.edge_states == __value.edge_states
         return eq_flag
 
     def __hash__(self) -> int:
