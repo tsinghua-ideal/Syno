@@ -37,4 +37,8 @@ TEST_F(search_tests, sampler) {
     fmt::print("Success rate: {:.2f} ({} / {})\n", static_cast<float>(successes) / trials, successes, trials);
 }
 
+TEST_F(search_tests, require_value_for_every_variable) {
+    ASSERT_THROW(Sampler("[N,H,W]", "[N,H,W]", {"N=3:0"}, {"k_1=3:4", "s_1=2"}, {{}}, {{0, 0}}), std::runtime_error);
+}
+
 } // namespace kas
