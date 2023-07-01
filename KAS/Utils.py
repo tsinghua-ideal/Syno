@@ -1,5 +1,6 @@
 from .Bindings import Next
 from typing import Dict, Tuple, Union
+import math
 
 class NextSerializer:
     def __init__(self):
@@ -60,10 +61,10 @@ class AverageMeter:
     @property
     def std(self) -> float:
         assert self.support_std, "std is not supported"
-        if self.N <= 1:
+        if self.N <= 1 or self.sumsq / self.N - self.mean * self.mean <= 0:
             return 0
         else:
-            return (self.sumsq / self.N - self.mean * self.mean) ** 0.5
+            return math.sqrt(self.sumsq / self.N - self.mean * self.mean)
     
     def serialize(self) -> Dict:
         if self.support_std:

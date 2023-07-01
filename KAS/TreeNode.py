@@ -124,7 +124,7 @@ class TreeNode:
         if node.is_final():
             self.reward: float = -1
             self.filtered: bool = False
-        if self.is_mid:
+        if self._is_mid:
             self.edge_states: Dict[int, AverageMeter] = defaultdict(partial(AverageMeter, support_std=True))
         else:
             self.children: List["TreeNode"] = []
@@ -140,7 +140,7 @@ class TreeNode:
             self.l_rave == __value.l_rave
         if self._node.is_final():
             eq_flag = eq_flag and self.filtered == __value.filtered and self.reward == __value.reward
-        if self.is_mid:
+        if self._is_mid:
             eq_flag = eq_flag and self.edge_states == __value.edge_states
         return eq_flag
 
@@ -155,13 +155,16 @@ class TreeNode:
     def std(self) -> float:
         return self.state.std
     
+    @property
+    def N(self) -> float:
+        return self.state.N
+    
     def update(self, reward: float, arc: PseudoArc=None) -> None:
         self.state.update(reward)
         if arc:
             assert not self.is_final()
             self.l_rave[arc].update(reward)
             if self._is_mid:
-                assert isinstance(arc, Arc)
                 nxt = arc.to_next()
                 self.edge_states[nxt.key].update(reward)
             
@@ -174,7 +177,7 @@ class TreeNode:
             "_isin_tree": self._isin_tree
         }
         
-    def load(self, state_dict: Dict) -> Dict:
+    def load(self, state_dict: Dict) -> None:
         self.state = AverageMeter.deserialize(state_dict["state"])
         self._last_T = state_dict["_last_T"]
         self._is_dead = state_dict["_is_dead"]
@@ -213,9 +216,11 @@ class TreeNode:
                     return False
             return True
         else:
-            return all([c._isin_tree for _, c in self.get_children(factory)])
+            return all([c._isin_tree for _, c, _ in self.get_children(factory)])
     
     def flush_T(self, T:int, factory: Dict[Node, "TreeNode"], g_rave: Dict[Arc, AverageMeter], c_l: float, b: float) -> None:
+        if self._last_T == T:
+            return
         Tp = math.floor(T ** b)
         orig_Tp = math.floor(self._last_T ** b)
         if Tp > orig_Tp:
@@ -230,11 +235,11 @@ class TreeNode:
         """
         logging.debug("Add new children to {}".format(self))
         assert not self.is_fully_in_tree(factory)
-        def rave(key: Tuple[PseudoTreeNext, TreeNode]) -> float:
+        def rave(key: Tuple[PseudoTreeNext, TreeNode, AverageMeter]) -> float:
             """
             (1-β) l-RAVE + β g-RAVE
             """
-            next, _ = key
+            next, _, _ = key
             if self._is_mid:
                 arc = self._node.get_arc_from_handle(Next(self._type, next))
                 assert arc is not None
@@ -247,18 +252,19 @@ class TreeNode:
         if len(unadded_children) == 0:
             assert self.is_fully_in_tree(factory), f"{self} is not fully expanded"
             return
-        _, child = max(unadded_children, key=rave)
+        _, child, _ = max(unadded_children, key=rave)
         child._isin_tree = True
 
-    def get_unadded_children(self, factory: Dict[Node, "TreeNode"]) -> List[Tuple[PseudoTreeNext, "TreeNode"]]:
+    def get_unadded_children(self, factory: Dict[Node, "TreeNode"]) -> List[Tuple[PseudoTreeNext, "TreeNode", AverageMeter]]:
         children = self.get_children(factory)
         unadded_children = [child for child in children if not child[1]._isin_tree]
         return unadded_children
     
-    def get_unexpanded_children(self, factory: Dict[Node, "TreeNode"], on_tree: bool=False) -> List[Tuple[PseudoTreeNext, "TreeNode"]]:
+    def get_unexpanded_children(self, factory: Dict[Node, "TreeNode"], on_tree: bool=False) -> List[Tuple[PseudoTreeNext, "TreeNode", AverageMeter]]:
         children = self.get_children(factory)
         unexpanded_children = [child for child in children if child[1].N == 0]
-        if on_tree: return [child for child in unexpanded_children if child[1]._isin_tree]
+        if on_tree: 
+            return [child for child in unexpanded_children if child[1]._isin_tree]
         return unexpanded_children
     
     def get_children(self, factory: Dict[Node, "TreeNode"], auto_initialize: bool=True, on_tree: bool=False) -> List[Tuple[PseudoTreeNext, "TreeNode", AverageMeter]]:
@@ -274,9 +280,9 @@ class TreeNode:
             
             # Remove filtered and dead children. 
             filtered = [
-                (nxt, c, edge) 
-                for (c, edge), nxt in zip(children, nexts) 
-                    if (c is not None) and not c.is_dead_end(factory)
+                (nxt, c[0], c[1]) 
+                for c, nxt in zip(children, nexts) 
+                    if (c is not None) and not c[0].is_dead_end(factory)
             ]
             nexts = [nxt for nxt, _, _ in filtered]
             children = [c for _, c, _ in filtered]
@@ -295,7 +301,7 @@ class TreeNode:
         if auto_initialize and not on_tree and len(children) == 0: # No children exists
             self._is_dead = True
         if on_tree:
-            return [(nxt, c) for nxt, c in zip(nexts, children) if c._isin_tree]
+            return [(nxt, c, e) for nxt, c, e in zip(nexts, children, edge_states) if c._isin_tree]
         return list(zip(nexts, children, edge_states))
 
     def get_child(self, next: PseudoTreeNext, factory: Dict[Node, "TreeNode"] = None, auto_initialize: bool=True, on_tree: bool=False) -> Optional[Tuple["TreeNode", AverageMeter]]:
@@ -357,7 +363,9 @@ class TreeNode:
                 return False
     
     def is_final(self) -> bool:
-        """Check if a node is final, which means it can be realized as a Halide kernel."""
+        """
+        Check if a node is final, which means it can be realized as a Halide kernel. 
+        """
         if self._is_mid:
             return False
         return self._node.is_final()

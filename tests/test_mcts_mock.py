@@ -21,6 +21,7 @@ def test_remove():
     mcts.remove(receipt, trials[0][1])
     
     assert mcts.do_rollout(sampler.root()) is None
+    print("[PASSED] test_remove")
     
 def test_final_select():
     
@@ -47,6 +48,8 @@ def test_final_select():
     mcts.back_propagate(receipt, 0.5, node[0][0])
     
     mcts.do_rollout(sampler.root())
+    
+    print("[PASSED] test_final_select")
 
 def test_mcts():
     vertices = ['root', 'a', 'b', {'name': 'final', 'is_final': True}]
@@ -64,11 +67,11 @@ def test_mcts():
     for idx in range(2):
         receipt, trials = mcts.do_rollout(sampler.root())
         _, path = receipt
-        node = trials
-        print(f"Iteration {idx}. Sampled {node} for {path}")
-        mcts.back_propagate(receipt, 0.5, node[0][0])
+        print(f"Iteration {idx}. Sampled {trials} for {path}")
+        mcts.back_propagate(receipt, 0.5, trials[0][0])
+        print("Tree after first two iterations", [(v, v.N) for _, v in mcts._treenode_store.items()])
         
-    print("Tree after first two iterations", [v for _, v in mcts._treenode_store.items() if v.N > 0])
+    print("Tree after first two iterations", [(v, v.N) for _, v in mcts._treenode_store.items()])
     assert len(mcts._treenode_store.keys()) == 3
     assert len([v for _, v in mcts._treenode_store.items() if v.N > 0]) == 2
     
@@ -112,6 +115,8 @@ def test_mcts():
         assert v == mcts_recover._treenode_store[k], f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
     
     os.remove("test_mcts.json")
+    
+    print("[PASSED] test_mcts")
 
 
 def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
@@ -146,10 +151,12 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
     root = mcts._treenode_store[sampler.visit([]).to_node()]
     assert root.N == num_iter * leaf_num, f"Root node has {root.N} visits, should be {num_iter * leaf_num}"
     assert abs(root.mean - 0.9) <= eps, f"Q/N of root is {root.mean}, which has absolute error {abs(root.mean - 0.9)} > {eps}"
+    
+    print("[PASSED] test_convergence")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    test_mcts()
     test_remove()
     test_final_select()
+    test_mcts()
     test_converge()
