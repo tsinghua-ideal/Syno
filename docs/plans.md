@@ -91,18 +91,19 @@
 - [x] Two-step primitive selection. 
 - [x] Cache searched nodes. 
 - [ ] Parametrize filtering and reward returning. 
-- [ ] Search State and Result Saving (path, mcts, etc.). 
+- [x] Search State and Result Saving (path, mcts, etc.). 
 - [ ] Experiment on MNIST. 
 - [ ] Experiment on CIFAR10. 
 - [ ] Reward formatting. 
-- [ ] Stop automatically when the space is exhausted. 
+- [x] Stop automatically when the space is exhausted. 
 
-- [ ] Reformat MCTS
-- [ ] Serialization and Deserialization
-- [ ] Mock test for MCTS (DAG)
-    - [ ] update
-    - [ ] serialization & deserialization
-    - [ ] virtual loss
+- [-] Implement FUSE
+- [ ] Implement AlphaFUSE
+- [x] Serialization and Deserialization
+- [x] Mock test for MCTS (DAG)
+    - [x] update
+    - [x] serialization & deserialization
+    - [x] virtual loss
 
 ### Train
 

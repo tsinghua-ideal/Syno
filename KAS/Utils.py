@@ -1,5 +1,5 @@
 from .Bindings import Next
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 
 class NextSerializer:
     def __init__(self):
@@ -28,34 +28,67 @@ class NextSerializer:
         return Next(next_type, key)
 
 class AverageMeter:
-    def __init__(self) -> None:
+    def __init__(self, support_std=False) -> None:
         self.sum: float = 0
+        if support_std:
+            self.sumsq: float = 0
         self.N: int = 0
+        self.support_std: bool = support_std
     
     def __eq__(self, __value: 'AverageMeter') -> bool:
         assert isinstance(__value, AverageMeter)
-        return self.sum == __value.sum and self.N == __value.N
+        if not self.support_std == __value.support_std: 
+            return False
+        eq_flag = self.sum == __value.sum and self.N == __value.N
+        if self.support_std: 
+            eq_flag = eq_flag and self.sumsq == __value.sumsq
+        return eq_flag
     
     def update(self, val: float) -> None:
         self.sum += val
+        if self.support_std:
+            self.sumsq += val * val
         self.N += 1
     
     @property
-    def avg(self) -> float:
-        if self.N == 0: return 0
-        return self.sum / self.N
+    def mean(self) -> float:
+        if self.N == 0: 
+            return 0
+        else:
+            return self.sum / self.N
+    
+    @property
+    def std(self) -> float:
+        assert self.support_std, "std is not supported"
+        if self.N <= 1:
+            return 0
+        else:
+            return (self.sumsq / self.N - self.mean * self.mean) ** 0.5
     
     def serialize(self) -> Dict:
-        return (self.sum, self.N)
+        if self.support_std:
+            return (True, (self.sum, self.sumsq, self.N))
+        else:
+            return (False, (self.sum, self.N))
 
     @staticmethod
-    def deserialize(serial: Tuple[float, int]) -> 'AverageMeter':
-        am = AverageMeter()
-        am.sum, am.N = serial
+    def deserialize(serial: Tuple[bool, Union[Tuple[float, float, int], Tuple[float, int]]]) -> 'AverageMeter':
+        std_flag, state = serial
+        am = AverageMeter(support_std=std_flag)
+        if std_flag:
+            am.sum, am.sumsq, am.N = state
+        else:
+            am.sum, am.N = state
         return am
     
     def empty(self) -> bool:
-        return self.sum == 0 and self.N == 0
+        if self.support_std:
+            return self.sum == 0 and self.sumsq == 0 and self.N == 0
+        else:
+            return self.sum == 0 and self.N == 0
     
     def __repr__(self) -> str:
-        return f"AverageMeter(sum={self.sum}, N={self.N})"
+        if self.support_std:
+            return f"AverageMeter(sum={self.sum}, sumsq={self.sumsq}, N={self.N})"
+        else:
+            return f"AverageMeter(sum={self.sum}, N={self.N})"

@@ -14,7 +14,6 @@ from .Utils import NextSerializer, AverageMeter
 class MCTS:
     def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20) -> None:
 
-        # Dict[Node, TreeNode]
         self._treenode_store: Dict[Node, TreeNode] = OrderedDict()
         self._root = sampler.visit([]).to_node()
         root_node = TreeNode(self._root)
@@ -176,19 +175,19 @@ class MCTS:
     def _simulate(self, path: TreePath, node: TreeNode) -> Optional[Tuple[TreePath, TreeNode]]:
         "Returns a random simulation (to completion) of `node`"
 
-        def random_child(node: TreeNode) -> Optional[Tuple[TreePath, TreeNode]]:
+        def random_child(node: TreeNode) -> Optional[Tuple[TreePath, TreeNode, AverageMeter]]:
             """
             Two step random selection. First, randomly select a primitive type. Then, randomly select a child of that type.
             """
             assert isinstance(node, TreeNode)
             children = node.get_children(self._treenode_store)
-            assert all([not c.is_dead_end(self._treenode_store) for _, c in children])
+            assert all([not c.is_dead_end(self._treenode_store) for _, c, _ in children])
             # logging.debug(f"{node} has children {children}")
             if len(children) == 0:
                 return None
-            next, selected_child = random.choice(children)
+            next, selected_child, edge_state = random.choice(children)
             # logging.debug(f"Random selected {next}: {selected_child}")
-            return next, selected_child
+            return next, selected_child, edge_state
 
         while not node.is_terminal(self._treenode_store):
             random_select_result = random_child(node)
@@ -196,7 +195,7 @@ class MCTS:
                 logging.debug(f"Simulation Encountered dead father {node}")
                 assert node.is_dead_end(self._treenode_store)
                 return None
-            next, node = random_select_result
+            next, node, edge_state = random_select_result
             path = path.concat(next)
         if node.is_dead_end(self._treenode_store): # is dead end
             logging.debug(f"Simulation Encountered dead end {node}")
@@ -217,10 +216,7 @@ class MCTS:
         
         def update_stats(node: TreeNode, reward: float, arc: PseudoArc = None) -> None:
             node.update(reward, arc)
-            
-            children = node.get_children(self._treenode_store, on_tree=True)
-            N_children = [child.N for _, child in children]
-            node.flush_T(1 + sum(N_children), self._treenode_store, self.g_rave, self._c_l, self._b)
+            node.flush_T(node.state.N, self._treenode_store, self.g_rave, self._c_l, self._b)
         
         node = self._treenode_store[node.to_node()]
         for next in path:
@@ -258,7 +254,9 @@ class MCTS:
 
     # Here, the returned Any is just an element in the path. The type depends on how we build the search tree. If we follow the C++ implementation, it should be a kas_cpp_bindings.Next. If we use two-step generation for primitives, it should be either Union[primitive type, index of primitive], which is not yet implemented.
     def _ucd_select(self, node: TreeNode) -> Optional[Tuple[PseudoTreeNext, TreeNode]]:
-        "Select a child of node, balancing exploration & exploitation"
+        """
+        Select a child of node, balancing exploration & exploitation
+        """
 
         children = node.get_children(self._treenode_store, on_tree=True)
         if len(children) == 0:
@@ -269,25 +267,20 @@ class MCTS:
         # All children of node should already be expanded:
         assert len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
 
-        N_children = [child.N for _, child in children]
-        log_N_vertex = math.log(1 + sum(N_children))
-        assert all([N > 0 for N in N_children])
-        
-        # flush T_F
-        node.flush_T(1 + sum(N_children), self._treenode_store, self.g_rave, self._c_l, self._b)
+        log_N_vertex = math.log(node.state.N)
 
-        def ucd(key: Tuple[PseudoTreeNext, TreeNode]) -> float:
+        def ucb1_tuned(key: Tuple[PseudoTreeNext, TreeNode, AverageMeter]) -> float:
             """
             Upper confidence bound for trees.
             We save the tree as a DAG since multiple paths lead to a same node (by using different order of the primitives). Therefore, UCD (https://hal.science/hal-01499672/document) shall be used instead. (Now we use only a simple version of UCD, which is not the same as the one in the paper.)
             TOTST: Implement the UCB1-tuned. 
             """
-            _, child = key
-            return child.mean + self._exploration_weight * math.sqrt(
-                (log_N_vertex / child.N) * min(0.25, child.std * child.std + math.sqrt(2 * log_N_vertex / child.N))
+            _, child, edge = key
+            return edge.mean + self._exploration_weight * math.sqrt(
+                (log_N_vertex / edge.N) * min(0.25, edge.std * edge.std + math.sqrt(2 * log_N_vertex / edge.N))
             ) - self.virtual_loss_constant * self.virtual_loss_count[child]
 
-        selected_child = max(children, key=ucd)
+        selected_child = max(children, key=ucb1_tuned)
 
         return selected_child
 
@@ -306,45 +299,45 @@ class MCTS:
         # index each node
         index = {n: i for i, n in enumerate(nodes)}
 
-        # dump father's n, q
-        # dump children's n, q, filtered
+        # dump father"s n, q
+        # dump children"s n, q, filtered
         for i, n in enumerate(nodes):
             logging.debug(f"dumping node {i}")
             father = self._treenode_store[n]
 
             node_serial = {}
-            node_serial['index'] = i
-            node_serial['father'] = {}
-            node_serial['father']['state'] = father.state_dict
+            node_serial["index"] = i
+            node_serial["father"] = {}
+            node_serial["father"]["state"] = father.state_dict
             if father.is_final():
-                node_serial['father']['filtered'] = father.filtered
-                node_serial['father']['reward'] = father.reward
-            node_serial['children'] = {}
+                node_serial["father"]["filtered"] = father.filtered
+                node_serial["father"]["reward"] = father.reward
+            node_serial["children"] = {}
             logging.debug("dumping children")
-            for next, child in father.get_children(self._treenode_store, auto_initialize=False):
+            for next, child, _ in father.get_children(self._treenode_store, auto_initialize=False):
                 assert isinstance(next, Next.Type)
                 next_serial = self.next_serializer.serialize_type(next)
                 children = [
-                    (n, index[c.to_node()]) 
-                        for n, c in child.get_children(self._treenode_store, auto_initialize=False) 
+                    (n, index[c.to_node()], e) 
+                        for n, c, e in child.get_children(self._treenode_store, auto_initialize=False) 
                         if c._node in index
                 ]
                 children_with_rave_score: List[Tuple[PseudoTreeNext, int, Dict[str, Dict]]] = []
-                for n, ind in children:
+                for n, ind, e in children:
                     arc = child._node.get_arc_from_handle(Next(next, n))
                     assert arc is not None
                     lrave = child.l_rave[arc].serialize()
                     grave = self.g_rave[arc].serialize()
                     rave_score = {
-                        'lrave': lrave,
-                        'grave': grave
+                        "lrave": lrave,
+                        "grave": grave
                     }
-                    children_with_rave_score.append((n, ind, rave_score))
-                node_serial['children'][next_serial] = {
-                        'state': child.state_dict, 
-                        'lrave': father.l_rave[next].serialize(),
-                        'grave': self.g_rave[next].serialize(),
-                        'children': children_with_rave_score
+                    children_with_rave_score.append((n, ind, e.serialize(), rave_score))
+                node_serial["children"][next_serial] = {
+                        "state": child.state_dict, 
+                        "lrave": father.l_rave[next].serialize(),
+                        "grave": self.g_rave[next].serialize(),
+                        "children": children_with_rave_score
                     }
 
             node_list.append(node_serial)
@@ -371,26 +364,26 @@ class MCTS:
         
         node_ = node_visited.to_node()
         tree_node = self._treenode_store[node_] if path.is_root() else TreeNode(node_)
-        tree_node.load(node['father']['state'])
+        tree_node.load(node["father"]["state"])
         tree_node.children = []
         if tree_node.is_final():
-            tree_node.reward = node['father']['reward']
-            tree_node.filtered = node['father']['filtered']
-        for _type_serial, child_serial in node['children'].items():
+            tree_node.reward = node["father"]["reward"]
+            tree_node.filtered = node["father"]["filtered"]
+        for _type_serial, child_serial in node["children"].items():
             _type = self.next_serializer.deserialize_type(_type_serial)
             child_path = path.concat(_type)
             child = TreeNode(node_, is_mid=True, type=_type)
             
             # Rave
-            tree_node.l_rave[_type] = AverageMeter.deserialize(child_serial['lrave'])
-            g_rave_am = AverageMeter.deserialize(child_serial['grave'])
+            tree_node.l_rave[_type] = AverageMeter.deserialize(child_serial["lrave"])
+            g_rave_am = AverageMeter.deserialize(child_serial["grave"])
             if not self.g_rave[_type].empty():
                 assert g_rave_am == self.g_rave[_type], "g_rave inconsistency found!"
             else:
                 self.g_rave[_type] = g_rave_am
             
-            child.load(child_serial['state'])
-            for next, grand_child_index, rave_score in child_serial['children']:     
+            child.load(child_serial["state"])
+            for next, grand_child_index, edge_serial, rave_score in child_serial["children"]:     
                 grand_child_path = child_path.concat(next)
                 child_node = self._add_node(
                     grand_child_path, 
@@ -402,9 +395,10 @@ class MCTS:
                 assert grand_child_next == Next(_type, next), (grand_child_next, Next(_type, next))
                 grand_child_arc = child._node.get_arc_from_handle(grand_child_next)
                 assert grand_child_arc is not None
+                child_node.edge_states[grand_child_next.key] = AverageMeter.deserialize(edge_serial)
                 # Rave
-                child_node.l_rave[grand_child_arc] = AverageMeter.deserialize(rave_score['lrave'])
-                g_rave_am = AverageMeter.deserialize(rave_score['grave'])
+                child_node.l_rave[grand_child_arc] = AverageMeter.deserialize(rave_score["lrave"])
+                g_rave_am = AverageMeter.deserialize(rave_score["grave"])
                 if grand_child_arc in self.g_rave.keys():
                     assert g_rave_am == self.g_rave[grand_child_arc], "g_rave inconsistency found!"
                 else:
@@ -416,12 +410,12 @@ class MCTS:
         return tree_node
 
     @staticmethod
-    def deserialize(serialized: dict, sampler: Sampler) -> 'MCTS':
+    def deserialize(serialized: dict, sampler: Sampler) -> "MCTS":
         """Deserialize a serialized tree and return a Tree object"""
 
-        params = serialized['args']
-        node_list = serialized['node_list']
-        node_factory = {n['index']: n for n in node_list}
+        params = serialized["args"]
+        node_list = serialized["node_list"]
+        node_factory = {n["index"]: n for n in node_list}
         tree = MCTS(sampler, **params)
         root_node = node_factory[0]
         tree._add_node(TreePath([]), root_node, node_factory)
@@ -441,7 +435,7 @@ class MCTS:
             children = node.get_children(self._treenode_store, False)
             alive_flag = node.N > 0 or node.is_final() or (keep_tree_node and node._isin_tree) or node.is_dead_end(self._treenode_store)
             if not node.is_dead_end(self._treenode_store):
-                for _, child in children:
+                for _, child, _ in children:
                     child_alive_flag = label_alive(child)
                     alive_flag = alive_flag or child_alive_flag
             if alive_flag:
