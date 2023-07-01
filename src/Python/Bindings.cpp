@@ -145,6 +145,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def_readwrite("key", &Next::key)
         .def("__eq__", &Next::operator==)
         .def("__hash__", &Next::hash)
+        .def("to_next", [](const Next& self) -> Next { return self; })
         .def("__repr__", &Next::toString);
 
     pybind11::class_<Kernel>(m, "Kernel")
