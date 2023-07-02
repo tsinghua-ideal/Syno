@@ -24,7 +24,7 @@ TEST_F(codegen_tests, generate) {
     std::cout << sample.printNestedLoopsForAll(ctx);
     HalideGen gen { ctx, sample, HalideGen::Options() };
     auto consts = ctx.realizeConsts({});
-    gen.generate("./kernel_codegen_test", "kernel_codegen_test", consts);
+    gen.generate("./kernel_codegen_test/forward", "./kernel_codegen_test/backward", "codegen_test_forward", "codegen_test_backward", consts, &std::cout);
 }
 
 } // namespace kas

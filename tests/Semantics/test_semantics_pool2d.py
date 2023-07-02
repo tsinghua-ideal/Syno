@@ -7,13 +7,14 @@ import os
 def test_pool2d():
     device = torch.device("cuda:0")
 
-    loader = KAS.KernelPack.load_kernels(
-        directory=os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../build/tests/Semantics/kernel_pool2d"),
-        name="pool2d",
-        count_inputs=1,
-        count_kernels=1,
-        device=device,
-    )
+    loader = KAS.Bindings.Loader(KAS.Bindings.LoaderArgs(
+        os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../build/tests/Semantics/kernel_pool2d/kernels.so"),
+        "pool2d",
+        True,
+        1,
+        1,
+        [0]
+    ))
 
     # Run CTests before this to generate the kernel
     pack = KAS.KernelPack(

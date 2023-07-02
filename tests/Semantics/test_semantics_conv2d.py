@@ -8,13 +8,14 @@ import os
 def test_conv2d():
     device = torch.device("cuda:0")
 
-    loader = KAS.KernelPack.load_kernels(
-        directory=os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../build/tests/Semantics/kernel_conv2d"),
-        name="conv2d",
-        count_inputs=2,
-        count_kernels=1,
-        device=device,
-    )
+    loader = KAS.Bindings.Loader(KAS.Bindings.LoaderArgs(
+        os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../build/tests/Semantics/kernel_conv2d/kernels.so"),
+        "conv2d",
+        True,
+        2,
+        1,
+        [0]
+    ))
 
     # Run CTests before this to generate the kernel
     pack = KAS.KernelPack(

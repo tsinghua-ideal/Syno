@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -12,10 +13,22 @@ class Tensor;
 
 namespace kas {
 
+// This is weird, we cannot include `KAS/CodeGen/Common.hpp` but have to paste it here.
+// TODO: Include `KAS/CodeGen/Common.hpp`.
+struct LoaderArgs {
+    std::filesystem::path path;
+    std::string symbol;
+    bool cuda;
+    std::size_t countInputs;
+    std::size_t countKernels;
+    std::vector<std::size_t> validPlaceholdersIndices;
+};
+
 class Loader {
     bool cuda;
     std::size_t countInputs;
     void *handle;
+    std::vector<std::size_t> validPlaceholdersIndices;
     std::vector<void *> forwardPipelines;
     std::vector<void *> backwardPipelines;
 
@@ -23,7 +36,7 @@ class Loader {
 
 public:
     // Loads the dynamic library, and retrieves the function pointers.
-    Loader(const std::string& path, const std::string& symbol, bool cuda, std::size_t countInputs, std::size_t countKernels);
+    Loader(const LoaderArgs& args);
     Loader(const Loader&) = delete;
     Loader(Loader&&) = delete;
     // Calls the forward pipeline.

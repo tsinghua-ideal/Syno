@@ -23,11 +23,7 @@ protected:
     Input input;
 
 public:
-    ShiftOp(auto&& output, int shift):
-        RepeatLikeOp { std::forward<decltype(output)>(output) },
-        shift { shift },
-        input { this }
-    {}
+    ShiftOp(const Dimension& output, int shift);
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
     Dimension getInput() const override { return &input; }
@@ -48,5 +44,7 @@ public:
     )
     static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const Dimensions& outputShape, const GenerateOptions& options);
 };
+
+static_assert(PrimitiveOpImpl<ShiftOp>);
 
 } // namespace kas

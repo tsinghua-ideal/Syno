@@ -120,12 +120,12 @@ std::shared_ptr<TensorView> Node::asFinal() const {
     return std::get<std::shared_ptr<TensorView>>(inner);
 }
 
-std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const {
+std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options, const std::filesystem::path& directory, const std::string& name) const {
     auto final = asFinal();
     if (!final) {
         return nullptr;
     }
-    return std::make_unique<Kernel>(*final, sampler->getBindingContext(), allMappings, std::move(options));
+    return std::make_unique<Kernel>(sampler->getBindingContext(), *final, allMappings, std::move(options), directory, name);
 }
 
 std::size_t Node::estimateTotalFLOPsAsFinal() const {
@@ -138,27 +138,27 @@ std::size_t Node::estimateTotalFLOPsAsFinal() const {
     return result;
 }
 
-void Node::generateGraphviz(const std::string& dir, const std::string& name) const {
+void Node::generateGraphviz(const std::filesystem::path& path, const std::string& name) const {
     const auto& ctx = sampler->getBindingContext();
     match<void>(
         [&](ReductionStage *rStage) {
             GraphvizGen gen { rStage->getInterface(), ctx };
-            gen.generate(dir, name);
+            gen.generate(path, name);
         },
         [&](NormalStage *nStage) {
             GraphvizGen gen { nStage->getInterface(), ctx };
-            gen.generate(dir, name);
+            gen.generate(path, name);
         },
         [&](std::shared_ptr<TensorView>) -> void {
-            generateGraphvizAsFinal(dir, name);
+            generateGraphvizAsFinal(path, name);
         }
     );
 }
 
-void Node::generateGraphvizAsFinal(const std::string& dir, const std::string& name) const {
+void Node::generateGraphvizAsFinal(const std::filesystem::path& path, const std::string& name) const {
     auto final = asFinal();
     GraphvizGen gen { *final, sampler->getBindingContext() };
-    gen.generate(dir, name);
+    gen.generate(path, name);
 }
 
 std::string Node::getNestedLoopsAsFinal() const {

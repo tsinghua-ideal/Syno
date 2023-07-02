@@ -16,6 +16,14 @@ const Size& MergeOp::Input::size() const noexcept {
     }
 }
 
+MergeOp::MergeOp(const Dimension& output, const Size& block):
+    MergeLikeOp { output },
+    minorSize { block },
+    majorSize { this->output.size() / this->minorSize },
+    inputLhs { this, Order::Left },
+    inputRhs { this, Order::Right }
+{}
+
 std::size_t MergeOp::initialHash() const noexcept {
     std::size_t h = DimensionTypeHash(Type);
     HashCombine(h, minorSize);

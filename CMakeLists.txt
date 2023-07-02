@@ -16,6 +16,10 @@ find_package(Boost REQUIRED COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
 
+# JSON support
+find_package(nlohmann_json REQUIRED)
+link_libraries(nlohmann_json::nlohmann_json)
+
 # fmtlib
 find_package(fmt REQUIRED)
 link_libraries(fmt::fmt-header-only)

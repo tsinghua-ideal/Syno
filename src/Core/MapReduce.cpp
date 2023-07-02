@@ -37,6 +37,26 @@ std::string MapReduce::what(ReduceType type) {
     KAS_UNREACHABLE();
 }
 
+MapReduce::MapReduce(std::size_t priority, const Size& domain, MapType mapType, ReduceType reduceType):
+    priority { priority },
+    domain { domain },
+    mapType { mapType },
+    reduceType { reduceType }
+{}
+
+std::size_t MapReduce::hash() const noexcept {
+    using namespace std::string_view_literals;
+    constexpr int SizeTypeWidth = std::numeric_limits<std::size_t>::digits;
+    constexpr int ExpectedMaximumMapReduces = 8;
+    std::size_t h = DimensionTypeHash(DimensionType::MapReduce);
+    HashCombine(h, mapType);
+    HashCombine(h, reduceType);
+    static const auto mapReducePriorityHash = std::hash<std::string_view>{}("MapReduceIndex"sv);
+    HashCombine(h, std::rotl(mapReducePriorityHash, SizeTypeWidth / ExpectedMaximumMapReduces * priority));
+    HashCombine(h, domain);
+    return h;
+}
+
 std::string MapReduce::whatMap() const {
     return what(mapType);
 }

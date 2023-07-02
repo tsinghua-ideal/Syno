@@ -55,4 +55,6 @@ public:
     static std::vector<const UnfoldOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
 };
 
+static_assert(PrimitiveOpImpl<UnfoldOp>);
+
 } // namespace kas

@@ -31,6 +31,7 @@
 - [x] Add support for more arithmetic operations, other than product.
 - [x] Add nested loops codegen for expression.
 - [ ] Generate metadata along with kernels.
+- [ ] Adjust the order of dimensions in weights for better cache locality.
 
 ## Transforms
 
@@ -81,7 +82,7 @@
 - [x] Robustify the TensorView -> Path function.
 - [ ] Add visualization for search space, e.g., draw the DAG interactively.
 - [x] Node -> Graphviz.
-- [ ] Replace `Next` with `Arc`.
+- [x] Replace `Next` with `Arc`.
 
 ## Experiment
 

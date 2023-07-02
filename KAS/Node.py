@@ -172,8 +172,8 @@ class Node:
         """Check if a node is terminal, which means it is either final or a dead end."""
         return self.is_final() or self.is_dead_end()
 
-    def _realize_as_final(self, all_mappings: List[Dict[str, int]], halide_options: Bindings.CodeGenOptions) -> Bindings.Kernel:
-        return self._node.realize_as_final(all_mappings, halide_options)
+    def _realize_as_final(self, all_mappings: List[Dict[str, int]], halide_options: Bindings.CodeGenOptions, dir: str, name: str) -> Bindings.Kernel:
+        return self._node.realize_as_final(all_mappings, halide_options, dir, name)
 
     def estimate_total_flops_as_final(self) -> int:
         return self._node.estimate_total_flops_as_final()

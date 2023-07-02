@@ -7,17 +7,11 @@ import torch.utils.cpp_extension
 from torch import nn
 from typing import List, Tuple, Union
 
-from .Bindings import Loader
+from . import Bindings
 
 
 class KernelPack(nn.Module):
     """A wrapper for the generated kernel."""
-
-    @staticmethod
-    def load_kernels(directory: str, name: str, count_inputs: int, count_kernels: int, device: torch.device) -> Loader:
-        """Load kernels from the given directory."""
-        cuda = torch.device(device).type == 'cuda'
-        return Loader(os.path.join(directory, name + ".so"), name, cuda, count_inputs, count_kernels)
 
     @staticmethod
     def get_paddings_from_shapes(unpadded_shape: List[int], padded_shape: List[int]) -> List[Union[None, Tuple[int, int]]]:
@@ -54,7 +48,7 @@ class KernelPack(nn.Module):
             return None
         return [slice(padding[0], -padding[1]) if padding is not None else slice(None) for padding in paddings]
 
-    def __init__(self, identifier: str, loader: Loader, index: int, unpadded_inputs_shapes: List[List[int]], padded_inputs_shapes: List[List[int]], unpadded_output_shape: List[int], padded_output_shape: List[int], device: torch.device):
+    def __init__(self, identifier: str, loader: Bindings.Loader, index: int, unpadded_inputs_shapes: List[List[int]], padded_inputs_shapes: List[List[int]], unpadded_output_shape: List[int], padded_output_shape: List[int], device: torch.device):
         super(KernelPack, self).__init__()
 
         self._loader = loader
@@ -133,3 +127,92 @@ class KernelPack(nn.Module):
         attr_dict = self.__dir__()
         if '_Kernel' in attr_dict:
             del self._Kernel
+
+KAS_KERNEL_LOADER_COUNTER = 0
+
+class KernelLoader:
+    """All the metadata of a generated KAS kernel."""
+
+    def __init__(self, kernel: Bindings.Kernel) -> None:
+        global KAS_KERNEL_LOADER_COUNTER
+        self._kernel = kernel
+        self._identifier = f'KASKernel_{KAS_KERNEL_LOADER_COUNTER}'
+        KAS_KERNEL_LOADER_COUNTER += 1
+
+    @staticmethod
+    def from_directory(directory: os.PathLike) -> 'KernelLoader':
+        return KernelLoader(Bindings.Kernel(directory))
+
+    def get_device(self) -> bool:
+        if self._kernel.use_cuda():
+            return torch.device('cuda')
+        else:
+            return torch.device('cpu')
+
+    def get_count_placeholders(self) -> int:
+        return self._kernel.get_count_placeholders()
+
+    def get_count_valid_kernels(self) -> int:
+        return self._kernel.get_count_valid_kernels()
+
+    def get_count_inputs(self) -> int:
+        return self._kernel.get_count_inputs()
+
+    def get_inputs_shapes(self, padded: bool, index: int) -> List[List[int]]:
+        return self._kernel.get_inputs_shapes(padded, index)
+
+    def get_output_shape(self, padded: bool, index: int) -> List[int]:
+        return self._kernel.get_output_shape(padded, index)
+
+    def get_consts(self, index: int) -> str:
+        return self._kernel.get_consts(index)
+
+    def get_flops(self, index: int) -> int:
+        return self._kernel.get_flops(index)
+
+    def get_total_flops(self) -> int:
+        return self._kernel.get_total_flops()
+
+    def _get_loader_args(self) -> Bindings.LoaderArgs:
+        args = self._kernel.get_loader_args()
+        return Bindings.LoaderArgs(
+            args.path, args.symbol, args.cuda, args.count_inputs, args.count_kernels, args.valid_placeholder_indices
+        )
+
+    # Construct kernel packs with globally unique identifier. The identifier can be arbitrary, because we are constructing Python classes dynamically.
+    def construct_kernel_packs(self) -> List[KernelPack]:
+        logging.debug(f"Constructing kernel:\n{self._kernel}")
+        logging.debug(f"Total FLOPs: {self.get_total_flops()}")
+        loader = Bindings.Loader(self._get_loader_args())
+
+        kernel_packs = []
+        for i in range(self.get_count_placeholders()):
+            logging.debug(f"For placeholder {i},")
+
+            logging.debug(f"Consts: {self.get_consts(i)}")
+            logging.debug(f"FLOPs: {self.get_flops(i)}")
+
+            unpadded_inputs_shapes = self.get_inputs_shapes(False, i)
+            padded_inputs_shapes = self.get_inputs_shapes(True, i)
+            logging.debug(
+                f"Unpadded inputs shapes: {unpadded_inputs_shapes}, padded inputs shapes: {padded_inputs_shapes}")
+            unpadded_output_shape = self.get_output_shape(False, i)
+            padded_output_shape = self.get_output_shape(True, i)
+            logging.debug(
+                f"Unpadded output shape: {unpadded_output_shape}, padded output shape: {padded_output_shape}")
+
+            identifier = f"{self._identifier}__{i}"
+            kernel_packs.append(KernelPack(
+                identifier=identifier,
+                loader=loader,
+                index=i,
+                unpadded_inputs_shapes=unpadded_inputs_shapes,
+                padded_inputs_shapes=padded_inputs_shapes,
+                unpadded_output_shape=unpadded_output_shape,
+                padded_output_shape=padded_output_shape,
+                device=self.get_device()))
+
+        return kernel_packs
+
+    def __repr__(self) -> str:
+        return f"{self._kernel}"

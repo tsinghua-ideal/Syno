@@ -101,8 +101,8 @@ const Color Color::None = Color();
 
 bool Color::CheckFinalization(const std::vector<std::vector<Dimension>>& tensors) {
     struct Visitor: public DimVisitor {
-        std::map<Dimension, CompactColor, Dimension::HashLessThan>& colorMap;
-        Visitor(std::map<Dimension, CompactColor, Dimension::HashLessThan>& colorMap): colorMap(colorMap) {}
+        std::map<Dimension, CompactColor, Dimension::AddressLessThan>& colorMap;
+        Visitor(std::map<Dimension, CompactColor, Dimension::AddressLessThan>& colorMap): colorMap(colorMap) {}
         bool fail = false;
         void visit(const RepeatLikeOp::Input& dim) override {
             auto [accept, newColor] = dim.getOp()->transformColor(colorMap.at(&dim));
@@ -143,14 +143,12 @@ bool Color::CheckFinalization(const std::vector<std::vector<Dimension>>& tensors
             return !fail;
         }
     };
-    std::map<Dimension, CompactColor, Dimension::HashLessThan> colorMap;
+    std::map<Dimension, CompactColor, Dimension::AddressLessThan> colorMap;
     Visitor visitor { colorMap };
     for (int color = 0; auto&& tensor: tensors) {
         for (auto&& dim: tensor) {
             auto [_, inserted] = colorMap.emplace(dim, color);
-            if (!inserted) {
-                KAS_REPORT_DIMENSION_HASH_COLLISION(_->first, dim);
-            }
+            KAS_ASSERT(inserted);
             visitor.visit(dim);
         }
         ++color;

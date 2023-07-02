@@ -23,11 +23,7 @@ protected:
     Input input;
 
 public:
-    SplitOp(auto&& outputLhs, auto&& outputRhs):
-        SplitLikeOp { std::forward<decltype(outputLhs)>(outputLhs), std::forward<decltype(outputRhs)>(outputRhs) },
-        sz { this->outputLhs.size() * this->outputRhs.size() },
-        input { this }
-    {}
+    SplitOp(const Dimension& outputLhs, const Dimension& outputRhs);
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override { return DimensionTypeHash(Type); }
     Dimension getInput() const override { return &input; }
@@ -53,5 +49,7 @@ public:
     )
     static std::vector<const SplitOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
 };
+
+static_assert(PrimitiveOpImpl<SplitOp>);
 
 } // namespace kas

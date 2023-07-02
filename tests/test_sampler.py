@@ -51,7 +51,7 @@ def manually_design(assembler: Assembler) -> Assembled:
     shared_s_2.mean(0) # Mark the s_2 as sum reduction.
 
     # Specify the input tensors.
-    return assembler.assemble("in_0 * in_1", [in_H, in_W], [w_s_2])
+    return assembler.assemble("simple_primitives_test", "in_0 * in_1", [in_H, in_W], [w_s_2])
 
 def perform_trials(manual: bool):
     net = Model()
@@ -64,7 +64,7 @@ def perform_trials(manual: bool):
         while True:
             node = sampler.random_node_with_prefix(Path([]))
             if node.is_final():
-                kernel_packs, total_flops = sampler.realize(net, node, "test_sampler")
+                kernel_packs = sampler.realize(net, node).construct_kernel_packs()
                 if len(kernel_packs[0]._unpadded_inputs_shapes) > 1:
                     break
         print(node.get_nested_loops_as_final())
@@ -75,7 +75,7 @@ def perform_trials(manual: bool):
         plausible_path = node.convert_to_path(sampler)
         print(f"Manually created {plausible_path}")
         sampler.visit(plausible_path) # Just to make sure it exists.
-        kernel_packs, _ = sampler.realize(net, node, "test_sampler")
+        kernel_packs = sampler.realize(net, node).construct_kernel_packs()
     sampler.replace(net, kernel_packs)
 
     in_tensor = torch.randn((32, 32), requires_grad=True)

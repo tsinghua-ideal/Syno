@@ -6,6 +6,12 @@
 
 namespace kas {
 
+SplitOp::SplitOp(const Dimension& outputLhs, const Dimension& outputRhs):
+    SplitLikeOp { outputLhs, outputRhs },
+    sz { this->outputLhs.size() * this->outputRhs.size() },
+    input { this }
+{}
+
 SplitOp::Values SplitOp::value(const Values &known) const {
     if (known.canSkipDeduction()) return known;
     auto& [input, outputLhs, outputRhs] = known.values;

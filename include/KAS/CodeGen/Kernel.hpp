@@ -5,38 +5,77 @@
 #include <utility>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/Core/Tensor.hpp"
 
 
 namespace kas {
 
+// In a directory:
+//   - metadata.json
+//   - nested_loops.h
+//   - halide_schedule.h
+//   - kernels.so
+//   - kernel_graph.dot
+//
+// The functions in kernels.so are named as name_0, name_0_grad, name_1, name_1_grad, ...
+// Other undocumented files are also generated.
+struct KernelMetadata {
+    struct PlaceholderMetadata {
+        PaddedConsts consts;
+        std::string constsDescription;
+        std::vector<std::vector<std::size_t>> unpaddedInputsShapes;
+        std::vector<std::vector<std::size_t>> paddedInputsShapes;
+        std::vector<std::size_t> unpaddedOutputShape;
+        std::vector<std::size_t> paddedOutputShape;
+        std::size_t flops;
+    };
+    std::string name;
+    bool cuda;
+    std::size_t countInputs;
+    std::vector<std::size_t> validPlaceholdersIndices;
+    std::vector<PlaceholderMetadata> validPlaceholders;
+    std::size_t countPlaceholders() const;
+    std::size_t countKernels() const;
+    const PlaceholderMetadata& getPlaceholder(std::size_t index) const;
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(KernelMetadata::PlaceholderMetadata, consts, constsDescription, unpaddedInputsShapes, paddedInputsShapes, unpaddedOutputShape, paddedOutputShape, flops);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(KernelMetadata, name, cuda, countInputs, validPlaceholdersIndices, validPlaceholders);
+
 // This is for convenience. As a python interface, we need easy access to related methods of TensorView.
 class Kernel {
 protected:
-    const TensorView& tensorView;
-    const BindingContext& ctx;
-    HalideGen gen;
-    std::vector<PaddedConsts> paddedConsts;
+    std::filesystem::path dir;
+    KernelMetadata metadata;
+    std::string nestedLoops;
+
+    void loadMetadataAndNestedLoops();
 
 public:
-    Kernel(const TensorView& tensorView, const BindingContext& ctx, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options);
-    const TensorView& getTensorView() const { return tensorView; }
+    // Generate and save to directory.
+    Kernel(const BindingContext& ctx, const TensorView& tensorView, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options, const std::filesystem::path& dir, const std::string& name);
 
-    std::string toNestedLoops() const;
+    // Load from file.
+    Kernel(const std::filesystem::path& dir);
 
-    // Generate shared library named as name.so in the specified directory. The functions are named as name_0, name_0_grad, name_1, name_1_grad, ...
-    void generateOperator(const std::string& dir, const std::string& name);
-    void generateGraphviz(const std::string& dir, const std::string& name);
+    const std::string& getNestedLoops() const;
 
-    std::string getConsts(std::size_t index) const;
+    bool cuda() const;
+    std::size_t countPlaceholders() const;
+    std::size_t countKernels() const;
+
+    const std::string& getConsts(std::size_t index) const;
 
     std::size_t getFLOPs(std::size_t index) const;
     std::size_t getTotalFLOPs() const;
 
     std::size_t getCountInputs() const;
-    std::vector<std::vector<std::size_t>> getInputsShapes(bool padded, std::size_t index) const;
-    std::vector<std::size_t> getOutputShape(bool padded, std::size_t index) const;
+    const std::vector<std::vector<std::size_t>>& getInputsShapes(bool padded, std::size_t index) const;
+    const std::vector<std::size_t>& getOutputShape(bool padded, std::size_t index) const;
+
+    LoaderParameters getLoaderArgs() const;
 };
 
 } // namespace kas

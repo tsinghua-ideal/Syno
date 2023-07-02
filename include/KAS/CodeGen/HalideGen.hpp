@@ -107,13 +107,13 @@ public:
 
     using ForwardAndBackwardFuncs = std::tuple<std::vector<Halide::ImageParam>, Halide::Func, std::vector<Halide::ImageParam>, std::vector<Halide::Func>>;
     // Returns the forward and backward funcs.
-    ForwardAndBackwardFuncs createPipelines(const ConcreteConsts& consts, std::string_view funcName) const;
+    ForwardAndBackwardFuncs createPipelines(const ConcreteConsts& consts, std::string_view forwardFuncName, std::string_view backwardFuncName) const;
 
     // Applys auto-schedulers on the funcs.
     using ScheduledPipelins = std::pair<Halide::Pipeline, Halide::Pipeline>;
-    static ScheduledPipelins ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, bool verbose);
+    static ScheduledPipelins ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, std::ostream *verbose);
 
-    static void GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardInputs, std::vector<Halide::ImageParam>& backwardInputs, Halide::Pipeline& forwardPipeline, Halide::Pipeline& backwardPipeline, std::filesystem::path outputPath, std::string_view funcName, const Halide::Target& target);
+    static void GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardInputs, std::vector<Halide::ImageParam>& backwardInputs, Halide::Pipeline& forwardPipeline, Halide::Pipeline& backwardPipeline, const std::filesystem::path& forwardOutputPath, const std::filesystem::path& backwardOutputPath, std::string_view forwardFuncName, std::string_view backwardFuncName, const Halide::Target& target);
 
     HalideGen(const BindingContext& ctx, const TensorView& tensorView, Options options):
         ctx { ctx },
@@ -121,7 +121,7 @@ public:
         options { std::move(options) }
     {}
 
-    void generate(std::filesystem::path outputDir, std::string_view funcName, const ConcreteConsts& consts) const;
+    void generate(const std::filesystem::path& forwardOutputPath, const std::filesystem::path& backwardOutputPath, std::string_view forwardFuncName, std::string_view backwardFuncName, const ConcreteConsts& consts, std::ostream *verbose) const;
 
     // This is a workaround for reverse indexing caused by Halide's column-major buffers.
     template<typename BufferType>
@@ -165,11 +165,12 @@ public:
         std::vector<HalideGen::BufferAdaptor<float>> backwardTrials;
     };
     template<bool DoInitialization = true, typename... InputInitializers>
-    Realization performTrial(const std::map<std::string, std::size_t>& mappings, auto&& funcName, bool createStaticLibrary, bool verbose, auto&& outputGradInitializer, InputInitializers&&... inputInitializers) const {
+    Realization performTrial(const std::map<std::string, std::size_t>& mappings, std::string_view funcName, bool createStaticLibrary, bool verbose, auto&& outputGradInitializer, InputInitializers&&... inputInitializers) const {
         auto unpaddedConsts = ctx.realizeConsts(mappings);
         auto consts = tensorView.computePadding(ctx, unpaddedConsts);
         auto shapes = concretizeShapes(consts);
-        auto [inputs, func, backwardInputs, backwardFuncs] = createPipelines(consts, std::forward<decltype(funcName)>(funcName));
+        auto backwardFuncName = fmt::format("{}_grad", funcName);
+        auto [inputs, func, backwardInputs, backwardFuncs] = createPipelines(consts, funcName, backwardFuncName);
 
         std::vector<Halide::Buffer<float>> inputBuffers;
         std::vector<Halide::Buffer<float>> inputGradsBuffers;
@@ -205,13 +206,12 @@ public:
 
         // Compute the forward result.
         auto target = GetHostTarget(options.useGPU, true);
-        auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, verbose);
+        auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, verbose ? &std::cout : nullptr);
 
         if (createStaticLibrary) {
-            std::string outputDir = fmt::format("./kernel_{}", funcName);
-            std::string indexedFuncName = fmt::format("{}_0", funcName);
-            HalideGen::GenerateFromPipelines(inputs, backwardInputs, pipeline, backwardPipeline, outputDir, indexedFuncName, target);
-            int err = LinkObjects(outputDir, fmt::format("{}.so", funcName), { fmt::format("{}.o", indexedFuncName), fmt::format("{}_grad.o", indexedFuncName) });
+            std::filesystem::path outputDir = fmt::format("./kernel_{}", funcName);
+            HalideGen::GenerateFromPipelines(inputs, backwardInputs, pipeline, backwardPipeline, outputDir / funcName, outputDir / backwardFuncName, fmt::format("{}_0", funcName), fmt::format("{}_0_grad", funcName), target);
+            int err = LinkObjects(outputDir, "kernels.so", { fmt::format("{}_0.o", funcName), fmt::format("{}_0_grad.o", funcName) });
             KAS_ASSERT(err == 0, "Failed to link objects.");
         }
 

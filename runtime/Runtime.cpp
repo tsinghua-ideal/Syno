@@ -4,6 +4,7 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/stl/filesystem.h>
 #include <torch/extension.h>
 
 #include "Loader.hpp"
@@ -24,17 +25,11 @@ PYBIND11_MODULE(kas_runtime, m) {
 
     using namespace kas;
 
+    pybind11::class_<LoaderArgs>(m, "LoaderArgs")
+        .def(pybind11::init<std::filesystem::path, std::string, bool, std::size_t, std::size_t, std::vector<std::size_t>>());
+
     pybind11::class_<Loader>(m, "Loader")
-        .def(
-            pybind11::init([](const std::string& path, const std::string& symbol, bool cuda, std::size_t countInputs, std::size_t countKernels) {
-                return std::make_unique<Loader>(path, symbol, cuda, countInputs, countKernels);
-            }),
-            pybind11::arg("path"),
-            pybind11::arg("symbol"),
-            pybind11::arg("cuda"),
-            pybind11::arg("count_inputs"),
-            pybind11::arg("count_kernels")
-        )
+        .def(pybind11::init<LoaderArgs>())
         .def(
             "forward",
             [](const Loader& self, std::size_t index, pybind11::args args) {

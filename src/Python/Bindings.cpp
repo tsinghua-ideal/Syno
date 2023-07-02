@@ -7,6 +7,7 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/stl/filesystem.h>
 
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/CodeGen/Kernel.hpp"
@@ -148,15 +149,19 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("to_next", [](const Next& self) -> Next { return self; })
         .def("__repr__", &Next::toString);
 
+    pybind11::class_<LoaderParameters>(m, "LoaderParameters")
+        .def_readonly("path", &LoaderParameters::path)
+        .def_readonly("symbol", &LoaderParameters::symbol)
+        .def_readonly("cuda", &LoaderParameters::cuda)
+        .def_readonly("count_inputs", &LoaderParameters::countInputs)
+        .def_readonly("count_kernels", &LoaderParameters::countKernels)
+        .def_readonly("valid_placeholder_indices", &LoaderParameters::validPlaceholdersIndices);
+
     pybind11::class_<Kernel>(m, "Kernel")
-        .def(
-            "generate_operator", &Kernel::generateOperator,
-            pybind11::arg("path"), pybind11::arg("name")
-        )
-        .def(
-            "generate_graphviz", &Kernel::generateGraphviz,
-            pybind11::arg("path"), pybind11::arg("name")
-        )
+        .def(pybind11::init<std::string>()) // From directory.
+        .def("use_cuda", &Kernel::cuda)
+        .def("get_count_placeholders", &Kernel::countPlaceholders)
+        .def("get_count_valid_kernels", &Kernel::countKernels)
         .def(
             "get_consts", &Kernel::getConsts,
             pybind11::arg("index")
@@ -175,7 +180,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             "get_output_shape", &Kernel::getOutputShape,
             pybind11::arg("padded"), pybind11::arg("index")
         )
-        .def("__repr__", &Kernel::toNestedLoops);
+        .def("get_loader_args", &Kernel::getLoaderArgs)
+        .def("__repr__", &Kernel::getNestedLoops);
 
     pybind11::class_<Arc>(m, "Arc")
         .def("__eq__", &Arc::operator==)
@@ -224,7 +230,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("discovered_final_descendant", &Node::discoveredFinalDescendant)
         .def(
             "realize_as_final", &Node::realizeAsFinal,
-            pybind11::arg("all_mappings"), pybind11::arg("halide_options")
+            pybind11::arg("all_mappings"), pybind11::arg("halide_options"), pybind11::arg("directory"), pybind11::arg("name")
         )
         .def("estimate_total_flops_as_final", &Node::estimateTotalFLOPsAsFinal)
         .def("generate_graphviz", &Node::generateGraphviz)
@@ -284,9 +290,9 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             }
         )
         .def(
-            "build", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const std::string& blending, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) {
+            "build", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const std::string& blending, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options, const std::filesystem::path& dir, const std::string& name) {
                 TensorView& tensorView = self.buildTensorView(tensors, Parser(blending).parseTensorExpression());
-                return std::make_unique<Kernel>(tensorView, self.getBindingContext(), allMappings, std::move(options));
+                return std::make_unique<Kernel>(self.getBindingContext(), tensorView, allMappings, std::move(options), dir, name);
             }
         );
 

@@ -10,6 +10,8 @@
 #include <vector>
 #include <memory>
 
+#include <nlohmann/json.hpp>
+
 #include "KAS/Core/Parser.hpp"
 
 
@@ -30,13 +32,16 @@ struct ConcreteConsts {
         return [this](std::size_t i) { return coefficient[i]; };
     }
     bool operator==(const ConcreteConsts& rhs) const = default;
+    std::strong_ordering operator<=>(const ConcreteConsts& rhs) const = default;
 };
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(ConcreteConsts, primary, coefficient)
 
 struct PaddedConsts {
     ConcreteConsts unpadded;
     ConcreteConsts padded;
     std::string toString(const BindingContext& ctx) const;
 };
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PaddedConsts, unpadded, padded)
 
 class BindingContext final {
 public:

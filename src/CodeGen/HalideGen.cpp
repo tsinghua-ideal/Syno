@@ -318,7 +318,7 @@ HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& 
     outputGrad.set_estimates(shapes.outputShape);
 
     for (auto&& backward: tensorView.getBackwardAccesses()) {
-        inputsGrads.emplace_back(lowerAccessToFunc(inputs, &outputGrad, lowerToAccess(consts, backward), std::string(funcName) + "_grad"));
+        inputsGrads.emplace_back(lowerAccessToFunc(inputs, &outputGrad, lowerToAccess(consts, backward), funcName));
         inputsGrads.back().set_estimates(shapes.inputShapes[backward.position]);
     }
 
@@ -326,13 +326,13 @@ HalideGen::BackwardArgsAndFuncs HalideGen::createFuncGrad(const ConcreteConsts& 
     return { std::move(inputs), std::move(inputsGrads) };
 }
 
-HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const ConcreteConsts& consts, std::string_view funcName) const {
+HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const ConcreteConsts& consts, std::string_view forwardFuncName, std::string_view backwardFuncName) const {
     const auto& tensors = tensorView.getUnderlyingTensors();
 
     auto shapes = concretizeShapes(consts);
     try {
-        auto [forwardInputs, forwardFunc] = createFunc(consts, shapes, funcName);
-        auto [backwardInputs, backwardFuncs] = createFuncGrad(consts, shapes, funcName);
+        auto [forwardInputs, forwardFunc] = createFunc(consts, shapes, forwardFuncName);
+        auto [backwardInputs, backwardFuncs] = createFuncGrad(consts, shapes, backwardFuncName);
         KAS_ASSERT(forwardInputs.size() == tensors.size());
         KAS_ASSERT(backwardInputs.size() == tensors.size() + 1);
         KAS_ASSERT(backwardFuncs.size() == tensors.size());
@@ -347,7 +347,7 @@ HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const ConcreteCons
     }
 }
 
-HalideGen::ScheduledPipelins HalideGen::ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, bool verbose) {
+HalideGen::ScheduledPipelins HalideGen::ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, std::ostream *verbose) {
     // Prepare auto schedulers.
     using Scheduler = Options::AutoScheduler;
     const bool computeRoot = scheduler == Scheduler::ComputeRoot;
@@ -377,34 +377,32 @@ HalideGen::ScheduledPipelins HalideGen::ApplyAutoScheduler(Halide::Func& forward
     if (!computeRoot) {
         auto forwardResult = forwardPipeline.apply_autoscheduler(target, params.value());
         if (verbose)
-            fmt::print(stderr, "Forward pipeline:\n{}\n", forwardResult.schedule_source);
+            fmt::format_to(std::ostreambuf_iterator(*verbose), "// Forward pipeline:\n{}\n", forwardResult.schedule_source);
         auto backwardResult = backwardPipeline.apply_autoscheduler(target, params.value());
         if (verbose)
-            fmt::print(stderr, "Backward pipeline:\n{}\n", backwardResult.schedule_source);
+            fmt::format_to(std::ostreambuf_iterator(*verbose), "// Backward pipeline:\n{}\n", backwardResult.schedule_source);
     } else {
         if (verbose) {
-            fmt::print(stderr, "Forward pipeline:\ncompute_root()\n");
-            fmt::print(stderr, "Backward pipeline:\ncompute_root()\n");
+            fmt::format_to(std::ostreambuf_iterator(*verbose), "// Forward pipeline:\ncompute_root()\n");
+            fmt::format_to(std::ostreambuf_iterator(*verbose), "// Backward pipeline:\ncompute_root()\n");
         }
     }
 
     return { std::move(forwardPipeline), std::move(backwardPipeline) };
 }
 
-void HalideGen::GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardInputs, std::vector<Halide::ImageParam>& backwardInputs, Halide::Pipeline& forwardPipeline, Halide::Pipeline& backwardPipeline, std::filesystem::path outputPath, std::string_view funcName, const Halide::Target& target) {
-    std::string backwardName = std::string(funcName) + "_grad";
-
+void HalideGen::GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardInputs, std::vector<Halide::ImageParam>& backwardInputs, Halide::Pipeline& forwardPipeline, Halide::Pipeline& backwardPipeline, const std::filesystem::path& forwardOutputPath, const std::filesystem::path& backwardOutputPath, std::string_view forwardFuncName, std::string_view backwardFuncName, const Halide::Target& target) {
     // Compile to Halide modules.
     std::vector<Halide::Argument> forwardArgs;
     std::vector<Halide::Argument> backwardArgs;
     std::ranges::copy(forwardInputs, std::back_inserter(forwardArgs));
     std::ranges::copy(backwardInputs, std::back_inserter(backwardArgs));
-    auto forwardModule = forwardPipeline.compile_to_module(forwardArgs, std::string(funcName), target);
-    auto backwardModule = backwardPipeline.compile_to_module(backwardArgs, backwardName, target);
+    auto forwardModule = forwardPipeline.compile_to_module(forwardArgs, std::string(forwardFuncName), target);
+    auto backwardModule = backwardPipeline.compile_to_module(backwardArgs, std::string(backwardFuncName), target);
 
     // Write to output.
     auto ext = Halide::Internal::get_output_info(target);
-    const auto flagsForModule = [&ext](std::filesystem::path filename) -> std::map<Halide::OutputFileType, std::string> {
+    const auto flagsForModule = [&ext](const std::filesystem::path& filename) -> std::map<Halide::OutputFileType, std::string> {
         using enum Halide::OutputFileType;
         std::map<Halide::OutputFileType, std::string> files;
         for (auto what: {
@@ -419,21 +417,22 @@ void HalideGen::GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardIn
         }
         return files;
     };
-    std::filesystem::create_directories(outputPath);
-    forwardModule.compile(flagsForModule(outputPath / funcName));
-    backwardModule.compile(flagsForModule(outputPath / backwardName));
+    std::filesystem::create_directories(forwardOutputPath.parent_path());
+    std::filesystem::create_directories(backwardOutputPath.parent_path());
+    forwardModule.compile(flagsForModule(forwardOutputPath));
+    backwardModule.compile(flagsForModule(backwardOutputPath));
 }
 
-void HalideGen::generate(std::filesystem::path outputDir, std::string_view funcName, const ConcreteConsts& consts) const {
+void HalideGen::generate(const std::filesystem::path& forwardOutputPath, const std::filesystem::path& backwardOutputPath, std::string_view forwardFuncName, std::string_view backwardFuncName, const ConcreteConsts& consts, std::ostream *verbose) const {
     // Create Halide Functions.
     auto [forwardInputs, forwardFunc,
         backwardInputs, backwardFuncs
-    ] = createPipelines(consts, funcName);
+    ] = createPipelines(consts, forwardFuncName, backwardFuncName);
 
     auto target = GetHostTarget(options.useGPU, false);
-    auto [forwardPipeline, backwardPipeline] = ApplyAutoScheduler(forwardFunc, backwardFuncs, target, options.scheduler, false);
+    auto [forwardPipeline, backwardPipeline] = ApplyAutoScheduler(forwardFunc, backwardFuncs, target, options.scheduler, verbose);
 
-    GenerateFromPipelines(forwardInputs, backwardInputs, forwardPipeline, backwardPipeline, outputDir, funcName, target);
+    GenerateFromPipelines(forwardInputs, backwardInputs, forwardPipeline, backwardPipeline, forwardOutputPath, backwardOutputPath, forwardFuncName, backwardFuncName, target);
 }
 
 } // namespace kas

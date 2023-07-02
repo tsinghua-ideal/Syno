@@ -6,18 +6,19 @@ from . import Bindings
 ForwardDimension = Bindings.ForwardDimension
 
 class Assembled:
-    def __init__(self, assembler: Bindings.Assembler, tensors: List[List[ForwardDimension]], blending: str):
+    def __init__(self, assembler: Bindings.Assembler, tensors: List[List[ForwardDimension]], blending: str, name: str):
         self._assembler = assembler
         self._tensors = tensors
         self._blending = blending
+        self._name = name
 
     def convert_to_path(self, sampler):
         """Convert this assembled kernel to a path."""
         from .Node import Path
         return Path(self._assembler.convert_assembled_to_path(self._tensors, sampler._sampler))
 
-    def _realize(self, all_mappings: List[Dict[str, int]], halide_options: Bindings.CodeGenOptions) -> Bindings.Kernel:
-        return self._assembler.build(self._tensors, self._blending, all_mappings, halide_options)
+    def _realize(self, all_mappings: List[Dict[str, int]], halide_options: Bindings.CodeGenOptions, dir: str, name: str) -> Bindings.Kernel:
+        return self._assembler.build(self._tensors, self._blending, all_mappings, halide_options, dir, name)
 
 class Assembler:
     def __init__(self, assembler: Bindings.Assembler):
@@ -62,9 +63,10 @@ class Assembler:
         """Create an UnfoldOp."""
         return self._assembler.create_unfold(input, window)
 
-    def assemble(self, blending: str, *tensors: List[ForwardDimension]) -> Assembled:
+    def assemble(self, name: str, blending: str, *tensors: List[ForwardDimension]) -> Assembled:
         """Build the kernel, with the specified Dimensions as the dimensions in input tensors.
         :param str blending: The expression. For example, `'in_0 * in_1'`.
         """
+        assert isinstance(name, str)
         assert isinstance(blending, str)
-        return Assembled(self._assembler, list(tensors), blending)
+        return Assembled(self._assembler, list(tensors), blending, name)

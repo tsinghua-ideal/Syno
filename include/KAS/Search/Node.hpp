@@ -374,13 +374,13 @@ public:
     AbstractStage *tryAsStage() const;
     NormalStage *asNormalStage() const;
     std::shared_ptr<TensorView> asFinal() const;
-    std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options) const;
+    std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options, const std::filesystem::path& directory, const std::string& name) const;
     // Obtain the mappings from Sampler, and do not solve the paddings. We only want to estimate the FLOPs.
     std::size_t estimateTotalFLOPsAsFinal() const;
     // No tensors!
-    void generateGraphviz(const std::string& dir, const std::string& name) const;
+    void generateGraphviz(const std::filesystem::path& path, const std::string& name) const;
     // With tensors!
-    void generateGraphvizAsFinal(const std::string& dir, const std::string& name) const;
+    void generateGraphvizAsFinal(const std::filesystem::path& path, const std::string& name) const;
     std::string getNestedLoopsAsFinal() const;
 
     // The count of children nodes.

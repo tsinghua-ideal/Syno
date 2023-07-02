@@ -4,6 +4,12 @@
 
 namespace kas {
 
+ShiftOp::ShiftOp(const Dimension& output, int shift):
+    RepeatLikeOp { output },
+    shift { shift },
+    input { this }
+{}
+
 std::size_t ShiftOp::initialHash() const noexcept {
     std::size_t h = DimensionTypeHash(Type);
     HashCombine(h, shift);

@@ -68,7 +68,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
 
     auto funcName = "pool2d";
     auto gvGen = GraphvizGen { tensorView, ctx };
-    gvGen.generate("./kernel_" + std::string(funcName), funcName);
+    gvGen.generate("./kernel_" + std::string(funcName) + "/" + std::string(funcName) + ".dot", funcName);
     auto gen = HalideGen { ctx, tensorView, options };
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C", c}, {"K", k}};
     auto [consts, pipeline, trial, backwardPipeline, backwardTrials] = gen.performTrial(mappings, funcName, createStaticLibrary, true,

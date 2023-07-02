@@ -170,9 +170,9 @@ GraphvizGen::GraphvizGen(const TensorView& tensorView, const BindingContext& ctx
     code = draw(ctx, tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getDimensions));
 }
 
-void GraphvizGen::generate(std::filesystem::path outputDirectory, std::string_view funcName) const {
-    std::filesystem::create_directories(outputDirectory);
-    std::ofstream file { outputDirectory / fmt::format("{}.dot", funcName) };
+void GraphvizGen::generate(const std::filesystem::path& outputPath, std::string_view funcName) const {
+    std::filesystem::create_directories(outputPath.parent_path());
+    std::ofstream file { outputPath };
     file << "digraph " << funcName << " {\n";
     file << code;
     file << "}\n";

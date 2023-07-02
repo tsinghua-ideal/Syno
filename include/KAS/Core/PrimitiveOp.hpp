@@ -150,7 +150,9 @@ public:
 };
 
 template<typename Op>
-concept PrimitiveOpImpl = std::derived_from<Op, PrimitiveOp>;
+concept PrimitiveOpImpl = std::derived_from<Op, PrimitiveOp> && requires {
+    { Op::Type } -> std::convertible_to<DimensionType>;
+};
 
 #define KAS_REPORT_OP_HASH_COLLISION(op1, op2) do { \
     KAS_WARNING("Duplicate PrimitiveOp's! Or even worse, hash collision. {}", \

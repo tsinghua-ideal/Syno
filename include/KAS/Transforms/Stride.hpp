@@ -53,4 +53,6 @@ public:
     static std::vector<const StrideOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
 };
 
+static_assert(PrimitiveOpImpl<StrideOp>);
+
 } // namespace kas

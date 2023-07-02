@@ -76,7 +76,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
 
     auto funcName = "conv2d";
     auto gvGen = GraphvizGen { tensorView, ctx };
-    gvGen.generate("./kernel_" + std::string(funcName), funcName);
+    gvGen.generate("./kernel_" + std::string(funcName) + "/" + std::string(funcName) + ".dot", funcName);
     auto gen = HalideGen { ctx, tensorView, options };
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C_in", c_in}, {"C_out", c_out}, {"K", k}};
     auto in_0 = new float[n][c_in][h][w]();

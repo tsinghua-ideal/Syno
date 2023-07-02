@@ -11,7 +11,7 @@ from KAS.Node import Node, PseudoPath, VisitedNode
 from . import Bindings
 from .Assembler import Assembled, Assembler
 from .Bindings import CodeGenOptions
-from .KernelPack import KernelPack
+from .KernelPack import KernelPack, KernelLoader
 from .Node import (
     Next,
     PseudoNext,
@@ -219,65 +219,22 @@ class Sampler:
             node = node.get_child(next)
         return strs
 
-    def _realize(self, node: Union[Node, Assembled], all_mappings: List[Dict[str, int]]) -> Bindings.Kernel:
+    def _realize(self, node: Union[Node, Assembled], all_mappings: List[Dict[str, int]], name: str) -> Bindings.Kernel:
         if isinstance(node, Assembled):
-            return node._realize(all_mappings, self._codegen_options)
-        return node._realize_as_final(all_mappings, self._codegen_options)
+            dir_name = f"kernel_manual_{node._name}" if name is None else name
+            kernel_name = "kernel_manual"
+            return node._realize(all_mappings, self._codegen_options, os.path.join(self._save_path, dir_name), kernel_name)
+        else:
+            dir_name = f"kernel_generated_{abs(hash(node.to_node()))}" if name is None else name
+            kernel_name = "kernel_generated"
+            return node._realize_as_final(all_mappings, self._codegen_options, os.path.join(self._save_path, dir_name), kernel_name)
 
-    def realize(self, net: nn.Module, node: Union[Node, Assembled], identifier_prefix: str) -> Tuple[List[KernelPack], int]:
+    # Note: we need the name to be unique, because it is used for identifying a kernel.
+    # If we use the same name for different kernels, the later kernels will not be compiled.
+    def realize(self, net: nn.Module, node: Union[Node, Assembled], name: str = None) -> KernelLoader:
         placeholders = Sampler._extract_placeholders(net)
         all_mappings = Sampler._get_all_mappings(placeholders)
-
-        kernel = self._realize(node, all_mappings)
-        total_flops = kernel.get_total_flops()
-        logging.debug(f"Realizing kernel:\n{kernel}")
-        logging.debug(f"Total FLOPs: {total_flops}")
-        save_path = os.path.join(self._save_path, identifier_prefix)
-        # if os.path.exists(save_path):
-        #     shutil.rmtree(save_path)
-        os.makedirs(save_path, exist_ok=True)
-
-        if isinstance(node, Assembled):
-            kernel_name_prefix = f'kernel_manual'
-        else:
-            kernel_name_prefix = f'kernel_{abs(hash(node.to_node()))}'
-        logging.debug("Generating kernel files...")
-        kernel.generate_graphviz(save_path, kernel_name_prefix)
-        kernel.generate_operator(save_path, kernel_name_prefix)
-        logging.debug("Successfully generated kernel files.")
-        loader = KernelPack.load_kernels(
-            save_path, kernel_name_prefix, kernel.get_count_inputs(), len(placeholders), self._device)
-
-        kernel_packs = []
-        for i in range(len(placeholders)):
-            kernel_name = f'{kernel_name_prefix}_{i}'
-            logging.debug(f"For placeholder {i},")
-
-            logging.debug(f"Consts: {kernel.get_consts(i)}")
-            logging.debug(f"FLOPs: {kernel.get_flops(i)}")
-            placeholders[i].set_flops(kernel.get_flops(i))
-
-            unpadded_inputs_shapes = kernel.get_inputs_shapes(False, i)
-            padded_inputs_shapes = kernel.get_inputs_shapes(True, i)
-            logging.debug(
-                f"Unpadded inputs shapes: {unpadded_inputs_shapes}, padded inputs shapes: {padded_inputs_shapes}")
-            unpadded_output_shape = kernel.get_output_shape(False, i)
-            padded_output_shape = kernel.get_output_shape(True, i)
-            logging.debug(
-                f"Unpadded output shape: {unpadded_output_shape}, padded output shape: {padded_output_shape}")
-
-            identifier = identifier_prefix + "__" + str(i)
-            kernel_packs.append(KernelPack(
-                identifier=identifier,
-                loader=loader,
-                index=i,
-                unpadded_inputs_shapes=unpadded_inputs_shapes,
-                padded_inputs_shapes=padded_inputs_shapes,
-                unpadded_output_shape=unpadded_output_shape,
-                padded_output_shape=padded_output_shape,
-                device=self._device))
-
-        return kernel_packs, total_flops
+        return KernelLoader(self._realize(node, all_mappings, name))
 
     def create_assembler(self):
         return Assembler(self._sampler.create_assembler())

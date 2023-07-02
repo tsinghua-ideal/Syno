@@ -22,7 +22,7 @@ TEST_F(search_tests, sampler) {
         std::cout << fmt::format("Input Shape: {}", fmt::join(r, ", ")) << std::endl;
         std::cout << tensorView.printNestedLoopsForAll(ctx);
 
-        GraphvizGen(tensorView, ctx).generate("./search_viz", "trial_" + std::to_string(i));
+        GraphvizGen(tensorView, ctx).generate("./search_viz/trial_" + std::to_string(i) + ".dot", "trial_" + std::to_string(i));
 
         if (doRealization) {
             auto cgOpt = HalideGen::Options();

@@ -28,13 +28,7 @@ protected:
     Input inputLhs, inputRhs;
 
 public:
-    MergeOp(auto&& output, auto&& block):
-        MergeLikeOp { std::forward<decltype(output)>(output) },
-        minorSize { std::forward<decltype(block)>(block) },
-        majorSize { this->output.size() / this->minorSize },
-        inputLhs { this, Order::Left },
-        inputRhs { this, Order::Right }
-    {}
+    MergeOp(const Dimension& output, const Size& block);
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
     Dimension getInputL() const override { return &inputLhs; }
@@ -65,5 +59,7 @@ public:
     )
     static std::vector<const MergeOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
 };
+
+static_assert(PrimitiveOpImpl<MergeOp>);
 
 } // namespace kas

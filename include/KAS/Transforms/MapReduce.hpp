@@ -11,8 +11,8 @@ public:
     static constexpr DimensionType Type = DimensionType::MapReduce;
 
 public:
-    MapReduceOp(std::size_t priority, auto&& domain, MapType mapType, ReduceType reduceType):
-        MapReduce { priority, std::forward<decltype(domain)>(domain), mapType, reduceType },
+    MapReduceOp(std::size_t priority, const Size& domain, MapType mapType, ReduceType reduceType):
+        MapReduce { priority, domain, mapType, reduceType },
         PrimitiveOp { Color::None }
     {}
     MapReduceOp(const MapReduce&) = delete;
@@ -44,5 +44,7 @@ public:
     };
     static std::vector<const MapReduceOp *> Generate(PrimitiveOpStore& store, const std::vector<const MapReduceOp *>& current, const GenerateOptions& options);
 };
+
+static_assert(PrimitiveOpImpl<MapReduceOp>);
 
 } // namespace kas

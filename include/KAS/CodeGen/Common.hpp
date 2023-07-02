@@ -25,4 +25,13 @@ inline Halide::Target GetHostTarget(bool useGPU, bool withRuntime) {
 // Link the objects into a shared library.
 int LinkObjects(const std::filesystem::path& dir, const std::string& soName, const std::vector<std::string>& objects);
 
+struct LoaderParameters {
+    std::filesystem::path path;
+    std::string symbol;
+    bool cuda;
+    std::size_t countInputs;
+    std::size_t countKernels;
+    std::vector<std::size_t> validPlaceholdersIndices;
+};
+
 } // namespace kas

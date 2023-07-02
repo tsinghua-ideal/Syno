@@ -9,6 +9,7 @@
 - CUDA.
 - [PyTorch](https://github.com/pytorch/pytorch).
 - [Boost](https://github.com/boostorg/boost).
+- [nlohmann-json](https://github.com/nlohmann/json).
 - [fmtlib](https://github.com/fmtlib/fmt).
 - [pybind11](https://github.com/pybind/pybind11).
 - [GoogleTest](https://github.com/google/googletest).
@@ -17,7 +18,7 @@ Note: If you are using anaconda to manage your packages, you may also install th
 
 ```[language=bash]
 conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
-conda install boost fmt pybind11 gtest gmock -c conda-forge
+conda install boost nlohmann_json fmt pybind11 gtest gmock -c conda-forge
 conda install cudatoolkit=11.7 cudatoolkit-dev=11.7 cudnn=8.8.0 -c conda-forge
 ```
 

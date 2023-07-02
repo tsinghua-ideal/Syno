@@ -18,22 +18,23 @@
 
 namespace kas {
 
-Loader::Loader(const std::string& path, const std::string& symbol, bool cuda, std::size_t countInputs, std::size_t countKernels):
-    cuda { cuda },
-    countInputs { countInputs }
+Loader::Loader(const LoaderArgs& args):
+    cuda { args.cuda },
+    countInputs { args.countInputs },
+    validPlaceholdersIndices { args.validPlaceholdersIndices }
 {
-    handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    handle = dlopen(args.path.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!handle) {
         KAS_CRITICAL("Failed to load dynamic library: {}", dlerror());
     }
-    for (std::size_t i = 0; i < countKernels; ++i) {
-        std::string forwardName = fmt::format("{}_{}", symbol, i);
-        std::string backwardName = fmt::format("{}_{}_grad", symbol, i);
+    for (std::size_t i = 0; i < args.countKernels; ++i) {
+        std::string forwardName = fmt::format("{}_{}", args.symbol, i);
+        std::string backwardName = fmt::format("{}_{}_grad", args.symbol, i);
 
         void *forwardFnPtr = dlsym(handle, forwardName.c_str());
         void *backwardFnPtr = dlsym(handle, backwardName.c_str());
         if (!forwardFnPtr || !backwardFnPtr) {
-            KAS_CRITICAL("Failed to load {}th kernel {}", i, symbol);
+            KAS_CRITICAL("Failed to load {}th kernel {}", i, args.symbol);
         }
 
         forwardPipelines.push_back(forwardFnPtr);
@@ -127,13 +128,14 @@ void Loader::call(const std::size_t expectedCountBuffers, void *pipeline, const 
     case 15: LoaderCallImpl<15>(cuda, pipeline, buffers); break;
     case 16: LoaderCallImpl<16>(cuda, pipeline, buffers); break;
     case 17: LoaderCallImpl<17>(cuda, pipeline, buffers); break;
+    default: KAS_UNREACHABLE("Too many input tensors!");
     }
 }
 
 void Loader::forward(std::size_t index, const std::vector<at::Tensor *>& buffers) const {
     const std::size_t ExpectedCountBuffers = countInputs + 1;
     KAS_ASSERT(buffers.size() == ExpectedCountBuffers, "Expected {} input tensors and 1 result tensor in forward pipeline, got {} buffers.", countInputs, buffers.size());
-    void *pipeline = forwardPipelines.at(index);
+    void *pipeline = forwardPipelines.at(validPlaceholdersIndices.at(index));
 
     call(ExpectedCountBuffers, pipeline, buffers);
 }
@@ -141,7 +143,7 @@ void Loader::forward(std::size_t index, const std::vector<at::Tensor *>& buffers
 void Loader::backward(std::size_t index, const std::vector<at::Tensor *>& buffers) const {
     const std::size_t ExpectedCountBuffers = 2 * countInputs + 1;
     KAS_ASSERT(buffers.size() == ExpectedCountBuffers, "Expected {0} input tensors, 1 output gradient tensor and {0} gradient tensor in backward pipeline, got {1} buffers.", countInputs, buffers.size());
-    void *pipeline = backwardPipelines.at(index);
+    void *pipeline = backwardPipelines.at(validPlaceholdersIndices.at(index));
 
     call(ExpectedCountBuffers, pipeline, buffers);
 }

@@ -1,6 +1,6 @@
 import logging
 from KAS import KernelPack
-from KAS.Bindings import Sampler, SampleOptions, CodeGenOptions, Loader
+from KAS.Bindings import Sampler, SampleOptions, CodeGenOptions, Loader, LoaderArgs
 import torch
 import torch.utils.cpp_extension
 import os
@@ -16,12 +16,13 @@ def test_sample():
             break
     print(f"Found {sample} after {trials} trials.")
     cg_opt = CodeGenOptions(False, CodeGenOptions.ComputeRoot)
-    kernel = sample.realize_as_final([{}], cg_opt)
-    kernel.generate_operator("./samples/py_kernel_simple", "kernel")
-    kernel.generate_graphviz("./samples/py_kernel_simple", "kernel")
+    kernel = sample.realize_as_final([{}], cg_opt, "./samples/py_kernel_simple", "kernel")
 
     # Load file
-    loader = KernelPack.load_kernels("./samples/py_kernel_simple", "kernel", kernel.get_count_inputs(), 1, "cpu")
+    args = kernel.get_loader_args()
+    loader = Loader(LoaderArgs(
+        args.path, args.symbol, args.cuda, args.count_inputs, args.count_kernels, args.valid_placeholder_indices
+    ))
 
     inputs_shapes = kernel.get_inputs_shapes(True, 0)
     # The first item is the real input. The other are weights.
