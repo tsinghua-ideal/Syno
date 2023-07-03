@@ -110,7 +110,7 @@ def test_mcts():
         assert k in mcts._treenode_store, f"Node {k} not in {mcts._treenode_store}"
         assert v == mcts._treenode_store[k], f"Node {k} is {v}, should be {mcts._treenode_store[k]}"
     for k, v in mcts._treenode_store.items():
-        if v.N == 0:
+        if v.empty():
             continue
         assert k in mcts_recover._treenode_store, f"Node {k} not in {mcts_recover._treenode_store}"
         assert v == mcts_recover._treenode_store[k], f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
@@ -124,8 +124,8 @@ def test_grave():
     edges = [
         ('root', [('Share(1)', 's_1'), ('Share(2)', 's_2'), ('Share(3)', 's_3')]),
         ('s_1', [('Share(2)', 'final_12')]),
-        ('s_2', [('Share(1)', 'final_12'), ('Share(3)', 'final_23')]),
         ('s_3', [('Share(2)', 'final_23')]),
+        ('s_2', [('Share(1)', 'final_12'), ('Share(3)', 'final_23')]),
     ]
     sampler = MockSampler(vertices, edges)
     
@@ -170,13 +170,13 @@ def test_grave():
     
     print("[PASSED] test_grave")
 
-def test_grave():
+def test_lrave():
     vertices = ['root', 's_1', 's_2', 's_3', {'name': 'final_12', 'is_final': True}, {'name': 'final_23', 'is_final': True}]
     edges = [
         ('root', [('Share(1)', 's_1'), ('Share(2)', 's_2'), ('Share(3)', 's_3')]),
         ('s_1', [('Share(2)', 'final_12')]),
-        ('s_2', [('Share(1)', 'final_12'), ('Share(3)', 'final_23')]),
         ('s_3', [('Share(2)', 'final_23')]),
+        ('s_2', [('Share(1)', 'final_12'), ('Share(3)', 'final_23')]),
     ]
     sampler = MockSampler(vertices, edges)
     
@@ -219,7 +219,7 @@ def test_grave():
     root_visible_grandchild = root_visible_grandchildren[1][1]
     assert root_visible_grandchild._node._node._name == 's_2'
     
-    print("[PASSED] test_grave")
+    print("[PASSED] test_lrave")
 
 def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
     """
@@ -262,4 +262,5 @@ if __name__ == "__main__":
     test_final_select()
     test_mcts()
     test_grave()
+    test_lrave()
     test_converge()

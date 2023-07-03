@@ -256,15 +256,15 @@ class MCTS:
             
             for arc in arc_pool:
                 if src_node._node.can_accept_arc(arc):
-                    new_arc_pool = deepcopy(arc_pool)
-                    new_arc_pool.remove(arc)
+                    arc_pool.remove(arc)
                     nxt = arc.to_next()
                     mid_child = src_node.get_child(nxt.type, self._treenode_store)[0]
                     child_node = self.touch(src_node._node.get_child_from_arc(arc))
-                    if attempt_to_node(child_node, tgt_node, new_arc_pool) and not updated_flag:
+                    if attempt_to_node(child_node, tgt_node, arc_pool) and not updated_flag:
                         src_node.update_lrave(reward, nxt.type)
                         mid_child.update_lrave(reward, arc)
                         updated_flag = True
+                    arc_pool.add(arc)
                 
         attempt_to_node(self.tree_root, tree_node, set(arcs))
     
