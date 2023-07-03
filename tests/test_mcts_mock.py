@@ -170,6 +170,57 @@ def test_grave():
     
     print("[PASSED] test_grave")
 
+def test_grave():
+    vertices = ['root', 's_1', 's_2', 's_3', {'name': 'final_12', 'is_final': True}, {'name': 'final_23', 'is_final': True}]
+    edges = [
+        ('root', [('Share(1)', 's_1'), ('Share(2)', 's_2'), ('Share(3)', 's_3')]),
+        ('s_1', [('Share(2)', 'final_12')]),
+        ('s_2', [('Share(1)', 'final_12'), ('Share(3)', 'final_23')]),
+        ('s_3', [('Share(2)', 'final_23')]),
+    ]
+    sampler = MockSampler(vertices, edges)
+    
+    mcts = MCTS(sampler, c_l=1e-4, b=0.9)
+    
+    # s_1 is first expanded
+    # CHECK: only one child
+    root_node = mcts._treenode_store[mcts._root]
+    root_visible_children = root_node.get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_children) == 1
+    
+    # update once
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0., trials[0][0])
+    
+    # CHECK: no new children added. 
+    root_visible_children = root_node.get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_children) == 1
+    
+    root_visible_grandchildren = root_visible_children[0][1].get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_grandchildren) == 1
+    root_visible_grandchild = root_visible_grandchildren[0][1]
+    assert root_visible_grandchild._node._node._name == 's_1'
+    
+    # update once
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0.5, trials[0][0])
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0.5, trials[0][0])
+    
+    # CHECK: two children from root
+    root_visible_grandchildren = root_visible_children[0][1].get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_grandchildren) == 2, root_visible_grandchildren
+    root_visible_grandchild = root_visible_grandchildren[1][1]
+    assert root_visible_grandchild._node._node._name == 's_2'
+    
+    print("[PASSED] test_grave")
+
 def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
     """
     Here we construct a 3 level fully connected DAG. The result at root should converge to the best reward given infinite time. 

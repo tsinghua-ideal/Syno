@@ -159,15 +159,6 @@ class TreeNode:
     def N(self) -> float:
         return self.state.N
     
-    def update(self, reward: float, arc: PseudoArc=None) -> None:
-        self.state.update(reward)
-        if arc:
-            assert not self.is_final()
-            self.l_rave[arc].update(reward)
-            if self._is_mid:
-                nxt = arc.to_next()
-                self.edge_states[nxt.key].update(reward)
-            
     @property
     def state_dict(self) -> Dict:
         return {
@@ -176,12 +167,37 @@ class TreeNode:
             "_is_dead": self._is_dead,
             "_isin_tree": self._isin_tree
         }
+    
+    def empty(self) -> bool:
+        """
+        Whether the node is empty. A subtree consisting of only empty nodes can be safely discarded during garbage collection. 
+        """
+        empty_flag = self.state.empty() and all([lrave.empty() for lrave in self.l_rave.values()]) and not self._is_dead and self.N == 0 and not self.is_final()
+        if self._is_mid:
+            empty_flag = empty_flag and all([edge.empty() for edge in self.edge_states.values()])
+        return empty_flag
         
     def load(self, state_dict: Dict) -> None:
         self.state.load(state_dict["state"])
         self._last_T = state_dict["_last_T"]
         self._is_dead = state_dict["_is_dead"]
         self._isin_tree = state_dict["_isin_tree"]
+    
+    def update(self, reward: float, arc: PseudoArc=None) -> None:
+        self.state.update(reward)
+        if arc:
+            assert not self.is_final()
+            self.l_rave[arc].update(reward)
+            if self._is_mid:
+                nxt = arc.to_next()
+                self.edge_states[nxt.key].update(reward)
+    
+    def update_lrave(self, reward: float, arc: PseudoArc) -> None:
+        assert not self.is_final()
+        self.l_rave[arc].update(reward)
+        if self._is_mid:
+            nxt = arc.to_next()
+            self.edge_states[nxt.key].update(reward)
 
     def children_count(self, factory: Dict[Node, "TreeNode"], on_tree: bool=False) -> int:
         """

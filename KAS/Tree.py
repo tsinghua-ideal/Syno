@@ -3,6 +3,7 @@ import math
 import logging
 from collections import defaultdict, OrderedDict as ODict
 from typing import List, Tuple, Any, Optional, DefaultDict, MutableSet, Union, OrderedDict, Dict
+from copy import deepcopy
 
 from .Node import Path, VisitedNode, Node
 from .Sampler import Sampler
@@ -17,8 +18,8 @@ class MCTS:
 
         self._treenode_store: OrderedDict[Node, TreeNode] = ODict()
         self._root = sampler.visit([]).to_node()
-        root_node = TreeNode(self._root)
-        self._treenode_store[self._root] = root_node
+        self.tree_root = TreeNode(self._root)
+        self._treenode_store[self._root] = self.tree_root
         self.g_rave: DefaultDict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
 
         self._sampler = sampler
@@ -36,7 +37,7 @@ class MCTS:
         self.leaf_num = leaf_num
         
         self.next_serializer = NextSerializer()
-        root_node.flush_T(1, self._treenode_store, self.g_rave, self._c_l, self._b)
+        self.tree_root.flush_T(1, self._treenode_store, self.g_rave, self._c_l, self._b)
 
     def _increment_virtual_loss(self, path: TreePath, node: Node, delta: int=1) -> None:
         assert delta > 0
@@ -242,6 +243,39 @@ class MCTS:
         update_types = set([next.type for next in path_to_trail])
         for type in update_types:
             self.g_rave[type].update(reward)
+            
+        # Update l rave
+        def attempt_to_node(src_node: TreeNode, tgt_node: TreeNode, arc_pool: MutableSet[Arc]) -> bool:
+            """
+            Attempt to reach tgt_node from src_node with arcs in arc_pool
+            """
+            if src_node == tgt_node:
+                return True
+            
+            updated_flag = False  # L-Rave should be updated at most once
+            
+            for arc in arc_pool:
+                if src_node._node.can_accept_arc(arc):
+                    new_arc_pool = deepcopy(arc_pool)
+                    new_arc_pool.remove(arc)
+                    nxt = arc.to_next()
+                    mid_child = src_node.get_child(nxt.type, self._treenode_store)[0]
+                    child_node = self.touch(src_node._node.get_child_from_arc(arc))
+                    if attempt_to_node(child_node, tgt_node, new_arc_pool) and not updated_flag:
+                        src_node.update_lrave(reward, nxt.type)
+                        mid_child.update_lrave(reward, arc)
+                        updated_flag = True
+                
+        attempt_to_node(self.tree_root, tree_node, set(arcs))
+    
+    def touch(self, node: Node) -> TreeNode:
+        """
+        Initialize node if not exist in store
+        """
+        assert isinstance(node, Node)
+        if node not in self._treenode_store.keys():
+            self._treenode_store[node] = TreeNode(node)
+        return self._treenode_store[node]
     
     def remove(self, receipt: Receipt, trial: TreeNode) -> None:
         "Remove the receipt and set this trial to be dead. "
@@ -429,7 +463,7 @@ class MCTS:
             """Return a boolean value indicating whether the node contains a final descendant. """
             assert isinstance(node, TreeNode)
             children = node.get_children(self._treenode_store, False)
-            alive_flag = node.N > 0 or node.is_final() or (keep_tree_node and node._isin_tree) or node.is_dead_end(self._treenode_store)
+            alive_flag = not node.empty() or (keep_tree_node and node._isin_tree)
             if not node.is_dead_end(self._treenode_store):
                 for _, child, _ in children:
                     child_alive_flag = label_alive(child)
