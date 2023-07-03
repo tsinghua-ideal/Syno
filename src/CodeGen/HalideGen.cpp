@@ -383,8 +383,8 @@ HalideGen::ScheduledPipelins HalideGen::ApplyAutoScheduler(Halide::Func& forward
             fmt::format_to(std::ostreambuf_iterator(*verbose), "// Backward pipeline:\n{}\n", backwardResult.schedule_source);
     } else {
         if (verbose) {
-            fmt::format_to(std::ostreambuf_iterator(*verbose), "// Forward pipeline:\ncompute_root()\n");
-            fmt::format_to(std::ostreambuf_iterator(*verbose), "// Backward pipeline:\ncompute_root()\n");
+            fmt::format_to(std::ostreambuf_iterator(*verbose), "// Forward pipeline:\nfunc.compute_root();\n");
+            fmt::format_to(std::ostreambuf_iterator(*verbose), "// Backward pipeline:\nfunc.compute_root();\n");
         }
     }
 

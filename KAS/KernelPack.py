@@ -143,6 +143,9 @@ class KernelLoader:
     def from_directory(directory: os.PathLike) -> 'KernelLoader':
         return KernelLoader(Bindings.Kernel(directory))
 
+    def get_directory(self) -> os.PathLike:
+        return self._kernel.get_directory()
+
     def get_device(self) -> bool:
         if self._kernel.use_cuda():
             return torch.device('cuda')

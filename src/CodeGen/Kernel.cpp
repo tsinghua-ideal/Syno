@@ -164,6 +164,10 @@ Kernel::Kernel(const std::filesystem::path& dir):
     loadMetadataAndNestedLoops();
 }
 
+const std::filesystem::path& Kernel::getDirectory() const {
+    return dir;
+}
+
 const std::string& Kernel::getNestedLoops() const {
     return nestedLoops;
 }

@@ -159,6 +159,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<Kernel>(m, "Kernel")
         .def(pybind11::init<std::string>()) // From directory.
+        .def("get_directory", &Kernel::getDirectory)
         .def("use_cuda", &Kernel::cuda)
         .def("get_count_placeholders", &Kernel::countPlaceholders)
         .def("get_count_valid_kernels", &Kernel::countKernels)

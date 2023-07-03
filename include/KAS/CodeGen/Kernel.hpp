@@ -60,6 +60,8 @@ public:
     // Load from file.
     Kernel(const std::filesystem::path& dir);
 
+    const std::filesystem::path& getDirectory() const;
+
     const std::string& getNestedLoops() const;
 
     bool cuda() const;

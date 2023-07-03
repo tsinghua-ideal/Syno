@@ -10,6 +10,7 @@ class Model(nn.Module):
         super(Model, self).__init__()
         self.kernel_1 = Placeholder({"H": 32, "W": 32})
         self.kernel_2 = Placeholder({"H": 16, "W": 16})
+        self.kernel_3 = Placeholder({"H": 16, "W": 16})
 
     def forward(self, x: torch.Tensor):
         x = self.kernel_1(x)
@@ -17,6 +18,7 @@ class Model(nn.Module):
         x = F.avg_pool2d(x, 2)
         x = x.view(16, 16)
         x = self.kernel_2(x)
+        x = self.kernel_3(x)
         return x
 
 
@@ -57,15 +59,17 @@ def perform_trials(manual: bool):
     net = Model()
     sampler = Sampler("[H,W]", "[H,W]", [], ["s_1=2", "s_2=3"], net=net, seed=42, depth=10,
                       maximum_reductions=3,
-                      cuda=False, autoscheduler=CodeGenOptions.ComputeRoot)
+                      cuda=False, autoscheduler=CodeGenOptions.Adams2019)
     sampler._bind_debug_context()
 
     if not manual:
         while True:
             node = sampler.random_node_with_prefix(Path([]))
             if node.is_final():
-                kernel_packs = sampler.realize(net, node).construct_kernel_packs()
-                if len(kernel_packs[0]._unpadded_inputs_shapes) > 1:
+                kernel = sampler.realize(net, node)
+                if kernel.get_count_inputs() > 1:
+                    kernel_packs = kernel.construct_kernel_packs()
+                    print(f"Kernel files stored in {kernel.get_directory()}")
                     break
         print(node.get_nested_loops_as_final())
         print(node.get_composing_arcs())
