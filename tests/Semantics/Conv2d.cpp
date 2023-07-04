@@ -32,8 +32,8 @@ TEST_F(semantics_tests, conv2d) {
     // [N, C_in, H, K, W, K, C_out, C_in, K, K], where H and W are unfolded.
 
     auto dimCin_shared = Forward::ShareOp::Create(dimCin_input, dimCin_filter);
-    auto dimK1_shared = Forward::ShareOp::Create(dimK1, dimH_dot_K);
-    auto dimK2_shared = Forward::ShareOp::Create(dimK2, dimW_dot_K);
+    auto dimK1_shared = Forward::ShareOp::Create(dimH_dot_K, dimK1);
+    auto dimK2_shared = Forward::ShareOp::Create(dimW_dot_K, dimK2);
     // [N, C_in, H, W, C_out, K, K], where C_in, K1, and K2 are shared.
 
     dimN.output(0);
@@ -48,6 +48,7 @@ TEST_F(semantics_tests, conv2d) {
     std::vector<Dimension> input { dimN, dimCin_input, dimH, dimW }, weight { dimCout, dimCin_filter, dimK1, dimK2 };
     // TODO: Add bias.
     auto tensorView = TensorView({ input, weight }, Parser("in_0 * in_1").parseTensorExpression());
+    ASSERT_EQ("[C_out, C_in, K, K]", tensorView.getUnderlyingTensors()[1].shapeToString(ctx));
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),
 R"(for (int i_0 = 0; i_0 < N; i_0++) {
     for (int i_1 = 0; i_1 < C_out; i_1++) {

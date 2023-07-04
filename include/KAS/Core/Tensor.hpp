@@ -72,7 +72,6 @@ protected:
     std::vector<const MapReduce *> manipulations;
     using ReduceIteratorShapeView = AbstractShape<const std::vector<const MapReduce *>&, [](const MapReduce * const& ptr) -> const Size& { return ptr->size(); }>;
 
-    // How to blend the tensors? TODO
     std::vector<PureTensor> tensors;
     AbstractAccess forwardAccess; // Iterators evaluated for the forward pipeline.
     std::vector<AbstractAccess> backwardAccesses; // Iterators evaluated for the backward pipeline.

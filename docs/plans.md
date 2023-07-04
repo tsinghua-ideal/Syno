@@ -30,8 +30,8 @@
 - [x] Manual `rfactor` for up to 3x performance.
 - [x] Add support for more arithmetic operations, other than product.
 - [x] Add nested loops codegen for expression.
-- [ ] Generate metadata along with kernels.
-- [ ] Adjust the order of dimensions in weights for better cache locality.
+- [x] Generate metadata along with kernels.
+- [x] Adjust the order of dimensions in weights for better cache locality.
 
 ## Transforms
 
@@ -77,7 +77,7 @@
 
 - [x] Index the search tree by hashes for reproducibility.
 - [ ] Allow direct construction of kernel from primitives and parameters, without building the search tree. Also save these data to files.
-- [ ] Multithreaded search tree building.
+- [x] Multithreaded search tree building.
 - [x] Compute a Path from a TensorView, to verify searchability.
 - [x] Robustify the TensorView -> Path function.
 - [ ] Add visualization for search space, e.g., draw the DAG interactively.

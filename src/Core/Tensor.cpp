@@ -233,17 +233,21 @@ std::string TensorView::description(const BindingContext& ctx) const {
     return TensorArrayToString(tensors | std::views::transform(&PureTensor::getDimensions), ctx);
 }
 
-TensorView::TensorView(const std::vector<std::vector<Dimension>>& tensors, TensorExpression blending) {
-    for (std::size_t tId = 0; auto&& tensor: tensors) {
-        this->tensors.emplace_back(tId, tensor);
-        ++tId;
-    }
-
+TensorView::TensorView(const std::vector<std::vector<Dimension>>& canonicalTensors, TensorExpression blending) {
     Graph::Builder builder;
-    builder.addTopmost(tensors | std::views::join);
+    builder.addTopmost(canonicalTensors | std::views::join);
     Graph graph = builder.build();
     auto& outputIterators = graph.getOutputIterators();
     auto& mapReduceIterators = graph.getMapReduceIterators();
+
+    auto tensors = canonicalTensors;
+    LocalityOptimizer optim { graph };
+    optim.permuteWeightDimensions(tensors);
+    KAS_ASSERT(tensors.at(0) == canonicalTensors.at(0));
+    for (std::size_t tId = 0; auto& tensor: tensors) {
+        this->tensors.emplace_back(tId, std::move(tensor));
+        ++tId;
+    }
 
     std::vector<Dimension> interfaceDimensions;
     std::ranges::copy(outputIterators, std::back_inserter(interfaceDimensions));

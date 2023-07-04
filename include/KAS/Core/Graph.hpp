@@ -289,7 +289,7 @@ public:
 
     const std::vector<Dimension>& getTopmost() const { return topmost; }
     decltype(auto) getDimensions() const {
-        return dimMeta | std::views::transform([](auto&& pair) { return pair.first; });
+        return dimMeta | std::views::transform([](auto&& pair) -> const Dimension& { return pair.first; });
     }
     std::vector<const Iterator *>& getOutputIterators() { return outputIterators; }
     const std::vector<const Iterator *>& getOutputIterators() const { return outputIterators; }
@@ -318,6 +318,24 @@ public:
                 return sAttr[&v.op];
             } else if constexpr (std::is_same_v<std::remove_cvref_t<V>, MergeLikeVertex>) {
                 return mAttr[&v.op];
+            } else {
+                static_assert(std::is_same_v<std::remove_cvref_t<V>, RepeatLikeVertex> ||
+                              std::is_same_v<std::remove_cvref_t<V>, SplitLikeVertex> ||
+                              std::is_same_v<std::remove_cvref_t<V>, MergeLikeVertex>);
+            }
+        }
+        template<typename V>
+        requires Vertex<std::remove_cvref_t<V>>
+        Value *find(V&& v) {
+            if constexpr (std::is_same_v<std::remove_cvref_t<V>, RepeatLikeVertex>) {
+                auto it = rAttr.find(&v.op);
+                return it == rAttr.end() ? nullptr : &it->second;
+            } else if constexpr (std::is_same_v<std::remove_cvref_t<V>, SplitLikeVertex>) {
+                auto it = sAttr.find(&v.op);
+                return it == sAttr.end() ? nullptr : &it->second;
+            } else if constexpr (std::is_same_v<std::remove_cvref_t<V>, MergeLikeVertex>) {
+                auto it = mAttr.find(&v.op);
+                return it == mAttr.end() ? nullptr : &it->second;
             } else {
                 static_assert(std::is_same_v<std::remove_cvref_t<V>, RepeatLikeVertex> ||
                               std::is_same_v<std::remove_cvref_t<V>, SplitLikeVertex> ||
