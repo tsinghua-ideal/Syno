@@ -53,7 +53,14 @@ def get_model_and_sampler(args):
             'max_flops': args.kas_max_flops,
             'save_path': args.kas_sampler_save_dir,
             'cuda': True,
-            'autoscheduler': CodeGenOptions.AutoScheduler.Anderson2021
+            'autoscheduler': CodeGenOptions.AutoScheduler.Anderson2021,
+            'extra_options': {
+                'parallelism': '82',
+                'shared_memory_limit_kb': '48',
+                'shared_memory_sm_limit_kb': '100',
+                'active_block_limit': '256',
+                'active_warp_limit': '512',
+            }
         }
         sampler = Sampler(net=model, **params)
 
