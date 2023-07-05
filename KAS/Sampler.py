@@ -139,6 +139,20 @@ class Sampler:
             Use GPU.
         autoscheduler : Bindings.CodeGenOptions.AutoScheduler, optional
             Halide autoschdulers. Check `src/Python/Bindings.cpp` for detail.
+        extra_options : Dict[str, str], optional
+            Extra options for Halide autoschedulers. Note that all the parameters are passed in as strings, as required by Halide.
+            Specifically for Anderson2021, there are:
+            - `parallelism` (default "16"): Maximum level of parallelism available. (i.e., number of SMs.)
+            - `beam_size` (default "32"): Beam size to use in the beam search. Defaults to 32. Use 1 to get a greedy search instead.
+            - `random_dropout` (default "100"): Percent chance of accepting each state in the beam. Normalized by the number of decisions made, so 5 would be there's a 5 percent chance of never rejecting any states.
+            - `search_space_options` (default "1111"): Expects a string of four 0/1 values that allow/disallow the following options:
+                compute root, inline, compute at the block level, compute at the thread level
+              e.g. 1000 would allow compute root only
+            - `num_passes` (default "0"): User-requested specific number of passes. Ignored if 0.
+            - `shared_memory_limit_kb` (default "48"): Shared memory limit per block for the target GPU.
+            - `shared_memory_sm_limit_kb` (default "96"): Shared memory limit per SM for the target GPU.
+            - `active_block_limit` (default "32"): Maximum number of active blocks for the target GPU.
+            - `active_warp_limit` (default "64"): Maximum number of active warps for the target GPU.
         rfactor_threshold : int, optional
             Halide autoschedulers are weak, so we manually split up the reduction loops for them. If the outermost loop is smaller than this parameter, we will not perform manual splitting of reduction loops.
         in_bounds_likely_threshold : float, optional
