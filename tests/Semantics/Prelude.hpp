@@ -17,6 +17,13 @@ protected:
     const HalideGen::Options options = {
         .useGPU = true,
         .scheduler = HalideGen::Options::AutoScheduler::Anderson2021,
+        .extraOptions = {
+            {"parallelism", "30"},
+            {"shared_memory_limit_kb", "49152"},
+            {"shared_memory_sm_limit_kb", "65536"},
+            {"active_block_limit", "256"},
+            {"active_warp_limit", "512"},
+        },
         .rfactorThreshold = 32,
         .inBoundsLikelyThreshold = 0.3,
     };

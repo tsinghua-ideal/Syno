@@ -347,7 +347,7 @@ HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const ConcreteCons
     }
 }
 
-HalideGen::ScheduledPipelins HalideGen::ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, std::ostream *verbose) {
+HalideGen::ScheduledPipelins HalideGen::ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, const std::map<std::string, std::string>& extraOptions, std::ostream *verbose) {
     // Prepare auto schedulers.
     using Scheduler = Options::AutoScheduler;
     const bool computeRoot = scheduler == Scheduler::ComputeRoot;
@@ -362,7 +362,7 @@ HalideGen::ScheduledPipelins HalideGen::ApplyAutoScheduler(Halide::Func& forward
         case Scheduler::Anderson2021:   schedulerName = "Anderson2021";     break;
         case Scheduler::ComputeRoot:    KAS_UNREACHABLE();
         }
-        params = { schedulerName };
+        params = { schedulerName, extraOptions };
     }
 
     // Apply auto schedulers to pipelines.
@@ -430,7 +430,7 @@ void HalideGen::generate(const std::filesystem::path& forwardOutputPath, const s
     ] = createPipelines(consts, forwardFuncName, backwardFuncName);
 
     auto target = GetHostTarget(options.useGPU, false);
-    auto [forwardPipeline, backwardPipeline] = ApplyAutoScheduler(forwardFunc, backwardFuncs, target, options.scheduler, verbose);
+    auto [forwardPipeline, backwardPipeline] = ApplyAutoScheduler(forwardFunc, backwardFuncs, target, options.scheduler, options.extraOptions, verbose);
 
     GenerateFromPipelines(forwardInputs, backwardInputs, forwardPipeline, backwardPipeline, forwardOutputPath, backwardOutputPath, forwardFuncName, backwardFuncName, target);
 }

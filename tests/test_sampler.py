@@ -57,9 +57,17 @@ def manually_design(assembler: Assembler) -> Assembled:
 
 def perform_trials(manual: bool):
     net = Model()
-    sampler = Sampler("[H,W]", "[H,W]", [], ["s_1=2", "s_2=3"], net=net, seed=42, depth=10,
-                      maximum_reductions=3,
-                      cuda=False, autoscheduler=CodeGenOptions.Adams2019)
+    sampler = Sampler(
+        "[H,W]", "[H,W]", [], ["s_1=2", "s_2=3"], net=net, seed=42, depth=10,
+        maximum_reductions=3,
+        cuda=False, autoscheduler=CodeGenOptions.Adams2019,
+        extra_options={
+            "parallelism": "30",
+            "shared_memory_limit_kb": "49152",
+            "shared_memory_sm_limit_kb": "65536",
+            "active_block_limit": "256",
+            "active_warp_limit": "512",
+        })
     sampler._bind_debug_context()
 
     if not manual:

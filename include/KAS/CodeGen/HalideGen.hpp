@@ -67,6 +67,7 @@ public:
         };
         bool useGPU = true;
         AutoScheduler scheduler = AutoScheduler::Li2018;
+        std::map<std::string, std::string> extraOptions;
         std::size_t rfactorThreshold = 32;
         float inBoundsLikelyThreshold = 0.3f;
     };
@@ -111,7 +112,7 @@ public:
 
     // Applys auto-schedulers on the funcs.
     using ScheduledPipelins = std::pair<Halide::Pipeline, Halide::Pipeline>;
-    static ScheduledPipelins ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, std::ostream *verbose);
+    static ScheduledPipelins ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, const std::map<std::string, std::string>& extraOptions, std::ostream *verbose);
 
     static void GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardInputs, std::vector<Halide::ImageParam>& backwardInputs, Halide::Pipeline& forwardPipeline, Halide::Pipeline& backwardPipeline, const std::filesystem::path& forwardOutputPath, const std::filesystem::path& backwardOutputPath, std::string_view forwardFuncName, std::string_view backwardFuncName, const Halide::Target& target);
 
@@ -169,8 +170,9 @@ public:
         auto unpaddedConsts = ctx.realizeConsts(mappings);
         auto consts = tensorView.computePadding(ctx, unpaddedConsts);
         auto shapes = concretizeShapes(consts);
-        auto backwardFuncName = fmt::format("{}_grad", funcName);
-        auto [inputs, func, backwardInputs, backwardFuncs] = createPipelines(consts, funcName, backwardFuncName);
+        auto forwardFuncName = fmt::format("{}_0", funcName);
+        auto backwardFuncName = fmt::format("{}_0_grad", funcName);
+        auto [inputs, func, backwardInputs, backwardFuncs] = createPipelines(consts, forwardFuncName, backwardFuncName);
 
         std::vector<Halide::Buffer<float>> inputBuffers;
         std::vector<Halide::Buffer<float>> inputGradsBuffers;
@@ -206,12 +208,12 @@ public:
 
         // Compute the forward result.
         auto target = GetHostTarget(options.useGPU, true);
-        auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, verbose ? &std::cout : nullptr);
+        auto [pipeline, backwardPipeline] = HalideGen::ApplyAutoScheduler(func, backwardFuncs, target, options.scheduler, options.extraOptions, verbose ? &std::cout : nullptr);
 
         if (createStaticLibrary) {
             std::filesystem::path outputDir = fmt::format("./kernel_{}", funcName);
-            HalideGen::GenerateFromPipelines(inputs, backwardInputs, pipeline, backwardPipeline, outputDir / funcName, outputDir / backwardFuncName, fmt::format("{}_0", funcName), fmt::format("{}_0_grad", funcName), target);
-            int err = LinkObjects(outputDir, "kernels.so", { fmt::format("{}_0.o", funcName), fmt::format("{}_0_grad.o", funcName) });
+            HalideGen::GenerateFromPipelines(inputs, backwardInputs, pipeline, backwardPipeline, outputDir / forwardFuncName, outputDir / backwardFuncName, forwardFuncName, backwardFuncName, target);
+            int err = LinkObjects(outputDir, "kernels.so", { fmt::format("{}.o", forwardFuncName), fmt::format("{}.o", backwardFuncName) });
             KAS_ASSERT(err == 0, "Failed to link objects.");
         }
 
