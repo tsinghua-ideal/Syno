@@ -6,7 +6,7 @@ from .KernelPack import KernelPack
 
 
 class Placeholder(nn.Module):
-    def __init__(self, mappings: Dict, refered_layer: nn.Module = None, mapping_func=None) -> None:
+    def __init__(self, mappings: Dict = None, refered_layer: nn.Module = None, mapping_func=None) -> None:
         super(Placeholder, self).__init__()
         assert mappings is not None or refered_layer is not None
         self.mappings = mappings

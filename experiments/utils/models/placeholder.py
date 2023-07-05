@@ -21,7 +21,7 @@ class LinearPlaceholder(Placeholder):
         w_out_C.output(1)
         shared_C_in.mean(0)
 
-        return assembler.assemble('in_0 * in_1', [in_N, in_C], [w_in_C, w_out_C])
+        return assembler.assemble('linear', 'in_0 * in_1', [in_N, in_C], [w_in_C, w_out_C])
 
     @staticmethod
     def mapping(in_size, out_size):
@@ -59,7 +59,7 @@ class ConvPlaceholder(Placeholder):
         shared_k_2.mean(1)
         shared_C_in.mean(2)
 
-        return assembler.assemble('in_0 * in_1', [in_N, in_C, in_H, in_W], [out_C, w_in_C, w_k_1, w_k_2])
+        return assembler.assemble('conv', 'in_0 * in_1', [in_N, in_C, in_H, in_W], [out_C, w_in_C, w_k_1, w_k_2])
     
     @staticmethod
     def mapping(in_size, out_size):
