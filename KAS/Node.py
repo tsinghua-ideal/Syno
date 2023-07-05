@@ -267,7 +267,7 @@ class MockNodeMetadata:
     def get_child(self, next: Next) -> Optional['MockNodeMetadata']:
         return self._mock_children().get(next, None)
 
-    def can_accep_arc(self, arc: Next) -> bool:
+    def can_accept_arc(self, arc: Next) -> bool:
         return arc in self._mock_children()
 
     def get_child_from_arc(self, arc: Next) -> Optional['MockNodeMetadata']:

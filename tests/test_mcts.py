@@ -18,10 +18,10 @@ class Model(nn.Module):
 
 def test_mcts():
     net = Model()
-    sampler = Sampler("[H,W]", "[W]", ["H = 128: 1", "W = 128: 1"], [
-                      "s_1=2: 2", "k=3: 4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
+    sampler = Sampler("[H,W]", "[H,W]", ["H:2", "W:2"], [
+                      "s=3:2", "k=4:4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
     mcts = MCTS(sampler, virtual_loss_constant=1)
-    for idx in range(10):
+    for idx in range(30):
         try:
             receipt, trials = mcts.do_rollout(sampler.root())
             _, path = receipt
@@ -44,6 +44,8 @@ def test_mcts():
     mcts_serialize = mcts.serialize()
     json.dump(mcts_serialize, open("test_mcts.json", "w"), indent=4)
     mcts_recover = MCTS.deserialize(mcts_serialize, sampler)
+    
+    # nodes
     for k, v in mcts_recover._treenode_store.items():
         assert k in mcts._treenode_store, f"Node {k} not in {mcts._treenode_store}"
         assert v == mcts._treenode_store[k], f"Node {k} is {v}, should be {mcts._treenode_store[k]}"
@@ -52,6 +54,16 @@ def test_mcts():
             continue
         assert k in mcts_recover._treenode_store, f"Node {k} not in {mcts_recover._treenode_store}"
         assert v == mcts_recover._treenode_store[k], f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
+    
+    # raves
+    assert mcts.g_rave == mcts_recover.g_rave, f"Rave {mcts.g_rave} != {mcts_recover.g_rave}"
+    
+    # flags
+    assert mcts._exploration_weight == mcts_recover._exploration_weight, f"Exploration weight {mcts._exploration_weight} != {mcts_recover._exploration_weight}"
+    assert mcts.virtual_loss_constant == mcts_recover.virtual_loss_constant, f"Virtual loss constant {mcts.virtual_loss_constant} != {mcts_recover.virtual_loss_constant}"
+    assert mcts.leaf_num == mcts_recover.leaf_num, f"Leaf num {mcts.leaf_num} != {mcts_recover.leaf_num}"
+    assert mcts._b == mcts_recover._b, f"b {mcts._b} != {mcts_recover._b}"
+    assert mcts._c_l == mcts_recover._c_l, f"c_l {mcts._c_l} != {mcts_recover._c_l}"
         
     os.remove("test_mcts.json")
 

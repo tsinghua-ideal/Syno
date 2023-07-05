@@ -4,6 +4,7 @@ import os
 from tqdm import trange
 
 from KAS import MCTS, MockSampler
+from kas_cpp_bindings import Next
 
 def test_remove():
     vertices = ['root', {'name': 'final', 'is_final': True}]
@@ -21,6 +22,7 @@ def test_remove():
     mcts.remove(receipt, trials[0][1])
     
     assert mcts.do_rollout(sampler.root()) is None
+    print("[PASSED] test_remove")
     
 def test_final_select():
     
@@ -47,6 +49,8 @@ def test_final_select():
     mcts.back_propagate(receipt, 0.5, node[0][0])
     
     mcts.do_rollout(sampler.root())
+    
+    print("[PASSED] test_final_select")
 
 def test_mcts():
     vertices = ['root', 'a', 'b', {'name': 'final', 'is_final': True}]
@@ -64,11 +68,11 @@ def test_mcts():
     for idx in range(2):
         receipt, trials = mcts.do_rollout(sampler.root())
         _, path = receipt
-        node = trials
-        print(f"Iteration {idx}. Sampled {node} for {path}")
-        mcts.back_propagate(receipt, 0.5, node[0][0])
+        print(f"Iteration {idx}. Sampled {trials} for {path}")
+        mcts.back_propagate(receipt, 0.5, trials[0][0])
+        print("Tree after first two iterations", [(v, v.N) for _, v in mcts._treenode_store.items()])
         
-    print("Tree after first two iterations", [v for _, v in mcts._treenode_store.items() if v.N > 0])
+    print("Tree after first two iterations", [(v, v.N) for _, v in mcts._treenode_store.items()])
     assert len(mcts._treenode_store.keys()) == 3
     assert len([v for _, v in mcts._treenode_store.items() if v.N > 0]) == 2
     
@@ -106,13 +110,116 @@ def test_mcts():
         assert k in mcts._treenode_store, f"Node {k} not in {mcts._treenode_store}"
         assert v == mcts._treenode_store[k], f"Node {k} is {v}, should be {mcts._treenode_store[k]}"
     for k, v in mcts._treenode_store.items():
-        if v.N == 0:
+        if v.empty():
             continue
         assert k in mcts_recover._treenode_store, f"Node {k} not in {mcts_recover._treenode_store}"
         assert v == mcts_recover._treenode_store[k], f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
     
     os.remove("test_mcts.json")
+    
+    print("[PASSED] test_mcts")
 
+def test_grave():
+    vertices = ['root', 's_1', 's_2', 's_3', {'name': 'final_12', 'is_final': True}, {'name': 'final_23', 'is_final': True}]
+    edges = [
+        ('root', [('Share(1)', 's_1'), ('Share(2)', 's_2'), ('Share(3)', 's_3')]),
+        ('s_1', [('Share(2)', 'final_12')]),
+        ('s_3', [('Share(2)', 'final_23')]),
+        ('s_2', [('Share(1)', 'final_12'), ('Share(3)', 'final_23')]),
+    ]
+    sampler = MockSampler(vertices, edges)
+    
+    mcts = MCTS(sampler, c_l=1e4, b=0.9)
+    
+    # s_1 is first expanded
+    # CHECK: only one child
+    root_node = mcts._treenode_store[mcts._root]
+    root_visible_children = root_node.get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_children) == 1
+    
+    # update once
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0., trials[0][0])
+    
+    # CHECK: no new children added. 
+    root_visible_children = root_node.get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_children) == 1
+    
+    root_visible_grandchildren = root_visible_children[0][1].get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_grandchildren) == 1
+    root_visible_grandchild = root_visible_grandchildren[0][1]
+    assert root_visible_grandchild._node._node._name == 's_1'
+    
+    # update once
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0.5, trials[0][0])
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0.5, trials[0][0])
+    
+    # CHECK: two children from root
+    root_visible_grandchildren = root_visible_children[0][1].get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_grandchildren) == 2, root_visible_grandchildren
+    root_visible_grandchild = root_visible_grandchildren[1][1]
+    assert root_visible_grandchild._node._node._name == 's_2'
+    
+    print("[PASSED] test_grave")
+
+def test_lrave():
+    vertices = ['root', 's_1', 's_2', 's_3', {'name': 'final_12', 'is_final': True}, {'name': 'final_23', 'is_final': True}]
+    edges = [
+        ('root', [('Share(1)', 's_1'), ('Share(2)', 's_2'), ('Share(3)', 's_3')]),
+        ('s_1', [('Share(2)', 'final_12')]),
+        ('s_3', [('Share(2)', 'final_23')]),
+        ('s_2', [('Share(1)', 'final_12'), ('Share(3)', 'final_23')]),
+    ]
+    sampler = MockSampler(vertices, edges)
+    
+    mcts = MCTS(sampler, c_l=1e-4, b=0.9)
+    
+    # s_1 is first expanded
+    # CHECK: only one child
+    root_node = mcts._treenode_store[mcts._root]
+    root_visible_children = root_node.get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_children) == 1
+    
+    # update once
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0., trials[0][0])
+    
+    # CHECK: no new children added. 
+    root_visible_children = root_node.get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_children) == 1
+    
+    root_visible_grandchildren = root_visible_children[0][1].get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_grandchildren) == 1
+    root_visible_grandchild = root_visible_grandchildren[0][1]
+    assert root_visible_grandchild._node._node._name == 's_1'
+    
+    # update once
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0.5, trials[0][0])
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0.5, trials[0][0])
+    
+    # CHECK: two children from root
+    root_visible_grandchildren = root_visible_children[0][1].get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_grandchildren) == 2, root_visible_grandchildren
+    root_visible_grandchild = root_visible_grandchildren[1][1]
+    assert root_visible_grandchild._node._node._name == 's_2'
+    
+    print("[PASSED] test_lrave")
 
 def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
     """
@@ -146,10 +253,14 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
     root = mcts._treenode_store[sampler.visit([]).to_node()]
     assert root.N == num_iter * leaf_num, f"Root node has {root.N} visits, should be {num_iter * leaf_num}"
     assert abs(root.mean - 0.9) <= eps, f"Q/N of root is {root.mean}, which has absolute error {abs(root.mean - 0.9)} > {eps}"
+    
+    print("[PASSED] test_convergence")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    test_mcts()
     test_remove()
     test_final_select()
+    test_mcts()
+    test_grave()
+    test_lrave()
     test_converge()
