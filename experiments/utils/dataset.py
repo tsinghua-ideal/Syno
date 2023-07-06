@@ -46,4 +46,10 @@ def get_dataloader(args):
         use_multi_epochs_loader=args.use_multi_epochs_loader
     )
 
+    # Prefetch all data into GPU
+    if args.fetch_all_to_gpu:
+        print('Fetching all data into GPU ...')
+        train_data_loader = [(image, label) for (image, label) in train_data_loader]
+        validation_data_loader = [(image, label) for (image, label) in validation_data_loader]
+
     return train_data_loader, validation_data_loader

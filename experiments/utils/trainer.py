@@ -19,12 +19,6 @@ def train(model, train_loader, val_loader, args) -> Tuple[List[float], List[floa
     optimizer = get_optimizer(model, args)
     scheduler, sched_epochs = get_schedule(optimizer, args)
 
-    # Prefetch all data into GPU
-    if args.fetch_all_to_gpu:
-        print('Fetching all data into GPU ...')
-        train_loader = [(image, label) for (image, label) in train_loader]
-        val_loader = [(image, label) for (image, label) in val_loader]
-
     train_errors = []
     val_errors = []
     start = time.time()
