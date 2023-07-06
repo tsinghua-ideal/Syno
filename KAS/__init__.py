@@ -23,3 +23,4 @@ from .Node import Next, Path, Arc, Node, MockNodeMetadata, MockNode, MockVisited
 from .KernelPack import KernelPack, KernelLoader
 from .Utils import NextSerializer
 from .Explorer import Explorer
+from .TreeExplorer import TreeExplorer

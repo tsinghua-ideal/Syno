@@ -247,10 +247,8 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
         receipt, trials = mcts.do_rollout(sampler.root())
         for path, node in trials:
             mcts.back_propagate(receipt, node._node.mock_get('reward'), path)
-        
-        root = mcts._treenode_store[sampler.visit([]).to_node()]
     
-    root = mcts._treenode_store[sampler.visit([]).to_node()]
+    root = mcts.tree_root
     assert root.N == num_iter * leaf_num, f"Root node has {root.N} visits, should be {num_iter * leaf_num}"
     assert abs(root.mean - 0.9) <= eps, f"Q/N of root is {root.mean}, which has absolute error {abs(root.mean - 0.9)} > {eps}"
     
