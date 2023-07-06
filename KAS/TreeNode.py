@@ -185,19 +185,17 @@ class TreeNode:
     
     def update(self, reward: float, arc: PseudoArc=None) -> None:
         self.state.update(reward)
-        if arc:
-            assert not self.is_final()
-            self.l_rave[arc].update(reward)
-            if self._is_mid:
-                nxt = arc.to_next()
-                self.edge_states[nxt.key].update(reward)
+        if arc and self._is_mid:
+            nxt = arc.to_next()
+            self.edge_states[nxt.key].update(reward)
+    
+    def update_edge(self, reward: float, key: int) -> None:
+        assert self._is_mid
+        self.edge_states[key].update(reward)
     
     def update_lrave(self, reward: float, arc: PseudoArc) -> None:
         assert not self.is_final()
         self.l_rave[arc].update(reward)
-        if self._is_mid:
-            nxt = arc.to_next()
-            self.edge_states[nxt.key].update(reward)
 
     def children_count(self, factory: Dict[Node, "TreeNode"], on_tree: bool=False) -> int:
         """

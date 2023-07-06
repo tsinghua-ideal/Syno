@@ -2,7 +2,7 @@ import random
 import math
 import logging
 from collections import defaultdict, OrderedDict as ODict
-from typing import List, Tuple, Any, Optional, DefaultDict, MutableSet, Union, OrderedDict, Dict
+from typing import List, Tuple, Any, Optional, DefaultDict, Set, Union, OrderedDict, Dict
 from copy import deepcopy
 
 from .Node import Path, VisitedNode, Node
@@ -14,7 +14,7 @@ from .Utils import NextSerializer, AverageMeter
 MockArc = Union[Next, Arc]
 
 class MCTS:
-    def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20) -> None:
+    def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20, policy: str='update-descent') -> None:
 
         self._treenode_store: OrderedDict[Node, TreeNode] = ODict()
         self._root = sampler.visit([]).to_node()
@@ -26,6 +26,8 @@ class MCTS:
         self._exploration_weight = exploration_weight
         self._c_l = c_l
         self._b = b
+        self._policy = policy
+        assert policy in ['update-all', 'update-descent']
         random.seed(sampler._seed)
 
         # Tree Parallelization
@@ -210,42 +212,145 @@ class MCTS:
         """
         Send the reward back up to the ancestors of the leaf
         """
+        
+        # check input types
         assert isinstance(reward, float)
         assert isinstance(path_to_trail, TreePath)
         assert 0.0 <= reward <= 1.0
 
-        tree_node, path = receipt
-        self._decrement_virtual_loss(path, tree_node)
+        node, path = receipt
+        self._decrement_virtual_loss(path, node)
+        
+        # update rewards
+        final_node = self.update_nodes(receipt, reward)
+        
+        # update rave scores
+        arcs = final_node._node.get_composing_arcs()
+        update_types = set([next.type for next in path_to_trail])
+            
+        self.update_grave(arcs, update_types, reward)
+        self.update_lrave(final_node, arcs, reward)
+    
+    def update_nodes(self, receipt: Receipt, reward: float) -> TreeNode:
+        node, path = receipt
         
         def update_stats(tree_node: TreeNode, reward: float, arc: Optional[PseudoArc] = None) -> None:
             tree_node.update(reward, arc)
             tree_node.flush_T(tree_node.N, self._treenode_store, self.g_rave, self._c_l, self._b)
+
+        tree_node = self._treenode_store[node.to_node()]
+        if self._policy == 'update-descent':
+            for tree_next in path:
+                arc = tree_node._node.get_arc_from_handle(tree_next)
+                assert isinstance(arc, MockArc) or tree_next.key == 0, f"{arc, tree_next}"
+                update_stats(tree_node, reward, tree_next.type)
+                tree_node, _ = tree_node.get_child(tree_next.type, self._treenode_store, on_tree=True)
+                assert tree_node is not None
+                if tree_next.key == 0:
+                    break
+                update_stats(tree_node, reward, arc)
+                tree_node, _ = tree_node.get_child(tree_next.key, self._treenode_store, on_tree=True)
+                assert tree_node is not None
+                
+            update_stats(tree_node, reward)
+            final_node = tree_node
+        elif self._policy == 'update-all':
+            logging.warning("Update-all policy is still not fully implemented. Please do not use it for now!")
+            for tree_next in path:
+                arc = tree_node._node.get_arc_from_handle(tree_next)
+                tree_node, _ = tree_node.get_child(tree_next.type, self._treenode_store, on_tree=True)
+                if tree_next.key == 0:
+                    break
+                tree_node, _ = tree_node.get_child(tree_next.key, self._treenode_store, on_tree=True)
+            assert tree_node is not None
+            final_node = tree_node
+            logging.debug(f"final node is {final_node}")
+            arcs = final_node._node.get_composing_arcs()
+            
+            # Mark Ancestors
+            ancestors: List[TreeNode] = []
+            def mark_ancestors(src_node: TreeNode, tgt_node: TreeNode, arc_pool: Set[Arc]) -> bool:
+                logging.debug(f"mark_ancestors({src_node}, {tgt_node}, {arc_pool})")
+                if src_node == tgt_node or tgt_node in src_node.children:
+                    return True
+                
+                updated_flag = False
+                for arc in arc_pool:
+                    if src_node._node.can_accept_arc(arc):
+                        arc_pool.remove(arc)
+                        nxt = arc.to_next()
+                        mid_child = src_node.get_child(nxt.type, self._treenode_store)[0]
+                        assert mid_child is not None
+                        child_node = self.touch(src_node._node.get_child_from_arc(arc))
+                        if mark_ancestors(child_node, tgt_node, arc_pool) and not updated_flag:
+                            ancestors.append(child_node)
+                            updated_flag = True
+                        arc_pool.add(arc)
+                return updated_flag
+            assert mark_ancestors(self.tree_root, final_node, set(arcs))
+            ancestors = set(ancestors)
+            
+            # Compute Weights
+            node_weights: DefaultDict[TreeNode, float] = defaultdict(float)
+            edge_buffer: DefaultDict[TreeNode, Set[int]] = defaultdict(set)
+            node_weights[self.tree_root] = 1.0
+            node_weights[final_node] = 1.0
+            
+            def compute_weights(src_node: TreeNode, tgt_node: TreeNode, arc_pool: Set[Arc], current_weight: float, alpha: float) -> bool:
+                logging.debug(f"compute_weights({src_node}, {tgt_node}, {arc_pool}, {current_weight})")
+                if src_node == tgt_node or tgt_node in src_node.children:
+                    return True
+                
+                updated_flag = False
+                potential_children: Dict[TreeNode, Set[TreeNode]] = defaultdict(set)
+                
+                for arc in arc_pool:
+                    if src_node._node.can_accept_arc(arc):
+                        arc_pool.remove(arc)
+                        nxt = arc.to_next()
+                        mid_child = src_node.get_child(nxt.type, self._treenode_store)[0]
+                        assert mid_child is not None
+                        child_node = self.touch(src_node._node.get_child_from_arc(arc))
+                        if child_node in ancestors and not updated_flag:
+                            potential_children[mid_child].add(child_node)
+                            edge_buffer[mid_child].add(nxt.key)
+                            updated_flag = True
+                        arc_pool.add(arc)
+                        
+                if updated_flag:
+                    mid_child_weight: float = current_weight / len(potential_children.keys())
+                    for child_node, child_nodes in potential_children.items():
+                        node_weights[child_node] += mid_child_weight
+                        for child_node in child_nodes:
+                            child_weight = mid_child_weight / len(child_nodes)
+                            node_weights[child_node] += child_weight
+                            logging.debug(f"node_weights[{child_node}] += {child_weight}")
+                
+                return updated_flag
+            
+            queue = [self.tree_root]
+            while len(queue) > 0:
+                node = queue.pop(0)
+                compute_weights(node, final_node, set(arcs), node_weights[node], 1.0)
+            logging.debug(f"weights computed. node_weights: {node_weights}, edge_buffer: {edge_buffer}")
+            
+            # Update
+            for tree_node_toupd, weight in node_weights.items():
+                update_stats(tree_node_toupd, reward * weight)
+                if tree_node_toupd._is_mid:
+                    for key in edge_buffer[tree_node_toupd]:
+                        tree_node_toupd.update_edge(reward * weight / len(edge_buffer[tree_node_toupd]), key)
         
-        tree_node = self._treenode_store[tree_node.to_node()]
-        for tree_next in path:
-            arc = tree_node._node.get_arc_from_handle(tree_next)
-            assert isinstance(arc, MockArc) or tree_next.key == 0, f"{arc, tree_next}"
-            update_stats(tree_node, reward, tree_next.type)
-            tree_node, _ = tree_node.get_child(tree_next.type, self._treenode_store, on_tree=True)
-            assert tree_node is not None
-            if tree_next.key == 0:
-                break
-            update_stats(tree_node, reward, arc)
-            tree_node, _ = tree_node.get_child(tree_next.key, self._treenode_store, on_tree=True)
-            assert tree_node is not None
-            
-        update_stats(tree_node, reward)
-            
-        # Update g rave
-        arcs = tree_node._node.get_composing_arcs()
+        return final_node
+    
+    def update_grave(self, arcs: Set[Arc], update_types: Set[Next.Type], reward: float) -> None:
         for arc in arcs:
             self.g_rave[arc].update(reward)
-        update_types = set([next.type for next in path_to_trail])
         for type in update_types:
             self.g_rave[type].update(reward)
-            
-        # Update l rave
-        def attempt_to_node(src_node: TreeNode, tgt_node: TreeNode, arc_pool: MutableSet[Arc]) -> bool:
+    
+    def update_lrave(self, final_node: TreeNode, arcs: Set[Arc], reward: float) -> None:
+        def attempt_to_node(src_node: TreeNode, tgt_node: TreeNode, arc_pool: Set[Arc]) -> bool:
             """
             Attempt to reach tgt_node from src_node with arcs in arc_pool
             """
@@ -265,8 +370,10 @@ class MCTS:
                         mid_child.update_lrave(reward, arc)
                         updated_flag = True
                     arc_pool.add(arc)
+            
+            return updated_flag
                 
-        attempt_to_node(self.tree_root, tree_node, set(arcs))
+        attempt_to_node(self.tree_root, final_node, set(arcs))
     
     def touch(self, node: Node) -> TreeNode:
         """
@@ -392,63 +499,63 @@ class MCTS:
             args=packed_args
         )
         return j
-    
-
-    def _add_node(self, path: TreePath, node: Dict, node_factory: Dict) -> TreeNode:
-        """Manually add tree nodes recursively. """
-        node_visited = self._sampler.visit(path)
-        if node_visited is None:
-            return
-        
-        node_ = node_visited.to_node()
-        tree_node = self._treenode_store[node_] if path.is_root() else TreeNode(node_)
-        tree_node.load(node["father"]["state"])
-        tree_node.children = []
-        if tree_node.is_final():
-            tree_node.reward = node["father"]["reward"]
-            tree_node.filtered = node["father"]["filtered"]
-        for _type_serial, child_serial in node["children"].items():
-            _type = self.next_serializer.deserialize_type(_type_serial)
-            child_path = path.concat(_type)
-            child_node = TreeNode(node_, is_mid=True, type=_type)
-            
-            # Rave
-            tree_node.l_rave[_type].load(child_serial["lrave"])
-            self.g_rave[_type].load(child_serial["grave"])
-            
-            child_node.load(child_serial["state"])
-            for next, grand_child_index, edge_serial, rave_score in child_serial["children"]:     
-                grand_child_path = child_path.concat(next)
-                grand_child_node = self._add_node(
-                    grand_child_path, 
-                    node_factory[grand_child_index], 
-                    node_factory
-                    )
-                
-                grand_child_next = grand_child_path[-1]
-                assert grand_child_next == Next(_type, next), (grand_child_next, Next(_type, next))
-                grand_child_arc = child_node._node.get_arc_from_handle(grand_child_next)
-                assert grand_child_arc is not None
-                child_node.edge_states[grand_child_next.key].load(edge_serial)
-                # Rave
-                child_node.l_rave[grand_child_arc].load(rave_score["lrave"])
-                self.g_rave[grand_child_arc].load(rave_score["grave"])
-                
-            tree_node.children.append(child_node)
-        if not path.is_root():
-            self._treenode_store[node_] = tree_node
-        return tree_node
 
     @staticmethod
     def deserialize(serialized: dict, sampler: Sampler) -> "MCTS":
         """Deserialize a serialized tree and return a Tree object"""
+        
+        def _add_node(mcts: MCTS, path: TreePath, node: Dict, node_factory: Dict) -> TreeNode:
+            """Manually add tree nodes recursively. """
+            node_visited = mcts._sampler.visit(path)
+            if node_visited is None:
+                return
+            
+            node_ = node_visited.to_node()
+            tree_node = mcts._treenode_store[node_] if path.is_root() else TreeNode(node_)
+            tree_node.load(node["father"]["state"])
+            tree_node.children = []
+            if tree_node.is_final():
+                tree_node.reward = node["father"]["reward"]
+                tree_node.filtered = node["father"]["filtered"]
+            for _type_serial, child_serial in node["children"].items():
+                _type = mcts.next_serializer.deserialize_type(_type_serial)
+                child_path = path.concat(_type)
+                child_node = TreeNode(node_, is_mid=True, type=_type)
+                
+                # Rave
+                tree_node.l_rave[_type].load(child_serial["lrave"])
+                mcts.g_rave[_type].load(child_serial["grave"])
+                
+                child_node.load(child_serial["state"])
+                for next, grand_child_index, edge_serial, rave_score in child_serial["children"]:     
+                    grand_child_path = child_path.concat(next)
+                    grand_child_node = _add_node(
+                        mcts,
+                        grand_child_path, 
+                        node_factory[grand_child_index], 
+                        node_factory
+                        )
+                    
+                    grand_child_next = grand_child_path[-1]
+                    assert grand_child_next == Next(_type, next), (grand_child_next, Next(_type, next))
+                    grand_child_arc = child_node._node.get_arc_from_handle(grand_child_next)
+                    assert grand_child_arc is not None
+                    child_node.edge_states[grand_child_next.key].load(edge_serial)
+                    # Rave
+                    child_node.l_rave[grand_child_arc].load(rave_score["lrave"])
+                    mcts.g_rave[grand_child_arc].load(rave_score["grave"])
+                    
+                tree_node.children.append(child_node)
+            if not path.is_root():
+                mcts._treenode_store[node_] = tree_node
+            return tree_node
 
         params = serialized["args"]
         node_list = serialized["node_list"]
         node_factory = {n["index"]: n for n in node_list}
         tree = MCTS(sampler, **params)
         root_node = node_factory[0]
-        tree._add_node(TreePath([]), root_node, node_factory)
+        _add_node(tree, TreePath([]), root_node, node_factory)
         
         return tree
 
@@ -458,7 +565,7 @@ class MCTS:
         All nodes that are accessible from the root should be reserved! 
         """
         # Label every alive node
-        alive_nodes: MutableSet[Node] = set()
+        alive_nodes: Set[Node] = set()
         def label_alive(node: TreeNode) -> bool:
             """Return a boolean value indicating whether the node contains a final descendant. """
             assert isinstance(node, TreeNode)
