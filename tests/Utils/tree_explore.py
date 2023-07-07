@@ -37,11 +37,11 @@ def test_tree_explorer():
     for k, v in mcts.virtual_loss_count.items():
         assert v == 0, f"Virtual loss count for {k} is {v}"
     
-    json.dump(mcts.serialize(), open("/tmp/test_mcts.json", "w"), indent=4)
+    json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
     
     # Test begin. Now we have a serialized mcts saved in test_mcts.json
     # Replace test_mcts.json with your own serialized mcts
-    mcts_serialize = json.load(open("/tmp/test_mcts.json", "r"))
+    mcts_serialize = json.load(open("test_mcts.json", "r"))
     mcts_recover = MCTS.deserialize(mcts_serialize, sampler)
     
     explorer = TreeExplorer(mcts_recover)
@@ -50,7 +50,7 @@ def test_tree_explorer():
     except KeyboardInterrupt:
         pass
         
-    os.remove("/tmp/test_mcts.json")
+    os.remove("test_mcts.json")
 
 
 if __name__ == "__main__":

@@ -42,14 +42,14 @@ class TreeExplorer:
             command = input(f"({path}) >>> ")
             if command in ["i", "info"]:
                 print(f"Node: {current_node.to_node()}")
-                print(f"\t is_terminal: {current_node.is_terminal()}")
+                print(f"\t is_terminal: {current_node.is_terminal(self._mcts._treenode_store)}")
                 print(f"\t is_final: {current_node.is_final()}")
                 print(f"\t is_dead_end: {current_node._is_dead}")
                 print(f"\t states:")
                 print(f"\t\t N={current_node.state.N}")
                 print(f"\t\t mean={current_node.state.mean}")
                 print(f"\t\t std={current_node.state.std}")
-            elif command.startswith("children"):
+            elif command.startswith("c"):
                 # list all children
                 print("Children:")
                 to_print = current_node.get_children(
@@ -77,7 +77,7 @@ class TreeExplorer:
                 print("Grave:")
                 for key, value in self._mcts.g_rave.items():
                     if ty is None or ty == key.ty:
-                        print(f"\t{key}: (N={value.N}, mean={value.mean}, std={value.std})")
+                        print(f"\t{key}: (N={value.N}, mean={value.mean})")
             elif command in ["l", "lrave"]:
                 ty = None
                 segments = command.split()
@@ -90,7 +90,7 @@ class TreeExplorer:
                 print("Lrave:")
                 for key, value in current_node.l_rave.items():
                     if ty is None or ty == key.ty:
-                        print(f"\t{key}: (N={value.N}, mean={value.mean}, std={value.std})")
+                        print(f"\t{key}: (N={value.N}, mean={value.mean})")
             elif command == "graphviz":
                 if current_node._is_mid:
                     print("Warning: graphviz is intended to run on non-mid nodes.")
@@ -106,7 +106,7 @@ class TreeExplorer:
                         tree_next = int(tree_next)
                     else:
                         tree_next = self._serializer.deserialize_type(tree_next)
-                    child_node = current_node.get_child(tree_next, self._mcts._treenode_store, auto_initialize=False, on_tree=self.on_tree)
+                    child_node, _ = current_node.get_child(tree_next, self._mcts._treenode_store, auto_initialize=False, on_tree=self.on_tree)
                     if child_node is None:
                         print(f"Child {tree_next} does not exist.")
                     else:
@@ -114,8 +114,6 @@ class TreeExplorer:
                         path = path.concat(tree_next)
                 except:
                     print("Invalid command.")
-                if tree_next not in current_node.get_children_handles():
-                    print("This child does not exist.")
             elif command in ["b", "back"]:
                 # go back to parent node
                 node_hierarchy.pop()

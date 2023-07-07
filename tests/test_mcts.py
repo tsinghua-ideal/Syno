@@ -31,7 +31,7 @@ def test_mcts():
         except Exception as e:
             print(f"Caught error {e}")
             traceback.print_exc()
-        if idx in [3, 7]:
+        if (idx+1) % 3 == 0:
             print(f"Garbage collection: size={len(mcts._treenode_store.keys())}->", end="")
             mcts.garbage_collect()
             print(len(mcts._treenode_store.keys()))
@@ -41,8 +41,8 @@ def test_mcts():
     
     # Test serialize
     print("Testing serialization and deserialization. ")
-    mcts_serialize = mcts.serialize()
-    json.dump(mcts_serialize, open("test_mcts.json", "w"), indent=4)
+    json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
+    mcts_serialize = json.load(open("test_mcts.json", "r"))
     mcts_recover = MCTS.deserialize(mcts_serialize, sampler)
     
     # nodes

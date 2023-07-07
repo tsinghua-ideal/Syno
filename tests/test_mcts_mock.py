@@ -101,8 +101,8 @@ def test_mcts():
     assert len([v for _, v in mcts._treenode_store.items() if v.N > 0]) == 2
     
     # Test serialize
-    mcts_serialize = mcts.serialize()
-    json.dump(mcts_serialize, open("test_mcts.json", "w"), indent=4)
+    json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
+    mcts_serialize = json.load(open("test_mcts.json", "r"))
     mcts_recover = MCTS.deserialize(mcts_serialize, sampler)
     print("Original tree", mcts._treenode_store)
     print("Recovered tree", mcts_recover._treenode_store.items())

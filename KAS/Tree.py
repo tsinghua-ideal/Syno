@@ -477,7 +477,7 @@ class MCTS:
                         "lrave": lrave,
                         "grave": grave
                     }
-                    children_with_rave_score.append((n, ind, e.serialize(), rave_score))
+                    children_with_rave_score.append([n, ind, e.serialize(), rave_score])
                 node_serial["children"][next_serial] = {
                         "state": child.state_dict, 
                         "lrave": father.l_rave[next].serialize(),

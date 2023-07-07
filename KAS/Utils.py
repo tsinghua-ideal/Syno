@@ -1,5 +1,5 @@
 from .Bindings import Next
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Union, List
 import math
 
 class NextSerializer:
@@ -66,13 +66,13 @@ class AverageMeter:
         else:
             return math.sqrt(self.sumsq / self.N - self.mean * self.mean)
     
-    def serialize(self) -> Dict:
+    def serialize(self) -> List:
         if self.support_std:
-            return (True, (self.sum, self.sumsq, self.N))
+            return [True, [self.sum, self.sumsq, self.N]]
         else:
-            return (False, (self.sum, self.N))
+            return [False, [self.sum, self.N]]
 
-    def load(self, serial: Tuple[bool, Union[Tuple[float, float, int], Tuple[float, int]]]) -> None:
+    def load(self, serial: Tuple[bool, Union[List, List]]) -> None:
         std_flag, state = serial
         if self.empty():
             self.support_std = std_flag
@@ -83,9 +83,9 @@ class AverageMeter:
         else:
             assert self.support_std == std_flag, "g_rave inconsistency found!"
             if std_flag:
-                assert (self.sum, self.sumsq, self.N) == state, "g_rave inconsistency found!"
+                assert [self.sum, self.sumsq, self.N] == state, "g_rave inconsistency found!"
             else:
-                assert (self.sum, self.N) == state, "g_rave inconsistency found!"
+                assert [self.sum, self.N] == state, "g_rave inconsistency found!"
     
     def empty(self) -> bool:
         if self.support_std:
