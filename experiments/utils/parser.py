@@ -70,6 +70,13 @@ def arg_parse():
                         help='KAS sampler saving directory')
     parser.add_argument('--kas-max-flops', default=1e15, type=float,
                         help='Maximum FLOPs for searched kernels (in G-unit, only for search)')
+    
+    # MCTS preferences
+    parser.add_argument('--kas-server-addr', default='localhost', type=str, help='MCTS server address')
+    parser.add_argument('--kas-server-port', default=8000, type=int, help='MCTS server port')
+    parser.add_argument('--kas-search-rounds', default=0, type=int, help='MCTS rounds')
+    parser.add_argument('--kas-mock-evaluate', action='store_true', default=True, help='Mock evaluate')
+
     args = parser.parse_args()
 
     # Extra arguments
