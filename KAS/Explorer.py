@@ -36,6 +36,7 @@ class Explorer:
         - `exit`: exit the interactive mode.
         """
         print("Type `help` for help.")
+        os.makedirs(working_dir, exist_ok=True)
         path = Path([])
         while True:
             print()
@@ -105,8 +106,9 @@ class Explorer:
                     print("Error: this node does not exist.")
                     continue
                 # generate graphviz file and print it
-                current_node.generate_graphviz(working_dir, "preview")
-                print(f"Generated as {os.path.join(working_dir, 'preview.dot')}.")
+                file_name = os.path.join(working_dir, 'preview.dot')
+                current_node.generate_graphviz(file_name, "preview")
+                print(f"Generated as {file_name}.")
             elif command.startswith("visit"):
                 if current_node is None:
                     print("Error: this node does not exist.")
