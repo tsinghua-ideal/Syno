@@ -1,16 +1,83 @@
+import math
 import json
 import logging
 import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from KAS import MCTS, Sampler, Statistics, TreePath, TreeNode, CodeGenOptions
+from KAS import MCTS, TreePath
 
 from utils import parser, models
 
 
 class MCTSSession:
-    def __init__(self) -> None:
-        pass
+    # TODO: may move to program arguments
+    virtual_loss_constant = 5.
+    leaf_parallelization_number = 5
+    exploration_weight = math.sqrt(2)
+    b = 0.4
+    c_l = 40.
+
+    def __init__(self, args) -> None:
+        _, sampler = models.get_model_and_sampler(args)
+        self.mcts = MCTS(sampler, self.virtual_loss_constant, self.leaf_parallelization_number,  self.exploration_weight, self.b, self.c_l)
+        self.best_node = None
+        logging.info('MCTS initialized')
+
+    def has_eval_result(self, node):
+        # TODO: may have a better way to check
+        return node.reward >= 0
+    
+    def is_dead(self, node):
+        assert node.is_final()
+        return node.filtered
+    
+    def get_eval_result(self, node):
+        assert not self.check_dead(node)
+        assert self.has_eval_result(node)
+        return node.reward
+
+    def set_eval_result(self, node, val):
+        assert 0 <= val <= 1
+        assert not self.has_eval_result(node)
+        node.reward = val
+
+    def update_result(self, meta, reward, path):
+        trial, receipt = meta
+        assert trial.is_final()
+        if reward < 0:
+            # TODO: may unify the order & API
+            # TODO: what is receipt?
+            self.mcts.remove(receipt, trial)
+        else:
+            self.set_eval_result(trial, reward)
+            if self.best_node is None or self.best_node.reward < reward:
+                self.best_node = trial
+            self.mcts.back_propagate(receipt, reward, path)
+            # TODO: may print in a `logging` style
+            # Statistics.Print()
+
+    def launch_new_iteration(self):
+        logging.info('Launching new iteration ...')
+        start_time = time()
+
+        rollout = self.mcts.do_rollout(self.mcts._sampler.root())
+        if rollout is None:
+            return None
+
+        new_paths = dict()
+        receipt, trials = rollout        
+        for path, node in trials:
+            if not self.has_eval_result(node):
+                new_paths[path.serialize()] = (node, receipt)
+            else:
+                assert not self.is_dead(node)
+                reward = self.get_eval_result(node)
+                self.mcts.back_propagate(receipt, reward, path)
+
+        logging.info(f'Iteration finished in {time() - start_time} seconds')
+        return new_paths
+
+    # TODO: load/store from file
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -95,7 +162,7 @@ if __name__ == '__main__':
     # TODO: resume search
     # TODO: MCTS session
     logging.info('Starting search ...')
-    session = MCTSSession()
+    session = MCTSSession(args)
 
     logging.info('Starting server ...')
     server_address = (args.kas_server_addr, args.kas_server_port)
