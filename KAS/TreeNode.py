@@ -233,14 +233,11 @@ class TreeNode:
             return all([c._isin_tree for _, c, _ in self.get_children(factory)])
     
     def flush_T(self, T:int, factory: Dict[Node, "TreeNode"], g_rave: Dict[Arc, AverageMeter], c_l: float, b: float) -> None:
-        if self._last_T == T:
-            return
         Tp = math.floor(T ** b)
-        orig_Tp = math.floor(self._last_T ** b)
-        if Tp > orig_Tp:
-            for _ in range(Tp - orig_Tp):
-                if not self.is_fully_in_tree(factory):
-                    self.add_new_children(factory, g_rave, c_l)
+        while Tp > self.children_count(factory, on_tree=True):
+            if self.is_fully_in_tree(factory):
+                break
+            self.add_new_children(factory, g_rave, c_l)
         self._last_T = T
     
     def add_new_children(self, factory: Dict[Node, "TreeNode"], g_rave: Dict[Arc, AverageMeter], c_l: float) -> None:
