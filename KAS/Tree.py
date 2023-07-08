@@ -242,7 +242,8 @@ class MCTS:
         if self._policy == 'update-descent':
             for tree_next in path:
                 arc = tree_node._node.get_arc_from_handle(tree_next)
-                assert isinstance(arc, MockArc) or tree_next.key == 0, f"{arc, tree_next}"
+                # TODO: typing check error in Python 3.8
+                # assert isinstance(arc, MockArc) or tree_next.key == 0, f"{arc, tree_next}"
                 update_stats(tree_node, reward, tree_next.type)
                 tree_node, _ = tree_node.get_child(tree_next.type, self._treenode_store, on_tree=True)
                 assert tree_node is not None

@@ -1,3 +1,4 @@
+import logging
 import torch
 import time
 import random
@@ -70,7 +71,7 @@ def train(model, train_loader, val_loader, args) -> Tuple[List[float], List[floa
                 correct += torch.sum(pred == label).item()
             val_errors.append(1 - correct / total)
         elapsed_valid_time = time.time() - start_time
-        print(f'Epoch [{epoch + 1}/{sched_epochs}], train loss: {loss_meter.avg}, test accuracy: {correct / total}, training time: {elapsed_train_time}, validation time: {elapsed_valid_time}')
+        logging.info(f'Epoch [{epoch + 1}/{sched_epochs}], train loss: {loss_meter.avg}, test accuracy: {correct / total}, training time: {elapsed_train_time}, validation time: {elapsed_valid_time}')
 
-    print(f'Training completed, accuracy: {1 - min(val_errors)}')
+    logging.info(f'Training completed, accuracy: {1 - min(val_errors)}')
     return train_errors, val_errors
