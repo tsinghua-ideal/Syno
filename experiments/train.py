@@ -1,14 +1,18 @@
-from utils import models, trainer, parser, dataset
+import logging
+
+from utils import log, models, trainer, parser, dataset
 
 
 if __name__ == '__main__':
+    log.setup()
+
     args = parser.arg_parse()
 
-    print('Preparing model ...')
-    model, _ = models.get_model_and_sampler(args)
+    logging.info('Preparing model ...')
+    model = models.get_model(args)
 
-    print('Loading dataset ...')
-    train_loader, val_loader = dataset.get_dataloader(args)
+    logging.info('Loading dataset ...')
+    train_dataloader, val_dataloader = dataset.get_dataloader(args)
 
-    print('Start training ...')
-    trainer.train(model, train_loader, val_loader, args)
+    logging.info('Start training ...')
+    trainer.train(model, train_dataloader, val_dataloader, args)

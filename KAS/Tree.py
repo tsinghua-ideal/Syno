@@ -208,14 +208,14 @@ class MCTS:
         assert node.is_final()
         return path, node
 
-    def back_propagate(self, receipt: Receipt, reward: float, path_to_trail: TreePath) -> None:
+    def back_propagate(self, receipt: Receipt, reward: float, path_to_trial: TreePath) -> None:
         """
         Send the reward back up to the ancestors of the leaf
         """
         
         # check input types
         assert isinstance(reward, float)
-        assert isinstance(path_to_trail, TreePath)
+        assert isinstance(path_to_trial, TreePath)
         assert 0.0 <= reward <= 1.0
 
         node, path = receipt
@@ -226,7 +226,7 @@ class MCTS:
         
         # update rave scores
         arcs = final_node._node.get_composing_arcs()
-        update_types = set([next.type for next in path_to_trail])
+        update_types = set([next.type for next in path_to_trial])
             
         self.update_grave(arcs, update_types, reward)
         self.update_lrave(final_node, arcs, reward)
@@ -242,7 +242,8 @@ class MCTS:
         if self._policy == 'update-descent':
             for tree_next in path:
                 arc = tree_node._node.get_arc_from_handle(tree_next)
-                assert isinstance(arc, MockArc) or tree_next.key == 0, f"{arc, tree_next}"
+                # TODO: typing check error in Python 3.8
+                # assert isinstance(arc, MockArc) or tree_next.key == 0, f"{arc, tree_next}"
                 update_stats(tree_node, reward, tree_next.type)
                 tree_node, _ = tree_node.get_child(tree_next.type, self._treenode_store, on_tree=True)
                 assert tree_node is not None

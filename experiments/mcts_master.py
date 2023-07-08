@@ -6,92 +6,100 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from KAS import MCTS, TreePath
 
-from utils import parser, models
+from utils import log, parser, models
 
 
 class MCTSSession:
     # TODO: may move to program arguments
+    # TODO: load/store from file
+    # TODO: add random sample
     virtual_loss_constant = 5.
     leaf_parallelization_number = 5
     exploration_weight = math.sqrt(2)
+    max_iterations = 100
     b = 0.4
     c_l = 40.
 
     def __init__(self, args) -> None:
-        _, sampler = models.get_model_and_sampler(args)
+        _, sampler = models.get_model(args, return_sampler=True)
         self.mcts = MCTS(sampler, self.virtual_loss_constant, self.leaf_parallelization_number,  self.exploration_weight, self.b, self.c_l)
-        self.best_node = None
-        logging.info('MCTS initialized')
+        self.best = None
+        self.pending, self.waiting = set(), set()
+        self.path_meta_data = dict()
 
-    def has_eval_result(self, node):
-        # TODO: may have a better way to check
-        return node.reward >= 0
-    
-    def is_dead(self, node):
-        assert node.is_final()
-        return node.filtered
-    
-    def get_eval_result(self, node):
-        assert not self.check_dead(node)
-        assert self.has_eval_result(node)
-        return node.reward
+    def update_reward(self, path, reward):
+        logging.info(f'Updating path: {path}, reward: {reward}')
+        assert path in self.waiting
+        assert path not in self.pending
+        self.waiting.remove(path)
+        root, leaf_paths, node = self.path_meta_data[path]
+        path = TreePath.deserialize(path)
 
-    def set_eval_result(self, node, val):
-        assert 0 <= val <= 1
-        assert not self.has_eval_result(node)
-        node.reward = val
+        # Update node    
+        node.reward = reward
+        if self.best is None or self.best.reward < reward:
+            self.best = node
 
-    def update_result(self, meta, reward, path):
-        trial, receipt = meta
-        assert trial.is_final()
+        # Back propagate
         if reward < 0:
-            # TODO: may unify the order & API
-            # TODO: what is receipt?
-            self.mcts.remove(receipt, trial)
+            for leaf_path in leaf_paths:
+                self.mcts.remove(receipt=(root, leaf_path), trial=node)    
         else:
-            self.set_eval_result(trial, reward)
-            if self.best_node is None or self.best_node.reward < reward:
-                self.best_node = trial
-            self.mcts.back_propagate(receipt, reward, path)
-            # TODO: may print in a `logging` style
-            # Statistics.Print()
+            for leaf_path in leaf_paths:
+                self.mcts.back_propagate(receipt=(root, leaf_path), reward=reward, path_to_trial=path)
 
     def launch_new_iteration(self):
         logging.info('Launching new iteration ...')
-        start_time = time()
+        start_time = time.time()
 
         rollout = self.mcts.do_rollout(self.mcts._sampler.root())
         if rollout is None:
             return None
 
         new_paths = dict()
-        receipt, trials = rollout        
+        assert len(rollout) > 0
+        (root, leaf_path), trials = rollout
         for path, node in trials:
-            if not self.has_eval_result(node):
-                new_paths[path.serialize()] = (node, receipt)
+            assert node.is_final()
+            if node.reward < 0:
+                # Unevaluated
+                new_paths[path.serialize()] = (root, leaf_path, node)
             else:
-                assert not self.is_dead(node)
-                reward = self.get_eval_result(node)
-                self.mcts.back_propagate(receipt, reward, path)
+                # Already evaluated, back propagate
+                assert not node.filtered
+                self.mcts.back_propagate(receipt=(root, leaf_path), reward=node.reward, path_to_trial=path)
 
-        logging.info(f'Iteration finished in {time() - start_time} seconds')
+        logging.info(f'Iteration finished in {time.time() - start_time} seconds')
         return new_paths
+    
+    def get_new_path(self):
+        n_iterations = 0
+        while len(self.pending) == 0:
+            n_iterations += 1
+            new_paths = self.launch_new_iteration()
+            if n_iterations > self.max_iterations:
+                return 'retry'
+            elif new_paths is None:
+                return 'end'
+            
+            for path, (root, leaf_path, node) in new_paths.items():
+                if path not in self.waiting:
+                    self.pending.add(path)
+                if path not in self.path_meta_data:
+                    self.path_meta_data[path] = (root, [], node)
+                self.path_meta_data[path][1].append(leaf_path)
 
-    # TODO: load/store from file
+        assert len(self.pending) > 0
+        assert len(self.waiting.intersection(self.pending)) == 0
+        path = self.pending.pop()
+        self.waiting.add(path)
+        return path
 
 
 class Handler(BaseHTTPRequestHandler):
-    # TODO: may move to program arguments
-    # TODO: may merge failure and timeout cases
-    failure_reward = -1
-    timeout_reward = -1
-    timeout_limit = 7200
-
     def __init__(self, mcts_session, *args):
-        super().__init__(*args)
         self.mcts_session = mcts_session
-        self.pending_evaluation = dict()
-        self.waiting_result = dict()
+        super().__init__(*args)
 
     def do_GET(self):
         remote_ip = self.client_address[0]
@@ -110,26 +118,13 @@ class Handler(BaseHTTPRequestHandler):
         self.mcts_session.update(meta, reward, TreePath.deserialize(path))
 
     def sample(self):
-        # Check timeout kernels
-        timeout_paths = []
-        for path, pack in self.waiting_result.items():
-            if time.time() - pack['time'] > self.timeout_limit:
-                logging.info(f'Kernel timeout: {TreePath.deserialize(path)}')
-                self.update_result(pack, self.timeout_reward)
-                timeout_paths.append(path)
-        for path in timeout_paths:
-            self.waiting_result.pop(path)
-
-        # Sample a kernel implement
-        while len(self.pending_evaluation) == 0:
-            new_paths = self.mcts_session.launch_new_iteration()
-            if new_paths is not None:
-                self.pending_evaluation.update(new_paths)
         response = dict()
-        if len(self.pending_evaluation) > 0:
-            path, meta = self.pending_evaluation.popitem()
-            logging.info(f'Response kernel: {TreePath.deserialize(path)}')
-            self.waiting_result[path] = {'meta': meta, 'time': time.time()}
+        new_path = self.mcts_session.get_new_path()
+        if new_path:
+            response['path'] = new_path
+            logging.info(f'Path returned to /sample request: {new_path}')
+        else:
+            logging.info('No path returned to /sample request')
 
         # Send response
         self.send_response(200)
@@ -139,13 +134,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def reward(self):
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        path, reward = params['path'][0], float(params['reward'][0])
-        logging.info(f'Kernel: {TreePath.deserialize(path)}, reward: {reward}')
-
-        # Update MCTS
-        assert path in self.waiting_result
-        assert path not in self.pending_evaluation
-        self.update_result(self.waiting_result.pop(path), reward)
+        print(params)
+        path, reward = params['path'][0], float(params['value'][0])
+        print(path, reward)
+        self.mcts_session.update_reward(path, reward)
         
         # Send response
         self.send_response(200)
@@ -154,17 +146,18 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    # Logging
+    log.setup()
+    
+    # Arguments
     args = parser.arg_parse()
-
-    logging.info('Preparing model ...')
-    model, sampler = models.get_model_and_sampler(args)
     
     # TODO: resume search
     # TODO: MCTS session
-    logging.info('Starting search ...')
+    logging.info('Starting MCTS session ...')
     session = MCTSSession(args)
 
-    logging.info('Starting server ...')
+    logging.info(f'Starting server at {args.kas_server_addr}:{args.kas_server_port} ...')
     server_address = (args.kas_server_addr, args.kas_server_port)
     server = HTTPServer(server_address, lambda *args: Handler(session, *args))
     try:

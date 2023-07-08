@@ -1,4 +1,5 @@
 import argparse
+import logging
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 from .models import get_model_input_size
@@ -9,7 +10,6 @@ def arg_parse():
 
     # Model
     parser.add_argument('--model', type=str, default='FCNet')
-    parser.add_argument('--kas-replace-placeholder', type=str, default=None)
 
     # Dataset
     parser.add_argument('--dataset', type=str, default='torch/mnist')
@@ -28,7 +28,7 @@ def arg_parse():
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--use-multi-epochs-loader', action='store_true', default=True,
                         help='Use the multi-epochs-loader to save time at the beginning of every epoch')
-    parser.add_argument('--fetch-all-to-gpu', action='store_true', default=True,
+    parser.add_argument('--fetch-all-to-gpu', action='store_true', default=False,
                         help='Fetch all data to GPU before training')
 
     # Optimizer parameters
@@ -56,6 +56,7 @@ def arg_parse():
                         help='Epochs to cooldown LR at min_lr, after cyclic schedule ends')
     
     # KAS preferences
+    parser.add_argument('--kas-replace-placeholder', type=str, default=None)
     parser.add_argument('--kas-depth', default=4,
                         type=int, help='KAS sampler depth')
     parser.add_argument('--kas-max-tensors', default=2,
@@ -75,7 +76,8 @@ def arg_parse():
     parser.add_argument('--kas-server-addr', default='localhost', type=str, help='MCTS server address')
     parser.add_argument('--kas-server-port', default=8000, type=int, help='MCTS server port')
     parser.add_argument('--kas-search-rounds', default=0, type=int, help='MCTS rounds')
-    parser.add_argument('--kas-mock-evaluate', action='store_true', default=True, help='Mock evaluate')
+    parser.add_argument('--kas-mock-evaluate', action='store_true', default=False, help='Mock evaluate')
+    parser.add_argument('--kas-retry-interval', default=10, type=float, help='Client retry time interval')
 
     args = parser.parse_args()
 
@@ -84,6 +86,6 @@ def arg_parse():
 
     # Print
     args_str = "\n  > ".join([f"{k}: {v}" for k, v in vars(args).items()])
-    print(f'Execution arguments: \n  > {args_str}')
+    logging.info(f'Execution arguments: \n  > {args_str}')
 
     return args

@@ -1,3 +1,4 @@
+import logging
 import torch
 import time
 import random
@@ -9,7 +10,7 @@ from .optim import get_optimizer
 from .sche import get_schedule
 
 
-def train(model, train_loader, val_loader, args) -> Tuple[List[float], List[float]]:
+def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], List[float]]:
     torch.backends.cudnn.benchmark = True
     assert torch.cuda.is_available(), 'CUDA is not supported.'
     model.cuda()
@@ -29,8 +30,8 @@ def train(model, train_loader, val_loader, args) -> Tuple[List[float], List[floa
         model.train()
         loss_meter = AverageMeter()
         if args.fetch_all_to_gpu:
-            random.shuffle(train_loader)
-        for i, (image, label) in enumerate(train_loader):
+            random.shuffle(train_dataloader)
+        for i, (image, label) in enumerate(train_dataloader):
             # Forward
             logits = model(image)
             loss = loss_func(logits, label)
@@ -52,7 +53,7 @@ def train(model, train_loader, val_loader, args) -> Tuple[List[float], List[floa
         with torch.no_grad():
             correct = 0
             total = 0
-            for i, (image, label) in enumerate(val_loader):
+            for i, (image, label) in enumerate(val_dataloader):
                 total += label.size(0)
                 
                 # A hack for the last batch
@@ -70,7 +71,7 @@ def train(model, train_loader, val_loader, args) -> Tuple[List[float], List[floa
                 correct += torch.sum(pred == label).item()
             val_errors.append(1 - correct / total)
         elapsed_valid_time = time.time() - start_time
-        print(f'Epoch [{epoch + 1}/{sched_epochs}], train loss: {loss_meter.avg}, test accuracy: {correct / total}, training time: {elapsed_train_time}, validation time: {elapsed_valid_time}')
+        logging.info(f'Epoch [{epoch + 1}/{sched_epochs}], train loss: {loss_meter.avg}, test accuracy: {correct / total}, training time: {elapsed_train_time}, validation time: {elapsed_valid_time}')
 
-    print(f'Training completed, accuracy: {1 - min(val_errors)}')
+    logging.info(f'Training completed, accuracy: {1 - min(val_errors)}')
     return train_errors, val_errors
