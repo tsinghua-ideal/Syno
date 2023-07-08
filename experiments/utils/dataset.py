@@ -1,3 +1,4 @@
+import logging
 from timm.data import create_dataset, create_loader
 
 
@@ -48,7 +49,7 @@ def get_dataloader(args):
 
     # Prefetch all data into GPU
     if args.fetch_all_to_gpu:
-        print('Fetching all data into GPU ...')
+        logging.info('Fetching all data into GPU ...')
         train_dataloader = [(image, label) for (image, label) in train_dataloader]
         validation_dataloader = [(image, label) for (image, label) in validation_dataloader]
 

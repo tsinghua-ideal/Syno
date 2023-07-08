@@ -38,11 +38,13 @@ def get_sampler(args, model):
         'cuda': True,
         'autoscheduler': CodeGenOptions.AutoScheduler.Anderson2021,
         'extra_options': {
+            'beam_size': '3',
+            'num_passes': '1',
             'parallelism': '82',
             'shared_memory_limit_kb': '48',
             'shared_memory_sm_limit_kb': '100',
-            'active_block_limit': '256',
-            'active_warp_limit': '512',
+            'active_block_limit': '512',
+            'active_warp_limit': '1024',
         }
     }
     return Sampler(net=model, **params)
