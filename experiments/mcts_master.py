@@ -31,7 +31,7 @@ class MCTSSession:
         logging.info(f'Updating path: {path}, reward: {reward}')
         assert path in self.waiting
         assert path not in self.pending
-        self.waiting.pop(path)
+        self.waiting.remove(path)
         root, leaf_paths, node = self.path_meta_data[path]
         path = TreePath.deserialize(path)
 
@@ -46,7 +46,7 @@ class MCTSSession:
                 self.mcts.remove(receipt=(root, leaf_path), trial=node)    
         else:
             for leaf_path in leaf_paths:
-                self.mcts.back_propagate(receipt=(root, leaf_path), reward=reward, path_to_trail=path)
+                self.mcts.back_propagate(receipt=(root, leaf_path), reward=reward, path_to_trial=path)
 
     def launch_new_iteration(self):
         logging.info('Launching new iteration ...')
@@ -134,7 +134,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def reward(self):
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        path, reward = params['path'][0], float(params['reward'][0])
+        print(params)
+        path, reward = params['path'][0], float(params['value'][0])
+        print(path, reward)
         self.mcts_session.update_reward(path, reward)
         
         # Send response
@@ -152,7 +154,7 @@ if __name__ == '__main__':
     
     # TODO: resume search
     # TODO: MCTS session
-    logging.info('Starting search ...')
+    logging.info('Starting MCTS session ...')
     session = MCTSSession(args)
 
     logging.info(f'Starting server at {args.kas_server_addr}:{args.kas_server_port} ...')

@@ -5,7 +5,7 @@ import requests
 import time
 from KAS import TreePath
 
-from utils import models, parser, dataset
+from utils import log, models, parser, dataset
 
 
 class Handler:
@@ -22,21 +22,23 @@ class Handler:
         return j['path']
 
     def reward(self, path, reward):
-        logging.info(f'Post: {self.addr}/reward?path={path}?reward={reward}')
-        self.session.post(f'{self.addr}/reward?path={path}?reward={reward}')
+        logging.info(f'Post: {self.addr}/reward?path={path}&value={reward}')
+        self.session.post(f'{self.addr}/reward?path={path}&value={reward}')
 
 
 if __name__ == '__main__':
+    log.setup()
+
     args = parser.arg_parse()
 
     logging.info('Preparing model ...')
     model, sampler = models.get_model(args, return_sampler=True)
 
     logging.info('Loading dataset ...')
-    train_loader, val_loader = dataset.get_dataloader(args)
+    train_dataloader, val_dataloader = dataset.get_dataloader(args)
 
     logging.info('Starting server ...')
-    client_handler = Handler(args)
+    client = Handler(args)
 
     logging.info('Starting search ...')
     round_range = range(args.kas_search_rounds) if args.kas_search_rounds > 0 else itertools.count()
@@ -45,9 +47,9 @@ if __name__ == '__main__':
         # Request a new kernel
         logging.info('Requesting a new kernel ...')
         while True:
-            path = client_handler.sample()
+            path = client.sample()
             if path == 'retry':
-                logging.info('No path returned, retrying ...')
+                logging.info(f'No path returned, retrying in {args.kas_retry_interval} second(s) ...')
                 time.sleep(args.kas_retry_interval)
                 continue
             break
@@ -62,9 +64,7 @@ if __name__ == '__main__':
         # Mock evaluate
         if args.kas_mock_evaluate:
             logging.info('Mock evaluating ...')
-            if random.random() < 0.5:
-                client_handler.success(path, random.random())
-            else:
-                client_handler.failure(path)
+            time.sleep(1)
+            client.reward(path, -1 if random.random() < 0.5 else random.random())
         else:
             raise NotImplementedError

@@ -28,7 +28,7 @@ def arg_parse():
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--use-multi-epochs-loader', action='store_true', default=True,
                         help='Use the multi-epochs-loader to save time at the beginning of every epoch')
-    parser.add_argument('--fetch-all-to-gpu', action='store_true', default=True,
+    parser.add_argument('--fetch-all-to-gpu', action='store_true', default=False,
                         help='Fetch all data to GPU before training')
 
     # Optimizer parameters
@@ -76,7 +76,7 @@ def arg_parse():
     parser.add_argument('--kas-server-addr', default='localhost', type=str, help='MCTS server address')
     parser.add_argument('--kas-server-port', default=8000, type=int, help='MCTS server port')
     parser.add_argument('--kas-search-rounds', default=0, type=int, help='MCTS rounds')
-    parser.add_argument('--kas-mock-evaluate', action='store_true', default=True, help='Mock evaluate')
+    parser.add_argument('--kas-mock-evaluate', action='store_true', default=False, help='Mock evaluate')
     parser.add_argument('--kas-retry-interval', default=10, type=float, help='Client retry time interval')
 
     args = parser.parse_args()

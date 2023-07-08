@@ -10,7 +10,7 @@ def get_dataloader(args):
         batch_size=args.batch_size,
     )
 
-    train_data_loader = create_loader(
+    train_dataloader = create_loader(
         train_data,
         input_size=args.input_size,
         batch_size=args.batch_size,
@@ -32,7 +32,7 @@ def get_dataloader(args):
         batch_size=args.batch_size,
     )
 
-    validation_data_loader = create_loader(
+    validation_dataloader = create_loader(
         validation_data,
         input_size=args.input_size,
         batch_size=args.batch_size,
@@ -49,7 +49,7 @@ def get_dataloader(args):
     # Prefetch all data into GPU
     if args.fetch_all_to_gpu:
         print('Fetching all data into GPU ...')
-        train_data_loader = [(image, label) for (image, label) in train_data_loader]
-        validation_data_loader = [(image, label) for (image, label) in validation_data_loader]
+        train_dataloader = [(image, label) for (image, label) in train_dataloader]
+        validation_dataloader = [(image, label) for (image, label) in validation_dataloader]
 
-    return train_data_loader, validation_data_loader
+    return train_dataloader, validation_dataloader

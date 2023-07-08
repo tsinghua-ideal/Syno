@@ -12,7 +12,7 @@ if __name__ == '__main__':
     model = models.get_model(args)
 
     logging.info('Loading dataset ...')
-    train_loader, val_loader = dataset.get_dataloader(args)
+    train_dataloader, val_dataloader = dataset.get_dataloader(args)
 
     logging.info('Start training ...')
-    trainer.train(model, train_loader, val_loader, args)
+    trainer.train(model, train_dataloader, val_dataloader, args)
