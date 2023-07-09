@@ -160,7 +160,7 @@ class MCTS:
                     node.children_count(self._treenode_store, on_tree=True) == 0:
                 # node is terminal, unexplored, or a leaf
                 return path, node
-            selected = self._ucd_select(node)  # descend a layer deeper
+            selected = self._ucd_select(node) # descend a layer deeper
             if selected is None:
                 return None
             next, node, _ = selected
@@ -189,12 +189,10 @@ class MCTS:
             """
             assert isinstance(node, TreeNode)
             children = node.get_children(self._treenode_store)
-            assert all([not c.is_dead_end(self._treenode_store) for _, c, _ in children])
-            # logging.debug(f"{node} has children {children}")
-            if len(children) == 0:
+            children = [(next, c, edge_state) for next, c, edge_state in children if not c.is_dead_end(self._treenode_store)]
+            if len(children) == 0 or all([c.is_dead_end(self._treenode_store) for _, c, _ in children]):
                 return None
             next, selected_child, edge_state = random.choice(children)
-            # logging.debug(f"Random selected {next}: {selected_child}")
             return next, selected_child, edge_state
 
         while not node.is_terminal(self._treenode_store):
@@ -438,7 +436,8 @@ class MCTS:
             
         if len(children) == 0:
             # node.add_new_children(self._treenode_store, self.g_rave, self._c_l)
-            assert node.is_exhausted(self._treenode_store), f"The node {node} should be exhausted if it has no children. "
+            if not node.is_exhausted(self._treenode_store):
+                node.add_new_children(self._treenode_store, self.g_rave, self._c_l)
             logging.debug("Selection failed. ")
             return None
 
