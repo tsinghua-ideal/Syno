@@ -1,6 +1,9 @@
-import math
+import ctypes
 import json
+import math
 import logging
+import os
+import shutil
 import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -11,7 +14,6 @@ from utils import log, parser, models
 
 class MCTSSession:
     # TODO: may move to program arguments
-    # TODO: load/store from file
     # TODO: add random sample
     virtual_loss_constant = 5.
     leaf_parallelization_number = 5
@@ -20,26 +22,49 @@ class MCTSSession:
     b = 0.4
     c_l = 40.
 
-    def __init__(self, args) -> None:
-        _, sampler = models.get_model(args, return_sampler=True)
-        self.mcts = MCTS(sampler, self.virtual_loss_constant, self.leaf_parallelization_number,  self.exploration_weight, self.b, self.c_l)
-        self.best = None
+    def __init__(self, args):
+        _, self.sampler = models.get_model(args, return_sampler=True)
+        self.mcts = MCTS(self.sampler, self.virtual_loss_constant, self.leaf_parallelization_number,  self.exploration_weight, self.b, self.c_l)
         self.pending, self.waiting = set(), set()
         self.path_meta_data = dict()
+        self.reward_power = args.kas_reward_power
+        self.last_save_time = time.time()
+        self.save_interval = args.kas_server_save_interval
+        self.save_dir = args.kas_server_save_dir
+        if self.save_dir:
+            os.makedirs(self.save_dir, exist_ok=True)
 
-    def update_reward(self, path, reward):
+    def save(self):
+        if self.save_dir is None:
+            return
+
+        logging.info(f'Saving MCTS session into {self.save_dir}')
+        with open(f'{self.save_dir}/mcts.json', 'w') as f:
+            json.dump(self.mcts.serialize(), f, indent=2)
+
+    def try_save(self):
+        if time.time() - self.last_save_time > self.save_interval:
+            self.save()
+            self.last_save_time = time.time()
+
+    def update(self, path, accuracy):
+        root, leaf_paths, node = self.path_meta_data[path]
+        if self.save_dir:
+            score_str = ('0' * max(0, 5 - len(f'{int(accuracy * 10000)}'))) + f'{int(accuracy * 10000)}' if accuracy >= 0 else 'ERROR'
+            kernel_save_dir = os.path.join(self.save_dir, f'{score_str}_{ctypes.c_size_t(hash(path)).value}')
+            os.makedirs(kernel_save_dir)
+            node._node.generate_graphviz_as_final(os.path.join(kernel_save_dir, 'graph.dot'), 'kernel')
+            with open(os.path.join(kernel_save_dir, 'loop.txt'), 'w') as f:
+                loop_str = node._node.get_nested_loops_as_final()
+                f.write(str(loop_str))
+
+        reward = accuracy ** self.reward_power if accuracy > 0 else -1
         logging.info(f'Updating path: {path}, reward: {reward}')
         assert path in self.waiting
         assert path not in self.pending
         self.waiting.remove(path)
-        root, leaf_paths, node = self.path_meta_data[path]
         path = TreePath.deserialize(path)
-
-        # Update node    
         node.reward = reward
-        if self.best is None or self.best.reward < reward:
-            self.best = node
-            logging.info(f'New best reward: {self.best.reward}')
 
         # Back propagate
         if reward < 0:
@@ -98,9 +123,8 @@ class MCTSSession:
 
 
 class Handler(BaseHTTPRequestHandler):
-    def __init__(self, mcts_session, program_args, *args):
+    def __init__(self, mcts_session, *args):
         self.mcts_session = mcts_session
-        self.reward_power = program_args.kas_reward_power
         super().__init__(*args)
 
     def do_GET(self):
@@ -115,10 +139,6 @@ class Handler(BaseHTTPRequestHandler):
         func_name = urllib.parse.urlparse(self.path).path.split('/')[1]
         getattr(self, func_name)()
 
-    def update_result(self, pack, reward):
-        path, meta = pack['path'], pack['meta']
-        self.mcts_session.update(meta, reward, TreePath.deserialize(path))
-
     def sample(self):
         response = dict()
         new_path = self.mcts_session.get_new_path()
@@ -127,6 +147,7 @@ class Handler(BaseHTTPRequestHandler):
             logging.info(f'Path returned to /sample request: {new_path}')
         else:
             logging.info('No path returned to /sample request')
+        self.mcts_session.try_save()
 
         # Send response
         self.send_response(200)
@@ -137,9 +158,9 @@ class Handler(BaseHTTPRequestHandler):
     def reward(self):
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         path, accuracy = params['path'][0], float(params['value'][0])
-        reward = accuracy ** self.reward_power
-        logging.info(f'Path received to /reward request: {path}, accuracy: {accuracy}, reward: {reward}')
-        self.mcts_session.update_reward(path, reward)
+        logging.info(f'Path received to /reward request: {path}, accuracy: {accuracy}')
+        self.mcts_session.update(path, accuracy)
+        self.mcts_session.try_save()
         
         # Send response
         self.send_response(200)
@@ -161,8 +182,9 @@ if __name__ == '__main__':
 
     logging.info(f'Starting server at {args.kas_server_addr}:{args.kas_server_port} ...')
     server_address = (args.kas_server_addr, args.kas_server_port)
-    server = HTTPServer(server_address, lambda *_args: Handler(session, args, *_args))
+    server = HTTPServer(server_address, lambda *args: Handler(session, *args))
     try:
         server.serve_forever()
     except KeyboardInterrupt:
+        session.save()
         logging.info('Shutting down server ...')

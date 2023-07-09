@@ -67,8 +67,10 @@ def arg_parse():
                         type=int, help='KAS sampler minimum dimensions')
     parser.add_argument('--kas-max-dim', default=4,
                         type=int, help='KAS sampler maximum dimensions')
-    parser.add_argument('--kas-sampler-save-dir', default='./sampler-results',
+    parser.add_argument('--kas-scheduler-cache-dir', default='.scheduler-cache',
                         help='KAS sampler saving directory')
+    parser.add_argument('--kas-server-save-interval', default=600, type=int, help='KAS server saving interval (in seconds)')
+    parser.add_argument('--kas-server-save-dir', default=None, type=str, help='KAS server saving directory')
     parser.add_argument('--kas-max-flops', default=1e15, type=float,
                         help='Maximum FLOPs for searched kernels (in G-unit, only for search)')
     parser.add_argument('--kas-reward-power', default=2, type=float, help='Reward power')
