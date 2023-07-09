@@ -7,6 +7,8 @@ from KAS import MCTS, MockSampler
 from kas_cpp_bindings import Next
 
 def test_remove():
+    
+    # If final nodes are all removed, then rollout return None (exhausted)
     vertices = ['root', {'name': 'final', 'is_final': True}]
     edges = [
         ('root', [('Merge(1)', 'final'), ('Share(2)', 'final')])
@@ -22,6 +24,23 @@ def test_remove():
     mcts.remove(receipt, trials[0][1])
     
     assert mcts.do_rollout(sampler.root()) is None
+    
+    # If one final nodes is removed, then mcts should be able to find another path if any
+    vertices = ['root', {'name': 'final1', 'is_final': True}, {'name': 'final2', 'is_final': True}]
+    edges = [
+        ('root', [('Merge(1)', 'final1'), ('Share(2)', 'final2')])
+    ]
+    sampler = MockSampler(vertices, edges)
+    
+    mcts = MCTS(sampler, virtual_loss_constant=1)
+    
+    receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.remove(receipt, trials[0][1])
+    
+    assert mcts.do_rollout(sampler.root())[1][0][1]._node._node._name == 'final2'
+    
     print("[PASSED] test_remove")
     
 def test_final_select():

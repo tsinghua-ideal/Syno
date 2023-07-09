@@ -365,7 +365,11 @@ class MCTS:
                     arc_pool.remove(arc)
                     nxt = arc.to_next()
                     mid_child = src_node.get_child(nxt.type, self._treenode_store)[0]
+                    if mid_child is None: 
+                        continue
                     child_node = self.touch(src_node._node.get_child_from_arc(arc))
+                    if child_node.is_dead_end(self._treenode_store): 
+                        continue
                     if attempt_to_node(child_node, tgt_node, arc_pool) and not updated_flag:
                         src_node.update_lrave(reward, nxt.type)
                         mid_child.update_lrave(reward, arc)
@@ -395,6 +399,23 @@ class MCTS:
 
         trail_node = self._treenode_store[trial.to_node()]
         trail_node.filtered = True
+
+        tree_node = self._treenode_store[node.to_node()]
+        flush_list: List[TreeNode] = []
+        for next in path:
+            child = tree_node.get_child(next.type, self._treenode_store, on_tree=True)
+            if child is None:
+                break
+            flush_list.append(child[0])
+            if next.key == 0:
+                break
+            child = tree_node.get_child(next.key, self._treenode_store, on_tree=True)
+            if child is None:
+                break
+            flush_list.append(child[0])
+        
+        for tree_node in flush_list[::-1]:
+            tree_node.flush_T(tree_node._last_T, self._treenode_store, self.g_rave, self._c_l, self._b)
 
     # Here, the returned Any is just an element in the path. The type depends on how we build the search tree. If we follow the C++ implementation, it should be a kas_cpp_bindings.Next. If we use two-step generation for primitives, it should be either Union[primitive type, index of primitive], which is not yet implemented.
     def _ucd_select(self, node: TreeNode) -> Optional[Tuple[PseudoTreeNext, TreeNode, AverageMeter]]:
