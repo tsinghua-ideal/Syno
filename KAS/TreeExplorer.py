@@ -46,6 +46,7 @@ class TreeExplorer:
                 print(f"\t is_terminal: {current_node.is_terminal(self._mcts._treenode_store)}")
                 print(f"\t is_final: {current_node.is_final()}")
                 print(f"\t is_dead_end: {current_node._is_dead}")
+                print(f"\t is_exhausted: {current_node._exhausted}")
                 print(f"\t states:")
                 print(f"\t\t N={current_node.state.N}")
                 print(f"\t\t mean={current_node.state.mean}")

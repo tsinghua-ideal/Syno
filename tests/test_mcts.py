@@ -22,15 +22,11 @@ def test_mcts():
                       "s=3:2", "k=4:4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
     mcts = MCTS(sampler, virtual_loss_constant=1)
     for idx in range(30):
-        try:
-            receipt, trials = mcts.do_rollout(sampler.root())
-            _, path = receipt
-            node = trials[0]
-            print(f"Iteration {idx}. Sampled {node} for {path}")
-            mcts.back_propagate(receipt, 0.5, node[0])
-        except Exception as e:
-            print(f"Caught error {e}")
-            traceback.print_exc()
+        receipt, trials = mcts.do_rollout(sampler.root())
+        _, path = receipt
+        node = trials[0]
+        print(f"Iteration {idx}. Sampled {node} for {path}")
+        mcts.back_propagate(receipt, 0.5, node[0])
         if (idx+1) % 3 == 0:
             print(f"Garbage collection: size={len(mcts._treenode_store.keys())}->", end="")
             mcts.garbage_collect()
