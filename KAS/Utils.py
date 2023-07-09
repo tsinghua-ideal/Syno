@@ -122,6 +122,5 @@ def init_weights(m):
         if m.bias is not None:
             m.bias.data.zero_()
     elif isinstance(m, KernelPack):
-        logging.debug(f'Initializing KernelPack {m} ...')
         for w in m.weights:
             nn.init.trunc_normal_(w, std=.1)

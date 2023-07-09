@@ -39,6 +39,7 @@ class MCTSSession:
         node.reward = reward
         if self.best is None or self.best.reward < reward:
             self.best = node
+            logging.info(f'New best reward: {self.best.reward}')
 
         # Back propagate
         if reward < 0:
@@ -97,8 +98,9 @@ class MCTSSession:
 
 
 class Handler(BaseHTTPRequestHandler):
-    def __init__(self, mcts_session, *args):
+    def __init__(self, mcts_session, program_args, *args):
         self.mcts_session = mcts_session
+        self.reward_power = program_args.kas_reward_power
         super().__init__(*args)
 
     def do_GET(self):
@@ -134,9 +136,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def reward(self):
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        print(params)
-        path, reward = params['path'][0], float(params['value'][0])
-        print(path, reward)
+        path, accuracy = params['path'][0], float(params['value'][0])
+        reward = accuracy ** self.reward_power
+        logging.info(f'Path received to /reward request: {path}, accuracy: {accuracy}, reward: {reward}')
         self.mcts_session.update_reward(path, reward)
         
         # Send response
@@ -153,13 +155,13 @@ if __name__ == '__main__':
     args = parser.arg_parse()
     
     # TODO: resume search
-    # TODO: MCTS session
+    # TODO: save into directories
     logging.info('Starting MCTS session ...')
     session = MCTSSession(args)
 
     logging.info(f'Starting server at {args.kas_server_addr}:{args.kas_server_port} ...')
     server_address = (args.kas_server_addr, args.kas_server_port)
-    server = HTTPServer(server_address, lambda *args: Handler(session, *args))
+    server = HTTPServer(server_address, lambda *_args: Handler(session, args, *_args))
     try:
         server.serve_forever()
     except KeyboardInterrupt:

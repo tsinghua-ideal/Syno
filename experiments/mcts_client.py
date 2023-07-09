@@ -75,4 +75,4 @@ if __name__ == '__main__':
         logging.info('Evaluating on real dataset ...')
         _, val_errors = trainer.train(model, train_dataloader, val_dataloader, args)
         accuracy = 1 - min(val_errors)
-        client.reward(path, accuracy ** args.kas_reward_power)
+        client.reward(path, accuracy)
