@@ -43,6 +43,26 @@ def test_remove():
     
     print("[PASSED] test_remove")
     
+def test_exhausted():
+    
+    # If final nodes are all back proped, then rollout return None (exhausted)
+    vertices = ['root', {'name': 'final', 'is_final': True}]
+    edges = [
+        ('root', [('Merge(1)', 'final'), ('Share(2)', 'final')])
+    ]
+    sampler = MockSampler(vertices, edges)
+    
+    mcts = MCTS(sampler, virtual_loss_constant=1)
+    
+    receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
+    _, path = receipt
+    node = trials
+    print(f"Sampled {node} for {path}")
+    mcts.back_propagate(receipt, .9, trials[0][0])
+    
+    assert mcts.do_rollout(sampler.root()) is None
+    print("[PASSED] test_exhausted")
+    
 def test_final_select():
     
     vertices = ['root', {'name': 'final', 'is_final': True}]
@@ -51,7 +71,7 @@ def test_final_select():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, virtual_loss_constant=1, leaf_num=2)
+    mcts = MCTS(sampler, virtual_loss_constant=1, leaf_num=2, continue_after_exhaust=True)
     
     receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
     _, path = receipt
@@ -80,7 +100,7 @@ def test_mcts():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, virtual_loss_constant=1)
+    mcts = MCTS(sampler, virtual_loss_constant=1, continue_after_exhaust=True)
     
     assert mcts._treenode_store[sampler.root().to_node()].children_count(mcts._treenode_store) == 2, mcts._treenode_store[sampler.root().to_node()].children_count(mcts._treenode_store)
     
@@ -148,7 +168,7 @@ def test_grave():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, c_l=1e4, b=0.9)
+    mcts = MCTS(sampler, c_l=1e4, b=0.9, continue_after_exhaust=True)
     
     # s_1 is first expanded
     # CHECK: only one child
@@ -199,7 +219,7 @@ def test_lrave():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, c_l=1e-4, b=0.9)
+    mcts = MCTS(sampler, c_l=1e-4, b=0.9, continue_after_exhaust=True)
     
     # s_1 is first expanded
     # CHECK: only one child
@@ -260,7 +280,7 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
         *[(f'l3-{j}', [(f'Share(3{j}4{k})', f'f{k}') for k in [1, 2, 3]]) for j in [1, 2, 3]]
     ]
     sampler = MockSampler(vertices, edges)
-    mcts = MCTS(sampler, virtual_loss_constant=1, leaf_num=leaf_num)
+    mcts = MCTS(sampler, virtual_loss_constant=1, leaf_num=leaf_num, continue_after_exhaust=True)
     
     for _ in trange(num_iter):
         receipt, trials = mcts.do_rollout(sampler.root())
@@ -276,6 +296,7 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     test_remove()
+    test_exhausted()
     test_final_select()
     test_mcts()
     test_grave()

@@ -116,6 +116,7 @@ class TreeNode:
         self.state = AverageMeter(support_std=True)
         self._last_T: int = 0
         self._is_dead: bool = False
+        self._exhausted: bool = False
         self._isin_tree: bool = False
         
         self.l_rave: DefaultDict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
@@ -165,6 +166,7 @@ class TreeNode:
             "state": self.state.serialize(),
             "_last_T": self._last_T,
             "_is_dead": self._is_dead,
+            "_exhausted": self._exhausted,
             "_isin_tree": self._isin_tree
         }
     
@@ -181,6 +183,7 @@ class TreeNode:
         self.state.load(state_dict["state"])
         self._last_T = state_dict["_last_T"]
         self._is_dead = state_dict["_is_dead"]
+        self._exhausted = state_dict["_exhausted"]
         self._isin_tree = state_dict["_isin_tree"]
     
     def update(self, reward: float, arc: PseudoArc=None) -> None:
@@ -197,7 +200,7 @@ class TreeNode:
         assert not self.is_final()
         self.l_rave[arc].update(reward)
 
-    def children_count(self, factory: Dict[Node, "TreeNode"], on_tree: bool=False) -> int:
+    def children_count(self, factory: Dict[Node, "TreeNode"], on_tree: bool=False, filter_exhausted: bool=False) -> int:
         """
         Get the number of all children of a node.
         """
@@ -211,11 +214,18 @@ class TreeNode:
                     continue
                 if on_tree and child in factory and not factory[child]._isin_tree:
                     continue
-                if child not in factory or not factory[child].is_dead_end(factory):
-                    count += 1
+                if filter_exhausted:
+                    if child not in factory or not factory[child].is_exhausted(factory):
+                        count += 1
+                else:
+                    if child not in factory or not factory[child].is_dead_end(factory):
+                        count += 1
             return count
         else:
-            return len(self.children) - sum([child.is_dead_end(factory) or (on_tree and not child._isin_tree) for child in self.children])
+            if filter_exhausted:
+                return len(self.children) - sum([child.is_exhausted(factory) or (on_tree and not child._isin_tree) for child in self.children])
+            else:
+                return len(self.children) - sum([child.is_dead_end(factory) or (on_tree and not child._isin_tree) for child in self.children])
 
     def is_fully_in_tree(self, factory: Dict[Node, "TreeNode"]) -> bool:
         """
@@ -232,9 +242,9 @@ class TreeNode:
         else:
             return all([c._isin_tree for _, c, _ in self.get_children(factory)])
     
-    def flush_T(self, T:int, factory: Dict[Node, "TreeNode"], g_rave: Dict[Arc, AverageMeter], c_l: float, b: float) -> None:
+    def flush_T(self, T:int, factory: Dict[Node, "TreeNode"], g_rave: Dict[Arc, AverageMeter], c_l: float, b: float, filter_exhausted: bool) -> None:
         Tp = math.floor(T ** b)
-        while Tp > self.children_count(factory, on_tree=True):
+        while Tp > self.children_count(factory, on_tree=True, filter_exhausted=filter_exhausted):
             if self.is_fully_in_tree(factory):
                 break
             self.add_new_children(factory, g_rave, c_l)
@@ -369,6 +379,37 @@ class TreeNode:
             self.get_children(factory)
             if len(self.children) == 0 or all([child.is_dead_end(factory) for child in self.children]):
                 self.is_dead = True
+                return True
+            else:
+                return False
+    
+    def is_exhausted(self, factory: Dict[Node, "TreeNode"]) -> bool:
+        """Check if a subtree start from a node is exhausted."""
+        if self._exhausted:
+            return True
+        if self.is_final() and (self.reward > 0 or self.filtered):
+            self._exhausted = True
+        if self.is_dead_end(factory):
+            self._exhausted = True
+        if self._exhausted:
+            return True
+        
+        primitives = self._node.collect_operations()
+        if self._is_mid:
+            nexts = primitives[self._type]
+            for next in nexts:
+                child = self._node.get_child(Next(self._type, next))
+                if child is None:
+                    continue
+                if child not in factory or not factory[child].is_exhausted(factory):
+                    return False
+            self._exhausted = True
+            return True
+        else:
+            self.get_children(factory)
+            non_exhausted_children = [child for child in self.children if not child.is_exhausted(factory)]
+            if len(non_exhausted_children) == 0:
+                self._exhausted = True
                 return True
             else:
                 return False

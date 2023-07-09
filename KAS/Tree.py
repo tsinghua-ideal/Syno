@@ -14,7 +14,7 @@ from .Utils import NextSerializer, AverageMeter
 MockArc = Union[Next, Arc]
 
 class MCTS:
-    def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20, policy: str='update-descent') -> None:
+    def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20, policy: str='update-descent', continue_after_exhaust: bool=False) -> None:
 
         self._treenode_store: OrderedDict[Node, TreeNode] = ODict()
         self._root = sampler.visit([]).to_node()
@@ -27,6 +27,7 @@ class MCTS:
         self._c_l = c_l
         self._b = b
         self._policy = policy
+        self.continue_after_exhaust = continue_after_exhaust
         assert policy in ['update-all', 'update-descent']
         random.seed(sampler._seed)
 
@@ -39,7 +40,7 @@ class MCTS:
         self.leaf_num = leaf_num
         
         self.next_serializer = NextSerializer()
-        self.tree_root.flush_T(1, self._treenode_store, self.g_rave, self._c_l, self._b)
+        self.tree_root.flush_T(1, self._treenode_store, self.g_rave, self._c_l, self._b, filter_exhausted=not self.continue_after_exhaust)
 
     def _increment_virtual_loss(self, path: TreePath, node: Node, delta: int=1) -> None:
         assert delta > 0
@@ -79,9 +80,10 @@ class MCTS:
         Returns `((root, path), leaf)`. `path` is used to propagate reward. `leaf` is the result of simulation. Note that following `path` we do not necessarily arrive at `leaf`.
         
         If the tree is exhausted, then return None. 
+        continue_after_exhausted is an option if you want to rollout even after the tree is exhausted. (Thus you may get a better estimate of the value of the root node.)
         """
         while True:
-            if self._treenode_store[node.to_node()].is_dead_end(self._treenode_store):
+            if not self.continue_after_exhaust and self.tree_root.is_exhausted(self._treenode_store):
                 logging.info("The tree is exhausted. ")
                 return None
             result = self._may_fail_rollout(node)
@@ -111,7 +113,7 @@ class MCTS:
         if leaf.is_final():
             logging.debug("Selected final node, return immediately. ")
             return path, [(path, leaf) for _ in range(self.leaf_num)]
-        if leaf.children_count(self._treenode_store, on_tree=True) == 0:
+        if leaf.children_count(self._treenode_store, on_tree=True, filter_exhausted=not self.continue_after_exhaust) == 0:
             if not leaf.is_fully_in_tree(self._treenode_store):
                 leaf.add_new_children(self._treenode_store, self.g_rave, self._c_l)
                 assert leaf.children_count(self._treenode_store, on_tree=True) > 0
@@ -222,21 +224,22 @@ class MCTS:
         self._decrement_virtual_loss(path, node)
         
         # update rewards
-        final_node = self.update_nodes(receipt, reward)
+        leaf_node = self.update_nodes(receipt, reward)
+        assert not leaf_node.is_dead_end(self._treenode_store), leaf_node._node.get_possible_path()
         
         # update rave scores
-        arcs = final_node._node.get_composing_arcs()
+        arcs = leaf_node._node.get_composing_arcs()
         update_types = set([next.type for next in path_to_trial])
             
         self.update_grave(arcs, update_types, reward)
-        self.update_lrave(final_node, arcs, reward)
+        self.update_lrave(leaf_node, arcs, reward)
     
     def update_nodes(self, receipt: Receipt, reward: float) -> TreeNode:
         node, path = receipt
         
         def update_stats(tree_node: TreeNode, reward: float, arc: Optional[PseudoArc] = None) -> None:
             tree_node.update(reward, arc)
-            tree_node.flush_T(tree_node.N, self._treenode_store, self.g_rave, self._c_l, self._b)
+            tree_node.flush_T(tree_node.N, self._treenode_store, self.g_rave, self._c_l, self._b, filter_exhausted=not self.continue_after_exhaust)
 
         tree_node = self._treenode_store[node.to_node()]
         if self._policy == 'update-descent':
@@ -360,13 +363,14 @@ class MCTS:
             
             updated_flag = False  # L-Rave should be updated at most once
             
-            for arc in arc_pool:
+            for arc in list(arc_pool):
                 if src_node._node.can_accept_arc(arc):
                     arc_pool.remove(arc)
                     nxt = arc.to_next()
-                    mid_child = src_node.get_child(nxt.type, self._treenode_store)[0]
+                    mid_child = src_node.get_child(nxt.type, self._treenode_store)
                     if mid_child is None: 
                         continue
+                    mid_child = mid_child[0]
                     child_node = self.touch(src_node._node.get_child_from_arc(arc))
                     if child_node.is_dead_end(self._treenode_store): 
                         continue
@@ -415,7 +419,7 @@ class MCTS:
             flush_list.append(child[0])
         
         for tree_node in flush_list[::-1]:
-            tree_node.flush_T(tree_node._last_T, self._treenode_store, self.g_rave, self._c_l, self._b)
+            tree_node.flush_T(tree_node._last_T, self._treenode_store, self.g_rave, self._c_l, self._b, filter_exhausted=not self.continue_after_exhaust)
 
     # Here, the returned Any is just an element in the path. The type depends on how we build the search tree. If we follow the C++ implementation, it should be a kas_cpp_bindings.Next. If we use two-step generation for primitives, it should be either Union[primitive type, index of primitive], which is not yet implemented.
     def _ucd_select(self, node: TreeNode) -> Optional[Tuple[PseudoTreeNext, TreeNode, AverageMeter]]:
@@ -424,8 +428,14 @@ class MCTS:
         """
 
         children = node.get_children(self._treenode_store, on_tree=True)
+        
+        if not self.continue_after_exhaust:
+            # filter exhausted children
+            children = [child for child in children if not child[1].is_exhausted(self._treenode_store)]
+            
         if len(children) == 0:
             # node.add_new_children(self._treenode_store, self.g_rave, self._c_l)
+            assert node.is_exhausted(self._treenode_store), f"The node {node} should be exhausted if it has no children. "
             logging.debug("Selection failed. ")
             return None
 
