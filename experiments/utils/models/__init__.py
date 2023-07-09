@@ -35,7 +35,7 @@ def get_sampler(args, model):
         'maximum_tensors': args.kas_max_tensors,
         'maximum_reductions': args.kas_max_reductions,
         'max_flops': args.kas_max_flops,
-        'save_path': args.kas_sampler_save_dir,
+        'save_path': args.kas_scheduler_cache_dir,
         'cuda': True,
         'autoscheduler': CodeGenOptions.AutoScheduler.Anderson2021,
         'extra_options': {
