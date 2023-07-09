@@ -119,7 +119,7 @@ class TreeExplorer:
                     print("Invalid command.")
             elif command in ["b", "back"]:
                 # go back to parent node
-                node_hierarchy.pop()
+                node_hierarchy = node_hierarchy[:-1]
             elif command == 'explore_all':
                 self.on_tree = False
             elif command == 'explore_tree':
