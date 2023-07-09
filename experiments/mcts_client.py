@@ -43,36 +43,38 @@ if __name__ == '__main__':
     logging.info('Starting search ...')
     round_range = range(args.kas_search_rounds) if args.kas_search_rounds > 0 else itertools.count()
 
-    for round in round_range:
-        # Request a new kernel
-        logging.info('Requesting a new kernel ...')
-        while True:
-            path = client.sample()
-            if path == 'retry':
-                logging.info(f'No path returned, retrying in {args.kas_retry_interval} second(s) ...')
-                time.sleep(args.kas_retry_interval)
+    try:
+        for round in round_range:
+            # Request a new kernel
+            logging.info('Requesting a new kernel ...')
+            while True:
+                path = client.sample()
+                if path == 'retry':
+                    logging.info(f'No path returned, retrying in {args.kas_retry_interval} second(s) ...')
+                    time.sleep(args.kas_retry_interval)
+                    continue
+                break
+
+            if path == 'end':
+                logging.info('Exhausted search space, exiting ...')
+                break
+            
+            node = sampler.visit(TreePath.deserialize(path))
+            logging.info(f'Got a new kernel: {node}')
+
+            # Mock evaluate
+            if args.kas_mock_evaluate:
+                logging.info('Mock evaluating ...')
+                client.reward(path, -1 if random.random() < 0.5 else random.random())
                 continue
-            break
+            
+            # Evaluate on a dataset
+            kernel_packs = sampler.realize(model, node).construct_kernel_packs()
+            sampler.replace(model, kernel_packs)
 
-        if path == 'end':
-            logging.info('Exhausted search space, exiting ...')
-            break
-        
-        node = sampler.visit(TreePath.deserialize(path))
-        logging.info(f'Got a new kernel: {node}')
-
-        # Mock evaluate
-        if args.kas_mock_evaluate:
-            logging.info('Mock evaluating ...')
-            time.sleep(1)
-            client.reward(path, -1 if random.random() < 0.5 else random.random())
-            continue
-        
-        # Evaluate on a dataset
-        kernel_packs = sampler.realize(model, node).construct_kernel_packs()
-        sampler.replace(model, kernel_packs)
-
-        logging.info('Evaluating on real dataset ...')
-        _, val_errors = trainer.train(model, train_dataloader, val_dataloader, args)
-        accuracy = 1 - min(val_errors)
-        client.reward(path, accuracy)
+            logging.info('Evaluating on real dataset ...')
+            _, val_errors = trainer.train(model, train_dataloader, val_dataloader, args)
+            accuracy = 1 - min(val_errors)
+            client.reward(path, accuracy)
+    except KeyboardInterrupt:
+        logging.info('Interrupted by user, exiting ...')

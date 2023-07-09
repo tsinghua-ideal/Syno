@@ -31,16 +31,19 @@ class MCTSSession:
         self.last_save_time = time.time()
         self.save_interval = args.kas_server_save_interval
         self.save_dir = args.kas_server_save_dir
-        if self.save_dir:
-            os.makedirs(self.save_dir, exist_ok=True)
+        self.start_time = time.time()
+        self.args = args
 
     def save(self):
         if self.save_dir is None:
             return
 
         logging.info(f'Saving MCTS session into {self.save_dir}')
-        with open(f'{self.save_dir}/mcts.json', 'w') as f:
+        os.makedirs(self.save_dir, exist_ok=True)
+        with open(os.path.join(self.save_dir, 'mcts.json'), 'w') as f:
             json.dump(self.mcts.serialize(), f, indent=2)
+        with open(os.path.join(self.save_dir, 'args.json'), 'w') as f:
+            json.dump(vars(self.args), f, indent=2)
 
     def try_save(self):
         if time.time() - self.last_save_time > self.save_interval:
@@ -50,6 +53,7 @@ class MCTSSession:
     def update(self, path, accuracy):
         root, leaf_paths, node = self.path_meta_data[path]
         if self.save_dir:
+            os.makedirs(self.save_dir, exist_ok=True)
             score_str = ('0' * max(0, 5 - len(f'{int(accuracy * 10000)}'))) + f'{int(accuracy * 10000)}' if accuracy >= 0 else 'ERROR'
             kernel_save_dir = os.path.join(self.save_dir, f'{score_str}_{ctypes.c_size_t(hash(path)).value}')
             os.makedirs(kernel_save_dir)
@@ -57,6 +61,8 @@ class MCTSSession:
             with open(os.path.join(kernel_save_dir, 'loop.txt'), 'w') as f:
                 loop_str = node._node.get_nested_loops_as_final()
                 f.write(str(loop_str))
+            with open(os.path.join(kernel_save_dir, 'meta.json'), 'w') as f:
+                json.dump({'path': path, 'accuracy': accuracy, 'time': time.time() - self.start_time}, f, indent=2)
 
         reward = accuracy ** self.reward_power if accuracy > 0 else -1
         logging.info(f'Updating path: {path}, reward: {reward}')
