@@ -21,7 +21,7 @@ protected:
         options.depth = 6;
         options.dimLowerBound = 2;
         options.dimUpperBound = 6;
-        options.maximumTensors = 3;
+        options.maximumTensors = 4;
         options.maximumReductions = 2;
         options.maxFLOPs = 1e7;
         return options;

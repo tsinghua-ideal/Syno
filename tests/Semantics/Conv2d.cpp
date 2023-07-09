@@ -4,7 +4,7 @@
 namespace kas {
 
 TEST_F(semantics_tests, conv2d) {
-    constexpr int n = 64, c_in = 3, c_out = 16, h = 128, w = 128, k = 5;
+    constexpr int n = 100, c_in = 3, c_out = 16, h = 128, w = 128, k = 5;
 
     using SizeName = BindingContext::Metadata;
     BindingContext ctx { std::vector<SizeName> {

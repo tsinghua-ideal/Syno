@@ -303,10 +303,14 @@ Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeights(const
     while (!stack.empty()) {
         auto& [startIndex, trial, fragment] = stack.top();
         if (startIndex == remaining.size()) {
-            auto [weight, newInterface] = fragment.split();
+            const auto [weight, newInterface] = fragment.split();
             if (!weight.empty()) {
                 for (auto subproblem: AssignToWeights(newInterface, maxWeights - 1)) {
-                    subproblem.emplace_back(std::move(weight));
+                    KAS_ASSERT(std::ranges::all_of(subproblem, [](const std::vector<Dimension>& weight) { return !weight.empty(); }));
+                    KAS_ASSERT(std::transform_reduce(subproblem.begin(), subproblem.end(), static_cast<std::size_t>(0), std::plus<>(), [](const std::vector<Dimension>& weight) { return weight.size(); }) == newInterface.size());
+                    KAS_ASSERT(!weight.empty());
+                    subproblem.emplace_back(weight);
+                    KAS_ASSERT(std::transform_reduce(subproblem.begin(), subproblem.end(), static_cast<std::size_t>(0), std::plus<>(), [](const std::vector<Dimension>& weight) { return weight.size(); }) == remaining.size());
                     co_yield std::move(subproblem);
                 }
             }
@@ -440,6 +444,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const 
         for (auto tensors: AssignToWeights(weightDims, options.maximumTensors - 1)) {
             // Check whether the results are a partition of interface.
             {
+                KAS_ASSERT(std::transform_reduce(tensors.begin(), tensors.end(), static_cast<std::size_t>(0), std::plus<> {}, [](const auto& t) { return t.size(); }) == weightDims.size());
                 auto solution = inputTensor;
                 std::ranges::copy(tensors | std::views::join, std::back_inserter(solution));
                 std::ranges::sort(solution, Dimension::HashLessThan{});

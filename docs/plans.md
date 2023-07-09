@@ -20,7 +20,7 @@
 ## CodeGen
 
 - [x] Generate object files, instead of static libraries. Then dynamically link the kernels instead of compiling C++ wrappers again and again.
-- [ ] Add auto scheduler options to reduce tuning time.
+- [x] Add auto scheduler options to reduce tuning time.
 - [x] Add padding by padding variables that cannot be divided by their denominators.
 - [ ] Optimization: Early reduction to reduce FLOPs.
 - [x] Early reduction analysis is actually compulsory. Otherwise in autodiff settings, the RDom may be left unmentioned, causing Halide compile errors!
@@ -32,6 +32,8 @@
 - [x] Add nested loops codegen for expression.
 - [x] Generate metadata along with kernels.
 - [x] Adjust the order of dimensions in weights for better cache locality.
+- [ ] TVM codegen.
+- [ ] PyTorch codegen.
 
 ## Transforms
 
@@ -40,6 +42,7 @@
 - [ ] Random shuffle convolution.
 - [ ] What is a MergeOp by the way?
 - [ ] To support Attention, what can we do?
+- [ ] Make FinalizeOp a PrimitiveOp.
 
 ## Search
 
@@ -53,6 +56,7 @@
 - [x] Before generating an Op, test sizes of new dimensions to make it legal.
 - [x] Redesign generation algorithm for each Op.
 - [x] Accept FLOPs constraints in Sampler, and generate MapReduceOp's accordingly.
+- [ ] If ShapeComplexity finds the stage is in critical state, do not generate unnecessary Op's.
 
 ### Pruning
 
@@ -72,11 +76,12 @@
 - [ ] Enable Explorer to print a tree.
 - [x] Report dead ends to Python.
 - [x] Add mocks for Node and Sampler.
+- [ ] Standalone scheduler.
 
 ### Misc
 
 - [x] Index the search tree by hashes for reproducibility.
-- [ ] Allow direct construction of kernel from primitives and parameters, without building the search tree. Also save these data to files.
+- [ ] Allow direct construction of kernel from primitives and parameters, without building the search tree. This can be done by serializing a DAG. Also save these data to files.
 - [x] Multithreaded search tree building.
 - [x] Compute a Path from a TensorView, to verify searchability.
 - [x] Robustify the TensorView -> Path function.

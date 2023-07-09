@@ -63,8 +63,8 @@ def perform_trials(manual: bool):
         cuda=False, autoscheduler=CodeGenOptions.Adams2019,
         extra_options={
             "parallelism": "30",
-            "shared_memory_limit_kb": "49152",
-            "shared_memory_sm_limit_kb": "65536",
+            "shared_memory_limit_kb": "48",
+            "shared_memory_sm_limit_kb": "64",
             "active_block_limit": "256",
             "active_warp_limit": "512",
         })
