@@ -46,4 +46,4 @@ class ConvNet(KASModel):
     def forward(self, image):
         batch_size = image.size(0)
         feats = self.conv(image)
-        return self.fc(feats.view(batch_size, -1))
+        return self.fc(feats.reshape(batch_size, -1))
