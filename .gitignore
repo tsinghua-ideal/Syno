@@ -243,3 +243,11 @@ commands.txt
 
 # NSight system
 *.nsys-rep
+
+# Scheduler cache
+.scheduler-cache
+
+# Sessions
+mnist-session
+debug-session
+cifar10-session
