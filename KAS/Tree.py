@@ -134,6 +134,7 @@ class MCTS:
         # Simulate
         leaves = []
         logging.debug(f"Simulation start")
+        leaf_expanded._node.expand_async(3)
         while not leaf_expanded.is_dead_end(self._treenode_store):
             leaf_simul = self._simulate(path, leaf_expanded)
             if leaf_simul is None: continue
