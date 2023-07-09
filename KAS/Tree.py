@@ -410,13 +410,15 @@ class MCTS:
             child = tree_node.get_child(next.type, self._treenode_store, on_tree=True)
             if child is None:
                 break
-            flush_list.append(child[0])
+            tree_node = child[0]
+            flush_list.append(tree_node)
             if next.key == 0:
                 break
             child = tree_node.get_child(next.key, self._treenode_store, on_tree=True)
             if child is None:
                 break
-            flush_list.append(child[0])
+            tree_node = child[0]
+            flush_list.append(tree_node)
         
         for tree_node in flush_list[::-1]:
             tree_node.flush_T(tree_node._last_T, self._treenode_store, self.g_rave, self._c_l, self._b, filter_exhausted=not self.continue_after_exhaust)
@@ -524,7 +526,8 @@ class MCTS:
             leaf_num=self.leaf_num,
             exploration_weight=self._exploration_weight,
             b=self._b,
-            c_l=self._c_l
+            c_l=self._c_l,
+            continue_after_exhaust=self.continue_after_exhaust,
         )
         j = dict(
             node_list=node_list,
