@@ -5,7 +5,7 @@ import requests
 import time
 from KAS import TreePath
 
-from utils import log, models, parser, dataset
+from utils import log, models, parser, dataset, trainer
 
 
 class Handler:
@@ -57,14 +57,22 @@ if __name__ == '__main__':
         if path == 'end':
             logging.info('Exhausted search space, exiting ...')
             break
-
-        path_impl = TreePath.deserialize(path)
-        logging.info(f'Got a new kernel: {path_impl}')
+        
+        node = sampler.visit(TreePath.deserialize(path))
+        logging.info(f'Got a new kernel: {node}')
 
         # Mock evaluate
         if args.kas_mock_evaluate:
             logging.info('Mock evaluating ...')
             time.sleep(1)
             client.reward(path, -1 if random.random() < 0.5 else random.random())
-        else:
-            raise NotImplementedError
+            continue
+        
+        # Evaluate on a dataset
+        kernel_packs = sampler.realize(model, node).construct_kernel_packs()
+        sampler.replace(model, kernel_packs)
+
+        logging.info('Evaluating on real dataset ...')
+        _, val_errors = trainer.train(model, train_dataloader, val_dataloader, args)
+        accuracy = 1 - min(val_errors)
+        client.reward(path, accuracy ** args.kas_reward_power)

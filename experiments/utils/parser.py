@@ -71,6 +71,7 @@ def arg_parse():
                         help='KAS sampler saving directory')
     parser.add_argument('--kas-max-flops', default=1e15, type=float,
                         help='Maximum FLOPs for searched kernels (in G-unit, only for search)')
+    parser.add_argument('--kas-reward-power', default=2, type=float, help='Reward power')
     
     # MCTS preferences
     parser.add_argument('--kas-server-addr', default='localhost', type=str, help='MCTS server address')

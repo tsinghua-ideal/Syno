@@ -101,24 +101,15 @@ class KernelPack(nn.Module):
             return tuple(
                 grad_input if crop_params is None else grad_input[crop_params]
                 for grad_input, crop_params in zip(grad_inputs, inputs_crop_params))
+        
         # Create an operator.
         self._Kernel = type(f'KASKernel{identifier}', (torch.autograd.Function,), {
             'forward': staticmethod(kernel_forward),
             'backward': staticmethod(kernel_backward),
         })
 
-        # Initialize weights. Note that the first item is the input.
-        # TODO: maybe we should add weight initializer?
-        weights = []
-        for shape in unpadded_inputs_shapes[1:]:
-            weight = torch.randn(shape, device=device)
-            if (weight.ndim > 1):
-                weight = torch.nn.init.kaiming_uniform_(
-                    weight, mode='fan_in', nonlinearity='relu')
-            else:
-                weight = torch.nn.init.normal_(weight)
-            weights.append(weight)
-        self.weights = nn.ParameterList(weights)
+        # Create weights (except the first input)
+        self.weights = nn.ParameterList([torch.zeros(shape, device=device) for shape in unpadded_inputs_shapes[1:]])
 
     def forward(self, x):
         return self._Kernel.apply(x, *self.weights)

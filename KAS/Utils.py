@@ -1,6 +1,12 @@
-from .Bindings import Next
-from typing import Dict, Tuple, Union, List
 import math
+import torch
+import logging
+from torch import nn
+from typing import Dict, Tuple, Union, List
+
+from .Bindings import Next
+from .KernelPack import KernelPack
+
 
 class NextSerializer:
     def __init__(self):
@@ -98,3 +104,24 @@ class AverageMeter:
             return f"AverageMeter(sum={self.sum}, sumsq={self.sumsq}, N={self.N})"
         else:
             return f"AverageMeter(sum={self.sum}, N={self.N})"
+        
+
+def init_weights(m):
+    if isinstance(m, nn.Linear):
+        nn.init.trunc_normal_(m.weight, std=.02)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+    elif isinstance(m, nn.LayerNorm):
+        nn.init.constant_(m.bias, 0)
+        nn.init.constant_(m.weight, 1.0)
+    elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.BatchNorm1d):
+        nn.init.constant_(m.weight, 1.)
+        nn.init.constant_(m.bias, 0.)
+    elif isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d):
+        nn.init.trunc_normal_(m.weight.data, std=.1)
+        if m.bias is not None:
+            m.bias.data.zero_()
+    elif isinstance(m, KernelPack):
+        logging.debug(f'Initializing KernelPack {m} ...')
+        for w in m.weights:
+            nn.init.trunc_normal_(w, std=.1)

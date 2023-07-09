@@ -21,6 +21,6 @@ from .Placeholder import Placeholder
 from .Statistics import Statistics
 from .Node import Next, Path, Arc, Node, MockNodeMetadata, MockNode, MockVisitedNode
 from .KernelPack import KernelPack, KernelLoader
-from .Utils import NextSerializer
+from .Utils import NextSerializer, init_weights
 from .Explorer import Explorer
 from .TreeExplorer import TreeExplorer

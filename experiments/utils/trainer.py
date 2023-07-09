@@ -8,12 +8,15 @@ from timm.utils import AverageMeter
 from .loss import get_loss_func
 from .optim import get_optimizer
 from .sche import get_schedule
+from .models import KASModel
 
 
 def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], List[float]]:
+    assert isinstance(model, KASModel)
     torch.backends.cudnn.benchmark = True
     assert torch.cuda.is_available(), 'CUDA is not supported.'
     model.cuda()
+    model.initialize_weights()
 
     # Loss, optimizer and scheduler
     loss_func = get_loss_func(args)
