@@ -248,6 +248,9 @@ commands.txt
 .scheduler-cache
 
 # Sessions
-mnist-session
 debug-session
-cifar10-session
+mcts-*-session
+random-*-session
+
+# Figures
+plot-*.png
