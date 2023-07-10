@@ -43,6 +43,28 @@ def test_remove():
     
     print("[PASSED] test_remove")
     
+def test_virtual_loss() -> None:
+    vertices = ['root', *[{'name': f'final{i+1}', 'is_final': True} for i in range(6)]]
+    edges = [
+        ('root', [('Merge(1)', 'final1'), ('Merge(2)', 'final2'), ('Merge(3)', 'final3'), ('Unfold(3)', 'final4'), ('Unfold(4)', 'final5'), ('Unfold(5)', 'final6')])
+    ]
+    sampler = MockSampler(vertices, edges)
+    
+    mcts = MCTS(sampler, virtual_loss_constant=1, b=1)
+    
+    receipt, trial = mcts.do_rollout(sampler.root())
+    mcts.back_propagate(receipt, 0.7, trial[0][0])
+    receipt, trial = mcts.do_rollout(sampler.root())
+    mcts.back_propagate(receipt, 0.7, trial[0][0])
+    receipt, trial = mcts.do_rollout(sampler.root())
+    mcts.back_propagate(receipt, 0.7, trial[0][0])
+    
+    trials = [mcts.do_rollout(sampler.root())[1] for _ in range(2)]
+    
+    assert len(set([trial[0][1]._node._node._name for trial in trials])) == 2, [trial[0][1]._node._node._name for trial in trials]
+    
+    print("[PASSED] test_virtual_loss")
+    
 def test_exhausted():
     
     # If final nodes are all back proped, then rollout return None (exhausted)
@@ -286,6 +308,7 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     test_remove()
+    test_virtual_loss()
     test_exhausted()
     test_mcts()
     test_grave()

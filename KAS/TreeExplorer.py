@@ -1,4 +1,5 @@
 import os
+import math
 
 from .Bindings import Next
 from .Node import Node
@@ -24,6 +25,7 @@ class TreeExplorer:
         The current path is displayed.
         Several commands:
         - `(i)nfo`: print the description of the node.
+        - `(s)elect`: print the ucd score of each children.
         - `(c)hildren`: list all children of the current node. 
         - `(g)rave [<ty>]`: print the grave dictionary. Example: `grave Share`
         - `(l)rave [<ty>]`: print the lrave dictionary. Example: `lrave Share`
@@ -57,18 +59,46 @@ class TreeExplorer:
             elif command.startswith("c"):
                 # list all children
                 print("Children:")
-                to_print = current_node.get_children(
+                children = current_node.get_children(
                         self._mcts._treenode_store, 
                         auto_initialize=False, 
                         on_tree=self.on_tree
                     )
-                for nxt, child_node, edge_state in to_print:
+                for nxt, child_node, edge_state in children:
                     if current_node._is_mid:
                         child = Next(current_node._type, nxt)
                         print(f"\t{child}:\t{current_node._node.get_child_description(child)}, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})")
                     else:
                         assert isinstance(nxt, Next.Type)
                         print(f"\t{nxt}:\t{child_node.children_count(self._mcts._treenode_store, on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})")
+            elif command.startswith("s"):
+                # list all children
+                print("UCD:")
+                children = current_node.get_children(
+                        self._mcts._treenode_store, 
+                        auto_initialize=False, 
+                        on_tree=self.on_tree
+                    )
+                log_N_vertex = math.log(current_node.N)
+                def ucb1_tuned(key) -> float:
+                    """
+                    Upper confidence bound. 
+                    UCB1-tuned. 
+                    """
+                    _, child, edge = key
+                    if edge.N == 0:
+                        return 1e9
+                    return edge.mean + self._mcts._exploration_weight * math.sqrt(
+                        (log_N_vertex / edge.N) * min(0.25, edge.std * edge.std + math.sqrt(2 * log_N_vertex / edge.N))
+                    )
+                ucb_score = [ucb1_tuned(c) for c in children]
+                for (nxt, child_node, edge_state), score in zip(children, ucb_score):
+                    if current_node._is_mid:
+                        child = Next(current_node._type, nxt)
+                        print(f"\t{child}:\t{current_node._node.get_child_description(child)}, score={score}")
+                    else:
+                        assert isinstance(nxt, Next.Type)
+                        print(f"\t{nxt}:\t{child_node.children_count(self._mcts._treenode_store, on_tree=self.on_tree)} children, score={score}")
             elif command in ["g", "grave"]:
                 ty = None
                 segments = command.split()

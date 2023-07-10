@@ -2,9 +2,9 @@ import logging
 import torch
 import torch.nn as nn
 import json
-import traceback
 import os
 from random import random
+from tqdm import trange
 
 from KAS import CodeGenOptions, Sampler, MCTS, Placeholder, TreeExplorer
 
@@ -23,16 +23,14 @@ def test_tree_explorer():
                       "s=3:2", "k=4:4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
     mcts = MCTS(sampler, virtual_loss_constant=1)
     for idx in range(30):
-        try:
-            receipt, trials = mcts.do_rollout(sampler.root())
-            _, path = receipt
-            node = trials[0]
-            mcts.back_propagate(receipt, random(), node[0])
-        except Exception as e:
-            print(f"Caught error {e}")
-            traceback.print_exc()
-        if idx in [3, 7]:
-            mcts.garbage_collect()
+        receipts, trials = [], []
+        for _ in range(5):
+            receipt, trial = mcts.do_rollout(sampler.root())
+            receipts.append(receipt)
+            trials.append(trial)
+        print(f"Iteration {idx}. Sampled {receipts}. ")
+        for receipt, trial in zip(receipts, trials):
+            mcts.back_propagate(receipt, random(), trial[0][0])
     
     for k, v in mcts.virtual_loss_count.items():
         assert v == 0, f"Virtual loss count for {k} is {v}"

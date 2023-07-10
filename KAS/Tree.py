@@ -43,19 +43,24 @@ class MCTS:
     def _increment_virtual_loss(self, path: TreePath, delta: int=1) -> None:
         assert delta > 0
         tree_node = self.tree_root
+        self.virtual_loss_count[tree_node] += delta
+        tree_node.flush_T(tree_node.N + self.virtual_loss_count[tree_node], self._treenode_store, self.g_rave, self._c_l, self._b)
         for next in path:
             tree_node, _ = tree_node.get_child(next.type, self._treenode_store, on_tree=True)
             assert tree_node is not None
             self.virtual_loss_count[tree_node] += delta
+            tree_node.flush_T(tree_node.N + self.virtual_loss_count[tree_node], self._treenode_store, self.g_rave, self._c_l, self._b)
             if next.key == 0:
                 break
             tree_node, _ = tree_node.get_child(next.key, self._treenode_store, on_tree=True)
             assert tree_node is not None
             self.virtual_loss_count[tree_node] += delta
+            tree_node.flush_T(tree_node.N + self.virtual_loss_count[tree_node], self._treenode_store, self.g_rave, self._c_l, self._b)
 
     def _decrement_virtual_loss(self, path: TreePath, delta: int=1) -> None:
         assert delta > 0
         tree_node = self.tree_root
+        self.virtual_loss_count[tree_node] -= delta
         for next in path:
             tree_node, _ = tree_node.get_child(next.type, self._treenode_store, on_tree=True)
             assert tree_node is not None
@@ -445,9 +450,8 @@ class MCTS:
 
         def ucb1_tuned(key: Tuple[PseudoTreeNext, TreeNode, AverageMeter]) -> float:
             """
-            Upper confidence bound for trees.
-            We save the tree as a DAG since multiple paths lead to a same node (by using different order of the primitives). Therefore, UCD (https://hal.science/hal-01499672/document) shall be used instead. (Now we use only a simple version of UCD, which is not the same as the one in the paper.)
-            TOTST: Implement the UCB1-tuned. 
+            Upper confidence bound. 
+            UCB1-tuned. 
             """
             _, child, edge = key
             if edge.N == 0:

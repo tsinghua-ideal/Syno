@@ -191,7 +191,6 @@ class TreeNode:
     
     def update(self, reward: float, arc: Optional[Arc]=None) -> None:
         self.state.update(reward)
-        logging.debug(f"update {self} with {reward}, {arc}")
         if arc: self.update_edge(reward, arc.to_next().key)
     
     def update_edge(self, reward: float, key: int) -> None:
