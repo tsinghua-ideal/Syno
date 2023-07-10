@@ -36,21 +36,24 @@ class TreeExplorer:
         """
         print("Type `help` for help.")
         os.makedirs(working_dir, exist_ok=True)
-        path = TreePath([])
-        node_hierarchy = [self._mcts.tree_root]
+        node_hierarchy = [(TreePath([]), self._mcts.tree_root)]
         while True:
-            current_node = node_hierarchy[-1]
+            path, current_node = node_hierarchy[-1]
             command = input(f"({path}) >>> ")
             if command in ["i", "info"]:
                 print(f"Node: {current_node.to_node()}")
                 print(f"\t is_terminal: {current_node.is_terminal(self._mcts._treenode_store)}")
                 print(f"\t is_final: {current_node.is_final()}")
+                if current_node.is_final():
+                    print(f"\t\t reward: {current_node.reward}")
+                    print(f"\t\t filtered: {current_node.filtered}")
                 print(f"\t is_dead_end: {current_node._is_dead}")
                 print(f"\t is_exhausted: {current_node._exhausted}")
                 print(f"\t states:")
                 print(f"\t\t N={current_node.state.N}")
                 print(f"\t\t mean={current_node.state.mean}")
                 print(f"\t\t std={current_node.state.std}")
+                    
             elif command.startswith("c"):
                 # list all children
                 print("Children:")
@@ -67,7 +70,6 @@ class TreeExplorer:
                         assert isinstance(nxt, Next.Type)
                         print(f"\t{nxt}:\t{child_node.children_count(self._mcts._treenode_store, on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})")
             elif command in ["g", "grave"]:
-                # TODO: type filtering
                 ty = None
                 segments = command.split()
                 if len(segments) > 1:
@@ -76,10 +78,12 @@ class TreeExplorer:
                     except:
                         print(f"Invalid type {ty}, please try again. ")
                         continue
-                print("Grave:")
-                for key, value in self._mcts.g_rave.items():
-                    if ty is None or ty == key.ty:
-                        print(f"\t{key}: (N={value.N}, mean={value.mean})")
+                sorted_grave = sorted(filter(lambda x: (ty is None or x[0]._type == ty), list(self._mcts.g_rave.items())), key=lambda x: x[1].N, reverse=True)
+                sorted_grave_hasvalue = [grave for grave in sorted_grave if grave[1].N > 0]
+                    
+                print(f"Grave ({len(sorted_grave)} in total, in which {len(sorted_grave_hasvalue)} has positive value):")
+                for i, (key, value) in enumerate(sorted_grave_hasvalue):
+                    print(f"\t{i+1}. {key}: (N={value.N}, mean={value.mean})")
             elif command in ["l", "lrave"]:
                 ty = None
                 segments = command.split()
@@ -89,10 +93,11 @@ class TreeExplorer:
                     except:
                         print(f"Invalid type {ty}, please try again. ")
                         continue
-                print("Lrave:")
-                for key, value in current_node.l_rave.items():
-                    if ty is None or ty == key.ty:
-                        print(f"\t{key}: (N={value.N}, mean={value.mean})")
+                sorted_lrave = sorted(filter(lambda x: (ty is None or x[0]._type == ty), list(current_node.l_rave.items())), key=lambda x: x[1].N, reverse=True)
+                sorted_lrave_hasvalue = [lrave for lrave in sorted_lrave if lrave[1].N > 0]
+                print(f"Lrave ({len(sorted_lrave)} in total, in which {len(sorted_lrave_hasvalue)} has positive value):")
+                for i, (key, value) in enumerate(sorted_lrave):
+                    print(f"\t {i+1}. {key}: (N={value.N}, mean={value.mean})")
             elif command == "graphviz":
                 if current_node._is_mid:
                     print("Warning: graphviz is intended to run on non-mid nodes.")
@@ -113,12 +118,15 @@ class TreeExplorer:
                     if child_node is None:
                         print(f"Child {tree_next} does not exist.")
                     else:
-                        node_hierarchy.append(child_node)
                         path = path.concat(tree_next)
+                        node_hierarchy.append((path, child_node))
                 except:
                     print("Invalid command.")
             elif command in ["b", "back"]:
                 # go back to parent node
+                if len(node_hierarchy) == 1:
+                    print("Already at the root, can't go back further")
+                    continue
                 node_hierarchy = node_hierarchy[:-1]
             elif command == 'explore_all':
                 self.on_tree = False

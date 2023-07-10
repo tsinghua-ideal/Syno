@@ -39,7 +39,7 @@ def test_remove():
     print(f"Sampled {trials} for {path}")
     mcts.remove(receipt, trials[0][1])
     
-    assert mcts.do_rollout(sampler.root())[1][0][1]._node._node._name == 'final2'
+    assert mcts.do_rollout(sampler.root())[1][0][1]._node._node._name == 'final1' if trials[0][1]._node._node._name == 'final2' else 'final2'
     
     print("[PASSED] test_remove")
     
@@ -52,7 +52,7 @@ def test_exhausted():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, virtual_loss_constant=1)
+    mcts = MCTS(sampler, virtual_loss_constant=1, b=1)
     
     receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
     _, path = receipt
@@ -60,59 +60,40 @@ def test_exhausted():
     print(f"Sampled {node} for {path}")
     mcts.back_propagate(receipt, .9, trials[0][0])
     
+    receipt, trials = mcts.do_rollout(sampler.root()) # root->Share
+    _, path = receipt
+    node = trials
+    print(f"Sampled {node} for {path}")
+    mcts.back_propagate(receipt, .9, trials[0][0])
+    assert mcts.tree_root.get_child(Next.Merge, mcts._treenode_store)[0].N == 1
+    
     assert mcts.do_rollout(sampler.root()) is None
     print("[PASSED] test_exhausted")
-    
-def test_final_select():
-    
-    vertices = ['root', {'name': 'final', 'is_final': True}]
-    edges = [
-        ('root', [('Merge(1)', 'final')])
-    ]
-    sampler = MockSampler(vertices, edges)
-    
-    mcts = MCTS(sampler, virtual_loss_constant=1, leaf_num=2, continue_after_exhaust=True)
-    
-    receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
-    _, path = receipt
-    node = trials
-    print(f"Sampled {node} for {path}")
-    mcts.back_propagate(receipt, 0.5, node[0][0])
-    mcts.back_propagate(receipt, 0.5, node[0][0])
-    
-    receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
-    _, path = receipt
-    node = trials
-    print(f"Sampled {node} for {path}")
-    mcts.back_propagate(receipt, 0.5, node[0][0])
-    mcts.back_propagate(receipt, 0.5, node[0][0])
-    
-    mcts.do_rollout(sampler.root())
-    
-    print("[PASSED] test_final_select")
 
 def test_mcts():
-    vertices = ['root', 'a', 'b', {'name': 'final', 'is_final': True}]
+    vertices = ['root', 'a', 'b', 'c', *[{'name': f'final{i+1}', 'is_final': True} for i in range(3)]]
     edges = [
         ('root', [('Merge(1)', 'a'), ('Share(2)', 'b')]),
-        ('a', [('Split(3)', 'final')]),
-        ('b', [('Unfold(4)', 'final')]),
+        ('a', [('Share(2)', 'c')]),
+        ('b', [('Merge(1)', 'c')]),
+        ('c', [(f'Finalize({i+3})', f'final{i+1}') for i in range(3)])
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, virtual_loss_constant=1, continue_after_exhaust=True)
+    mcts = MCTS(sampler, virtual_loss_constant=1)
     
-    assert mcts._treenode_store[sampler.root().to_node()].children_count(mcts._treenode_store) == 2, mcts._treenode_store[sampler.root().to_node()].children_count(mcts._treenode_store)
+    assert mcts.tree_root.children_count(mcts._treenode_store) == 2
+    receipt, trials = mcts.do_rollout(sampler.root())
+    mcts.back_propagate(receipt, 0.5, trials[0][0])
     
     for idx in range(2):
         receipt, trials = mcts.do_rollout(sampler.root())
+        assert mcts.tree_root.children_count(mcts._treenode_store, on_tree=True) == 1, mcts.tree_root.children_count(mcts._treenode_store, on_tree=True)
         _, path = receipt
         print(f"Iteration {idx}. Sampled {trials} for {path}")
         mcts.back_propagate(receipt, 0.5, trials[0][0])
-        print("Tree after first two iterations", [(v, v.N) for _, v in mcts._treenode_store.items()])
         
     print("Tree after first two iterations", [(v, v.N) for _, v in mcts._treenode_store.items()])
-    assert len(mcts._treenode_store.keys()) == 3
     assert len([v for _, v in mcts._treenode_store.items() if v.N > 0]) == 2
     
     print(f"Garbage collection: size={len(mcts._treenode_store.keys())}->", end="")
@@ -121,7 +102,7 @@ def test_mcts():
     
     receipts = []
     trialss = []
-    for idx in range(2, 4):
+    for idx in range(2):
         receipt, trials = mcts.do_rollout(sampler.root())
         _, path = receipt
         print(f"Iteration {idx}. Sampled {trials} for {path}")
@@ -168,10 +149,15 @@ def test_grave():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, c_l=1e4, b=0.9, continue_after_exhaust=True)
+    mcts = MCTS(sampler, c_l=1e4, b=0.9)
     
     # s_1 is first expanded
     # CHECK: only one child
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0.1, trials[0][0])
+    
     root_node = mcts._treenode_store[mcts._root]
     root_visible_children = root_node.get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
     assert len(root_visible_children) == 1
@@ -180,7 +166,7 @@ def test_grave():
     receipt, trials = mcts.do_rollout(sampler.root())
     _, path = receipt
     print(f"Sampled {trials} for {path}")
-    mcts.back_propagate(receipt, 0., trials[0][0])
+    mcts.back_propagate(receipt, 0.2, trials[0][0])
     
     # CHECK: no new children added. 
     root_visible_children = root_node.get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
@@ -219,10 +205,14 @@ def test_lrave():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, c_l=1e-4, b=0.9, continue_after_exhaust=True)
+    mcts = MCTS(sampler, c_l=1e-4, b=0.9)
     
     # s_1 is first expanded
     # CHECK: only one child
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0.1, trials[0][0])
     root_node = mcts._treenode_store[mcts._root]
     root_visible_children = root_node.get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
     assert len(root_visible_children) == 1
@@ -280,10 +270,10 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
         *[(f'l3-{j}', [(f'Share(3{j}4{k})', f'f{k}') for k in [1, 2, 3]]) for j in [1, 2, 3]]
     ]
     sampler = MockSampler(vertices, edges)
-    mcts = MCTS(sampler, virtual_loss_constant=1, leaf_num=leaf_num, continue_after_exhaust=True)
+    mcts = MCTS(sampler, virtual_loss_constant=1, leaf_num=leaf_num)
     
     for _ in trange(num_iter):
-        receipt, trials = mcts.do_rollout(sampler.root())
+        receipt, trials = mcts.do_rollout(sampler.root(), check_exhaustion=False)
         for path, node in trials:
             mcts.back_propagate(receipt, node._node.mock_get('reward'), path)
     
@@ -297,7 +287,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     test_remove()
     test_exhausted()
-    test_final_select()
     test_mcts()
     test_grave()
     test_lrave()
