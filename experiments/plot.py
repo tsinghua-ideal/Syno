@@ -65,7 +65,7 @@ if __name__ == '__main__':
         m, c = markers.pop(0), colors.pop(0)
         markers.append(m)
         colors.append(c)
-        sns.kdeplot(y, color=c, label=name, fill=True, bw_adjust=2, cut=0)
+        sns.kdeplot(y, color=c, label=name, fill=True, bw_adjust=0.2, cut=0)
     
     # Plot and save into file
     plt.xlabel('Accuracy')

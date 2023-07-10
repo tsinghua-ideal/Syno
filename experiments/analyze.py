@@ -1,6 +1,7 @@
 import logging
 from utils import models, parser, explorer
 
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     print("Parsing arguments ......")
