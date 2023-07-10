@@ -211,9 +211,10 @@ class TreeNode:
         """
         Tp = math.floor(T ** b)
         while Tp > self.children_count(factory, on_tree=True, filter_exhausted=filter_exhausted):
-            if not self.reveal_new_children(factory, g_rave, c_l):
-                assert self.is_fully_in_tree(factory)
+            if self.is_fully_in_tree(factory):
                 break
+            else:
+                self.reveal_new_children(factory, g_rave, c_l)
         self._last_T = T
         
     def children_count(self, factory: Dict[Node, "TreeNode"], on_tree: bool=False, filter_exhausted: bool=False) -> int:
@@ -359,6 +360,25 @@ class TreeNode:
                     return child, child.state if child._isin_tree and not child.is_dead_end(factory) else None
             return None
 
+    def is_fully_expanded(self, factory: Dict[Node, "TreeNode"]) -> bool:
+        """
+        Check whether all visible children have been expanded. 
+        Dependencies: is_dead_end -> is_final -> None
+        Not init new tree nodes. 
+        """
+        primitives = self._node.collect_operations()
+        if self._is_mid:
+            nexts = primitives[self._type]
+            for next in nexts:
+                child = self._node.get_child(Next(self._type, next))
+                if child is None:
+                    continue
+                if child in factory and factory[child]._isin_tree and factory[child].N == 0:
+                    return False
+            return True
+        else:
+            return all([child.N > 0 or child.is_dead_end(factory) for child in self.children])
+        
     def is_fully_in_tree(self, factory: Dict[Node, "TreeNode"]) -> bool:
         """
         Check whether all children have been revealed. 

@@ -101,9 +101,9 @@ class AverageMeter:
     
     def __repr__(self) -> str:
         if self.support_std:
-            return f"AverageMeter(sum={self.sum}, sumsq={self.sumsq}, N={self.N})"
+            return f"AverageMeter(mean={self.mean}, std={self.std}, N={self.N})"
         else:
-            return f"AverageMeter(sum={self.sum}, N={self.N})"
+            return f"AverageMeter(mean={self.mean}, N={self.N})"
         
 
 def init_weights(m):

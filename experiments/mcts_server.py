@@ -15,10 +15,10 @@ from utils import log, parser, models
 class MCTSSession:
     # TODO: may move to program arguments
     # TODO: add random sample
-    virtual_loss_constant = 5.
-    leaf_parallelization_number = 5
-    exploration_weight = math.sqrt(2)
-    max_iterations = 100
+    virtual_loss_constant = .5
+    leaf_parallelization_number = 1
+    exploration_weight = 4 * math.sqrt(2)
+    max_iterations = 300
     b = 0.4
     c_l = 40.
 

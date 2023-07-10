@@ -1,6 +1,7 @@
 import random
 import math
 import logging
+import time
 from collections import defaultdict, OrderedDict as ODict
 from typing import List, Tuple, Any, Optional, DefaultDict, Set, Union, OrderedDict, Dict
 from copy import deepcopy
@@ -88,7 +89,10 @@ class MCTS:
             if check_exhaustion and self.tree_root.is_exhausted(self._treenode_store):
                 logging.info("The tree is exhausted. ")
                 return None
+            start = time.time()
             result = self._may_fail_rollout()
+            logging.debug(f"Time elapsed {time.time() - start}")
+            
             if result is not None:
                 path, trials = result
                 logging.debug(
@@ -108,23 +112,31 @@ class MCTS:
         else:
             # Select
             logging.debug("Selection start")
-            select_result = self._select(self.tree_root)
+            select_result = self._select()
             if select_result is None:
                 return None
             path, leaf = select_result
+            if leaf.is_dead_end(self._treenode_store):
+                logging.debug(f"Selection encountered dead end")
+                return None
             logging.debug(f"Selection end {path} {leaf}")
 
             # Expand
             if leaf.is_final():
-                logging.debug("Selected final node, return immediately. ")
+                logging.debug(f"Selected final node with time {leaf.N}, return immediately. ")
                 return path, [(path, leaf) for _ in range(self.leaf_num)]
-            if leaf.children_count(self._treenode_store, on_tree=True) == 0:
+            
+            if leaf.get_unexpanded_children(self._treenode_store, on_tree=True) == 0:
                 if not leaf.is_fully_in_tree(self._treenode_store):
                     leaf.reveal_new_children(self._treenode_store, self.g_rave, self._c_l)
                     assert leaf.children_count(self._treenode_store, on_tree=True) > 0
                 else:
                     logging.debug(f"{leaf} is fully expanded and has no children.")
                     return None
+                
+            if len(leaf.get_unexpanded_children(self._treenode_store, True)) == 0:
+                logging.debug(f"no unexpanded children {leaf.children_count(self._treenode_store, on_tree=True)}")
+                return None
             
             logging.debug("Expansion start")
             # leaf_expanded = leaf
@@ -155,16 +167,19 @@ class MCTS:
     #   Functional support
     #########################
 
-    def _select(self, node: TreeNode) -> Optional[Tuple[TreePath, TreeNode]]:
-        "Find an unexplored descendent of `node`"
+    def _select(self) -> Optional[Tuple[TreePath, TreeNode]]:
+        "Find an unexplored descendent of root"
         # Here, the path is just arbitrary, and depends on how we build the search tree. See doc for `_uct_select`. We only need to make sure we can construct a `TwoStepPath` from `path`.
         path = TreePath([])
+        node = self.tree_root
         while True:
+            node.flush_T(node.N, self._treenode_store, self.g_rave, self._c_l, self._b)
             if node.is_terminal(self._treenode_store) or \
                 len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) > 0:
                 # node is terminal, unexplored, or a leaf
+                # logging.debug(f"select end. dead end {node.is_dead_end(self._treenode_store)} final {node.is_final()}, numexpandch{len(node.get_unexpanded_children(self._treenode_store, on_tree=True))}")
                 return path, node
-            assert node.children_count(self._treenode_store) > 0
+            # assert len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
             selected = self._ucd_select(node) # descend a layer deeper
             if selected is None:
                 return None
@@ -178,7 +193,7 @@ class MCTS:
 
         unexpanded_children = node.get_unexpanded_children(self._treenode_store, on_tree=True)
         if len(unexpanded_children) == 0:
-            logging.debug("Expand failed.")
+            logging.debug("Expansion failed.")
             return None
 
         # randomly select a child from pool
@@ -230,9 +245,13 @@ class MCTS:
         # update rewards
         leaf_node = self.update_nodes(receipt, reward)
         assert not leaf_node.is_dead_end(self._treenode_store), leaf_node._node.get_possible_path()
+        try:
+            arcs = leaf_node._node.get_composing_arcs()
+        except RuntimeError as e:
+            logging.debug(f"Catched runtime error! leaf_node._node.is_dead_end()={leaf_node._node.is_dead_end()}")
+            return
         
         # update rave scores
-        arcs = leaf_node._node.get_composing_arcs()
         update_types = set([next.type for next in path_to_trial])
             
         self.update_grave(arcs, update_types, reward)
@@ -374,10 +393,12 @@ class MCTS:
                     nxt = arc.to_next()
                     mid_child = src_node.get_child(nxt.type, self._treenode_store)
                     if mid_child is None: 
+                        arc_pool.add(arc)
                         continue
                     mid_child = mid_child[0]
                     child_node = self.touch(src_node._node.get_child_from_arc(arc))
                     if child_node.is_dead_end(self._treenode_store): 
+                        arc_pool.add(arc)
                         continue
                     if attempt_to_node(child_node, tgt_node, arc_pool) and not updated_flag:
                         src_node.update_lrave(reward, nxt.type)
@@ -433,7 +454,6 @@ class MCTS:
         """
         Select a child of node, balancing exploration & exploitation
         """
-
         children = node.get_children(self._treenode_store, on_tree=True)
             
         if len(children) == 0:
@@ -461,6 +481,9 @@ class MCTS:
             ) - self.virtual_loss_constant * self.virtual_loss_count[child]
 
         selected_child = max(children, key=ucb1_tuned)
+        # logging.debug(f"UCD select {log_N_vertex}")
+        # logging.debug(f"ucb {[(ucb1_tuned(key), key[2]) for key in children]}")
+        # logging.debug(f"edge {[edge.N for _, _, edge in children]}")
 
         return selected_child
 
