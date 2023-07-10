@@ -194,16 +194,18 @@ def test_grave():
     root_visible_children = root_node.get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
     assert len(root_visible_children) == 1
     
-    root_visible_grandchildren = root_visible_children[0][1].get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
-    assert len(root_visible_grandchildren) == 1
-    root_visible_grandchild = root_visible_grandchildren[0][1]
-    assert root_visible_grandchild._node._node._name == 's_1'
-    
     # update once
     receipt, trials = mcts.do_rollout(sampler.root())
     _, path = receipt
     print(f"Sampled {trials} for {path}")
-    mcts.back_propagate(receipt, 0.5, trials[0][0])
+    mcts.back_propagate(receipt, 0.2, trials[0][0])
+    
+    root_visible_grandchildren = root_visible_children[0][1].get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
+    assert len(root_visible_grandchildren) == 1, root_visible_grandchildren
+    root_visible_grandchild = root_visible_grandchildren[0][1]
+    assert root_visible_grandchild._node._node._name == 's_2'
+    
+    # update once
     receipt, trials = mcts.do_rollout(sampler.root())
     _, path = receipt
     print(f"Sampled {trials} for {path}")
@@ -212,8 +214,8 @@ def test_grave():
     # CHECK: two children from root
     root_visible_grandchildren = root_visible_children[0][1].get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
     assert len(root_visible_grandchildren) == 2, root_visible_grandchildren
-    root_visible_grandchild = root_visible_grandchildren[1][1]
-    assert root_visible_grandchild._node._node._name == 's_2'
+    root_visible_grandchild = root_visible_grandchildren[0][1]
+    assert root_visible_grandchild._node._node._name == 's_1'
     
     print("[PASSED] test_grave")
 
@@ -245,6 +247,12 @@ def test_lrave():
     print(f"Sampled {trials} for {path}")
     mcts.back_propagate(receipt, 0., trials[0][0])
     
+    # update once
+    receipt, trials = mcts.do_rollout(sampler.root())
+    _, path = receipt
+    print(f"Sampled {trials} for {path}")
+    mcts.back_propagate(receipt, 0.2, trials[0][0])
+    
     # CHECK: no new children added. 
     root_visible_children = root_node.get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
     assert len(root_visible_children) == 1
@@ -252,13 +260,9 @@ def test_lrave():
     root_visible_grandchildren = root_visible_children[0][1].get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
     assert len(root_visible_grandchildren) == 1
     root_visible_grandchild = root_visible_grandchildren[0][1]
-    assert root_visible_grandchild._node._node._name == 's_1'
+    assert root_visible_grandchild._node._node._name == 's_2', root_visible_grandchild._node._node._name
     
     # update once
-    receipt, trials = mcts.do_rollout(sampler.root())
-    _, path = receipt
-    print(f"Sampled {trials} for {path}")
-    mcts.back_propagate(receipt, 0.5, trials[0][0])
     receipt, trials = mcts.do_rollout(sampler.root())
     _, path = receipt
     print(f"Sampled {trials} for {path}")
@@ -267,8 +271,8 @@ def test_lrave():
     # CHECK: two children from root
     root_visible_grandchildren = root_visible_children[0][1].get_children(mcts._treenode_store, auto_initialize=False, on_tree=True)
     assert len(root_visible_grandchildren) == 2, root_visible_grandchildren
-    root_visible_grandchild = root_visible_grandchildren[1][1]
-    assert root_visible_grandchild._node._node._name == 's_2'
+    root_visible_grandchild = root_visible_grandchildren[0][1]
+    assert root_visible_grandchild._node._node._name == 's_1'
     
     print("[PASSED] test_lrave")
 

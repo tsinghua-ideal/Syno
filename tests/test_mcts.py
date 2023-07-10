@@ -4,8 +4,9 @@ import torch.nn as nn
 import json
 import traceback
 import os
+import profile
 
-from KAS import CodeGenOptions, Sampler, MCTS, Path, Placeholder, MockSampler
+from KAS import CodeGenOptions, Sampler, MCTS, Path, Placeholder
 
 class Model(nn.Module):
     def __init__(self):
@@ -21,17 +22,14 @@ def test_mcts():
     sampler = Sampler("[H,W]", "[H,W]", ["H:2", "W:2"], [
                       "s=3:2", "k=4:4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
     mcts = MCTS(sampler, virtual_loss_constant=1)
-    for idx in range(30):
+    for idx in range(1000):
         receipt, trials = mcts.do_rollout(sampler.root())
         _, path = receipt
         node = trials[0]
         print(f"Iteration {idx}. Sampled {node} for {path}")
         mcts.back_propagate(receipt, 0.5, node[0])
-        if (idx+1) % 3 == 0:
-            print(f"Garbage collection: size={len(mcts._treenode_store.keys())}->", end="")
-            mcts.garbage_collect()
-            print(len(mcts._treenode_store.keys()))
-    
+        
+    # return
     for k, v in mcts.virtual_loss_count.items():
         assert v == 0, f"Virtual loss count for {k} is {v}"
     
@@ -65,5 +63,5 @@ def test_mcts():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    test_mcts()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+    profile.run("test_mcts()")

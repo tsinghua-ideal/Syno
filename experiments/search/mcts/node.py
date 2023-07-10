@@ -224,9 +224,8 @@ class TreeNode:
         Get the number of all children of a node.
         Dependencies: is_exhausted -> is_dead_end -> is_final -> None
         """
-        primitives = self._node.collect_operations()
         if self._is_mid:
-            nexts = primitives[self._type]
+            nexts = [handle.key for handle in self._node.get_children_handles() if handle.type == self._type]
             count = 0
             for next in nexts:
                 child = self._node.get_child(Next(self._type, next))
@@ -245,7 +244,7 @@ class TreeNode:
             if filter_exhausted:
                 return len(self.children) - sum([child.is_exhausted(factory) or (on_tree and not child._isin_tree) for child in self.children])
             else:
-                return len(self.children) - sum([child.is_dead_end(factory) or (on_tree and not child._isin_tree) for child in self.children])
+                return sum([not child.is_dead_end(factory) and not (on_tree and not child._isin_tree) for child in self.children])
 
     
     def reveal_new_children(self, factory: Dict[Node, "TreeNode"], g_rave: Dict[Arc, AverageMeter], c_l: float) -> bool:
@@ -296,23 +295,37 @@ class TreeNode:
         children = self.get_children(factory, on_tree=on_tree)
         unexpanded_children = [child for child in children if child[1].N == 0]
         return unexpanded_children
+
+    def get_children_nexts(self, factory: Dict[Node, "TreeNode"]) -> List[PseudoTreeNext]:
+        """
+        Get nexts to all alive children without initialize them. 
+        Dependencies: get_child -> is_dead_end -> is_final -> None
+        """
+        if self._is_mid:
+            nexts = [handle.key for handle in self._node.get_children_handles() if handle.type == self._type]
+            children = [self._node.get_child(Next(self._type, nxt)) for nxt in nexts]
+            nexts = [nxt for nxt, ch in zip(nexts, children) if ch is not None and (not ch in factory or not factory[ch].is_dead_end(factory))]
+        else:
+            nexts = [child._type for child in self.children if not child.is_dead_end(factory)]
+            
+        return nexts
     
     def get_children(self, factory: Dict[Node, "TreeNode"], auto_initialize: bool=True, on_tree: bool=False) -> List[Tuple[PseudoTreeNext, "TreeNode", AverageMeter]]:
         """
         Get all alive children of a node with nexts and edge states. 
         Dependencies: get_child -> is_dead_end -> is_final -> None
         """
-        primitives = self._node.collect_operations()
+        if on_tree: auto_initialize=False
 
         if self._is_mid:
-            nexts = primitives[self._type]
+            nexts = [handle.key for handle in self._node.get_children_handles() if handle.type == self._type]
             children = [self.get_child(nxt, factory, auto_initialize) for nxt in nexts]
             
             # Remove filtered and dead children. 
             filtered = [
                 (nxt, c[0], c[1]) 
                 for c, nxt in zip(children, nexts) 
-                    if (c is not None) and not c[0].is_dead_end(factory)
+                    if c is not None
             ]
             nexts = [nxt for nxt, _, _ in filtered]
             children = [c for _, c, _ in filtered]
@@ -322,7 +335,7 @@ class TreeNode:
             children = [
                 child
                 for child in children
-                if child._type in primitives.keys() and not child.is_dead_end(factory)
+                if not child.is_dead_end(factory)
             ]
             nexts = [child._type for child in children]
             edge_states = [child.state for child in children]
@@ -342,12 +355,15 @@ class TreeNode:
         Get the child node of a node with a Next. When the node is dead, return None.
         Dependencies: is_dead_end -> is_final -> None
         """
+        if on_tree: auto_initialize=False
         if self._is_mid:
             assert isinstance(next, int)
             child = self._node.get_child(Next(self._type, next))
             if child is None:
                 return None
             if on_tree and (child not in factory or not factory[child]._isin_tree):
+                return None
+            if child in factory and factory[child].is_dead_end(factory):
                 return None
             if child not in factory:
                 if auto_initialize:
@@ -368,9 +384,8 @@ class TreeNode:
         Dependencies: is_dead_end -> is_final -> None
         Not init new tree nodes. 
         """
-        primitives = self._node.collect_operations()
         if self._is_mid:
-            nexts = primitives[self._type]
+            nexts = [handle.key for handle in self._node.get_children_handles() if handle.type == self._type]
             for next in nexts:
                 child = self._node.get_child(Next(self._type, next))
                 if child is None:
@@ -387,9 +402,8 @@ class TreeNode:
         Dependencies: is_dead_end -> is_final -> None
         Not init new tree nodes. 
         """
-        primitives = self._node.collect_operations()
         if self._is_mid:
-            nexts = primitives[self._type]
+            nexts = [handle.key for handle in self._node.get_children_handles() if handle.type == self._type]
             for next in nexts:
                 child = self._node.get_child(Next(self._type, next))
                 if child is None:
@@ -416,27 +430,20 @@ class TreeNode:
             return True
         if self.is_final() and not self.filtered:
             return False
-        if not self.is_fully_in_tree(factory):
-            return False
         if self._node.is_dead_end() or self.is_final():
             self._is_dead = True
         if self._is_dead:
             return True
         
-        primitives = self._node.collect_operations()
         if self._is_mid:
-            nexts = primitives[self._type]
-            dead_children: List[Node] = []
-            for next in nexts:
-                child = self._node.get_child(Next(self._type, next))
-                if child is None:
-                    continue
-                dead_children.append(child)
-                if child not in factory or not factory[child].is_dead_end(factory):
-                    return False
+            for handle in self._node.get_children_handles():
+                if handle.type == self._type:
+                    child = self._node.get_child(Next(self._type, handle.key))
+                    if child and (child not in factory or not factory[child]._is_dead):
+                        return False
             self._is_dead = True
         else:
-            if len(self.children) == 0 or all([child.is_dead_end(factory) for child in self.children]):
+            if len(self.children) == 0 or all([child._is_dead for child in self.children]):
                 self._is_dead = True
         
         return self._is_dead
@@ -459,9 +466,8 @@ class TreeNode:
         if self._exhausted:
             return True
         
-        primitives = self._node.collect_operations()
         if self._is_mid:
-            nexts = primitives[self._type]
+            nexts = [handle.key for handle in self._node.get_children_handles() if handle.type == self._type]
             for next in nexts:
                 child = self._node.get_child(Next(self._type, next))
                 if child is None:

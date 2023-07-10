@@ -20,7 +20,7 @@ MockArc = Union[Next, Arc]
 class MCTSTree:
     def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20, policy: str='update-descent') -> None:
 
-        self._treenode_store: OrderedDict[Node, TreeNode] = ODict()
+        self._treenode_store: Dict[Node, TreeNode] = dict()
         self._root = sampler.visit([]).to_node()
         self.tree_root = TreeNode(self._root)
         self._treenode_store[self._root] = self.tree_root
@@ -175,19 +175,28 @@ class MCTSTree:
         # Here, the path is just arbitrary, and depends on how we build the search tree. See doc for `_uct_select`. We only need to make sure we can construct a `TwoStepPath` from `path`.
         path = TreePath([])
         node = self.tree_root
+        logging.debug(f"select {node}")
         while True:
+            start = time.time()
             node.flush_T(node.N, self._treenode_store, self.g_rave, self._c_l, self._b)
+            flush_time = time.time() - start
             if node.is_terminal(self._treenode_store) or \
                 len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) > 0:
                 # node is terminal, unexplored, or a leaf
-                # logging.debug(f"select end. dead end {node.is_dead_end(self._treenode_store)} final {node.is_final()}, numexpandch{len(node.get_unexpanded_children(self._treenode_store, on_tree=True))}")
+                check_time = time.time() - flush_time - start
+                logging.debug(f"select {node} ({flush_time, check_time})")
                 return path, node
+            check_time = time.time() - flush_time - start
             # assert len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
-            selected = self._ucd_select(node) # descend a layer deeper
+            selected = self._ucd_select(node) 
+            sel_time = time.time() - check_time - start
+            # descend a layer deeper
             if selected is None:
                 return None
             next, node, _ = selected
             path = path.concat(next)
+            post_sel_time = time.time() - sel_time - start
+            # logging.debug(f"select {node} ({flush_time, check_time, sel_time, post_sel_time})")
 
     def _expand(self, node: TreeNode) -> Optional[Tuple[PseudoTreeNext, TreeNode]]:
         """
@@ -211,26 +220,32 @@ class MCTSTree:
             Two step random selection. First, randomly select a primitive type. Then, randomly select a child of that type.
             """
             assert isinstance(node, TreeNode)
-            children = node.get_children(self._treenode_store)
-            children = [(next, c, edge_state) for next, c, edge_state in children if not c.is_dead_end(self._treenode_store)]
-            if len(children) == 0 or all([c.is_dead_end(self._treenode_store) for _, c, _ in children]):
+            nexts = node.get_children_nexts(self._treenode_store)
+            if len(nexts) == 0:
+                logging.debug(f"Simulation Encountered dead father {node}")
+                assert node.is_dead_end(self._treenode_store)
                 return None
-            next, selected_child, edge_state = random.choice(children)
-            return next, selected_child, edge_state
+            next = random.choice(nexts)
+            child = node.get_child(next, self._treenode_store)
+            if child:
+                selected_child, edge_state = child
+                return next, selected_child, edge_state
+            else:
+                logging.debug(f"Simulation Encountered dead child {node} -> {next}")
+                return None
 
         while not node.is_terminal(self._treenode_store):
             random_select_result = random_child(node)
             if random_select_result is None:
-                logging.debug(f"Simulation Encountered dead father {node}")
-                assert node.is_dead_end(self._treenode_store)
                 return None
             next, node, edge_state = random_select_result
             path = path.concat(next)
-        if node.is_dead_end(self._treenode_store): # is dead end
+        
+        if node.is_final():
+            return path, node
+        else:
             logging.debug(f"Simulation Encountered dead end {node}")
             return None
-        assert node.is_final()
-        return path, node
 
     def back_propagate(self, receipt: Receipt, reward: float, path_to_trial: TreePath) -> None:
         """
@@ -241,24 +256,27 @@ class MCTSTree:
         assert isinstance(reward, float)
         assert isinstance(path_to_trial, TreePath)
         assert 0.0 <= reward <= 1.0
-
+        logging.debug("Back propagation start")
         node, path = receipt
         self._decrement_virtual_loss(path)
         
-        # update rewards
-        leaf_node = self.update_nodes(receipt, reward)
-        assert not leaf_node.is_dead_end(self._treenode_store), leaf_node._node.get_possible_path()
+        trial_node = self._sampler.visit(path_to_trial)
+        assert trial_node.is_final()
         try:
-            arcs = leaf_node._node.get_composing_arcs()
-        except RuntimeError as e:
-            logging.debug(f"Catched runtime error! leaf_node._node.is_dead_end()={leaf_node._node.is_dead_end()}")
+            arcs = trial_node.get_composing_arcs()
+        except:
+            logging.debug(path_to_trial)
             return
+            
+        # update rewards
+        self.update_nodes(receipt, reward)
         
         # update rave scores
         update_types = set([next.type for next in path_to_trial])
             
         self.update_grave(arcs, update_types, reward)
-        self.update_lrave(leaf_node, arcs, reward)
+        self.update_lrave(trial_node, arcs, reward)
+        logging.debug("Back propagation end")
     
     def update_nodes(self, receipt: Receipt, reward: float) -> TreeNode:
         node, path = receipt
@@ -452,22 +470,25 @@ class MCTSTree:
         for tree_node in flush_list[::-1]:
             tree_node.flush_T(tree_node._last_T, self._treenode_store, self.g_rave, self._c_l, self._b)
 
-    # Here, the returned Any is just an element in the path. The type depends on how we build the search tree. If we follow the C++ implementation, it should be a kas_cpp_bindings.Next. If we use two-step generation for primitives, it should be either Union[primitive type, index of primitive], which is not yet implemented.
     def _ucd_select(self, node: TreeNode) -> Optional[Tuple[PseudoTreeNext, TreeNode, AverageMeter]]:
         """
         Select a child of node, balancing exploration & exploitation
         """
+        start = time.time()
         children = node.get_children(self._treenode_store, on_tree=True)
+        # logging.debug(f"get children {time.time() - start}")
+        # start = time.time()
             
         if len(children) == 0:
-            # node.add_new_children(self._treenode_store, self.g_rave, self._c_l)
-            if not node.is_exhausted(self._treenode_store):
+            if not node.is_fully_in_tree(self._treenode_store):
                 node.reveal_new_children(self._treenode_store, self.g_rave, self._c_l)
             logging.debug("Selection failed. ")
             return None
+        # logging.debug(f"reveal new children {time.time() - start}")
+        # start = time.time()
 
         # All children of node should already be expanded:
-        assert len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
+        # assert len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
 
         log_N_vertex = math.log(node.N)
 
@@ -484,6 +505,7 @@ class MCTSTree:
             ) - self.virtual_loss_constant * self.virtual_loss_count[child]
 
         selected_child = max(children, key=ucb1_tuned)
+        # logging.debug(f"ucd {time.time() - start}")
         # logging.debug(f"UCD select {log_N_vertex}")
         # logging.debug(f"ucb {[(ucb1_tuned(key), key[2]) for key in children]}")
         # logging.debug(f"edge {[edge.N for _, _, edge in children]}")
@@ -562,7 +584,7 @@ class MCTSTree:
         return j
 
     @staticmethod
-    def deserialize(serialized: dict, sampler: Sampler):
+    def deserialize(serialized: dict, sampler: Sampler) -> "MCTSTree":
         """Deserialize a serialized tree and return a Tree object"""
         
         def _add_node(mcts: MCTSTree, path: TreePath, node: Dict, node_factory: Dict) -> TreeNode:
@@ -639,7 +661,7 @@ class MCTSTree:
             if alive_flag:
                 alive_nodes.add(node.to_node())
             return alive_flag
-        assert label_alive(self._treenode_store[self._root])
+        assert label_alive(self.tree_root)
         
         # Remove dead nodes
         key_list = list(self._treenode_store.keys())
