@@ -4,9 +4,10 @@ import torch.nn as nn
 import json
 import os
 from random import random
-from tqdm import trange
 
-from KAS import CodeGenOptions, Sampler, MCTS, Placeholder, TreeExplorer
+from KAS import CodeGenOptions, Sampler, Placeholder, TreeExplorer
+
+from tree import MCTSTree
 
 class Model(nn.Module):
     def __init__(self):
@@ -21,7 +22,7 @@ def test_tree_explorer():
     net = Model()
     sampler = Sampler("[H,W]", "[H,W]", ["H:2", "W:2"], [
                       "s=3:2", "k=4:4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
-    mcts = MCTS(sampler, virtual_loss_constant=1)
+    mcts = MCTSTree(sampler, virtual_loss_constant=1)
     for idx in range(30):
         receipts, trials = [], []
         for _ in range(5):
@@ -40,7 +41,7 @@ def test_tree_explorer():
     # Test begin. Now we have a serialized mcts saved in test_mcts.json
     # Replace test_mcts.json with your own serialized mcts
     mcts_serialize = json.load(open("test_mcts.json", "r"))
-    mcts_recover = MCTS.deserialize(mcts_serialize, sampler)
+    mcts_recover = MCTSTree.deserialize(mcts_serialize, sampler)
     
     explorer = TreeExplorer(mcts_recover)
     try:

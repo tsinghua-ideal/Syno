@@ -3,8 +3,10 @@ import json
 import os
 from tqdm import trange
 
-from KAS import MCTS, MockSampler
+from KAS import MockSampler
 from kas_cpp_bindings import Next
+
+from tree import MCTSTree
 
 def test_remove():
     
@@ -15,7 +17,7 @@ def test_remove():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, virtual_loss_constant=1)
+    mcts = MCTSTree(sampler, virtual_loss_constant=1)
     
     receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
     _, path = receipt
@@ -32,7 +34,7 @@ def test_remove():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, virtual_loss_constant=1)
+    mcts = MCTSTree(sampler, virtual_loss_constant=1)
     
     receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
     _, path = receipt
@@ -50,7 +52,7 @@ def test_virtual_loss() -> None:
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, virtual_loss_constant=1, b=1)
+    mcts = MCTSTree(sampler, virtual_loss_constant=1, b=1)
     
     receipt, trial = mcts.do_rollout(sampler.root())
     mcts.back_propagate(receipt, 0.7, trial[0][0])
@@ -74,7 +76,7 @@ def test_exhausted():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, virtual_loss_constant=1, b=1)
+    mcts = MCTSTree(sampler, virtual_loss_constant=1, b=1)
     
     receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
     _, path = receipt
@@ -102,7 +104,7 @@ def test_mcts():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, virtual_loss_constant=1)
+    mcts = MCTSTree(sampler, virtual_loss_constant=1)
     
     assert mcts.tree_root.children_count(mcts._treenode_store) == 2
     receipt, trials = mcts.do_rollout(sampler.root())
@@ -145,7 +147,7 @@ def test_mcts():
     # Test serialize
     json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
     mcts_serialize = json.load(open("test_mcts.json", "r"))
-    mcts_recover = MCTS.deserialize(mcts_serialize, sampler)
+    mcts_recover = MCTSTree.deserialize(mcts_serialize, sampler)
     print("Original tree", mcts._treenode_store)
     print("Recovered tree", mcts_recover._treenode_store.items())
     for k, v in mcts_recover._treenode_store.items():
@@ -171,7 +173,7 @@ def test_grave():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, c_l=1e4, b=0.9)
+    mcts = MCTSTree(sampler, c_l=1e4, b=0.9)
     
     # s_1 is first expanded
     # CHECK: only one child
@@ -229,7 +231,7 @@ def test_lrave():
     ]
     sampler = MockSampler(vertices, edges)
     
-    mcts = MCTS(sampler, c_l=1e-4, b=0.9)
+    mcts = MCTSTree(sampler, c_l=1e-4, b=0.9)
     
     # s_1 is first expanded
     # CHECK: only one child
@@ -296,7 +298,7 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
         *[(f'l3-{j}', [(f'Share(3{j}4{k})', f'f{k}') for k in [1, 2, 3]]) for j in [1, 2, 3]]
     ]
     sampler = MockSampler(vertices, edges)
-    mcts = MCTS(sampler, virtual_loss_constant=1, leaf_num=leaf_num)
+    mcts = MCTSTree(sampler, virtual_loss_constant=1, leaf_num=leaf_num)
     
     for _ in trange(num_iter):
         receipt, trials = mcts.do_rollout(sampler.root(), check_exhaustion=False)

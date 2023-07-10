@@ -11,7 +11,7 @@ class MCTSAlgorithm:
     virtual_loss_constant = .5
     leaf_parallelization_number = 1
     exploration_weight = 4 * math.sqrt(2)
-    max_iterations = 300
+    max_iterations = 3000
     b = 0.4
     c_l = 40.
 

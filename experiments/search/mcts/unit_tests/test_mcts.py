@@ -2,11 +2,12 @@ import logging
 import torch
 import torch.nn as nn
 import json
-import traceback
 import os
 import profile
 
-from KAS import CodeGenOptions, Sampler, MCTS, Path, Placeholder
+from KAS import CodeGenOptions, Sampler, Placeholder
+
+from tree import MCTSTree
 
 class Model(nn.Module):
     def __init__(self):
@@ -21,7 +22,7 @@ def test_mcts():
     net = Model()
     sampler = Sampler("[H,W]", "[H,W]", ["H:2", "W:2"], [
                       "s=3:2", "k=4:4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
-    mcts = MCTS(sampler, virtual_loss_constant=1)
+    mcts = MCTSTree(sampler, virtual_loss_constant=1)
     for idx in range(1000):
         receipt, trials = mcts.do_rollout(sampler.root())
         _, path = receipt
@@ -37,7 +38,7 @@ def test_mcts():
     print("Testing serialization and deserialization. ")
     json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
     mcts_serialize = json.load(open("test_mcts.json", "r"))
-    mcts_recover = MCTS.deserialize(mcts_serialize, sampler)
+    mcts_recover = MCTSTree.deserialize(mcts_serialize, sampler)
     
     # nodes
     for k, v in mcts_recover._treenode_store.items():
