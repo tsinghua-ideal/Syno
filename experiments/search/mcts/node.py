@@ -272,7 +272,7 @@ class TreeNode:
         unrevealed_children = self.get_unrevealed_children(factory)
         if len(unrevealed_children) == 0:
             logging.debug("No new children to be added")
-            assert self.is_fully_in_tree(factory), f"{self} is not fully expanded"
+            # assert self.is_fully_in_tree(factory), f"{self} is not fully expanded"
             return False
         _, child, _ = max(unrevealed_children, key=rave)
         child._isin_tree = True

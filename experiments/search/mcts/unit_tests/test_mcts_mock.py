@@ -1,12 +1,14 @@
 import logging
 import json
-import os
+import os, sys
 from tqdm import trange
 
 from KAS import MockSampler
 from kas_cpp_bindings import Next
 
-from tree import MCTSTree
+if os.getcwd() not in sys.path: 
+    sys.path.append(os.getcwd())
+from mcts.tree import MCTSTree
 
 def test_remove():
     

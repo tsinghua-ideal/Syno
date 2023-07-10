@@ -2,12 +2,14 @@ import logging
 import torch
 import torch.nn as nn
 import json
-import os
+import os, sys
 import profile
 
 from KAS import CodeGenOptions, Sampler, Placeholder
 
-from tree import MCTSTree
+if os.getcwd() not in sys.path: 
+    sys.path.append(os.getcwd())
+from mcts.tree import MCTSTree
 
 class Model(nn.Module):
     def __init__(self):

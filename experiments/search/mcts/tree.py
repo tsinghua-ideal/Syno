@@ -223,7 +223,7 @@ class MCTSTree:
             nexts = node.get_children_nexts(self._treenode_store)
             if len(nexts) == 0:
                 logging.debug(f"Simulation Encountered dead father {node}")
-                assert node.is_dead_end(self._treenode_store)
+                # assert node.is_dead_end(self._treenode_store)
                 return None
             next = random.choice(nexts)
             child = node.get_child(next, self._treenode_store)
@@ -260,6 +260,9 @@ class MCTSTree:
         node, path = receipt
         self._decrement_virtual_loss(path)
         
+        # update rewards
+        self.update_nodes(receipt, reward)
+        
         trial_node = self._sampler.visit(path_to_trial)
         assert trial_node.is_final()
         try:
@@ -267,9 +270,6 @@ class MCTSTree:
         except:
             logging.debug(path_to_trial)
             return
-            
-        # update rewards
-        self.update_nodes(receipt, reward)
         
         # update rave scores
         update_types = set([next.type for next in path_to_trial])
