@@ -82,6 +82,7 @@ def arg_parse():
     parser.add_argument('--kas-search-rounds', default=0, type=int, help='MCTS rounds')
     parser.add_argument('--kas-mock-evaluate', action='store_true', default=False, help='Mock evaluate')
     parser.add_argument('--kas-retry-interval', default=10, type=float, help='Client retry time interval')
+    parser.add_argument('--kas-mcts-explorer-path', default='state.json', type=str, help='MCTS explorer path')
 
     args = parser.parse_args()
 

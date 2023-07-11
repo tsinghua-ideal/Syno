@@ -2,7 +2,7 @@ import logging
 import sys
 
 from .session import Session
-from .mcts import MCTSAlgorithm
+from .mcts import MCTSAlgorithm, MCTSExplorer, MCTSTree
 # TODO: add random search
 
 

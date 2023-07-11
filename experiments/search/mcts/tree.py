@@ -17,7 +17,7 @@ from .avg_meter import AverageMeter
 
 MockArc = Union[Next, Arc]
 
-class MCTS:
+class MCTSTree:
     def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20, policy: str='update-descent') -> None:
 
         self._treenode_store: OrderedDict[Node, TreeNode] = ODict()
@@ -562,10 +562,10 @@ class MCTS:
         return j
 
     @staticmethod
-    def deserialize(serialized: dict, sampler: Sampler) -> "MCTS":
+    def deserialize(serialized: dict, sampler: Sampler):
         """Deserialize a serialized tree and return a Tree object"""
         
-        def _add_node(mcts: MCTS, path: TreePath, node: Dict, node_factory: Dict) -> TreeNode:
+        def _add_node(mcts: MCTSTree, path: TreePath, node: Dict, node_factory: Dict) -> TreeNode:
             """Manually add tree nodes recursively. """
             node_visited = mcts._sampler.visit(path)
             if node_visited is None:
@@ -614,7 +614,7 @@ class MCTS:
         params = serialized["args"]
         node_list = serialized["node_list"]
         node_factory = {n["index"]: n for n in node_list}
-        tree = MCTS(sampler, **params)
+        tree = MCTSTree(sampler, **params)
         root_node = node_factory[0]
         _add_node(tree, TreePath([]), root_node, node_factory)
         
