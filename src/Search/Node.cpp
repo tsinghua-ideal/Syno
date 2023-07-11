@@ -229,7 +229,8 @@ std::vector<Next> Node::getPossiblePath() const {
 }
 
 std::vector<Arc> Node::getComposingArcs() const {
-    auto arcs = sampler->convertPathToArcs(getPossiblePath());
+    auto possiblePath = getPossiblePath();
+    auto arcs = sampler->convertPathToArcs(possiblePath);
     KAS_ASSERT(arcs, "This node is a dead end, so the composing arcs do not exist.");
     return std::move(*arcs);
 }

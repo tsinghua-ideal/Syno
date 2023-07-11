@@ -345,6 +345,7 @@ std::vector<Next> Sampler::convertTensorsToPath(const std::vector<std::vector<Di
         // The fixed dimensions should be removed first.
         std::vector<std::vector<Dimension>> tensorsInSearchTree;
         std::ranges::copy(tensors, std::back_inserter(tensorsInSearchTree));
+        ConvertTensorViewToSearchableOrder(tensorsInSearchTree);
         auto& inputTensor = tensorsInSearchTree.at(0);
         for (const auto& [i, _]: fixedDimensions | std::views::reverse) {
             inputTensor.erase(inputTensor.begin() + i);
