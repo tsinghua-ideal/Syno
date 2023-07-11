@@ -123,6 +123,11 @@ class Explorer:
                     print("Invalid command.")
                 if next not in current_node.get_children_handles():
                     print("This child does not exist.")
+            elif command == "composing":
+                if current_node is None:
+                    print("Error: this node does not exist.")
+                    continue
+                print(f"Composing arcs: {current_node.get_composing_arcs()}")
             elif command == "back":
                 # go back to parent node
                 path.pop()
