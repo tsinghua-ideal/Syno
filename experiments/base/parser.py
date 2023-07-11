@@ -75,7 +75,8 @@ def arg_parse():
                         help='Maximum FLOPs for searched kernels (in G-unit, only for search)')
     parser.add_argument('--kas-reward-power', default=2, type=float, help='Reward power')
     
-    # MCTS preferences
+    # Search preferences
+    parser.add_argument('--kas-search-algo', default='MCTS', type=str, help='Search algorithm')
     parser.add_argument('--kas-server-addr', default='localhost', type=str, help='MCTS server address')
     parser.add_argument('--kas-server-port', default=8000, type=int, help='MCTS server port')
     parser.add_argument('--kas-search-rounds', default=0, type=int, help='MCTS rounds')

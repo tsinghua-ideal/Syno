@@ -34,10 +34,10 @@ class Path:
         serialized = [str(int(n.type)) + str(n.key) for n in self.abs_path]
         return '_'.join(serialized)
 
-    @ staticmethod
+    @staticmethod
     def deserialize(serialized: str) -> 'Path':
         deserialized_list = serialized.split('_')
-        return Path([Next(Next.Type(n[0]), int(n[1:])) for n in deserialized_list])
+        return Path([Next(Next.Type(int(n[0])), int(n[1:])) for n in deserialized_list])
 
     def __init__(self, path: PseudoPath) -> None:
         self.abs_path: AbsolutePath = [Path.to_next(n) for n in path]

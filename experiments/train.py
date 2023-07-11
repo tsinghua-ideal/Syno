@@ -1,6 +1,6 @@
 import logging
 
-from utils import log, models, trainer, parser, dataset
+from base import log, models, trainer, parser, dataset
 
 
 if __name__ == '__main__':

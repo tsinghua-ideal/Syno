@@ -6,11 +6,14 @@ from collections import defaultdict, OrderedDict as ODict
 from typing import List, Tuple, Any, Optional, DefaultDict, Set, Union, OrderedDict, Dict
 from copy import deepcopy
 
-from .Node import Path, VisitedNode, Node
-from .Sampler import Sampler
-from .TreeNode import TreeNode, TreePath, PseudoTreeNext, PseudoArc
-from .Bindings import Next, Arc
-from .Utils import NextSerializer, AverageMeter
+from KAS.Node import Path, VisitedNode, Node
+from KAS.Sampler import Sampler
+from KAS.Bindings import Next, Arc
+from KAS.Utils import NextSerializer
+
+from .node import TreeNode, TreePath, PseudoTreeNext, PseudoArc
+from .avg_meter import AverageMeter
+
 
 MockArc = Union[Next, Arc]
 

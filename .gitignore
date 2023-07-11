@@ -247,10 +247,6 @@ commands.txt
 # Scheduler cache
 .scheduler-cache
 
-# Sessions
-debug-session
-mcts-*-session
-random-*-session
-
-# Figures
-plot-*.png
+# Results
+experiments/results
+experiments/analysis/results

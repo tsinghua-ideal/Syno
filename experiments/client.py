@@ -3,9 +3,9 @@ import logging
 import random
 import requests
 import time
-from KAS import TreePath
+from KAS import Path
 
-from utils import log, models, parser, dataset, trainer
+from base import log, models, parser, dataset, trainer
 
 
 class Handler:
@@ -59,8 +59,8 @@ if __name__ == '__main__':
                 logging.info('Exhausted search space, exiting ...')
                 break
             
-            node = sampler.visit(TreePath.deserialize(path))
-            logging.info(f'Got a new kernel: {node}')
+            logging.info(f'Got a new path: {path}')
+            node = sampler.visit(Path.deserialize(path))
 
             # Mock evaluate
             if args.kas_mock_evaluate:

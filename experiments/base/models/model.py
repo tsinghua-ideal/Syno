@@ -23,7 +23,7 @@ class KASModel(nn.Module):
             # TODO: count refered layer
 
         sample_input = torch.randn((1, *self.sample_input_shape())).cuda()
-        flops, params = thop.profile(self, inputs=(sample_input, ), verbose=True, report_missing=True, custom_ops={
+        flops, params = thop.profile(self, inputs=(sample_input, ), verbose=False, report_missing=False, custom_ops={
             Placeholder: count_placeholder,
             LinearPlaceholder: count_placeholder,
             ConvPlaceholder: count_placeholder

@@ -3,7 +3,6 @@ import json
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
 
 
 if __name__ == '__main__':
