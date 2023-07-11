@@ -150,10 +150,10 @@ ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const Concr
 std::size_t TensorView::getFLOPs(const ConcreteConsts& consts) const {
     std::size_t outerLoopsIterations = getInterfaceShape().totalSize().eval<std::size_t>(consts);
     std::size_t innerLoopsIterations = getManipulations().size() > 0 ? Size::Product(getManipulations() | std::views::transform([](const MapReduce *op) -> const Size& { return op->size(); })).eval<std::size_t>(consts) : 1;
-    std::size_t mult = getUnderlyingTensors().size() - 1;
+    auto fma = std::max<std::size_t>(getUnderlyingTensors().size() - 1, 1);
     bool hasDivBy = forwardAccess.divBy.has_value();
-    // Multiplication + Addition + Division
-    return outerLoopsIterations * innerLoopsIterations * (mult + hasDivBy) + outerLoopsIterations * (innerLoopsIterations - 1);
+    // FMA + Division
+    return outerLoopsIterations * innerLoopsIterations * fma + hasDivBy;
 }
 
 namespace {
