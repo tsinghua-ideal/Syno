@@ -342,6 +342,12 @@ class MockNode(Node):
             return None
         return MockNode(child_node)
 
+    def get_child_from_arc(self, arc: Next) -> Optional['MockNode']:
+        if not self.can_accept_arc(arc):
+            return None
+        child_node = self._node.get_child_from_arc(arc)
+        return MockNode(child_node)
+
     def get_child_description(self, next: PseudoNext) -> Optional[str]:
         return self._node._get_child_description_helper(Path.to_next(next))
 
