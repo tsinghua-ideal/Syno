@@ -28,7 +28,7 @@ def test_tree_explorer():
     for idx in range(30):
         receipts, trials = [], []
         for _ in range(5):
-            receipt, trial = mcts.do_rollout(sampler.root())
+            receipt, trial = mcts.do_rollout()
             receipts.append(receipt)
             trials.append(trial)
         print(f"Iteration {idx}. Sampled {receipts}. ")

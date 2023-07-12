@@ -21,13 +21,13 @@ def test_remove():
     
     mcts = MCTSTree(sampler, virtual_loss_constant=1)
     
-    receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
-    _, path = receipt
+    receipt, trials = mcts.do_rollout() # root->Merge
+    path = receipt
     node = trials
     print(f"Sampled {node} for {path}")
     mcts.remove(receipt, trials[0][1])
     
-    assert mcts.do_rollout(sampler.root()) is None
+    assert mcts.do_rollout() is None
     
     # If one final nodes is removed, then mcts should be able to find another path if any
     vertices = ['root', {'name': 'final1', 'is_final': True}, {'name': 'final2', 'is_final': True}]
@@ -38,12 +38,12 @@ def test_remove():
     
     mcts = MCTSTree(sampler, virtual_loss_constant=1)
     
-    receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
-    _, path = receipt
+    receipt, trials = mcts.do_rollout() # root->Merge
+    path = receipt
     print(f"Sampled {trials} for {path}")
     mcts.remove(receipt, trials[0][1])
     
-    assert mcts.do_rollout(sampler.root())[1][0][1]._node._node._name == 'final1' if trials[0][1]._node._node._name == 'final2' else 'final2'
+    assert mcts.do_rollout()[1][0][1]._node._node._name == 'final1' if trials[0][1]._node._node._name == 'final2' else 'final2'
     
     print("[PASSED] test_remove")
     
@@ -56,14 +56,14 @@ def test_virtual_loss() -> None:
     
     mcts = MCTSTree(sampler, virtual_loss_constant=1, b=1)
     
-    receipt, trial = mcts.do_rollout(sampler.root())
+    receipt, trial = mcts.do_rollout()
     mcts.back_propagate(receipt, 0.7, trial[0][0])
-    receipt, trial = mcts.do_rollout(sampler.root())
+    receipt, trial = mcts.do_rollout()
     mcts.back_propagate(receipt, 0.7, trial[0][0])
-    receipt, trial = mcts.do_rollout(sampler.root())
+    receipt, trial = mcts.do_rollout()
     mcts.back_propagate(receipt, 0.7, trial[0][0])
     
-    trials = [mcts.do_rollout(sampler.root())[1] for _ in range(2)]
+    trials = [mcts.do_rollout()[1] for _ in range(2)]
     
     assert len(set([trial[0][1]._node._node._name for trial in trials])) == 2, [trial[0][1]._node._node._name for trial in trials]
     
@@ -80,20 +80,20 @@ def test_exhausted():
     
     mcts = MCTSTree(sampler, virtual_loss_constant=1, b=1)
     
-    receipt, trials = mcts.do_rollout(sampler.root()) # root->Merge
-    _, path = receipt
+    receipt, trials = mcts.do_rollout() # root->Merge
+    path = receipt
     node = trials
     print(f"Sampled {node} for {path}")
     mcts.back_propagate(receipt, .9, trials[0][0])
     
-    receipt, trials = mcts.do_rollout(sampler.root()) # root->Share
-    _, path = receipt
+    receipt, trials = mcts.do_rollout() # root->Share
+    path = receipt
     node = trials
     print(f"Sampled {node} for {path}")
     mcts.back_propagate(receipt, .9, trials[0][0])
     assert mcts.tree_root.get_child(Next.Merge, mcts._treenode_store)[0].N == 1
     
-    assert mcts.do_rollout(sampler.root()) is None
+    assert mcts.do_rollout() is None
     print("[PASSED] test_exhausted")
 
 def test_mcts():
@@ -109,13 +109,13 @@ def test_mcts():
     mcts = MCTSTree(sampler, virtual_loss_constant=1)
     
     assert mcts.tree_root.children_count(mcts._treenode_store) == 2
-    receipt, trials = mcts.do_rollout(sampler.root())
+    receipt, trials = mcts.do_rollout()
     mcts.back_propagate(receipt, 0.5, trials[0][0])
     
     for idx in range(2):
-        receipt, trials = mcts.do_rollout(sampler.root())
+        receipt, trials = mcts.do_rollout()
         assert mcts.tree_root.children_count(mcts._treenode_store, on_tree=True) == 1, mcts.tree_root.children_count(mcts._treenode_store, on_tree=True)
-        _, path = receipt
+        path = receipt
         print(f"Iteration {idx}. Sampled {trials} for {path}")
         mcts.back_propagate(receipt, 0.5, trials[0][0])
         
@@ -129,8 +129,8 @@ def test_mcts():
     receipts = []
     trialss = []
     for idx in range(2):
-        receipt, trials = mcts.do_rollout(sampler.root())
-        _, path = receipt
+        receipt, trials = mcts.do_rollout()
+        path = receipt
         print(f"Iteration {idx}. Sampled {trials} for {path}")
         receipts.append(receipt)
         trialss.append(trials)
@@ -179,8 +179,8 @@ def test_grave():
     
     # s_1 is first expanded
     # CHECK: only one child
-    receipt, trials = mcts.do_rollout(sampler.root())
-    _, path = receipt
+    receipt, trials = mcts.do_rollout()
+    path = receipt
     print(f"Sampled {trials} for {path}")
     mcts.back_propagate(receipt, 0.1, trials[0][0])
     
@@ -189,8 +189,8 @@ def test_grave():
     assert len(root_visible_children) == 1
     
     # update once
-    receipt, trials = mcts.do_rollout(sampler.root())
-    _, path = receipt
+    receipt, trials = mcts.do_rollout()
+    path = receipt
     print(f"Sampled {trials} for {path}")
     mcts.back_propagate(receipt, 0.2, trials[0][0])
     
@@ -199,8 +199,8 @@ def test_grave():
     assert len(root_visible_children) == 1
     
     # update once
-    receipt, trials = mcts.do_rollout(sampler.root())
-    _, path = receipt
+    receipt, trials = mcts.do_rollout()
+    path = receipt
     print(f"Sampled {trials} for {path}")
     mcts.back_propagate(receipt, 0.2, trials[0][0])
     
@@ -210,8 +210,8 @@ def test_grave():
     assert root_visible_grandchild._node._node._name == 's_2'
     
     # update once
-    receipt, trials = mcts.do_rollout(sampler.root())
-    _, path = receipt
+    receipt, trials = mcts.do_rollout()
+    path = receipt
     print(f"Sampled {trials} for {path}")
     mcts.back_propagate(receipt, 0.5, trials[0][0])
     
@@ -237,8 +237,8 @@ def test_lrave():
     
     # s_1 is first expanded
     # CHECK: only one child
-    receipt, trials = mcts.do_rollout(sampler.root())
-    _, path = receipt
+    receipt, trials = mcts.do_rollout()
+    path = receipt
     print(f"Sampled {trials} for {path}")
     mcts.back_propagate(receipt, 0.1, trials[0][0])
     root_node = mcts._treenode_store[mcts._root]
@@ -246,14 +246,14 @@ def test_lrave():
     assert len(root_visible_children) == 1
     
     # update once
-    receipt, trials = mcts.do_rollout(sampler.root())
-    _, path = receipt
+    receipt, trials = mcts.do_rollout()
+    path = receipt
     print(f"Sampled {trials} for {path}")
     mcts.back_propagate(receipt, 0., trials[0][0])
     
     # update once
-    receipt, trials = mcts.do_rollout(sampler.root())
-    _, path = receipt
+    receipt, trials = mcts.do_rollout()
+    path = receipt
     print(f"Sampled {trials} for {path}")
     mcts.back_propagate(receipt, 0.2, trials[0][0])
     
@@ -267,8 +267,8 @@ def test_lrave():
     assert root_visible_grandchild._node._node._name == 's_2', root_visible_grandchild._node._node._name
     
     # update once
-    receipt, trials = mcts.do_rollout(sampler.root())
-    _, path = receipt
+    receipt, trials = mcts.do_rollout()
+    path = receipt
     print(f"Sampled {trials} for {path}")
     mcts.back_propagate(receipt, 0.5, trials[0][0])
     
@@ -303,7 +303,7 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
     mcts = MCTSTree(sampler, virtual_loss_constant=1, leaf_num=leaf_num)
     
     for _ in trange(num_iter):
-        receipt, trials = mcts.do_rollout(sampler.root(), check_exhaustion=False)
+        receipt, trials = mcts.do_rollout(check_exhaustion=False)
         for path, node in trials:
             mcts.back_propagate(receipt, node._node.mock_get('reward'), path)
     

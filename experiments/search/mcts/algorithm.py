@@ -24,7 +24,7 @@ class MCTSAlgorithm:
 
     def update(self, path: Path, reward):
         serialized_path = path.serialize()
-        root_tree_node, leaf_tree_paths, tree_node, tree_path = self.path_to_meta_data[serialized_path]
+        leaf_tree_paths, tree_node, tree_path = self.path_to_meta_data[serialized_path]
 
         logging.info(f'Updating path: {serialized_path}, reward: {reward}')
         tree_node.reward = reward
@@ -32,31 +32,31 @@ class MCTSAlgorithm:
         # Back propagate
         if reward < 0:
             for leaf_tree_path in leaf_tree_paths:
-                self.mcts.remove(receipt=(root_tree_node, leaf_tree_path), trial=tree_node)
+                self.mcts.remove(receipt=leaf_tree_path, trial=tree_node)
         else:
             for leaf_tree_path in leaf_tree_paths:
-                self.mcts.back_propagate(receipt=(root_tree_node, leaf_tree_path), reward=reward, path_to_trial=tree_path)
+                self.mcts.back_propagate(receipt=leaf_tree_path, reward=reward, path_to_trial=tree_path)
 
     def launch_new_iteration(self):
         logging.info('Launching new iteration ...')
         start_time = time.time()
 
-        rollout = self.mcts.do_rollout(self.mcts._sampler.root())
+        rollout = self.mcts.do_rollout()
         if rollout is None:
             return None
 
         results = dict()
         assert len(rollout) > 0
-        (root_tree_node, leaf_tree_path), trials = rollout
-        for tree_path, tree_node in trials:
-            assert tree_node.is_final()
-            if tree_node.reward < 0:
+        leaf_tree_path, trials = rollout
+        for trial_path, trial_node in trials:
+            assert trial_node.is_final()
+            if trial_node.reward < 0:
                 # Unevaluated
-                results[Path(tree_path).serialize()] = (root_tree_node, leaf_tree_path, tree_node, tree_path)
+                results[Path(trial_path).serialize()] = (leaf_tree_path, trial_node, trial_path)
             else:
                 # Already evaluated, back propagate
-                assert not tree_node.filtered
-                self.mcts.back_propagate(receipt=(root_tree_node, leaf_tree_path), reward=tree_node.reward, path_to_trial=tree_path)
+                assert not trial_node.filtered
+                self.mcts.back_propagate(receipt=leaf_tree_path, reward=trial_node.reward, path_to_trial=trial_path)
 
         logging.info(f'Iteration finished in {time.time() - start_time} seconds')
         return results
@@ -73,10 +73,10 @@ class MCTSAlgorithm:
             elif iteration_results is None:
                 return 'end'
             
-            for path, (root_tree_node, leaf_tree_path, tree_node, tree_path) in iteration_results.items():
+            for path, (leaf_tree_path, trial_node, trial_path) in iteration_results.items():
                 if path not in self.path_to_meta_data:
-                    self.path_to_meta_data[path] = (root_tree_node, [], tree_node, tree_path)
-                self.path_to_meta_data[path][1].append(leaf_tree_path)
+                    self.path_to_meta_data[path] = ([], trial_node, trial_path)
+                self.path_to_meta_data[path][0].append(leaf_tree_path)
                 results.append(path)
         
         return results

@@ -25,14 +25,14 @@ def test_mcts():
     sampler = Sampler("[H,W]", "[H,W]", ["H:2", "W:2"], [
                       "s=3:2", "k=4:4"], net=net, depth=5, cuda=False, autoscheduler=CodeGenOptions.Li2018)
     mcts = MCTSTree(sampler, virtual_loss_constant=1)
-    for idx in range(1000):
-        receipt, trials = mcts.do_rollout(sampler.root())
-        _, path = receipt
+    for idx in range(100):
+        receipt, trials = mcts.do_rollout()
+        path = receipt
         node = trials[0]
         print(f"Iteration {idx}. Sampled {node} for {path}")
         mcts.back_propagate(receipt, 0.5, node[0])
         
-    # return
+    return
     for k, v in mcts.virtual_loss_count.items():
         assert v == 0, f"Virtual loss count for {k} is {v}"
     

@@ -78,9 +78,9 @@ class MCTSTree:
             assert self.virtual_loss_count[tree_node] >= 0
 
     # The receipt which is used for back propagation, which is the root node and the path.
-    Receipt = Tuple[Node, TreePath]
+    Receipt = TreePath
 
-    def do_rollout(self, node: VisitedNode, check_exhaustion: bool=True) -> Optional[Tuple[Receipt, List[Tuple[TreePath, TreeNode]]]]:
+    def do_rollout(self, check_exhaustion: bool=True) -> Optional[Tuple[Receipt, List[Tuple[TreePath, TreeNode]]]]:
         """
         Make the tree one layer better. (Train for one iteration.)
 
@@ -101,7 +101,7 @@ class MCTSTree:
                 logging.debug(
                     f"Successful rollout: {path} {trials}. Evaluation to be done.")
                 self._increment_virtual_loss(path, len(trials))
-                return (node.to_node(), path), trials
+                return path, trials
             else:
                 logging.debug(
                     f"During rollout, dead end encountered. Retrying...")
@@ -257,7 +257,7 @@ class MCTSTree:
         assert isinstance(path_to_trial, TreePath)
         assert 0.0 <= reward <= 1.0
         logging.debug("Back propagation start")
-        node, path = receipt
+        path = receipt
         self._decrement_virtual_loss(path)
         
         # update rewards
@@ -279,7 +279,7 @@ class MCTSTree:
         logging.debug("Back propagation end")
     
     def update_nodes(self, receipt: Receipt, reward: float) -> TreeNode:
-        node, path = receipt
+        path = receipt
 
         tree_node = self.tree_root
         if self._policy == 'update-descent':
@@ -445,13 +445,13 @@ class MCTSTree:
         assert isinstance(trial, TreeNode), type(trial)
         assert trial.is_final(), "The removed trial should be a final node!"
 
-        node, path = receipt
+        path = receipt
         self._decrement_virtual_loss(path)
 
         trail_node = self._treenode_store[trial.to_node()]
         trail_node.filtered = True
 
-        tree_node = self._treenode_store[node.to_node()]
+        tree_node = self.tree_root
         flush_list: List[TreeNode] = []
         for next in path:
             child = tree_node.get_child(next.type, self._treenode_store, on_tree=True)
