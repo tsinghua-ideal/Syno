@@ -20,6 +20,5 @@ if __name__ == '__main__':
     with open(args.kas_mcts_explorer_path, 'r') as file:
         mcts = MCTSTree.deserialize(json.load(file), sampler)
     explorer = MCTSExplorer(mcts)
-
-    # No working?
-    # explorer.explore(sampler, args.path)
+    
+    explorer.interactive()

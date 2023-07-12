@@ -270,7 +270,7 @@ class TreeNode:
         unrevealed_children = self.get_unrevealed_children(factory)
         if len(unrevealed_children) == 0:
             logging.debug("No new children to be added")
-            # assert self.is_fully_in_tree(factory), f"{self} is not fully expanded"
+            assert self.is_fully_in_tree(factory), f"{self} is not fully expanded but no children can be revealed"
             return False
         _, child, _ = max(unrevealed_children, key=rave)
         child._isin_tree = True
@@ -342,10 +342,7 @@ class TreeNode:
         assert len(nexts) == len(children) == len(edge_states)
         ret_list = list(zip(nexts, children, edge_states))
         if on_tree:
-            # assert sum([s.N for s in edge_states]) + 1 == self.N, f"detect state inconsistency for {self}, {[s.N for s in edge_states]} {self.N}"
             ret_list = [(nxt, c, e) for nxt, c, e in ret_list if c._isin_tree]
-        # assert sum([s.N for s in edge_states]) + 1 == self.N or \
-            # (all([not c._isin_tree for nxt, c, e in ret_list]) and self.N == 0), f"detect state inconsistency for {self}, {[s.N for s in edge_states]} {self.N}"
         return ret_list
 
     def get_child(self, next: PseudoTreeNext, factory: Dict[Node, "TreeNode"] = None, auto_initialize: bool=True, on_tree: bool=False) -> Optional[Tuple["TreeNode", AverageMeter]]:

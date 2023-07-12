@@ -14,6 +14,7 @@ class Session:
         self.args = args
         self.sampler = sampler
         self.reward_power = args.kas_reward_power
+        self.reward_trunc = args.kas_reward_trunc
 
         self.save_interval = args.kas_server_save_interval
         self.save_dir = args.kas_server_save_dir
@@ -82,22 +83,23 @@ class Session:
                 json.dump({'path': path.serialize(), 'accuracy': accuracy, 'time': time.time() - self.start_time}, f, indent=2)
 
         # Update with reward
-        reward = accuracy ** self.reward_power if accuracy > 0 else -1
+        reward = ((max(accuracy, self.reward_trunc) - self.reward_trunc) / (1 - self.reward_trunc)) ** self.reward_power if accuracy > 0 else -1
         self.algo.update(path, reward)
 
     def sample(self):
-        # Get new samples
-        new_samples = self.algo.sample()
+        if len(self.pending) == 0:
+            # Get new samples
+            new_samples = self.algo.sample()
 
-        # String information
-        if type(new_samples) == str:
-            return new_samples
+            # String information
+            if type(new_samples) == str:
+                return new_samples
 
-        # List of paths
-        for new_sample in new_samples:
-            assert new_sample not in self.pending
-            assert new_sample not in self.waiting
-            self.pending.add(new_sample)
+            # List of paths
+            for new_sample in new_samples:
+                assert new_sample not in self.pending
+                assert new_sample not in self.waiting
+                self.pending.add(new_sample)
 
         assert len(self.pending) > 0
         assert len(self.waiting.intersection(self.pending)) == 0

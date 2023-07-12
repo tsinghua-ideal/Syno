@@ -179,7 +179,7 @@ class MCTSTree:
             if node.is_terminal(self._treenode_store) or \
                 len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) > 0:
                 return path, node
-            # assert len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
+            assert len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
             selected = self._ucd_select(node) 
             if selected is None:
                 return None
@@ -211,7 +211,7 @@ class MCTSTree:
             nexts = node.get_children_nexts(self._treenode_store)
             if len(nexts) == 0:
                 logging.debug(f"Simulation Encountered dead father {node}")
-                # assert node.is_dead_end(self._treenode_store)
+                assert node.is_dead_end(self._treenode_store)
                 return None
             next = random.choice(nexts)
             child = node.get_child(next, self._treenode_store)
@@ -471,7 +471,7 @@ class MCTSTree:
             return None
 
         # All children of node should already be expanded
-        # assert len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
+        assert len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
 
         log_N_vertex = math.log(node.N)
 

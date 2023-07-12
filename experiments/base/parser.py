@@ -73,6 +73,7 @@ def arg_parse():
     parser.add_argument('--kas-server-save-dir', default=None, type=str, help='KAS server saving directory')
     parser.add_argument('--kas-max-flops', default=1e15, type=float,
                         help='Maximum FLOPs for searched kernels (in G-unit, only for search)')
+    parser.add_argument('--kas-reward-trunc', default=0.1, type=float, help='Reward lower bound')
     parser.add_argument('--kas-reward-power', default=2, type=float, help='Reward power')
     
     # Search preferences
