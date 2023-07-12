@@ -2,3 +2,5 @@ thop
 timm
 oss2
 matplotlib
+seaborn
+tqdm

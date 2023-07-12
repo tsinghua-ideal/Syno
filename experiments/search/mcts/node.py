@@ -1,16 +1,14 @@
 import logging
 import math
-from statistics import mean, stdev
 from collections import defaultdict
 from functools import partial
 from typing import List, Union, Optional, Dict, Tuple, DefaultDict
 
-from KAS.Node import Path, Node, PseudoNext, AbsolutePath
+from KAS.Node import Path, Node, AbsolutePath
 from KAS.Sampler import Sampler
 from KAS.Bindings import Next, Arc
 
 from .avg_meter import AverageMeter
-
 
 PseudoTreeNext = Union[Next.Type, int]
 PseudoArc = Union[Next.Type, Arc]

@@ -76,7 +76,7 @@ class MCTSAlgorithm:
             for path, (leaf_tree_path, trial_node, trial_path) in iteration_results.items():
                 if path not in self.path_to_meta_data:
                     self.path_to_meta_data[path] = ([], trial_node, trial_path)
+                    results.append(path)
                 self.path_to_meta_data[path][0].append(leaf_tree_path)
-                results.append(path)
         
         return results

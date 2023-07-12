@@ -2,11 +2,10 @@ import random
 import math
 import logging
 import time
-from collections import defaultdict, OrderedDict as ODict
-from typing import List, Tuple, Any, Optional, DefaultDict, Set, Union, OrderedDict, Dict
-from copy import deepcopy
+from collections import defaultdict
+from typing import List, Tuple, Optional, DefaultDict, Set, Union, Dict
 
-from KAS.Node import Path, VisitedNode, Node
+from KAS.Node import Node
 from KAS.Sampler import Sampler
 from KAS.Bindings import Next, Arc
 from KAS.Utils import NextSerializer
@@ -142,7 +141,6 @@ class MCTSTree:
                 return None
             
             logging.debug("Expansion start")
-            # leaf_expanded = leaf
             expand_result = self._expand(leaf)
             if expand_result is None:
                 return None
@@ -175,28 +173,18 @@ class MCTSTree:
         # Here, the path is just arbitrary, and depends on how we build the search tree. See doc for `_uct_select`. We only need to make sure we can construct a `TwoStepPath` from `path`.
         path = TreePath([])
         node = self.tree_root
-        logging.debug(f"select {node}")
         while True:
-            start = time.time()
             node.flush_T(node.N, self._treenode_store, self.g_rave, self._c_l, self._b)
-            flush_time = time.time() - start
+            # node is terminal, unexplored, or a leaf
             if node.is_terminal(self._treenode_store) or \
                 len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) > 0:
-                # node is terminal, unexplored, or a leaf
-                check_time = time.time() - flush_time - start
-                logging.debug(f"select {node} ({flush_time, check_time})")
                 return path, node
-            check_time = time.time() - flush_time - start
             # assert len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
             selected = self._ucd_select(node) 
-            sel_time = time.time() - check_time - start
-            # descend a layer deeper
             if selected is None:
                 return None
             next, node, _ = selected
             path = path.concat(next)
-            post_sel_time = time.time() - sel_time - start
-            # logging.debug(f"select {node} ({flush_time, check_time, sel_time, post_sel_time})")
 
     def _expand(self, node: TreeNode) -> Optional[Tuple[PseudoTreeNext, TreeNode]]:
         """
@@ -474,20 +462,15 @@ class MCTSTree:
         """
         Select a child of node, balancing exploration & exploitation
         """
-        start = time.time()
         children = node.get_children(self._treenode_store, on_tree=True)
-        # logging.debug(f"get children {time.time() - start}")
-        # start = time.time()
             
         if len(children) == 0:
             if not node.is_fully_in_tree(self._treenode_store):
                 node.reveal_new_children(self._treenode_store, self.g_rave, self._c_l)
             logging.debug("Selection failed. ")
             return None
-        # logging.debug(f"reveal new children {time.time() - start}")
-        # start = time.time()
 
-        # All children of node should already be expanded:
+        # All children of node should already be expanded
         # assert len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
 
         log_N_vertex = math.log(node.N)
@@ -505,10 +488,6 @@ class MCTSTree:
             ) - self.virtual_loss_constant * self.virtual_loss_count[child]
 
         selected_child = max(children, key=ucb1_tuned)
-        # logging.debug(f"ucd {time.time() - start}")
-        # logging.debug(f"UCD select {log_N_vertex}")
-        # logging.debug(f"ucb {[(ucb1_tuned(key), key[2]) for key in children]}")
-        # logging.debug(f"edge {[edge.N for _, _, edge in children]}")
 
         return selected_child
 
@@ -518,6 +497,7 @@ class MCTSTree:
     
     def serialize(self) -> Dict:
         """Serialize the tree and return a dict."""
+        logging.debug("Serializing ......")
 
         self.garbage_collect(keep_tree_node=False)
         
@@ -530,7 +510,6 @@ class MCTSTree:
         # dump father"s n, q
         # dump children"s n, q, filtered
         for i, n in enumerate(nodes):
-            logging.debug(f"dumping node {i}")
             father = self._treenode_store[n]
 
             node_serial = {}
@@ -541,7 +520,6 @@ class MCTSTree:
                 node_serial["father"]["filtered"] = father.filtered
                 node_serial["father"]["reward"] = father.reward
             node_serial["children"] = {}
-            logging.debug("dumping children")
             for next, child, _ in father.get_children(self._treenode_store, auto_initialize=False):
                 assert isinstance(next, Next.Type)
                 next_serial = self.next_serializer.serialize_type(next)
@@ -581,11 +559,13 @@ class MCTSTree:
             node_list=node_list,
             args=packed_args
         )
+        logging.debug("Serialized.")
         return j
 
     @staticmethod
     def deserialize(serialized: dict, sampler: Sampler) -> "MCTSTree":
         """Deserialize a serialized tree and return a Tree object"""
+        logging.debug("Deserializing ......")
         
         def _add_node(mcts: MCTSTree, path: TreePath, node: Dict, node_factory: Dict) -> TreeNode:
             """Manually add tree nodes recursively. """
@@ -639,6 +619,7 @@ class MCTSTree:
         tree = MCTSTree(sampler, **params)
         root_node = node_factory[0]
         _add_node(tree, TreePath([]), root_node, node_factory)
+        logging.debug("deserialized.")
         
         return tree
 
