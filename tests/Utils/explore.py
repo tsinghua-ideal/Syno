@@ -1,9 +1,9 @@
 import torch
 from torch import nn, Tensor
 
-# KAS
-from KAS import Sampler, TreePath, Placeholder, Explorer
+from KAS import Sampler, Placeholder, Explorer
 from KAS.Bindings import CodeGenOptions
+
 
 class KASGrayConv(nn.Module):
     def __init__(self) -> None:

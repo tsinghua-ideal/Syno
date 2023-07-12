@@ -86,19 +86,21 @@ class Session:
         self.algo.update(path, reward)
 
     def sample(self):
-        # Get new samples
-        new_samples = self.algo.sample()
+        # Get new samples if there is no pending samples
+        if len(self.pending) == 0:
+            new_samples = self.algo.sample()
 
-        # String information
-        if type(new_samples) == str:
-            return new_samples
+            # String information
+            if type(new_samples) == str:
+                return new_samples
 
-        # List of paths
-        for new_sample in new_samples:
-            assert new_sample not in self.pending
-            assert new_sample not in self.waiting
-            self.pending.add(new_sample)
+            # List of paths
+            for new_sample in new_samples:
+                assert new_sample not in self.pending
+                assert new_sample not in self.waiting
+                self.pending.add(new_sample)
 
+        # Return a sample in the pending set
         assert len(self.pending) > 0
         assert len(self.waiting.intersection(self.pending)) == 0
         new_sample = self.pending.pop()
