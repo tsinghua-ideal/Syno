@@ -61,10 +61,6 @@ if __name__ == '__main__':
     # Get search session
     logging.info('Starting search session ...')
     session = get_session(sampler, args)
-    
-    # For debugging
-    for i in range(10):
-        session.sample()
 
     # Start server
     logging.info(f'Starting server at {args.kas_server_addr}:{args.kas_server_port} ...')
