@@ -17,9 +17,13 @@
 Note: If you are using anaconda to manage your packages, you may also install the dependency via 
 
 ```[language=bash]
-conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
-conda install boost nlohmann_json fmt pybind11 gtest gmock -c conda-forge
-conda install cudatoolkit=11.7 cudatoolkit-dev=11.7 cudnn=8.8.0 -c conda-forge
+mamba create -n kas python=3.10 gcc=12 gxx=12 clang=16 clangdev llvm llvm-openmp llvmdev lld lit python-clang cmake ninja \
+zlib libpng libzlib \
+cudatoolkit=11.7 cudnn=8.8.0 \
+boost nlohmann_json fmt pybind11 gtest gmock pytest -c conda-forge
+mamba install cudatoolkit-dev=11.7 -c conda-forge
+mamba install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
+pip install -r requirements.txt
 ```
 
 ## Build and Run
