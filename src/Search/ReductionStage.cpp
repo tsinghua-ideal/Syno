@@ -87,7 +87,7 @@ ReductionStage::ReductionStage(Dimensions interface, AbstractStage& creator, std
     expand();
 }
 
-std::size_t ReductionStage::countChildrenImpl() {
+std::size_t ReductionStage::countChildrenImpl() const {
     return Base::countChildrenImpl() + nStage->countChildren();
 }
 

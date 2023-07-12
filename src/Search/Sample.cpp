@@ -257,8 +257,9 @@ std::optional<std::pair<std::vector<Next>, Node>> Sampler::randomNodeWithPrefix(
     while (true) {
         auto cnt = cur.countChildren();
         if (cnt == 0) {
-            auto stage = cur.tryAsStage();
-            KAS_ASSERT(!stage || stage->getFinalizability() == Finalizability::No);
+            // Since the update is performed in multithreaded manner, we cannot assert this.
+            // auto stage = cur.tryAsStage();
+            // KAS_ASSERT(!stage || stage->getFinalizability() == Finalizability::No);
             break;
         }
         auto next = cur.getChildrenHandles()[random(cnt)];

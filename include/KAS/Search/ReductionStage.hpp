@@ -25,7 +25,7 @@ public:
     ReductionStage(Sampler& sampler, Dimensions interface, Lock lock);
     ReductionStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock);
 
-    std::size_t countChildrenImpl();
+    std::size_t countChildrenImpl() const;
     std::vector<Next> getChildrenHandlesImpl();
     std::vector<Arc> getChildrenArcsImpl();
     std::optional<Arc> getArcFromHandleImpl(Next next);

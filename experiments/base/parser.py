@@ -84,6 +84,7 @@ def arg_parse():
     parser.add_argument('--kas-mock-evaluate', action='store_true', default=False, help='Mock evaluate')
     parser.add_argument('--kas-retry-interval', default=10, type=float, help='Client retry time interval')
     parser.add_argument('--kas-mcts-explorer-path', default='state.json', type=str, help='MCTS explorer path')
+    parser.add_argument('--kas-inference-time-limit', default=None, type=float, help='Inference time limit (in seconds)')
 
     args = parser.parse_args()
 

@@ -87,8 +87,8 @@ class Session:
         self.algo.update(path, reward)
 
     def sample(self):
+        # Get new samples if there is no pending samples
         if len(self.pending) == 0:
-            # Get new samples
             new_samples = self.algo.sample()
 
             # String information
@@ -101,6 +101,7 @@ class Session:
                 assert new_sample not in self.waiting
                 self.pending.add(new_sample)
 
+        # Return a sample in the pending set
         assert len(self.pending) > 0
         assert len(self.waiting.intersection(self.pending)) == 0
         new_sample = self.pending.pop()
