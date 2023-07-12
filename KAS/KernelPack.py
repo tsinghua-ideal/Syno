@@ -1,5 +1,6 @@
 import logging
 import itertools
+import importlib
 import os
 import torch
 import torch.nn.functional as F
@@ -134,8 +135,14 @@ class KernelLoader:
     def from_directory(directory: os.PathLike) -> 'KernelLoader':
         return KernelLoader(Bindings.Kernel(directory))
 
+    def get_name(self) -> str:
+        return self._kernel.get_name()
+
     def get_directory(self) -> os.PathLike:
         return self._kernel.get_directory()
+
+    def halide(self) -> bool:
+        return self._kernel.halide()
 
     def get_device(self) -> bool:
         if self._kernel.use_cuda():
@@ -148,6 +155,9 @@ class KernelLoader:
 
     def get_count_valid_kernels(self) -> int:
         return self._kernel.get_count_valid_kernels()
+
+    def get_valid_placeholder_index(self, index: int) -> int:
+        return self._kernel.get_valid_placeholder_index(index)
 
     def get_count_inputs(self) -> int:
         return self._kernel.get_count_inputs()
@@ -177,6 +187,23 @@ class KernelLoader:
     def construct_kernel_packs(self) -> List[KernelPack]:
         logging.debug(f"Constructing kernel:\n{self._kernel}")
         logging.debug(f"Total FLOPs: {self.get_total_flops()}")
+
+        if not self.halide():
+            # No Halide! Just load the PyTorch modules.
+            pytorch_modules_file = os.path.join(self.get_directory(), "kernels.py")
+            logging.debug(f"Loading PyTorch modules from {pytorch_modules_file}")
+            spec = importlib.util.spec_from_file_location("kernels", pytorch_modules_file)
+            kernels = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(kernels)
+            device = self.get_device()
+            kernel_packs = []
+            kernel_name_prefix = self.get_name()
+            for i in range(self.get_count_placeholders()):
+                valid_i = self.get_valid_placeholder_index(i)
+                kernel_name = f"{kernel_name_prefix}_{valid_i}"
+                kernel_packs.append(getattr(kernels, kernel_name)().to(device))
+            return kernel_packs
+
         loader = Bindings.Loader(self._get_loader_args())
 
         kernel_packs = []

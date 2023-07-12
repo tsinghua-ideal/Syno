@@ -8,7 +8,7 @@
 #include "KAS/Core/Colors.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Graph.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/TensorView.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/ShapeComplexity.hpp"
 #include "KAS/Utils/Coroutine.hpp"

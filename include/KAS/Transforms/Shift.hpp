@@ -24,8 +24,10 @@ protected:
 
 public:
     ShiftOp(const Dimension& output, int shift);
+    int getShift() const { return shift; }
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
+    void accept(OpVisitor& visitor) const override { visitor.visit(*this); }
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 

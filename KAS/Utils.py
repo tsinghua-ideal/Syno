@@ -2,7 +2,7 @@ from torch import nn
 from typing import Dict, List
 
 from .Bindings import Next
-from .KernelPack import KernelPack
+from .Placeholder import Placeholder
 
 
 class NextSerializer:
@@ -47,6 +47,6 @@ def init_weights(m):
         nn.init.trunc_normal_(m.weight.data, std=.1)
         if m.bias is not None:
             m.bias.data.zero_()
-    elif isinstance(m, KernelPack):
-        for w in m.weights:
+    elif isinstance(m, Placeholder):
+        for w in m.kernel.weights:
             nn.init.trunc_normal_(w, std=.1)

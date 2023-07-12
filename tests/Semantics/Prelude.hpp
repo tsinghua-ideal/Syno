@@ -1,9 +1,11 @@
+#include <fstream>
 #include <random>
 
 #include <gtest/gtest.h>
 
 #include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/CodeGen/HalideGen.hpp"
+#include "KAS/CodeGen/PyTorchGen.hpp"
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Transforms/Forward.hpp"
 
@@ -14,9 +16,10 @@ class semantics_tests: public ::testing::Test {
 protected:
     using SizeName = BindingContext::Metadata;
     using Mappings = std::map<std::string, std::size_t>;
-    const HalideGen::Options options = {
+    const CodeGenOptions options = {
+        .halide = true,
         .useGPU = true,
-        .scheduler = HalideGen::Options::AutoScheduler::Anderson2021,
+        .scheduler = CodeGenOptions::AutoScheduler::Anderson2021,
         .extraOptions = {
             {"beam_size", "32"},
             {"num_passes", "1"},
