@@ -6,6 +6,7 @@
 
 #include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/CodeGen/GraphvizGen.hpp"
+#include "KAS/CodeGen/PyTorchGen.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
@@ -35,7 +36,7 @@ void Kernel::loadMetadataAndNestedLoops() {
     }
 }
 
-Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options, const std::filesystem::path& dir, const std::string& name):
+Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name):
     dir { dir }
 {
     if (std::filesystem::exists(dir / "metadata.json")) {
@@ -105,7 +106,7 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
         GraphvizGen gen { tensorView, ctx };
         gen.generate(dir / "kernel_graph.dot", name);
     }
-    {
+    if (options.halide) {
         std::vector<std::future<std::string>> schedules;
         const auto gen = HalideGen { ctx, tensorView, options };
         auto compileSingleKernel = [&dir, &name, &gen](std::size_t i, const ConcreteConsts& consts) -> std::string {
@@ -145,9 +146,23 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
         KAS_ASSERT(err == 0, "Failed to invoke linker, error code = {}", err);
     }
     {
+        auto gen = PyTorchGen { ctx, tensorView };
+        std::ofstream pytorchFile { dir / "kernels.py" };
+        gen.generatePrelude(pytorchFile);
+        for (std::size_t i = 0; auto&& placeholder: validPlaceholders) {
+            gen.generate(pytorchFile, fmt::format("{}_{}", name, i), tensorView.getForwardAccess(), placeholder.consts);
+            ++i;
+        }
+    }
+    {
         std::ofstream metadataFile { dir / "metadata.json" };
         metadata = {
             .name = name,
+            .inputsShapes = tensorView.getUnderlyingTensors()
+                | std::views::transform([&ctx](const PureTensor& t) { return t.getShape().toString(ctx); })
+                | ranges::to<std::vector<std::string>>(),
+            .outputShape = tensorView.getInterfaceShape().toString(ctx),
+            .halide = options.halide,
             .cuda = options.useGPU,
             .countInputs = tensorView.getUnderlyingTensors().size(),
             .validPlaceholdersIndices = std::move(validPlaceholdersIndices),
@@ -164,12 +179,19 @@ Kernel::Kernel(const std::filesystem::path& dir):
     loadMetadataAndNestedLoops();
 }
 
+const std::string& Kernel::getName() const {
+    return metadata.name;
+}
 const std::filesystem::path& Kernel::getDirectory() const {
     return dir;
 }
 
 const std::string& Kernel::getNestedLoops() const {
     return nestedLoops;
+}
+
+bool Kernel::halide() const {
+    return metadata.halide;
 }
 
 bool Kernel::cuda() const {
@@ -180,6 +202,10 @@ std::size_t Kernel::countPlaceholders() const {
 }
 std::size_t Kernel::countKernels() const {
     return metadata.countKernels();
+}
+
+std::size_t Kernel::getValidPlaceholderIndex(std::size_t index) const {
+    return metadata.validPlaceholdersIndices.at(index);
 }
 
 const std::string& Kernel::getConsts(std::size_t index) const {

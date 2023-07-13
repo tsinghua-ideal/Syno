@@ -22,7 +22,7 @@ TEST_F(codegen_tests, generate) {
     Iterator itN { 0, sizeN }, itH { 1, sizeH }, itW { 2, sizeW };
     auto sample = TensorView({{ &itN, &itH, &itW }}, TensorExpression::ProductOfTensors(1));
     std::cout << sample.printNestedLoopsForAll(ctx);
-    HalideGen gen { ctx, sample, HalideGen::Options() };
+    HalideGen gen { ctx, sample, CodeGenOptions() };
     auto consts = ctx.realizeConsts({});
     gen.generate("./kernel_codegen_test/forward", "./kernel_codegen_test/backward", "codegen_test_forward", "codegen_test_backward", consts, &std::cout);
 }

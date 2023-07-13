@@ -109,18 +109,19 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def_readonly("dim_upper", &SampleOptions::dimUpperBound)
         .def_readonly("maximum_tensors", &SampleOptions::maximumTensors);
 
-    pybind11::class_<HalideGen::Options> cgOpts(m, "CodeGenOptions");
-    pybind11::enum_<HalideGen::Options::AutoScheduler>(cgOpts, "AutoScheduler")
-        .value("ComputeRoot", HalideGen::Options::AutoScheduler::ComputeRoot)
-        .value("Mullapudi2016", HalideGen::Options::AutoScheduler::Mullapudi2016)
-        .value("Li2018", HalideGen::Options::AutoScheduler::Li2018)
-        .value("Adams2019", HalideGen::Options::AutoScheduler::Adams2019)
-        .value("Anderson2021", HalideGen::Options::AutoScheduler::Anderson2021)
+    pybind11::class_<CodeGenOptions> cgOpts(m, "CodeGenOptions");
+    pybind11::enum_<CodeGenOptions::AutoScheduler>(cgOpts, "AutoScheduler")
+        .value("ComputeRoot", CodeGenOptions::AutoScheduler::ComputeRoot)
+        .value("Mullapudi2016", CodeGenOptions::AutoScheduler::Mullapudi2016)
+        .value("Li2018", CodeGenOptions::AutoScheduler::Li2018)
+        .value("Adams2019", CodeGenOptions::AutoScheduler::Adams2019)
+        .value("Anderson2021", CodeGenOptions::AutoScheduler::Anderson2021)
         .export_values();
     cgOpts.def(
-        pybind11::init<bool, HalideGen::Options::AutoScheduler, std::map<std::string, std::string>, std::size_t, float>(),
+        pybind11::init<bool, bool, CodeGenOptions::AutoScheduler, std::map<std::string, std::string>, std::size_t, float>(),
+        pybind11::arg("halide") = false,
         pybind11::arg("use_gpu") = false,
-        pybind11::arg("auto_scheduler") = HalideGen::Options::AutoScheduler::Li2018,
+        pybind11::arg("auto_scheduler") = CodeGenOptions::AutoScheduler::Li2018,
         pybind11::arg("extra_options") = std::map<std::string, std::string>(),
         pybind11::arg("rfactor_threshold") = 32,
         pybind11::arg("in_bounds_likely_threshold") = 0.3f
@@ -160,10 +161,13 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<Kernel>(m, "Kernel")
         .def(pybind11::init<std::string>()) // From directory.
+        .def("get_name", &Kernel::getName)
         .def("get_directory", &Kernel::getDirectory)
+        .def("halide", &Kernel::halide)
         .def("use_cuda", &Kernel::cuda)
         .def("get_count_placeholders", &Kernel::countPlaceholders)
         .def("get_count_valid_kernels", &Kernel::countKernels)
+        .def("get_valid_placeholder_index", &Kernel::getValidPlaceholderIndex)
         .def(
             "get_consts", &Kernel::getConsts,
             pybind11::arg("index")
@@ -292,7 +296,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             }
         )
         .def(
-            "build", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const std::string& blending, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options, const std::filesystem::path& dir, const std::string& name) {
+            "build", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const std::string& blending, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name) {
                 TensorView& tensorView = self.buildTensorView(tensors, Parser(blending).parseTensorExpression());
                 return std::make_unique<Kernel>(self.getBindingContext(), tensorView, allMappings, std::move(options), dir, name);
             }

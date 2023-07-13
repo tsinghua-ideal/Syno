@@ -8,7 +8,8 @@
 #include <nlohmann/json.hpp>
 
 #include "KAS/CodeGen/HalideGen.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/CodeGen/Options.hpp"
+#include "KAS/Core/TensorView.hpp"
 
 
 namespace kas {
@@ -19,6 +20,7 @@ namespace kas {
 //   - halide_schedule.h
 //   - kernels.so
 //   - kernel_graph.dot
+//   - kernels.py
 //
 // The functions in kernels.so are named as name_0, name_0_grad, name_1, name_1_grad, ...
 // Other undocumented files are also generated.
@@ -33,6 +35,9 @@ struct KernelMetadata {
         std::size_t flops;
     };
     std::string name;
+    std::vector<std::string> inputsShapes;
+    std::string outputShape;
+    bool halide;
     bool cuda;
     std::size_t countInputs;
     std::vector<std::size_t> validPlaceholdersIndices;
@@ -42,7 +47,7 @@ struct KernelMetadata {
     const PlaceholderMetadata& getPlaceholder(std::size_t index) const;
 };
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(KernelMetadata::PlaceholderMetadata, consts, constsDescription, unpaddedInputsShapes, paddedInputsShapes, unpaddedOutputShape, paddedOutputShape, flops);
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(KernelMetadata, name, cuda, countInputs, validPlaceholdersIndices, validPlaceholders);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(KernelMetadata, name, inputsShapes, outputShape, halide, cuda, countInputs, validPlaceholdersIndices, validPlaceholders);
 
 // This is for convenience. As a python interface, we need easy access to related methods of TensorView.
 class Kernel {
@@ -55,18 +60,21 @@ protected:
 
 public:
     // Generate and save to directory.
-    Kernel(const BindingContext& ctx, const TensorView& tensorView, const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options, const std::filesystem::path& dir, const std::string& name);
+    Kernel(const BindingContext& ctx, const TensorView& tensorView, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name);
 
     // Load from file.
     Kernel(const std::filesystem::path& dir);
 
+    const std::string& getName() const;
     const std::filesystem::path& getDirectory() const;
 
     const std::string& getNestedLoops() const;
 
+    bool halide() const;
     bool cuda() const;
     std::size_t countPlaceholders() const;
     std::size_t countKernels() const;
+    std::size_t getValidPlaceholderIndex(std::size_t index) const;
 
     const std::string& getConsts(std::size_t index) const;
 

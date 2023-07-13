@@ -1,276 +1,247 @@
-#include <iterator>
-#include <limits>
-#include <map>
-#include <optional>
-#include <ranges>
-#include <sstream>
-#include <string>
-#include <vector>
-
-#include <fmt/core.h>
-
-#include "KAS/Core/CodeGen.hpp"
-#include "KAS/Core/DimVisitor.hpp"
-#include "KAS/Core/Dimension.hpp"
-#include "KAS/Core/Graph.hpp"
-#include "KAS/Core/Lower.hpp"
-#include "KAS/Core/MapReduce.hpp"
-#include "KAS/Core/PrimitiveOp.hpp"
-#include "KAS/Core/Size.hpp"
 #include "KAS/Core/Tensor.hpp"
-#include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/Ranges.hpp"
 
 namespace kas {
 
-std::string PureTensor::shapeToString(const BindingContext& ctx) const {
-    return getShape().toString(ctx);
-}
-
-std::string PureTensor::description(const BindingContext& ctx) const {
-    return DimensionArrayToString(dims, ctx);
-}
-
-std::string AbstractAccess::outerLoopsIteratorsToString() const {
-    return VectorToString(outerLoops
-        | std::views::transform([](const IteratorValue& it) -> const std::string& {
-            return it.as<VariableValueNode>().name;
-        })
-    );
-}
-
-std::string AbstractAccess::innerLoopsIteratorsToString() const {
-    return VectorToString(innerLoops
-        | std::views::transform([](const IteratorValue& it) -> const std::string& {
-            return it.as<VariableValueNode>().name;
-        })
-    );
-}
-
-std::string AbstractAccess::accessToString(const BindingContext& ctx, int pos) const {
-    return VectorToString((pos == TensorExpression::Output ? output : inputs.at(pos))
-        | std::views::transform([&](const IteratorValue& it) {
-            return it.toString(ctx);
-        })
-    );
-}
-
-namespace {
-
-class ConcreteTensorExpressionPrinter final: public TensorExpressionPrinter {
-    const BindingContext& ctx;
-    const AbstractAccess& access;
-    bool isOutput(const TensorTensorExpression& tensor) const {
-        return tensor.position == TensorExpression::Output;
+std::pair<std::vector<Tensor>, std::vector<Dimension>> Tensor::Builder::findTensorsWhichWeNeedToContract(const Tensor& tensor) const {
+    // Get the initial interface.
+    std::vector<Dimension> interface;
+    std::vector<Tensor> contractedTensors { tensor };
+    std::set<Dimension, Dimension::AddressLessThan> contractedDimensions;
+    for (const Dimension& dim: tensor.output()) {
+        // They must be ours.
+        KAS_ASSERT(owner.at(dim) == tensor);
+        if (
+            dim.type() == DimensionType::Share // We need to find the Share block.
+            && !contractedDimensions.contains(dim) // We have not done this.
+        ) {
+            auto discoverer = ShareBlockDiscoverer(graph, dim, [&](const Dimension& d) {
+                auto [_, inserted] = contractedDimensions.emplace(d);
+                KAS_ASSERT(inserted, "Cannot contract a dimension twice!");
+                if (auto it = owner.find(d); it != owner.end()) {
+                    // Maybe we have find another tensor to contract!
+                    if (std::ranges::find(contractedTensors, it->second) == contractedTensors.end()) {
+                        // Collect the tensors to contract.
+                        contractedTensors.emplace_back(it->second);
+                    }
+                }
+            });
+            // Substitute the dimension with the contracted one.
+            interface.emplace_back(discoverer.traverse());
+        } else {
+            interface.emplace_back(dim);
+        }
     }
-public:
-    ConcreteTensorExpressionPrinter(const BindingContext& ctx, const AbstractAccess& access):
-        ctx { ctx },
-        access { access }
-    {}
-    void visit(TensorTensorExpression& expr) override {
-        if (access.isDerivative() && isOutput(expr)) {
-            ss << "grad_"; // This is the derivative of the output.
-        }
-        TensorExpressionPrinter::visit(expr); // print the tensor name
-        ss << access.accessToString(ctx, expr.position); // print the access iterators
-    };
-    std::string print(const TensorExpression& originalExpr) {
-        TensorExpression expr = originalExpr;
-        if (access.isDerivative()) {
-            expr *= TensorTensorExpression::Create(TensorExpression::Output);
-        }
-        if (access.divBy.has_value()) {
-            ss << "(";
-        }
-        expr.accept(*this);
-        if (access.divBy.has_value()) {
-            ss << ") / (" << access.divBy->toString(ctx) << ")";
-        }
-        std::string result = ss.str();
-        ss.str("");
-        return result;
-    }
-};
-
-} // namespace
-
-std::string AbstractAccess::statementToString(const BindingContext& ctx) const {
-    ConcreteTensorExpressionPrinter printer { ctx, *this };
-    return printer.print(expression);
-}
-
-std::string AbstractAccess::targetEntryToString() const {
-    if (position == TensorExpression::Output) {
-        return fmt::format("out{}", outerLoopsIteratorsToString());
-    } else {
-        return fmt::format("grad_in_{}{}", position, outerLoopsIteratorsToString());
-    }
-}
-
-ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const ConcreteConsts& consts) const {
-    PaddingSolver sol { ctx, consts };
-    // Find all merges.
-    struct visitor: public DimVisitor {
-        PaddingSolver& sol;
-        std::set<Dimension, Dimension::AddressLessThan> visited;
-        visitor(PaddingSolver& sol): sol(sol) {}
-        void visit(const RepeatLikeOp::Input& dim) override {
-            auto [_, inserted] = visited.insert(&dim);
-            if (inserted) DimVisitor::visit(dim.getOp()->output);
-        }
-        void visit(const SplitLikeOp::Input& dim) override {
-            auto [_, inserted] = visited.insert(&dim);
-            if (inserted) {
-                DimVisitor::visit(dim.getOp()->outputLhs);
-                DimVisitor::visit(dim.getOp()->outputRhs);
+    // A special case: the output tensor must still be seen as Share.
+    if (std::ranges::all_of(tensor.output(), [](const Dimension& dim) {
+        return dim.type() == DimensionType::Iterator;
+    })) {
+        for (Dimension iterator: graph.getOutputIterators()) {
+            if (auto it = owner.find(iterator); it != owner.end()) {
+                // Maybe we have find another tensor to contract!
+                if (std::ranges::find(contractedTensors, it->second) == contractedTensors.end()) {
+                    // Collect the tensors to contract.
+                    contractedTensors.emplace_back(it->second);
+                }
             }
         }
-        void visit(const MergeLikeOp::Input& dim) override {
-            auto [_, inserted] = visited.insert(&dim);
-            if (inserted) {
-                sol.addConstraint(dim.size());
-                DimVisitor::visit(dim.getOp()->output);
+    }
+    // Now we have put the dimensions in input tensor in the interface.
+    // Time to collect the dimensions in contracted tensors.
+    for (const Tensor& other: contractedTensors | std::views::drop(1)) {
+        for (const Dimension& dim: other.output()) {
+            if (contractedDimensions.contains(dim)) {
+                continue;
             }
+            // Usually this will not happen.
+            interface.emplace_back(dim);
         }
+    }
+    return { std::move(contractedTensors), std::move(interface) };
+}
+
+Subgraphs Tensor::Builder::build(const std::vector<std::vector<Dimension>>& rawInputTensors) {
+    auto inputTensors = ranges::to<std::vector<Tensor>>(rawInputTensors
+        | std::views::transform([this](const std::vector<Dimension>& tensor) {
+            return TensorImpl::CreateInputTensor(*this, tensor);
+        })
+    );
+
+    // Perform early reduction.
+    std::vector<Tensor> workingTensors;
+    for (std::size_t i = 0; i < rawInputTensors.size(); ++i) {
+        workingTensors.emplace_back(TensorImpl::CreateTensorView(*this, { inputTensors[i] }, rawInputTensors[i]));
+    }
+
+    std::size_t counter = 0;
+    // Then, find contractions, as long as
+    while (
+        workingTensors.size() > 1 // either there are tensors remaining to be contracted,
+        || std::ranges::any_of(workingTensors.at(0).output(), [](const Dimension& dim) {
+            return dim.type() != DimensionType::Iterator; // or we still need to perform some view or taking the diagonal of a tensor.
+        })
+    ) {
+        auto [contractions, contractedInterface] = findTensorsWhichWeNeedToContract(workingTensors.at(0));
+        Tensor contractedTensor = TensorImpl::CreateTensorView(*this, contractions, std::move(contractedInterface));
+        auto [removeBegin, removeEnd] = std::ranges::remove_if(workingTensors, [&contractions](const Tensor& tensor) {
+            return std::ranges::find(contractions, tensor) != contractions.end();
+        });
+        workingTensors.erase(removeBegin, removeEnd);
+        workingTensors.insert(workingTensors.begin(), std::move(contractedTensor));
+        ++counter;
+        KAS_ASSERT(counter < 10, "Too many contractions!");
+    }
+
+    // Great! We are done.
+    KAS_ASSERT(workingTensors.size() == 1);
+    auto& outputTensor = workingTensors[0];
+    std::vector<Dimension> expectedOutput;
+    std::ranges::copy(graph.getOutputIterators(), std::back_inserter(expectedOutput));
+    // Do not forget to permute the dimensions.
+    outputTensor.inner->adjustOutputOrder(expectedOutput);
+    return { std::move(inputTensors), std::move(outputTensor) };
+}
+
+const std::vector<Tensor>& Tensor::inputs() const {
+    return inner->inputs;
+}
+const std::vector<Dimension>& Tensor::output() const {
+    return inner->output;
+}
+bool Tensor::isInputTensor() const {
+    return inner->isInputTensor();
+}
+
+std::string Tensor::toString(const BindingContext& ctx) const {
+    auto outputString = ShapeView(output()).toString(ctx);
+    if (isInputTensor()) {
+        return outputString;
+    }
+    return fmt::format("({} -> {})", fmt::join(inputs() | std::views::transform([&](const Tensor& t) { return t.toString(ctx); }), ", "), outputString);
+}
+
+std::string Tensor::debugToString() const {
+    return BindingContext::ApplyDebugPublicCtx(&Tensor::toString, *this);
+}
+
+Tensor TensorImpl::CreateInputTensor(Tensor::Builder& builder, const std::vector<Dimension>& dimensions) {
+    Tensor result = std::shared_ptr<TensorImpl>(new TensorImpl(dimensions));
+    for (const auto& dim: dimensions) {
+        auto [it, inserted] = builder.owner.emplace(dim, result);
+        KAS_ASSERT(inserted);
+    }
+    return result;
+}
+
+Tensor TensorImpl::CreateTensorView(Tensor::Builder& builder, const std::vector<Tensor>& inputs, std::vector<Dimension> interface) {
+    // We cannot determine the output yet.
+    Tensor result = std::shared_ptr<TensorImpl>(new TensorImpl(inputs, std::vector<Dimension>{}));
+
+    bool anyProgressAtAll = inputs.size() > 1;
+    // Although we have contracted the tensors, we actually need to do the reductions.
+    std::size_t beforeReduction = interface.size();
+    auto [removeBegin, removeEnd] = std::ranges::remove_if(interface, [](const Dimension& dim) {
+        return dim.type() == DimensionType::MapReduce;
+    });
+    interface.erase(removeBegin, removeEnd);
+    anyProgressAtAll |= beforeReduction > interface.size();
+
+    // Now, we want to traverse the graph and expand the interface as far as possible.
+    // Stop only at MergeLikeOp::Input. Mark it as ours, and continue. If both branches of MergeLikeOp has been marked as ours, we can proceed. Otherwise if the two branches have different owners, this must be a ShareOp, in which case we need to contract. But that is left to the next tensor view.
+
+    struct Visitor final: public DimVisitor {
+        Tensor::Builder& builder;
+        const Tensor& newTensor;
+        std::vector<Dimension>& interface;
+        bool hasProgress = false;
+        Visitor(Tensor::Builder& builder, const Tensor& newTensor, std::vector<Dimension>& interface): builder { builder }, newTensor { newTensor }, interface { interface } {}
         using DimVisitor::visit;
-    };
-    visitor v { sol };
-    for (const Dimension& dim: getUnderlyingDimensions()) {
-        v.visit(dim);
-    }
-    for (auto it: interface) {
-        sol.addConstraint(it->size());
-    }
-    for (auto it: manipulations) {
-        sol.addConstraint(it->size());
-    }
-    return sol.solve(Size::Product(getUnderlyingDimensions() | std::views::transform(&Dimension::size)), Size::Product(getInterfaceShape()));
-}
-
-std::size_t TensorView::getFLOPs(const ConcreteConsts& consts) const {
-    std::size_t outerLoopsIterations = getInterfaceShape().totalSize().eval<std::size_t>(consts);
-    std::size_t innerLoopsIterations = getManipulations().size() > 0 ? Size::Product(getManipulations() | std::views::transform([](const MapReduce *op) -> const Size& { return op->size(); })).eval<std::size_t>(consts) : 1;
-    auto fma = std::max<std::size_t>(getUnderlyingTensors().size() - 1, 1);
-    bool hasDivBy = forwardAccess.divBy.has_value();
-    // FMA + Division
-    return outerLoopsIterations * innerLoopsIterations * fma + hasDivBy;
-}
-
-namespace {
-    auto SSIt(std::stringstream& ss) -> decltype(auto) {
-        return std::ostreambuf_iterator<char>(ss);
-    }
-    void IndentSpaces(std::stringstream& ss, std::size_t indent) {
-        fmt::format_to(SSIt(ss), "{:{}}", "", 4 * indent);
-    }
-}
-
-std::string TensorView::printNestedLoops(const BindingContext& ctx, int pos) const {
-    std::stringstream ss;
-    std::size_t depth = 0;
-
-    auto& access = pos == TensorExpression::Output ? forwardAccess : backwardAccesses.at(pos);
-
-    for (auto it: access.outerLoops) {
-        const auto& var = it.as<VariableValueNode>();
-        IndentSpaces(ss, depth);
-        fmt::format_to(SSIt(ss),
-            "for (int {0} = 0; {0} < {1}; {0}++) {{\n",
-            var.name,
-            (pos == TensorExpression::Output ? interface.at(depth)->size() : tensors.at(pos).getShape()[depth]).toString(ctx)
-        );
-        ++depth;
-    }
-
-    const auto recursion = [&ctx, &ss, &access](const auto& self, std::size_t innerIndex, std::size_t depth) -> std::string {
-        if (innerIndex-- == 0) {
-            return access.statementToString(ctx);
+        void visit(const RepeatLikeOp::Input& dim) {
+            auto input = dim.getOp()->getInput();
+            auto it = std::ranges::find(interface, input);
+            auto output = dim.getOp()->output;
+            *it = output;
+            visit(output, false);
         }
-
-        auto& m = access.innerLoops.at(innerIndex).as<VariableValueNode>();
-        std::string tempName = "temp_" + m.name;
-
-        // float temp_ri_idx = 0;
-        IndentSpaces(ss, depth);
-        fmt::format_to(SSIt(ss), "float {} = 0;\n", tempName);
-
-        // for (int ri_idx = 0; ri_idx < size_ri_idx; ri_idx++) {
-        IndentSpaces(ss, depth);
-        fmt::format_to(SSIt(ss), "for (int {0} = 0; {0} < {1}; {0}++) {{\n", m.name, access.innerLoopsShape[innerIndex].toString(ctx));
-
-        // Generate inner loops, and obtain the temporary variable.
-        std::string inner = self(self, innerIndex, depth + 1);
-
-        IndentSpaces(ss, depth + 1);
-        fmt::format_to(SSIt(ss), "{} += {};\n", tempName, inner);
-
-        IndentSpaces(ss, depth);
-        ss << "}\n";
-
-        return tempName;
+        void visit(const SplitLikeOp::Input& dim) {
+            auto input = dim.getOp()->getInput();
+            auto it = std::ranges::find(interface, input);
+            auto index = std::distance(interface.begin(), it);
+            auto outputRhs = dim.getOp()->outputRhs, outputLhs = dim.getOp()->outputLhs;
+            *it = outputRhs;
+            interface.insert(it, outputLhs);
+            if (dim.type() == DimensionType::Unfold) {
+                // This is a workaround for PyTorch codegen.
+                // TODO: Handle this in PyTorch codegen.
+                std::swap(interface[index], interface[index + 1]);
+            }
+            visit(outputLhs, false);
+            visit(outputRhs, false);
+        }
+        void visit(const MergeLikeOp::Input& dim) {
+            if (dim.type() == DimensionType::Share) {
+                // Stop here.
+                return;
+            }
+            auto other = dim.getOther();
+            if (builder.owner.contains(other)) {
+                // We can proceed.
+                auto indexThis = std::distance(interface.begin(), std::ranges::find(interface, &dim));
+                auto indexOther = std::distance(interface.begin(), std::ranges::find(interface, other));
+                auto output = dim.getOp()->output;
+                interface[std::max(indexThis, indexOther)] = output;
+                interface.erase(interface.begin() + std::min(indexThis, indexOther));
+                visit(output, false);
+            }
+        }
+        void visit(Dimension dim, bool isSource) {
+            if (!isSource) {
+                if (builder.owner.contains(dim)) {
+                    // Visited.
+                    return;
+                }
+                hasProgress = true;
+            }
+            // Mark as ours.
+            builder.owner.insert_or_assign(dim, newTensor);
+            // Match.
+            DimVisitor::visit(dim);
+        }
     };
-    std::string lastTemp = recursion(recursion, access.innerLoops.size(), depth);
-    IndentSpaces(ss, depth);
-    fmt::format_to(SSIt(ss), "{} = {};\n", access.targetEntryToString(), lastTemp);
+    auto visitor = Visitor { builder, result, interface };
+    do {
+        visitor.hasProgress = false;
+        for (const auto& dim: interface) {
+            visitor.visit(dim, true);
+            if (visitor.hasProgress) {
+                anyProgressAtAll = true;
+                break;
+            }
+        }
+    } while (visitor.hasProgress);
 
-    while (depth --> 0) {
-        IndentSpaces(ss, depth);
-        ss << "}\n";
+    if (!anyProgressAtAll) {
+        // If this does not cause any change, just return the original input.
+        KAS_ASSERT(inputs.size() == 1);
+        for (auto&& [dim, t]: builder.owner) {
+            if (t == result) {
+                t = inputs[0];
+            }
+        }
+        return inputs[0];
     }
-    return ss.str();
+
+    result.inner->output = std::move(interface);
+    return result;
 }
 
-std::string TensorView::printNestedLoopsForAll(const BindingContext& ctx) const {
-    std::stringstream ss;
-    for (int i = TensorExpression::Output; i < static_cast<int>(tensors.size()); ++i) {
-        fmt::format_to(std::ostreambuf_iterator<char>(ss), "/* Loops {}: {} */\n", i, i == TensorExpression::Output ? "Forward Kernel" : fmt::format("Backward Kernel for Input {}", i));
-        ss << printNestedLoops(ctx, i);
-    }
-    return ss.str();
-}
-
-std::string TensorView::description(const BindingContext& ctx) const {
-    return TensorArrayToString(tensors | std::views::transform(&PureTensor::getDimensions), ctx);
-}
-
-TensorView::TensorView(const std::vector<std::vector<Dimension>>& canonicalTensors, TensorExpression blending) {
-    Graph::Builder builder;
-    builder.addTopmost(canonicalTensors | std::views::join);
-    Graph graph = builder.build();
-    auto& outputIterators = graph.getOutputIterators();
-    auto& mapReduceIterators = graph.getMapReduceIterators();
-
-    auto tensors = canonicalTensors;
-    LocalityOptimizer optim { graph };
-    optim.permuteWeightDimensions(tensors);
-    KAS_ASSERT(tensors.at(0) == canonicalTensors.at(0));
-    for (std::size_t tId = 0; auto& tensor: tensors) {
-        this->tensors.emplace_back(tId, std::move(tensor));
-        ++tId;
-    }
-
-    std::vector<Dimension> interfaceDimensions;
-    std::ranges::copy(outputIterators, std::back_inserter(interfaceDimensions));
-
-    auto forwardEval = DimensionEvaluator(graph, this->tensors, blending);
-    forwardEval.makeVars(interfaceDimensions);
-    for (auto r: mapReduceIterators) {
-        forwardEval.reduceAt(r);
-    }
-    forwardEval.adjustReductionOrder();
-    forwardAccess = forwardEval.toAccess(TensorExpression::Output, interfaceDimensions);
-    for (std::size_t tId = 0; auto&& tensor: this->tensors) {
-        // KAS_DEBUG("Differentiating input {}...", tId);
-        auto backwardEval = DimensionEvaluator(graph, this->tensors, blending);
-        backwardEval.makeVars(tensor.getDimensions());
-        backwardEval.fillWithReductions();
-        backwardEval.adjustReductionOrder();
-        backwardAccesses.emplace_back(backwardEval.toAccess(tId, interfaceDimensions));
-        ++tId;
-    }
-
-    interface = std::move(outputIterators);
-    manipulations = std::move(mapReduceIterators);
+void TensorImpl::adjustOutputOrder(const std::vector<Dimension>& expectedOutput) {
+    KAS_ASSERT(output.size() == expectedOutput.size());
+    std::set<Dimension, Dimension::AddressLessThan> expectedOutputSet(expectedOutput.begin(), expectedOutput.end());
+    KAS_ASSERT(std::ranges::all_of(output, [&](const Dimension& dim) {
+        return expectedOutputSet.contains(dim);
+    }));
+    output = expectedOutput;
 }
 
 } // namespace kas

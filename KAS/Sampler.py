@@ -53,7 +53,7 @@ class Sampler:
         for placeholder, kernel_pack in zip(placeholders, kernel_packs):
             placeholder.reload(kernel_pack)
 
-    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, maximum_variables_in_size: int = 16, maximum_variables_powers_in_size: int = 16, expression_one_tensor: str = "in_0", expression_two_tensors: str = "in_0 * in_1", expression_three_tensors: str = "in_0 * in_1 + in_2", expression_four_tensors: str = "in_0 * in_1 * in_2 + in_3", maximum_finalizations: int = 5, allow_weight_permutation: bool = True, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_discontinuous_view: bool = True, canonicalize_unfold_order: bool = True, maximum_merges: int = -1, maximum_splits: int = -1, maximum_shifts: int = -1, maximum_strides: int = -1, maximum_unfolds: int = -1, maximum_shares: int = -1, num_worker_threads: int = 12, save_path: str = './samples', cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot, extra_options: Dict[str, str] = {}, rfactor_threshold: int = 32, in_bounds_likely_threshold: float = 0.3):
+    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, maximum_variables_in_size: int = 16, maximum_variables_powers_in_size: int = 16, expression_one_tensor: str = "in_0", expression_two_tensors: str = "in_0 * in_1", expression_three_tensors: str = "in_0 * in_1 + in_2", expression_four_tensors: str = "in_0 * in_1 * in_2 + in_3", maximum_finalizations: int = 5, allow_weight_permutation: bool = True, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_discontinuous_view: bool = True, canonicalize_unfold_order: bool = True, maximum_merges: int = -1, maximum_splits: int = -1, maximum_shifts: int = -1, maximum_strides: int = -1, maximum_unfolds: int = -1, maximum_shares: int = -1, num_worker_threads: int = 12, save_path: str = './samples', halide: bool = False, cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot, extra_options: Dict[str, str] = {}, rfactor_threshold: int = 32, in_bounds_likely_threshold: float = 0.3):
         """
         Parameters
         ----------
@@ -135,6 +135,8 @@ class Sampler:
             Number of threads for parallel search and expansion.
         save_path : str, optional
             The path to save the sampled kernels.
+        halide : bool, optional
+            Generate Halide pipelines.
         cuda : bool, optional
             Use GPU.
         autoscheduler : Bindings.CodeGenOptions.AutoScheduler, optional
@@ -197,6 +199,7 @@ class Sampler:
         self._sampler = Bindings.Sampler(
             input_shape, output_shape, primary_specs, coefficient_specs, all_mappings, fixed_io_pairs, options, num_worker_threads)
         self._codegen_options = Bindings.CodeGenOptions(
+            halide=halide,
             use_gpu=cuda,
             auto_scheduler=autoscheduler,
             extra_options=extra_options,
