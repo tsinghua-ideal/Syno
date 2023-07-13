@@ -69,22 +69,27 @@ if __name__ == '__main__':
                 continue
             
             # Evaluate on a dataset
-            kernel_packs = sampler.realize(model, node).construct_kernel_packs()
+            kernel = sampler.realize(model, node)
+            kernel_packs = kernel.construct_kernel_packs()
             sampler.replace(model, kernel_packs)
 
+            flops, params = model.profile(args.batch_size)
+            flops += kernel.get_total_flops()
+            logging.debug(f"Model flops: {flops}, params: {params}")
+            
             logging.info('Evaluating on real dataset ...')
-            flops, params = model.profile()
-            logging.debug("Model flops: {:.2f}G, params: {:.2f}M".format(flops / 1e9, params / 1e6))
             _, val_errors = trainer.train(model, train_dataloader, val_dataloader, args)
             accuracy = 1 - min(val_errors)
-            if args.kas_min_accuracy > accuracy or args.kas_max_flops < flops:
-                client.reward(path, -1)
-            else:
-                if args.kas_target == 'accuracy':
-                    client.reward(path, accuracy)
-                elif args.kas_target == 'flops':
-                    client.reward(path, 1. - flops / args.kas_max_flops)
+            
+            if args.kas_target == 'accuracy':
+                client.reward(path, accuracy)
+            elif args.kas_target == 'flops':
+                if accuracy >= args.kas_min_accuracy:
+                    reward = args.kas_min_accuracy + max(0, 1. - flops / args.kas_max_flops) * (1 - args.kas_min_accuracy)
                 else:
-                    raise ValueError(f'Unknown target: {args.kas_target}')
+                    reward = accuracy
+                client.reward(path, reward)
+            else:
+                raise ValueError(f'Unknown target: {args.kas_target}')
     except KeyboardInterrupt:
         logging.info('Interrupted by user, exiting ...')

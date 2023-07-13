@@ -13,7 +13,7 @@ class KASModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-    def profile(self) -> Tuple[int, int]:
+    def profile(self, batch_size=1) -> Tuple[int, int]:
         # Get statistics (count with batch size = 1)    
         def count_placeholder(m: Placeholder, x, y):
             if m.kernel:
@@ -22,12 +22,13 @@ class KASModel(nn.Module):
                 # m.total_params += torch.DoubleTensor([int(m.params)])
             # TODO: count refered layer
 
-        sample_input = torch.randn((1, *self.sample_input_shape())).cuda()
+        sample_input = torch.randn((batch_size, *self.sample_input_shape())).cuda()
         flops, params = thop.profile(self, inputs=(sample_input, ), verbose=False, report_missing=False, custom_ops={
             Placeholder: count_placeholder,
             LinearPlaceholder: count_placeholder,
             ConvPlaceholder: count_placeholder
         })
+        flops = flops // batch_size
         return flops, params
 
     @staticmethod

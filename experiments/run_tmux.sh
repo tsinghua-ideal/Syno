@@ -38,7 +38,7 @@ tmux send-keys -t "$i" "echo TMUX Pane $i" Enter
 tmux send-keys -t "$i" "conda activate $2" Enter
 tmux send-keys -t "$i" "cd ${current_path}" Enter
 tmux send-keys -t "$i" "export CUDA_VISIBLE_DEVICES=$(($i))" Enter
-tmux send-keys -t "$i" "bash ./launch_client.sh ${*:3}" Enter
+tmux send-keys -t "$i" "bash ./launch_client.sh ${*:3} > client$(($i)).log 2>&1" Enter
 done
 
 # Attach.
