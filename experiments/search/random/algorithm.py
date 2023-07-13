@@ -2,7 +2,7 @@ from KAS.Node import VisitedNode, Path
 
 
 class RandomAlgorithm:
-    max_iterations = 20
+    max_iterations = 2000
 
     def __init__(self, sampler, args):
         self.sampler = sampler

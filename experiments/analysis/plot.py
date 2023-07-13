@@ -53,12 +53,30 @@ if __name__ == '__main__':
 
     # Plot and save into file
     plt.xlabel('Time (s)')
-    plt.ylabel('Accuracy')
+    plt.ylabel('Accuracy (avg)')
     plt.legend()
-    plt.savefig(f'{args.output}-trend.png')
+    plt.savefig(f'{args.output}-avg.png')
+
+    # Max figure
+    plt.figure(2, figsize=(25, 6), dpi=300)
+    for name, kernels in all_kernels:
+        x, y = zip(*kernels)
+        y_max = []
+        for i in range(len(y)):
+            y_max.append(y[i] if i == 0 else max(y_max[-1], y[i]))
+        m, c = markers.pop(0), colors.pop(0)
+        markers.append(m)
+        colors.append(c)
+        plt.plot(x, y_max, marker=m, color=c, label=name, markersize=3)
+
+    # Plot and save into file
+    plt.xlabel('Time (s)')
+    plt.ylabel('Accuracy (max)')
+    plt.legend()
+    plt.savefig(f'{args.output}-max.png')
 
     # Histogram figure
-    plt.figure(2, figsize=(10, 6), dpi=300)
+    plt.figure(3, figsize=(10, 6), dpi=300)
     for name, kernels in all_kernels:
         x, y = zip(*kernels)
         m, c = markers.pop(0), colors.pop(0)
