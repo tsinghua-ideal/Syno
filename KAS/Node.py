@@ -36,7 +36,7 @@ class Path:
 
     @staticmethod
     def deserialize(serialized: str) -> 'Path':
-        deserialized_list = serialized.split('_')
+        deserialized_list = serialized.split('_') if len(serialized) > 0 else []
         return Path([Next(Next.Type(int(n[0])), int(n[1:])) for n in deserialized_list])
 
     def __init__(self, path: PseudoPath) -> None:
