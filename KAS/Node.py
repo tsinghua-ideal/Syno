@@ -202,6 +202,7 @@ class VisitedNode(Node):
 
     def __eq__(self, __value: object) -> bool:
         raise ValueError("VisitedNode should not be compared.")
+
     def __hash__(self) -> int:
         raise ValueError("VisitedNode should not be hashed.")
 

@@ -2,9 +2,9 @@ import logging
 import sys
 
 from .session import Session
+from .beam import BeamAlgorithm
 from .mcts import MCTSAlgorithm, MCTSExplorer, MCTSTree
 from .random import RandomAlgorithm
-# TODO: add random search
 
 
 def get_session(sampler, args):

@@ -3,6 +3,7 @@ from KAS.Node import VisitedNode, Path
 
 class RandomAlgorithm:
     max_iterations = 2000
+    max_final_iterations = 100000
 
     def __init__(self, sampler, args):
         self.sampler = sampler
@@ -19,12 +20,15 @@ class RandomAlgorithm:
         while True:
             # Random a node
             n_iterations += 1
-            while True:
+            node = None
+            for i in range(self.max_final_iterations):
                 node = self.sampler.random_node_with_prefix(Path([]))
                 if node.is_final():
                     break
-            assert isinstance(node, VisitedNode)
+            if node is None or not node.is_final():
+                return 'end'
 
+            assert isinstance(node, VisitedNode)
             path = node.path.serialize()
             if path not in self.sampled_paths:
                 self.sampled_paths.add(path)
