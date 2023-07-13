@@ -21,6 +21,8 @@ public:
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override { return hash(); }
     std::size_t opHash() const noexcept override { return initialHash(); }
+    using MapReduce::accept;
+    void accept(OpVisitor& visitor) const override { visitor.visit(*this); }
 
     const MapReduce *getRaw() const { return this; }
     Dimension getInput() const { return this; }

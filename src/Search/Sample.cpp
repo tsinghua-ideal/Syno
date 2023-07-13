@@ -4,7 +4,7 @@
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/TensorView.hpp"
 #include "KAS/Search/AbstractStage.hpp"
 #include "KAS/Search/NormalStage.hpp"
 #include "KAS/Search/ReductionStage.hpp"

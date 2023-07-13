@@ -6,7 +6,7 @@
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/TensorView.hpp"
 
 
 namespace kas {

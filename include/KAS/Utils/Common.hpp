@@ -48,7 +48,7 @@ template<> [[maybe_unused]] constexpr inline std::ostream& Console<ConsoleType::
 template<> [[maybe_unused]] constexpr inline std::ostream& Console<ConsoleType::Error> = std::cerr;
 
 template<ConsoleType consoleType, ColorType consoleColor, typename... Args>
-static inline void FormatAndLog(const char *fileName, int line, const char *caption, fmt::format_string<Args...> format, Args&&... args) {
+inline void FormatAndLog(const char *fileName, int line, const char *caption, fmt::format_string<Args...> format, Args&&... args) {
     constexpr auto& console = Console<consoleType>;
     console << ConsoleColor<consoleColor>;
     console << caption << fmt::format(" ({}:{}): ", fileName, line) << std::endl;
@@ -57,7 +57,7 @@ static inline void FormatAndLog(const char *fileName, int line, const char *capt
 }
 
 template<ConsoleType consoleType, ColorType consoleColor>
-static inline void FormatAndLog(const char *fileName, int line, const char *caption) {
+inline void FormatAndLog(const char *fileName, int line, const char *caption) {
     constexpr auto& console = Console<consoleType>;
     console << ConsoleColor<consoleColor>;
     console << caption << fmt::format(" ({}:{})", fileName, line) << std::endl;
@@ -65,13 +65,13 @@ static inline void FormatAndLog(const char *fileName, int line, const char *capt
 }
 
 template<ConsoleType consoleType, ColorType consoleColor, typename... Args>
-[[noreturn]] static inline void FormatAndLogAndThrow(const char *fileName, int line, const char *caption, fmt::format_string<Args...> format, Args&&... args) {
+[[noreturn]] inline void FormatAndLogAndThrow(const char *fileName, int line, const char *caption, fmt::format_string<Args...> format, Args&&... args) {
     FormatAndLog<consoleType, consoleColor>(fileName, line, caption, format, std::forward<Args>(args)...);
     throw std::runtime_error(caption);
 }
 
 template<ConsoleType consoleType, ColorType consoleColor>
-[[noreturn]] static inline void FormatAndLogAndThrow(const char *fileName, int line, const char *caption) {
+[[noreturn]] inline void FormatAndLogAndThrow(const char *fileName, int line, const char *caption) {
     FormatAndLog<consoleType, consoleColor>(fileName, line, caption);
     throw std::runtime_error(caption);
 }

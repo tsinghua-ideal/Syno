@@ -1,4 +1,5 @@
 import os
+import re
 
 from .Bindings import Next
 from .Node import Path, Node
@@ -115,19 +116,23 @@ class Explorer:
                     continue
                 # go to child node
                 try:
-                    next_type, key = command.split()[1].split('(')
-                    key = int(key.split(')')[0])
-                    next = Next(self._serializer.deserialize_type(next_type), key)
-                    path.append(next)
+                    # support multiple comma separated
+                    sequence = list(filter(None, command.split(' ', 1)))[1]
+                    nexts_strings = list(filter(None, re.split(r'[, ]', sequence)))
+                    for next_string in nexts_strings:
+                        next_type, key = next_string.split('(')
+                        key = int(key.split(')')[0])
+                        next = Next(self._serializer.deserialize_type(next_type), key)
+                        path.append(next)
                 except:
                     print("Invalid command.")
-                if next not in current_node.get_children_handles():
-                    print("This child does not exist.")
             elif command == "composing":
                 if current_node is None:
                     print("Error: this node does not exist.")
                     continue
-                print(f"Composing arcs: {current_node.get_composing_arcs()}")
+                print("Composing arcs:")
+                for arc in current_node.get_composing_arcs():
+                    print(f"\t{arc}")
             elif command == "back":
                 # go back to parent node
                 path.pop()

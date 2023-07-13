@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "KAS/Core/Lower.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/TensorView.hpp"
 
 
 using namespace kas;

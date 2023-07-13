@@ -57,6 +57,7 @@
 - [x] Redesign generation algorithm for each Op.
 - [x] Accept FLOPs constraints in Sampler, and generate MapReduceOp's accordingly.
 - [ ] If ShapeComplexity finds the stage is in critical state, do not generate unnecessary Op's.
+- [ ] Make `Allowance` depends on global invariant.
 
 ### Pruning
 
@@ -77,6 +78,7 @@
 - [x] Report dead ends to Python.
 - [x] Add mocks for Node and Sampler.
 - [ ] Standalone scheduler.
+- [ ] 3-step searching.
 
 ### Misc
 

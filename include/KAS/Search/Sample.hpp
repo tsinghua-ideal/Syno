@@ -22,7 +22,7 @@
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/TensorView.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 

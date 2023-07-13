@@ -1,4 +1,4 @@
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/TensorView.hpp"
 #include "KAS/Transforms/Forward.hpp"
 
 
