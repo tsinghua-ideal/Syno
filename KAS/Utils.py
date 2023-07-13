@@ -48,5 +48,6 @@ def init_weights(m):
         if m.bias is not None:
             m.bias.data.zero_()
     elif isinstance(m, Placeholder):
-        for w in m.kernel.weights:
-            nn.init.trunc_normal_(w, std=.1)
+        if m.kernel and hasattr(m.kernel, 'weights'):
+            for w in m.kernel.weights:
+                nn.init.trunc_normal_(w, std=.1)
