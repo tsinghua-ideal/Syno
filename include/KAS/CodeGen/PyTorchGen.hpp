@@ -103,19 +103,26 @@ public:
             const std::string& name;
             std::map<Dimension, std::size_t, Dimension::AddressLessThan> outputSet;
             OpLower(const BindingContext& ctx, const Graph& graph, PythonCodePrinter& printer, const ConcreteConsts& consts, std::vector<Dimension>& interface, const Tensor& tensor, const std::string& name);
-            void operator()(const auto& vertex, auto) {
+
+            bool successfulVisit = false;
+            bool operator()(const auto& vertex, auto) {
                 const auto& op = vertex.op;
                 printer.writeLn("# {}", op.description(ctx));
+                successfulVisit = false;
                 vertex.op.accept(*this);
+                bool result = successfulVisit;
+                successfulVisit = false;
                 printer.writeLn();
+                return result;
             }
             void lower();
 
             template<PrimitiveOpImpl Op>
-            std::pair<Dimension, std::size_t> getSingleInput(const Op& op) const {
+            std::pair<Dimension, std::size_t> getSingleInput(const Op& op) {
                 Dimension input = op.getInput();
                 std::size_t inputIndex = std::distance(interface.begin(), std::ranges::find(interface, input));
                 KAS_ASSERT(inputIndex < interface.size());
+                successfulVisit = true;
                 return { std::move(input), inputIndex };
             }
             // Based on the shape of interface, reshape the PyTorch tensor to this.
