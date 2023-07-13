@@ -72,7 +72,11 @@ def arg_parse():
     parser.add_argument('--kas-server-save-interval', default=600, type=int, help='KAS server saving interval (in seconds)')
     parser.add_argument('--kas-server-save-dir', default=None, type=str, help='KAS server saving directory')
     parser.add_argument('--kas-max-flops', default=1e15, type=float,
-                        help='Maximum FLOPs for searched kernels (in G-unit, only for search)')
+                        help='Maximum FLOPs for searched kernels (only for search)')
+    parser.add_argument('--kas-min-accuracy', default=0, type=float,
+                        help='Minimum accuracy for network')
+    parser.add_argument('--kas-target', default='accuracy', type=str,
+                        help='Target metric of KAS')
     parser.add_argument('--kas-reward-trunc', default=0.1, type=float, help='Reward lower bound')
     parser.add_argument('--kas-reward-power', default=2, type=float, help='Reward power')
     

@@ -73,8 +73,18 @@ if __name__ == '__main__':
             sampler.replace(model, kernel_packs)
 
             logging.info('Evaluating on real dataset ...')
+            flops, params = model.profile()
+            logging.debug("Model flops: {:.2f}G, params: {:.2f}M".format(flops / 1e9, params / 1e6))
             _, val_errors = trainer.train(model, train_dataloader, val_dataloader, args)
             accuracy = 1 - min(val_errors)
-            client.reward(path, accuracy)
+            if args.kas_min_accuracy > accuracy or args.kas_max_flops < flops:
+                client.reward(path, -1)
+            else:
+                if args.kas_target == 'accuracy':
+                    client.reward(path, accuracy)
+                elif args.kas_target == 'flops':
+                    client.reward(path, 1. - flops / args.kas_max_flops)
+                else:
+                    raise ValueError(f'Unknown target: {args.kas_target}')
     except KeyboardInterrupt:
         logging.info('Interrupted by user, exiting ...')

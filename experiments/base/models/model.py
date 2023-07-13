@@ -3,7 +3,7 @@ import torch
 import thop
 import logging
 from torch import nn
-from typing import List
+from typing import List, Tuple
 from KAS.Placeholder import Placeholder
 
 from .placeholder import LinearPlaceholder, ConvPlaceholder
@@ -13,7 +13,7 @@ class KASModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-    def profile(self):
+    def profile(self) -> Tuple[int, int]:
         # Get statistics (count with batch size = 1)    
         def count_placeholder(m: Placeholder, x, y):
             if m.kernel:

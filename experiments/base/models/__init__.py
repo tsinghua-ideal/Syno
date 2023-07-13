@@ -2,6 +2,7 @@ import logging
 import random
 import sys
 import torch
+from typing import Tuple
 from KAS import Sampler
 from KAS.Bindings import CodeGenOptions
 from KAS.Placeholder import build_placeholder_mappings
@@ -51,7 +52,7 @@ def get_sampler(args, model):
     return Sampler(net=model, **params)
 
 
-def get_model(args, return_sampler=False):
+def get_model(args, return_sampler=False) -> Tuple[KASModel, Sampler] | KASModel:
     # Create model instance
     assert hasattr(sys.modules[__name__], args.model), f'Could not find model {args.model}'
     model_cls = getattr(sys.modules[__name__], args.model)

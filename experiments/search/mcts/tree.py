@@ -243,7 +243,7 @@ class MCTSTree:
         # check input types
         assert isinstance(reward, float)
         assert isinstance(path_to_trial, TreePath)
-        assert 0.0 <= reward <= 1.0
+        # assert 0.0 <= reward <= 1.0
         logging.debug("Back propagation start")
         path = receipt
         self._decrement_virtual_loss(path)
