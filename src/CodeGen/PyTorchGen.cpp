@@ -70,8 +70,8 @@ PyTorchGen::SubgraphGen::OpLower::OpLower(const BindingContext& ctx, const Graph
 {
     for (std::size_t index = 0; const auto& outputDim: this->tensor.output()) {
         outputSet.emplace(outputDim, index);
-        // Ensure that there are no MapReduce in output.
-        KAS_ASSERT(outputDim.type() != DimensionType::MapReduce);
+        // It is possible that there are MapReduce's in output.
+        // KAS_ASSERT(outputDim.type() != DimensionType::MapReduce);
         ++index;
     }
 }
