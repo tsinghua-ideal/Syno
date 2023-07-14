@@ -73,8 +73,7 @@ def get_model(args, return_sampler=False) -> Tuple[KASModel, Sampler] | KASModel
         cls_name = args.kas_replace_placeholder.capitalize() + 'Placeholder'
         assembled = getattr(placeholder, cls_name).impl(sampler.create_assembler())
         logging.debug(f'Assembled path: {assembled.convert_to_path(sampler)}')
-        kernel_packs = sampler.realize(model, assembled, args.kas_replace_placeholder).construct_kernel_packs()
-        sampler.replace(model, kernel_packs)
+        model.load_kernel(sampler, assembled, args.kas_replace_placeholder)
 
     if return_sampler:
         assert sampler

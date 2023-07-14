@@ -12,6 +12,15 @@ from .placeholder import LinearPlaceholder, ConvPlaceholder
 class KASModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()
+    
+    def load_kernel(self, sampler: KAS.Sampler, node: KAS.Node, name: str=None):
+        kernel = sampler.realize(self, node, name)
+        kernel_packs = kernel.construct_kernel_packs()
+        placeholders = sampler._extract_placeholders(self)
+        for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
+            placeholder.reload(kernel_pack)
+            placeholder.set_flops(kernel.get_flops(i))
+            placeholder.set_params(sum(weight.numel() for weight in kernel_pack.weights))
 
     def profile(self, batch_size=1) -> Tuple[int, int]:
         # Get statistics (count with batch size = 1)    
@@ -19,8 +28,12 @@ class KASModel(nn.Module):
             if m.kernel:
                 m.total_ops += torch.DoubleTensor([int(m.flops)])
                 # TODO: count params
-                # m.total_params += torch.DoubleTensor([int(m.params)])
+                m.total_params += torch.DoubleTensor([int(m.params)])
             # TODO: count refered layer
+            # else:
+            #     refered_flops, refered_params = thop.profile(m.refered_layer, inputs=x)
+            #     m.total_ops += torch.DoubleTensor([int(refered_flops)])
+            #     m.total_params += torch.DoubleTensor([int(refered_params)])
 
         sample_input = torch.randn((batch_size, *self.sample_input_shape())).cuda()
         flops, params = thop.profile(self, inputs=(sample_input, ), verbose=False, report_missing=False, custom_ops={

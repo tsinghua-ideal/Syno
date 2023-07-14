@@ -14,6 +14,7 @@ class Placeholder(nn.Module):
         self.mapping_func = mapping_func
         self.kernel = None
         self.flops = 0
+        self.params = 0
         self.build_mapping_mode = False
 
     def reload(self, kernel: KernelPack) -> None:
@@ -21,6 +22,9 @@ class Placeholder(nn.Module):
 
     def set_flops(self, flops: int) -> None:
         self.flops = flops
+        
+    def set_params(self, params: int) -> None:
+        self.params = params
 
     def forward(self, x) -> torch.Tensor:
         x_size = x.size()

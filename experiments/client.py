@@ -69,12 +69,9 @@ if __name__ == '__main__':
                 continue
             
             # Evaluate on a dataset
-            kernel = sampler.realize(model, node)
-            kernel_packs = kernel.construct_kernel_packs()
-            sampler.replace(model, kernel_packs)
+            model.load_kernel(sampler, node)
 
             flops, params = model.profile(args.batch_size)
-            flops += kernel.get_total_flops()
             logging.debug(f"Model flops: {flops}, params: {params}")
             
             logging.info('Evaluating on real dataset ...')
