@@ -82,24 +82,12 @@ void PyTorchGen::SubgraphGen::OpLower::lower() {
         for (Dimension dim: interface) {
             // Lower an Op.
             if (!outputSet.contains(dim)) {
-                // We prioritize SplitLikeOp and RepeatLikeOp. This is because there is annoying dependence issue for MergeLikeOp.
-                bool isMergeLike = false;
-                graph.visitAlong(dim, Direction::Down).match(*this, *this, [&](const auto&, auto) {
-                    isMergeLike = true;
-                });
-                if (!isMergeLike) {
+                // Try lowering.
+                if (graph.visitAlong(dim, Direction::Down).match(*this, *this, *this)) {
+                    // Only upon successful visit, break and start another iteration.
                     changed = true;
                     break;
                 }
-            }
-        }
-        if (changed) continue;
-        for (Dimension dim: interface) {
-            // Then MergeLike.
-            if (!outputSet.contains(dim)) {
-                graph.visitAlong(dim, Direction::Down).match([&](const auto&, auto) {}, [&](const auto&, auto) {}, *this);
-                changed = true;
-                break;
             }
         }
         if (!changed) break; // All Op's lowered.
@@ -157,8 +145,12 @@ void PyTorchGen::SubgraphGen::OpLower::visit(const MergeOp& op) {
     std::size_t lhsIndex = std::distance(interface.begin(), std::ranges::find(interface, lhs));
     std::size_t rhsIndex = std::distance(interface.begin(), std::ranges::find(interface, rhs));
     const std::size_t length = interface.size();
+    if (lhsIndex == length || rhsIndex == length) {
+        // We need to defer the lowering of this.
+        return;
+    }
+    successfulVisit = true;
     KAS_ASSERT(lhsIndex != rhsIndex);
-    KAS_ASSERT(lhsIndex != length && rhsIndex != length, "Cannot lower MergeOp: the interface does not contain both of the inputs!");
 
     // Modify the interface first.
     interface[std::max(lhsIndex, rhsIndex)] = op.output;
