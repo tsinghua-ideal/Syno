@@ -8,7 +8,7 @@
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/TensorView.hpp"
 #include "KAS/Transforms.hpp"
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Utils/Common.hpp"
@@ -27,6 +27,9 @@ protected:
     Size sizeC = ctx.getSingleCoefficientVariableSize(0);
     Iterator itH { 0, sizeH }, itW { 1, sizeW }, itCH { 2, sizeC * sizeH };
     Dimension dimH { &itH }, dimW { &itW }, dimCH { &itCH };
+    transforms_tests() {
+        BindingContext::DebugPublicCtx = &ctx;
+    }
 };
 
 } // namespace kas

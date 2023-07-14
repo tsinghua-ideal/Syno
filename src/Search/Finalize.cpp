@@ -4,7 +4,7 @@
 #include <stack>
 
 #include "KAS/Core/Colors.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/TensorView.hpp"
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Utils/Algorithm.hpp"

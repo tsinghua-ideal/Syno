@@ -22,6 +22,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
+    
     auto [_0, _1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
         {{"H", 4}, {"W", 4}, {"c", 2}},
         "map_reduce", false, false,

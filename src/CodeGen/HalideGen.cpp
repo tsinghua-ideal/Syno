@@ -13,7 +13,7 @@
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/MapReduce.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/TensorView.hpp"
 #include "KAS/Utils/Algorithm.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -347,9 +347,9 @@ HalideGen::ForwardAndBackwardFuncs HalideGen::createPipelines(const ConcreteCons
     }
 }
 
-HalideGen::ScheduledPipelins HalideGen::ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, const std::map<std::string, std::string>& extraOptions, std::ostream *verbose) {
+HalideGen::ScheduledPipelins HalideGen::ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, CodeGenOptions::AutoScheduler scheduler, const std::map<std::string, std::string>& extraOptions, std::ostream *verbose) {
     // Prepare auto schedulers.
-    using Scheduler = Options::AutoScheduler;
+    using Scheduler = CodeGenOptions::AutoScheduler;
     const bool computeRoot = scheduler == Scheduler::ComputeRoot;
     GuardAutoSchedulers();
     std::optional<Halide::AutoschedulerParams> params;

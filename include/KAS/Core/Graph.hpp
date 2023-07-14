@@ -49,9 +49,9 @@ public:
     VisitedVertex visitAdjacent(OpType::Branch branch) const;
 };
 template<typename CaseRepeatLike>
-concept RepeatLikeCase = std::invocable<CaseRepeatLike, RepeatLikeVertex, RepeatLikeOp::Branch>;
+concept RepeatLikeCase = std::invocable<CaseRepeatLike, const RepeatLikeVertex&, RepeatLikeOp::Branch>;
 template<RepeatLikeCase CaseRepeatLike>
-using RepeatLikeCaseResult = std::invoke_result_t<CaseRepeatLike, RepeatLikeVertex, RepeatLikeOp::Branch>;
+using RepeatLikeCaseResult = std::invoke_result_t<CaseRepeatLike, const RepeatLikeVertex&, RepeatLikeOp::Branch>;
 
 class SplitLikeVertex {
     const Graph& graph;
@@ -68,9 +68,9 @@ public:
     VisitedVertex visitAdjacent(OpType::Branch branch) const;
 };
 template<typename CaseSplitLike>
-concept SplitLikeCase = std::invocable<CaseSplitLike, SplitLikeVertex, SplitLikeOp::Branch>;
+concept SplitLikeCase = std::invocable<CaseSplitLike, const SplitLikeVertex&, SplitLikeOp::Branch>;
 template<SplitLikeCase CaseSplitLike>
-using SplitLikeCaseResult = std::invoke_result_t<CaseSplitLike, SplitLikeVertex, SplitLikeOp::Branch>;
+using SplitLikeCaseResult = std::invoke_result_t<CaseSplitLike, const SplitLikeVertex&, SplitLikeOp::Branch>;
 
 class MergeLikeVertex {
     const Graph& graph;
@@ -87,9 +87,9 @@ public:
     VisitedVertex visitAdjacent(OpType::Branch branch) const;
 };
 template<typename CaseMergeLike>
-concept MergeLikeCase = std::invocable<CaseMergeLike, MergeLikeVertex, MergeLikeOp::Branch>;
+concept MergeLikeCase = std::invocable<CaseMergeLike, const MergeLikeVertex&, MergeLikeOp::Branch>;
 template<MergeLikeCase CaseMergeLike>
-using MergeLikeCaseResult = std::invoke_result_t<CaseMergeLike, MergeLikeVertex, MergeLikeOp::Branch>;
+using MergeLikeCaseResult = std::invoke_result_t<CaseMergeLike, const MergeLikeVertex&, MergeLikeOp::Branch>;
 
 template<auto Val>
 struct EmptyVertexCase {

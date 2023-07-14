@@ -120,7 +120,7 @@ std::shared_ptr<TensorView> Node::asFinal() const {
     return std::get<std::shared_ptr<TensorView>>(inner);
 }
 
-std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, HalideGen::Options options, const std::filesystem::path& directory, const std::string& name) const {
+std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& directory, const std::string& name) const {
     auto final = asFinal();
     if (!final) {
         return nullptr;

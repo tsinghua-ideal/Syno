@@ -25,8 +25,8 @@ TEST_F(search_tests, sampler) {
         GraphvizGen(tensorView, ctx).generate("./search_viz/trial_" + std::to_string(i) + ".dot", "trial_" + std::to_string(i));
 
         if (doRealization) {
-            auto cgOpt = HalideGen::Options();
-            cgOpt.scheduler = HalideGen::Options::AutoScheduler::Anderson2021;
+            auto cgOpt = CodeGenOptions();
+            cgOpt.scheduler = CodeGenOptions::AutoScheduler::Anderson2021;
             cgOpt.useGPU = true;
             HalideGen gen(ctx, tensorView, cgOpt);
             auto name = "search_codegen_test_" + std::to_string(i);

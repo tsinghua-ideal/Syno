@@ -13,9 +13,10 @@
 #include "Halide.h"
 
 #include "KAS/CodeGen/Common.hpp"
+#include "KAS/CodeGen/Options.hpp"
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/CodeGen.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/TensorView.hpp"
 #include "KAS/Utils/Functional.hpp"
 #include "KAS/Utils/Tuple.hpp"
 
@@ -60,22 +61,9 @@ struct HalideAccess {
 };
 
 class HalideGen {
-public:
-    struct Options {
-        enum class AutoScheduler {
-            ComputeRoot, Mullapudi2016, Li2018, Adams2019, Anderson2021,
-        };
-        bool useGPU = true;
-        AutoScheduler scheduler = AutoScheduler::Li2018;
-        std::map<std::string, std::string> extraOptions;
-        std::size_t rfactorThreshold = 32;
-        float inBoundsLikelyThreshold = 0.3f;
-    };
-
-private:
     const BindingContext& ctx;
     const TensorView& tensorView;
-    Options options;
+    CodeGenOptions options;
 
 public:
     static void GuardAutoSchedulers(); // Load the Halide auto scheduler plugins.
@@ -112,11 +100,11 @@ public:
 
     // Applys auto-schedulers on the funcs.
     using ScheduledPipelins = std::pair<Halide::Pipeline, Halide::Pipeline>;
-    static ScheduledPipelins ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, Options::AutoScheduler scheduler, const std::map<std::string, std::string>& extraOptions, std::ostream *verbose);
+    static ScheduledPipelins ApplyAutoScheduler(Halide::Func& forwardFunc, std::vector<Halide::Func>& backwardFuncs, const Halide::Target& target, CodeGenOptions::AutoScheduler scheduler, const std::map<std::string, std::string>& extraOptions, std::ostream *verbose);
 
     static void GenerateFromPipelines(std::vector<Halide::ImageParam>& forwardInputs, std::vector<Halide::ImageParam>& backwardInputs, Halide::Pipeline& forwardPipeline, Halide::Pipeline& backwardPipeline, const std::filesystem::path& forwardOutputPath, const std::filesystem::path& backwardOutputPath, std::string_view forwardFuncName, std::string_view backwardFuncName, const Halide::Target& target);
 
-    HalideGen(const BindingContext& ctx, const TensorView& tensorView, Options options):
+    HalideGen(const BindingContext& ctx, const TensorView& tensorView, CodeGenOptions options):
         ctx { ctx },
         tensorView { tensorView },
         options { std::move(options) }

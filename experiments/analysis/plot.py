@@ -10,6 +10,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='KAS session plot')
     parser.add_argument('--dirs', type=str, nargs='+', default=None)
     parser.add_argument('--output', type=str, default='plot')
+    parser.add_argument('--time', type=bool, default=False, action='store_true')
     args = parser.parse_args()
     assert args.dirs is not None
     for dir in args.dirs:
@@ -34,6 +35,8 @@ if __name__ == '__main__':
 
             kernels.append((meta['time'], meta['accuracy']))
         kernels = sorted(kernels, key=lambda x: x[0])
+        if not args.time:
+            kernels = list([(i, kernels[i][1]) for i in range(len(kernels))])
         all_kernels.append((dir, kernels))
 
     # Trend figure
@@ -52,7 +55,7 @@ if __name__ == '__main__':
         plt.plot(x, y_avg, marker=m, color=c, label=name, markersize=3)
 
     # Plot and save into file
-    plt.xlabel('Time (s)')
+    plt.xlabel('Time' if args.time else 'Samples')
     plt.ylabel('Accuracy (avg)')
     plt.legend()
     plt.savefig(f'{args.output}-avg.png')
@@ -70,7 +73,7 @@ if __name__ == '__main__':
         plt.plot(x, y_max, marker=m, color=c, label=name, markersize=3)
 
     # Plot and save into file
-    plt.xlabel('Time (s)')
+    plt.xlabel('Time' if args.time else 'Samples')
     plt.ylabel('Accuracy (max)')
     plt.legend()
     plt.savefig(f'{args.output}-max.png')

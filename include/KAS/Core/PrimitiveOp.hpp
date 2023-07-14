@@ -130,6 +130,24 @@ struct Valuations {
     }
 };
 
+class MapReduceOp;
+class MergeOp;
+class ShareOp;
+class ShiftOp;
+class SplitOp;
+class StrideOp;
+class UnfoldOp;
+class OpVisitor {
+public:
+    virtual void visit(const MapReduceOp& op) = 0;
+    virtual void visit(const MergeOp& op) = 0;
+    virtual void visit(const ShareOp& op) = 0;
+    virtual void visit(const ShiftOp& op) = 0;
+    virtual void visit(const SplitOp& op) = 0;
+    virtual void visit(const StrideOp& op) = 0;
+    virtual void visit(const UnfoldOp& op) = 0;
+};
+
 class PrimitiveOpStore;
 
 // There are 3 kinds of `PrimitiveOp`'s, listed below. Those classes can transform `Dimension`s, from those that index the output tensor, to forms that index the original tensors. So this is also kind of bottom-up.
@@ -142,6 +160,7 @@ public:
     virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
     virtual std::size_t opHash() const noexcept = 0;
+    virtual void accept(OpVisitor& visitor) const = 0;
     virtual bool canApplyToInterface(const Dimensions& interface) const = 0;
     virtual Dimensions applyToInterface(const Dimensions& interface) const = 0;
     virtual std::string description(const BindingContext& ctx) const = 0;

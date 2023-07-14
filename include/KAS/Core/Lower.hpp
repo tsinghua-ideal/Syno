@@ -6,7 +6,7 @@
 #include "KAS/Core/DimVisitor.hpp"
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/TensorView.hpp"
 #include "KAS/Utils/Statistics.hpp"
 
 

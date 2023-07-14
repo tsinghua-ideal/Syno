@@ -4,7 +4,7 @@
 namespace kas {
 
 TEST_F(semantics_tests, conv2d) {
-    constexpr int n = 100, c_in = 3, c_out = 16, h = 128, w = 128, k = 5;
+    constexpr int n = 100, c_in = 64, c_out = 96, h = 16, w = 16, k = 3;
 
     using SizeName = BindingContext::Metadata;
     BindingContext ctx { std::vector<SizeName> {
@@ -16,6 +16,7 @@ TEST_F(semantics_tests, conv2d) {
         SizeName { .alias = "C_out", .estimate = c_out },
         SizeName { .alias = "K", .estimate = k },
     } };
+    BindingContext::DebugPublicCtx = &ctx;
     Forward::Factory factory { ctx };
     auto [sizeN, sizeCin, sizeCout, sizeH, sizeW, sizeK] = factory.getSizes("N", "C_in", "C_out", "H", "W", "K");
 
@@ -77,9 +78,15 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
 
     auto funcName = "conv2d";
     auto gvGen = GraphvizGen { tensorView, ctx };
-    gvGen.generate("./kernel_" + std::string(funcName) + "/" + std::string(funcName) + ".dot", funcName);
+    gvGen.generate(fmt::format("./kernel_{0}/{0}.dot", funcName), funcName);
     auto gen = HalideGen { ctx, tensorView, options };
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C_in", c_in}, {"C_out", c_out}, {"K", k}};
+    auto pytorchGen = PyTorchGen { ctx, tensorView };
+    {
+        std::ofstream file(fmt::format("./kernel_{0}/{0}.py", funcName));
+        pytorchGen.generatePrelude(file);
+        pytorchGen.generate(file, funcName, tensorView.getForwardAccess(), tensorView.computeConsts(ctx, mappings));
+    }
     auto in_0 = new float[n][c_in][h][w]();
     auto in_1 = new float[c_out][c_in][k][k]();
     auto out_grad = new float[n][c_out][h][w]();
