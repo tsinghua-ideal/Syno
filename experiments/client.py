@@ -72,7 +72,7 @@ if __name__ == '__main__':
             model.load_kernel(sampler, node)
 
             flops, params = model.profile(args.batch_size)
-            logging.debug(f"Model flops: {flops}, params: {params}")
+            logging.debug(f"Loaded model has {flops} FLOPs per batch and {params} parameters in total. ")
             
             logging.info('Evaluating on real dataset ...')
             _, val_errors = trainer.train(model, train_dataloader, val_dataloader, args)

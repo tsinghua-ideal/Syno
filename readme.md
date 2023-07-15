@@ -17,21 +17,24 @@
 Note: If you are using anaconda to manage your packages, you may also install the dependency via 
 
 ```[language=bash]
-mamba create -n kas python=3.10 gcc=12 gxx=12 clang=16 clangdev llvm llvm-openmp llvmdev lld lit python-clang cmake ninja \
-zlib libpng libzlib \
-cudatoolkit=11.7 cudnn=8.8.0 \
-boost nlohmann_json fmt pybind11 gtest gmock pytest -c conda-forge
+mamba create -n kas python=3.10 gcc=12 gxx=12 clang=16 clangdev llvm llvm-openmp=16 llvmdev lld lit python-clang -c conda-forge
+mamba install cmake ninja -c conda-forge
+mamba install zlib libpng libzlib ncurses -c conda-forge
+mamba install cudatoolkit=11.7 cudnn=8.8.0 -c conda-forge
 mamba install cudatoolkit-dev=11.7 -c conda-forge
 mamba install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
+mamba install boost nlohmann_json fmt pybind11 gtest gmock pytest -c conda-forge
 pip install -r requirements.txt
 ```
+
+HACK: comment line 130-134 in `$CONDA_PATH/envs/kas/include/crt/host_config.h`
 
 ## Build and Run
 
 CMake tests are available.
 
 ```bash
-cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=true -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` .
+cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=true -DCMAKE_CXX_FLAGS="$/home/timsu1104/mambaforge/envs/kas/include" -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` .
 cmake --build build
 cd build && ctest
 ```

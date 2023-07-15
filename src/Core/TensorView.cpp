@@ -153,7 +153,7 @@ std::size_t TensorView::getFLOPs(const ConcreteConsts& consts) const {
     auto fma = std::max<std::size_t>(getUnderlyingTensors().size() - 1, 1);
     bool hasDivBy = forwardAccess.divBy.has_value();
     // FMA + Division
-    return outerLoopsIterations * innerLoopsIterations * fma + hasDivBy;
+    return outerLoopsIterations * (innerLoopsIterations * fma + hasDivBy);
 }
 
 namespace {

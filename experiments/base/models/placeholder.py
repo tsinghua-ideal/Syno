@@ -22,7 +22,7 @@ class LinearPlaceholder(Placeholder):
 
         in_N.output(0)
         w_out_C.output(1)
-        shared_C_in.mean(0)
+        shared_C_in.sum(0)
 
         return assembler.assemble('linear', 'in_0 * in_1', [in_N, in_C], [w_in_C, w_out_C])
 
@@ -75,9 +75,9 @@ class ConvPlaceholder(Placeholder):
         out_C.output(1)
         main_H.output(2)
         main_W.output(3)
-        shared_k_1.mean(0)
-        shared_k_2.mean(1)
-        shared_C_in.mean(2)
+        shared_k_1.sum(0)
+        shared_k_2.sum(1)
+        shared_C_in.sum(2)
 
         return assembler.assemble('conv', 'in_0 * in_1', [in_N, in_C, in_H, in_W], [out_C, w_in_C, w_k_1, w_k_2])
     
