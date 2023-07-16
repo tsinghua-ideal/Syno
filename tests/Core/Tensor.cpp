@@ -41,3 +41,16 @@ R"(for (int i_0 = 0; i_0 < x_0; i_0++) {
     const auto& tensor = tensors[0];
     ASSERT_EQ(tensor.shapeToString(ctx), "[x_0, x_1, c_0, c_1]");
 }
+
+TEST(core_tensor_tests, subgraph) {
+    auto ctx = BindingContext(3, 2);
+    auto [x_0, x_1, x_2, c_0, c_1] = ctx.getSizes("x_0", "x_1", "x_2", "c_0", "c_1");
+    Iterator i_0 { 0, x_0 }, i_1 { 1, x_1 }, i_2 { 2, x_2 };
+    Dimensions interface = { &i_0, &i_1, &i_2 };
+
+    Graph graph = interface.buildGraph();
+    Tensor::Builder tensorBuilder { graph };
+    auto [inputTensors, outputTensor] = tensorBuilder.build({ interface });
+    ASSERT_EQ(inputTensors.size(), 1);
+    ASSERT_EQ(inputTensors[0], outputTensor);
+}

@@ -75,6 +75,8 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
 )");
     fmt::print("Gradient for input:\n{}", tensorView.printNestedLoops(ctx, TensorExpression::Input<0>));
     fmt::print("Gradient for weight:\n{}", tensorView.printNestedLoops(ctx, TensorExpression::Input<1>));
+    auto subgraphs = tensorView.getSubgraphs();
+    ASSERT_EQ(subgraphs.outputTensor.toString(ctx), "(([N, C_in, H, W] -> [N, C_in, K, H, K, W]), [C_out, C_in, K, K] -> [N, C_out, H, W])");
 
     auto funcName = "conv2d";
     auto gvGen = GraphvizGen { tensorView, ctx };

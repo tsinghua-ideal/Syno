@@ -33,7 +33,7 @@
 - [x] Generate metadata along with kernels.
 - [x] Adjust the order of dimensions in weights for better cache locality.
 - [ ] TVM codegen.
-- [ ] PyTorch codegen.
+- [x] PyTorch codegen.
 
 ## Transforms
 
