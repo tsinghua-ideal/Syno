@@ -5,6 +5,7 @@ if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
 from models import get_model
 
+
 def get_model_args(model_name: str, batch_size=1, kas_replace_placeholder=None) -> SimpleNamespace:
     return SimpleNamespace(
         model=model_name, 
@@ -47,6 +48,7 @@ def test_conv_profile(batch_size=1):
     assert params_orig == params_manual, f'Params mismatch: {params_orig} vs {params_manual}'
     
     print("PASSED: test_conv_profile")
+
 
 if __name__ == '__main__':
     test_fc_profile(4)
