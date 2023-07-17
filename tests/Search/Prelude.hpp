@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include "KAS/CodeGen/GraphvizGen.hpp"
+#include "KAS/CodeGen/PyTorchGen.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/Statistics.hpp"
 #include "KAS/Transforms/Forward.hpp"

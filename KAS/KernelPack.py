@@ -199,6 +199,9 @@ class KernelLoader:
             kernel_packs = []
             kernel_name_prefix = self.get_name()
             for i in range(self.get_count_placeholders()):
+                logging.debug(f"For placeholder {i},")
+                logging.debug(f"Consts: {self.get_consts(i)}")
+                logging.debug(f"FLOPs: {self.get_flops(i)}")
                 valid_i = self.get_valid_placeholder_index(i)
                 kernel_name = f"{kernel_name_prefix}_{valid_i}"
                 kernel_packs.append(getattr(kernels, kernel_name)().to(device))

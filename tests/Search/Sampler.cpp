@@ -22,6 +22,7 @@ TEST_F(search_tests, sampler) {
         std::cout << fmt::format("Input Shape: {}", fmt::join(r, ", ")) << std::endl;
         std::cout << tensorView.printNestedLoopsForAll(ctx);
 
+        PyTorchGen(ctx, tensorView).generateSingle("./search_pt/trial_" + std::to_string(i) + ".py", "trial_" + std::to_string(i), tensorView, dict);
         GraphvizGen(tensorView, ctx).generate("./search_viz/trial_" + std::to_string(i) + ".dot", "trial_" + std::to_string(i));
 
         if (doRealization) {

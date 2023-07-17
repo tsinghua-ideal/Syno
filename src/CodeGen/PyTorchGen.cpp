@@ -1,3 +1,5 @@
+#include <fstream>
+
 #include "KAS/CodeGen/PyTorchGen.hpp"
 #include "KAS/Transforms.hpp"
 #include "KAS/Utils/Ranges.hpp"
@@ -14,6 +16,20 @@ std::pair<Dimension, std::size_t> PyTorchGen::SubgraphGen::assignShare(Dimension
 }
 
 std::vector<Dimension> PyTorchGen::SubgraphGen::performContraction(std::string_view name) {
+    KAS_ASSERT(!tensor.isInputTensor());
+    // Consider the special case where we do not need any Share or reduction.
+    if (
+        const auto& inputTensor = tensor.inputs()[0];
+        tensor.inputs().size() == 1 && // We only have one input tensor so we do not need to perform Share
+        std::ranges::none_of(inputTensor.output(), [](const Dimension& dim) {
+            return dim.type() == DimensionType::MapReduce; // and there is no reduction.
+        })
+    ) {
+        printer.writeLn("{} = {}", name, tensorNames.at(inputTensor));
+        printer.writeLn();
+        return inputTensor.output();
+    }
+
     // First we only perform share. Reductions are later considered.
     std::vector<std::pair<Dimension, std::size_t>> realInput;
     std::vector<std::vector<std::size_t>> inputsSubscripts;
@@ -412,6 +428,16 @@ void PyTorchGen::generate(std::ostream& outputStream, std::string_view className
     printer.writeLn();
 
     outputStream << code.str();
+}
+
+void PyTorchGen::generateSingle(const std::filesystem::path& outputPath, std::string_view className, const TensorView& tensorView, const std::map<std::string, std::size_t>& mappings) const {
+    std::filesystem::create_directories(outputPath.parent_path());
+    std::ofstream file { outputPath };
+    PaddedConsts consts;
+    consts.unpadded = ctx.realizeConsts(mappings);
+    consts.padded = tensorView.computePadding(ctx, consts.unpadded);
+    generatePrelude(file);
+    generate(file, className, tensorView.getForwardAccess(), consts);
 }
 
 } // namespace kas

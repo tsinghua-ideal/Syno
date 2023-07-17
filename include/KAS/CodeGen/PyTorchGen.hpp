@@ -166,6 +166,7 @@ public:
     void applyDivision(PythonCodePrinter& printer, const ConcreteConsts& consts, const AbstractAccess& forwardAccess) const;
     void generatePrelude(std::ostream& outputStream) const;
     void generate(std::ostream& outputStream, std::string_view className, const AbstractAccess& forwardAccess, const PaddedConsts& consts) const;
+    void generateSingle(const std::filesystem::path& outputPath, std::string_view className, const TensorView& tensorView, const std::map<std::string, std::size_t>& mappings) const;
 };
 
 } // namespace kas

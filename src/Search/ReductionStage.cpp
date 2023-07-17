@@ -23,7 +23,14 @@ void ReductionStage::expand() {
     }
 
     // Then attempt to generate new reductions.
-    if (existingOp<MapReduceOp>() == options.maximumReductions) {
+    if (
+        existingOp<MapReduceOp>() >= options.maximumReductions
+        || existingOp<MapReduceOp>() >= options.depth
+    ) {
+        if (fin != Finalizability::Maybe) {
+            // No need to propagate because the reductions are built recursively.
+            determineFinalizability(fin, false);
+        }
         return;
     }
 

@@ -17,23 +17,23 @@ class KASModel(nn.Module):
         kernel = sampler.realize(self, node, name)
         kernel_packs = kernel.construct_kernel_packs()
         placeholders = sampler._extract_placeholders(self)
+        assert len(placeholders) == kernel.get_count_placeholders(), f'Kernel {kernel} has {len(kernel.get_count_placeholders())} placeholders, but {len(placeholders)} placeholders are found in the model'
+        flops = []
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
             placeholder.reload(kernel_pack)
+            placeholder.refered_layer = None
             placeholder.set_flops(kernel.get_flops(i))
             placeholder.set_params(sum(weight.numel() for weight in kernel_pack.weights))
+            flops.append(kernel.get_flops(i))
+        assert kernel.get_total_flops() == sum(flops), f'Kernel {kernel} has {kernel.get_total_flops()} flops, but {sum(flops)} flops are found in the model'
 
     def profile(self, batch_size=1) -> Tuple[int, int]:
         # Get statistics (count with batch size = 1)    
         def count_placeholder(m: Placeholder, x, y):
             if m.kernel:
-                m.total_ops += torch.DoubleTensor([int(m.flops)])
-                # TODO: count params
-                m.total_params += torch.DoubleTensor([int(m.params)])
-            # TODO: count refered layer
-            # else:
-            #     refered_flops, refered_params = thop.profile(m.refered_layer, inputs=x)
-            #     m.total_ops += torch.DoubleTensor([int(refered_flops)])
-            #     m.total_params += torch.DoubleTensor([int(refered_params)])
+                m.total_ops += torch.DoubleTensor([m.flops])
+            else:
+                m.total_ops += m.refered_layer.total_ops
 
         sample_input = torch.randn((batch_size, *self.sample_input_shape())).cuda()
         flops, params = thop.profile(self, inputs=(sample_input, ), verbose=False, report_missing=False, custom_ops={
@@ -42,7 +42,7 @@ class KASModel(nn.Module):
             ConvPlaceholder: count_placeholder
         })
         flops = flops // batch_size
-        return flops, params
+        return int(flops), int(params)
 
     @staticmethod
     def sample_input_shape():
