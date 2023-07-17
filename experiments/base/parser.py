@@ -24,12 +24,6 @@ def arg_parse():
                         help='Batch size')
     parser.add_argument('--num-workers', type=int, default=2, metavar='N',
                         help='How many training processes to use')
-    parser.add_argument('--pin-memory', action='store_true', default=True,
-                        help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
-    parser.add_argument('--use-multi-epochs-loader', action='store_true', default=True,
-                        help='Use the multi-epochs-loader to save time at the beginning of every epoch')
-    parser.add_argument('--fetch-all-to-gpu', action='store_true', default=False,
-                        help='Fetch all data to GPU before training')
 
     # Optimizer parameters
     parser.add_argument('--lr', type=float, default=0.1, metavar='LR',

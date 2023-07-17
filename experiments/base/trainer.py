@@ -25,24 +25,22 @@ def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], L
 
     train_errors = []
     val_errors = []
-    start = time.time()
     num_updates = 0
     for epoch in range(sched_epochs):
         # Train
         start_time = time.time()
         model.train()
         loss_meter = AverageMeter()
-        if args.fetch_all_to_gpu:
-            random.shuffle(train_dataloader)
         for i, (image, label) in enumerate(train_dataloader):
             # Forward
+            image, label = image.cuda(), label.cuda()
             logits = model(image)
             loss = loss_func(logits, label)
 
             # Backward
-            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
 
             # Update loss and scheduler
             num_updates += 1
@@ -57,6 +55,7 @@ def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], L
             correct = 0
             total = 0
             for i, (image, label) in enumerate(val_dataloader):
+                image, label = image.cuda(), label.cuda()
                 total += label.size(0)
                 
                 # A hack for the last batch
