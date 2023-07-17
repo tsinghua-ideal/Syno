@@ -27,6 +27,13 @@ def make_random_square_masks(inputs, mask_size):
     return final_mask
 
 
+def batch_cutout(inputs, patch_size):
+    with torch.no_grad():
+        cutout_batch_mask = make_random_square_masks(inputs, patch_size)
+        inputs = torch.where(cutout_batch_mask, torch.zeros_like(inputs), inputs)
+        return inputs
+
+
 def batch_crop(inputs, crop_size):
     with torch.no_grad():
         crop_mask_batch = make_random_square_masks(inputs, crop_size)
@@ -47,6 +54,7 @@ def get_batches(data_dict, key, batch_size, crop_size):
     if key == 'train':
         images = batch_crop(data_dict['images'], crop_size)
         images = batch_flip_lr(images)
+        images = batch_cutout(images, patch_size=3)
     else:
         images = data_dict['images']
     labels = data_dict['labels']
