@@ -17,7 +17,7 @@ class KASModel(nn.Module):
         kernel = sampler.realize(self, node, name)
         kernel_packs = kernel.construct_kernel_packs()
         placeholders = sampler._extract_placeholders(self)
-        assert len(placeholders) == kernel.get_count_placeholders(), f'Kernel {kernel} has {len(kernel.get_count_placeholders())} placeholders, but {len(placeholders)} placeholders are found in the model'
+        assert len(placeholders) == kernel.get_count_placeholders(), f'Kernel {kernel} has {kernel.get_count_placeholders()} placeholders, but {len(placeholders)} placeholders are found in the model'
         flops = []
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
             placeholder.reload(kernel_pack)

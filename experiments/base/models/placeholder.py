@@ -34,27 +34,10 @@ class LinearPlaceholder(Placeholder):
         return {'N': n, 'C_in': in_features, 'C_out': out_features}
 
 
-class ConvGen(nn.Module):
-    def __init__(self, ic, oc, k):
-        super().__init__()
-        self.k = k
-        self.w = nn.Parameter(torch.randn(oc, ic, k, k))
-        nn.init.trunc_normal_(self.w, std=.1)
-
-    def forward(self, x):
-        n, c, h, w = x.size()
-        x = F.unfold(x, (self.k, 1), padding=((self.k - 1) // 2, 0))
-        x = x.view(n, c * self.k, h, w)
-        x = F.unfold(x, (1, self.k), padding=(0, (self.k - 1) // 2))
-        x = x.view(n, c, self.k, self.k, h, w)
-        return torch.einsum('nxijab,yxij->nyab', x, self.w) / (self.k ** 2)
-
-
 class ConvPlaceholder(Placeholder):
     def __init__(self, in_features, out_features, kernel_size) -> None:
         super(ConvPlaceholder, self).__init__(
             refered_layer=nn.Conv2d(in_features, out_features, kernel_size, bias=False, padding='same'),
-            # refered_layer=ConvGen(in_features, out_features, kernel_size),
             mapping_func=ConvPlaceholder.mapping
         )
 

@@ -1,7 +1,6 @@
 import logging
 import torch
 import time
-import random
 from typing import Tuple, List
 from timm.utils import AverageMeter
 
