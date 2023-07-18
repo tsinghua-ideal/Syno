@@ -58,7 +58,7 @@ def arg_parse():
                         type=int, help='KAS sampler depth')
     parser.add_argument('--kas-max-tensors', default=3,
                         type=int, help='KAS sampler maximum tensors')
-    parser.add_argument('--kas-max-reductions', default=6,
+    parser.add_argument('--kas-max-reductions', default=4,
                         type=int, help='KAS sampler maximum reductions')
     parser.add_argument('--kas-min-dim', default=1,
                         type=int, help='KAS sampler minimum dimensions')
