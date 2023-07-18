@@ -13,14 +13,14 @@ class KASModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()
     
-    def load_kernel(self, sampler: KAS.Sampler, node: KAS.Node, name: str=None):
+    def load_kernel(self, sampler: KAS.Sampler, node: KAS.Node, name: str=None, compile=False):
         kernel = sampler.realize(self, node, name)
         kernel_packs = kernel.construct_kernel_packs()
         placeholders = sampler._extract_placeholders(self)
         assert len(placeholders) == kernel.get_count_placeholders(), f'Kernel {kernel} has {kernel.get_count_placeholders()} placeholders, but {len(placeholders)} placeholders are found in the model'
         flops = []
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
-            placeholder.reload(kernel_pack)
+            placeholder.reload(kernel_pack, compile)
             placeholder.refered_layer = None
             placeholder.set_flops(kernel.get_flops(i))
             placeholder.set_params(sum(weight.numel() for weight in kernel_pack.weights))

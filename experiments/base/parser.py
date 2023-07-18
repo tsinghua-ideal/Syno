@@ -10,7 +10,7 @@ def arg_parse():
 
     # Model
     parser.add_argument('--model', type=str, default='FCNet')
-    parser.add_argument('--compile', type=bool, action='store_true', default=False, help='Compile kernel')
+    parser.add_argument('--compile', action='store_true', default=False, help='Compile kernel')
 
     # Dataset
     parser.add_argument('--dataset', type=str, default='torch/mnist')
