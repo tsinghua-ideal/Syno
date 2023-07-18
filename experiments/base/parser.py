@@ -49,7 +49,7 @@ def arg_parse():
     parser.add_argument('--cooldown-epochs', type=int, default=5, metavar='N',
                         help='Epochs to cooldown LR at min_lr, after cyclic schedule ends')
     parser.add_argument('--decay-rate', type=float, default=0.1, metavar='RATE', help='LR decay rate')
-    parser.add_argument('--decay-milestones', default=[35, 65], nargs='+', metavar='RATE', help='LR decay milestones')
+    parser.add_argument('--decay-milestones', type=int, default=[35, 65], nargs='+', metavar='RATE', help='LR decay milestones')
     
     # KAS preferences
     parser.add_argument('--kas-replace-placeholder', type=str, default=None)

@@ -9,7 +9,7 @@ from KAS.Placeholder import build_placeholder_mappings
 
 from . import placeholder
 from .model import KASModel
-from .conv_net import ConvNet
+from .conv_net import ConvNet, SpeedyResNet
 from .fc_net import FCNet
 
 

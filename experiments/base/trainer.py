@@ -39,13 +39,15 @@ def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], L
 
             # Backward
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(parameters=model.parameters(), max_norm=5., norm_type=2)
             optimizer.step()
             optimizer.zero_grad(set_to_none=True)
 
             # Update loss and scheduler
             num_updates += 1
             loss_meter.update(loss.item(), image.size(0))
-            scheduler.step_update(num_updates=num_updates, metric=loss_meter.avg)
+            scheduler.step_update(num_updates=num_updates)
+        scheduler.step(epoch=epoch + 1)
         elapsed_train_time = time.time() - start_time
 
         # Valiation
