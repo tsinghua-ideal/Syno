@@ -1,2 +1,2 @@
-rm -rf sampler-results
-python server.py --model FCNet --batch-size 512 "$@"
+rm -rf .scheduler-cache
+python server.py "$@"
