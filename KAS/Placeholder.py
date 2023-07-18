@@ -18,7 +18,7 @@ class Placeholder(nn.Module):
         self.build_mapping_mode = False
 
     def reload(self, kernel: KernelPack, compile=False) -> None:
-        self.kernel = torch.compile(kernel, backend='inductor', mode='reduce-overhead', dynamic=False, fullgraph=True) if compile else kernel
+        self.kernel = torch.compile(kernel, backend='inductor', dynamic=False, fullgraph=False) if compile else kernel
 
     def set_flops(self, flops: int) -> None:
         self.flops = flops

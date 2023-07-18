@@ -13,6 +13,7 @@ from .models import KASModel
 def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], List[float]]:
     assert isinstance(model, KASModel)
     torch.backends.cudnn.benchmark = True
+    torch.set_float32_matmul_precision('high')
     assert torch.cuda.is_available(), 'CUDA is not supported.'
     model.cuda()
     model.initialize_weights()
