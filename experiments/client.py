@@ -69,10 +69,11 @@ if __name__ == '__main__':
                 continue
             
             # Evaluate on a dataset
-            model.load_kernel(sampler, node)
+            model.load_kernel(sampler, node, compile=args.compile)
 
-            flops, params = model.profile(args.batch_size)
-            logging.debug(f"Loaded model has {flops} FLOPs per batch and {params} parameters in total. ")
+            # TODO: conflict with torch.compile
+            # flops, params = model.profile(args.batch_size)
+            # logging.debug(f"Loaded model has {flops} FLOPs per batch and {params} parameters in total. ")
             
             logging.info('Evaluating on real dataset ...')
             _, val_errors = trainer.train(model, train_dataloader, val_dataloader, args)

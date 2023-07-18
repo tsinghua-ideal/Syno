@@ -2,5 +2,5 @@
 while true
 do
     python client.py "$@"
-    sleep 60s
+    sleep 5s
 done

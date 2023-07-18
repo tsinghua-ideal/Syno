@@ -80,5 +80,11 @@ def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], L
             logging.info(f'Inference time limit reached, stopping training ...')
             break
 
+        # Temporary hack
+        # TODO: make a pruning file
+        if epoch == 9 and 1 - min(val_errors) < 0.6:
+            logging.info(f'Accuracy too low, pruning ...')
+            break
+
     logging.info(f'Training completed, accuracy: {1 - min(val_errors)}')
     return train_errors, val_errors

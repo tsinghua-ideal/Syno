@@ -17,10 +17,6 @@ def arg_parse():
     parser.add_argument('--root', type=str, default='~/data')
     parser.add_argument('--seed', type=int, default=42, metavar='S',
                         help='Random seed (default: 42)')
-    parser.add_argument('--mean', type=float, nargs='+', default=IMAGENET_DEFAULT_MEAN, metavar='MEAN',
-                        help='Mean pixel value of dataset')
-    parser.add_argument('--std', type=float, nargs='+', default=IMAGENET_DEFAULT_STD, metavar='STD',
-                        help='Variance of pixel value of dataset')
     parser.add_argument('--batch-size', type=int, default=128, metavar='N', 
                         help='Batch size')
     parser.add_argument('--num-workers', type=int, default=2, metavar='N',
@@ -54,7 +50,7 @@ def arg_parse():
     
     # KAS preferences
     parser.add_argument('--kas-replace-placeholder', type=str, default=None)
-    parser.add_argument('--kas-depth', default=10,
+    parser.add_argument('--kas-depth', default=8,
                         type=int, help='KAS sampler depth')
     parser.add_argument('--kas-max-tensors', default=3,
                         type=int, help='KAS sampler maximum tensors')
@@ -85,7 +81,7 @@ def arg_parse():
     parser.add_argument('--kas-mock-evaluate', action='store_true', default=False, help='Mock evaluate')
     parser.add_argument('--kas-retry-interval', default=10, type=float, help='Client retry time interval')
     parser.add_argument('--kas-mcts-explorer-path', default='state.json', type=str, help='MCTS explorer path')
-    parser.add_argument('--kas-inference-time-limit', default=None, type=float, help='Inference time limit (in seconds)')
+    parser.add_argument('--kas-inference-time-limit', default=10, type=float, help='Inference time limit (in seconds)')
 
     args = parser.parse_args()
 
@@ -95,5 +91,9 @@ def arg_parse():
     # Print
     args_str = "\n  > ".join([f"{k}: {v}" for k, v in vars(args).items()])
     logging.info(f'Execution arguments: \n  > {args_str}')
+
+    if args.compile:
+        import torch._dynamo.config
+        torch._dynamo.config.suppress_errors = True
 
     return args

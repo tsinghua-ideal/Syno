@@ -5,7 +5,7 @@ from KAS.Node import Path
 
 class BeamAlgorithm:
     max_queue_size = 300
-    max_estimates = 8
+    max_estimates = 4
     max_final_iterations = 100000
     max_retries = 100
 
