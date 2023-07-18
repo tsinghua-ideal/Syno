@@ -54,15 +54,15 @@ def arg_parse():
     
     # KAS preferences
     parser.add_argument('--kas-replace-placeholder', type=str, default=None)
-    parser.add_argument('--kas-depth', default=6,
+    parser.add_argument('--kas-depth', default=10,
                         type=int, help='KAS sampler depth')
     parser.add_argument('--kas-max-tensors', default=3,
                         type=int, help='KAS sampler maximum tensors')
-    parser.add_argument('--kas-max-reductions', default=4,
+    parser.add_argument('--kas-max-reductions', default=6,
                         type=int, help='KAS sampler maximum reductions')
     parser.add_argument('--kas-min-dim', default=1,
                         type=int, help='KAS sampler minimum dimensions')
-    parser.add_argument('--kas-max-dim', default=8,
+    parser.add_argument('--kas-max-dim', default=12,
                         type=int, help='KAS sampler maximum dimensions')
     parser.add_argument('--kas-scheduler-cache-dir', default='.scheduler-cache',
                         help='KAS sampler saving directory')

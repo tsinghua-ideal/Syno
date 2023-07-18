@@ -84,6 +84,7 @@ class Session:
 
         # Update with reward
         reward = ((max(accuracy, self.reward_trunc) - self.reward_trunc) / (1 - self.reward_trunc)) ** self.reward_power if accuracy > 0 else -1
+        logging.info(f'Updating with reward {reward} ...')
         self.algo.update(path, reward)
 
     def sample(self):
