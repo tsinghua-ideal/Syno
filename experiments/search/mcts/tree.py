@@ -17,7 +17,7 @@ from .avg_meter import AverageMeter
 MockArc = Union[Next, Arc]
 
 class MCTSTree:
-    def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20, policy: str='update-descent') -> None:
+    def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20, policy: str='update-descent', max_final_iterations=500) -> None:
 
         self._treenode_store: Dict[Node, TreeNode] = dict()
         self._root = sampler.visit([]).to_node()
@@ -30,6 +30,7 @@ class MCTSTree:
         self._c_l = c_l
         self._b = b
         self._policy = policy
+        self._max_final_iterations = max_final_iterations
         assert policy in ['update-all', 'update-descent']
         random.seed(sampler._seed)
 
@@ -152,10 +153,21 @@ class MCTSTree:
         # Simulate
         leaves = []
         logging.debug(f"Simulation start")
-        leaf_expanded._node.expand_async(3)
+        retry_count = 0
+        power = 0
         while not leaf_expanded.is_dead_end(self._treenode_store):
             leaf_simul = self._simulate(path, leaf_expanded)
-            if leaf_simul is None: continue
+            if leaf_simul is None: # Encountered dead end
+                retry_count += 1
+                if retry_count == 10 ** power:
+                    power = power + 1
+                    leaf_expanded._node.expand_async(power) # expand a level deeper in the background
+                if retry_count == self._max_final_iterations:
+                    logging.debug(f"Force {leaf_expanded} to be dead because simulate failed for too many times. ")
+                    leaf_expanded._is_dead = True
+                    assert leaf_expanded.is_dead_end(self._treenode_store)
+                continue
+            
             leaves.append(leaf_simul)
             if len(leaves) == self.leaf_num:
                 break
@@ -553,11 +565,13 @@ class MCTSTree:
             leaf_num=self.leaf_num,
             exploration_weight=self._exploration_weight,
             b=self._b,
-            c_l=self._c_l
+            c_l=self._c_l,
+            policy=self._policy,
+            max_final_iterations=self._max_final_iterations,
         )
         j = dict(
             node_list=node_list,
-            args=packed_args
+            args=packed_args,
         )
         logging.debug("Serialized.")
         return j
