@@ -5,9 +5,9 @@ from KAS.Node import Path
 
 
 class BeamAlgorithm:
-    max_queue_size = 300
+    max_queue_size = 1000
     max_estimates = 5
-    max_final_iterations = 300
+    max_final_iterations = 500
 
     def __init__(self, sampler: Sampler, args):
         self.sampler = sampler
@@ -60,8 +60,8 @@ class BeamAlgorithm:
             max_reward, issued_ests = self.score[ancestor_path]
             self.score[ancestor_path] = (max(max_reward, reward), issued_ests)
 
-            # Maintain the heap
-            self.heap = sorted(self.heap, key=lambda x: self.score[x][0])
+        # Maintain the heap
+        self.heap = sorted(self.heap, key=lambda x: self.score[x][0])
         del self.ancestors[path]
 
     def get_all_ests_to_issue(self, serialized_path: str):
