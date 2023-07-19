@@ -26,8 +26,7 @@ class BeamAlgorithm:
         self.push_heap(self.sampler.root().path)
         
     def serialize(self):
-        # TODO: implement
-        return {}
+        return {'heap': self.heap, 'score': self.score, 'cached': self.cached}
     
     def push_heap(self, path: Path):
         if path is None:
@@ -67,6 +66,8 @@ class BeamAlgorithm:
     def get_all_ests_to_issue(self, serialized_path: str):
         path = Path.deserialize(serialized_path)
         node = self.sampler.visit(path)
+        if node is None:
+            return set()
 
         estimates = set()
         if node.is_final():
