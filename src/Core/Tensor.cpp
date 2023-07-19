@@ -104,7 +104,7 @@ Subgraphs Tensor::Builder::build(const std::vector<std::vector<Dimension>>& rawI
         workingTensors.erase(removeBegin, removeEnd);
         workingTensors.insert(workingTensors.begin(), std::move(contractedTensor));
         ++counter;
-        KAS_ASSERT(counter < 10, "Too many contractions!");
+        KAS_ASSERT(counter < 20, "Too many contractions!");
     }
 
     // Great! We are done.
@@ -152,7 +152,22 @@ Tensor TensorImpl::CreateTensorView(Tensor::Builder& builder, const std::vector<
     // We cannot determine the output yet.
     Tensor result = std::shared_ptr<TensorImpl>(new TensorImpl(inputs, std::vector<Dimension>{}));
 
-    bool anyProgressAtAll = inputs.size() > 1;
+    // First mark as ours.
+    for (const auto& dim: interface) {
+        builder.owner.insert_or_assign(dim, result);
+    }
+
+    bool anyProgressAtAll;
+    if (inputs.size() == 1) {
+        // If we have performed some intra-tensor contraction, i.e., taking the diagonal entries, this is also a progress.
+        auto interfaceCopy = interface;
+        std::ranges::sort(interfaceCopy, Dimension::AddressLessThan{});
+        auto inputTensorCopy = inputs[0].output();
+        std::ranges::sort(inputTensorCopy, Dimension::AddressLessThan{});
+        anyProgressAtAll = interfaceCopy != inputTensorCopy;
+    } else {
+        anyProgressAtAll = true;
+    }
     // Although we have contracted the tensors, we actually need to do the reductions.
     std::size_t beforeReduction = interface.size();
     auto [removeBegin, removeEnd] = std::ranges::remove_if(interface, [](const Dimension& dim) {
@@ -211,14 +226,15 @@ Tensor TensorImpl::CreateTensorView(Tensor::Builder& builder, const std::vector<
         }
         void visit(Dimension dim, bool isSource) {
             if (!isSource) {
-                if (builder.owner.contains(dim)) {
+                auto [_, isNewlyExpanded] = builder.owner.emplace(dim, newTensor);
+                if (!isNewlyExpanded) {
                     // Visited.
                     return;
                 }
                 hasProgress = true;
+            } else {
+                KAS_ASSERT(builder.owner.at(dim) == newTensor);
             }
-            // Mark as ours.
-            builder.owner.insert_or_assign(dim, newTensor);
             // Match.
             DimVisitor::visit(dim);
         }
