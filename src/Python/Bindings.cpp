@@ -220,11 +220,11 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("get_possible_path", &Node::getPossiblePath)
         .def("get_composing_arcs", &Node::getComposingArcs)
         .def(
-            "expand", &Node::expand,
+            "expand", &Node::expandSync,
             pybind11::arg("layers")
         )
         .def(
-            "expand_async", &Node::expandAsync,
+            "expand_async", &Node::expand,
             pybind11::arg("layers")
         )
         .def(

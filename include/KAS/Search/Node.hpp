@@ -9,9 +9,9 @@
 
 #include <fmt/core.h>
 
-#include <KAS/Transforms.hpp>
 #include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Transforms.hpp"
 #include "KAS/Utils/Hash.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
@@ -393,8 +393,8 @@ public:
     Node getChildFromArc(Arc arc) const;
     std::vector<Next> getPossiblePath() const;
     std::vector<Arc> getComposingArcs() const;
+    void expandSync(int layers) const;
     void expand(int layers) const;
-    void expandAsync(int layers) const;
     std::optional<std::string> getChildDescription(Next next) const;
     bool isFinal() const { return type() == Type::Final; }
     bool isDeadEnd() const;

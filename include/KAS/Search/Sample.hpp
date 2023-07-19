@@ -44,10 +44,10 @@ struct SampleOptions {
 
     std::string expressionOneTensor = "in_0";
     std::string expressionTwoTensors = "in_0 * in_1";
-    std::string expressionThreeTensors = "in_0 * in_1 + in_2";
-    std::string expressionFourTensors = "in_0 * in_1 * in_2 + in_3";
+    std::string expressionThreeTensors = "in_0 * in_1 * in_2";
+    std::string expressionFourTensors = "in_0 * in_1 * in_2 * in_3";
     std::size_t maximumFinalizations = 5;
-    bool allowWeightPermutation = true;
+    bool allowWeightPermutation = false;
 
     // These might better be the same.
     std::size_t maxStridedDimSize = 30;

@@ -50,7 +50,7 @@ std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const Di
     ++CountGenerateInvocations;
 
     using enum DimensionTypeWithOrder;
-    std::vector<DimensionTypeWithOrder> disallows { MapReduce, ShareR, Shift };
+    std::vector<DimensionTypeWithOrder> disallows { MapReduce, ShareL, ShareR, Shift };
     if (options.disallowShiftAboveUnfold) disallows.push_back(Unfold);
     auto plausible = interface.filterOut(disallows);
 
