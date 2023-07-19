@@ -260,7 +260,8 @@ class TreeNode:
             if self._is_mid:
                 assert isinstance(next, int)
                 arc = self._node.get_arc_from_handle(Next(self._type, next))
-                assert arc is not None
+                if arc is None: # the next is already dead
+                    return -1
             else:
                 assert isinstance(next, Next.Type)
                 arc = next
@@ -272,7 +273,11 @@ class TreeNode:
             logging.debug("No new children to be added")
             assert self.is_fully_in_tree(factory), f"{self} is not fully expanded but no children can be revealed"
             return False
-        _, child, _ = max(unrevealed_children, key=rave)
+        key = max(unrevealed_children, key=rave)
+        if rave(key) == -1:
+            logging.debug("No new children to be added")
+            return False
+        _, child, _ = key
         child._isin_tree = True
         return True
 
@@ -433,7 +438,11 @@ class TreeNode:
         if self._is_mid:
             for handle in self._node.get_children_handles():
                 if handle.type == self._type:
-                    child = self._node.get_child(Next(self._type, handle.key))
+                    try:
+                        child = self._node.get_child(Next(self._type, handle.key))
+                    except RuntimeError as e:
+                        logging.debug(f"Runtime error: {self._node} {self._node.get_possible_path()} {Next(self._type, handle.key)}")
+                        raise e
                     if child and (child not in factory or not factory[child]._is_dead):
                         return False
             self._is_dead = True
