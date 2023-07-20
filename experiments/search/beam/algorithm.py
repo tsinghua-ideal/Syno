@@ -1,4 +1,5 @@
 import logging
+import random
 from typing import List, Tuple, Dict
 from KAS.Sampler import Sampler
 from KAS.Node import Path
@@ -10,6 +11,7 @@ class BeamAlgorithm:
     max_final_iterations = 1000
     expand_async_threshold = 50
     expand_async_layers = 4
+    noise_weight = 0.2
 
     def __init__(self, sampler: Sampler, args):
         self.sampler = sampler
@@ -30,6 +32,10 @@ class BeamAlgorithm:
     def serialize(self):
         return {'heap': self.heap, 'score': self.score, 'cached': self.cached}
     
+    def sort_heap(self):
+        # With noise
+        self.heap = sorted(self.heap, key=lambda x: self.score[x][0] * (1 - self.noise_weight) + random.random() * self.noise_weight)
+
     def push_heap(self, path: Path):
         if path is None:
             return
@@ -43,7 +49,7 @@ class BeamAlgorithm:
         logging.info(f'Pushing path({path}) to heap ...')
         self.score[path] = (0, self.max_estimates)
         self.heap.append(path)
-        self.heap = sorted(self.heap, key=lambda x: self.score[x][0])
+        self.sort_heap()
         if len(self.heap) > self.max_queue_size:
             self.heap.pop(0)
         assert len(self.heap) <= self.max_queue_size
@@ -62,7 +68,7 @@ class BeamAlgorithm:
             self.score[ancestor_path] = (max(max_reward, reward), issued_ests)
 
         # Maintain the heap
-        self.heap = sorted(self.heap, key=lambda x: self.score[x][0])
+        self.sort_heap()
         del self.ancestors[path]
 
     def get_all_ests_to_issue(self, serialized_path: str):
