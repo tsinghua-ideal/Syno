@@ -7,7 +7,9 @@ from KAS.Node import Path
 class BeamAlgorithm:
     max_queue_size = 1000
     max_estimates = 5
-    max_final_iterations = 500
+    max_final_iterations = 1000
+    expand_async_threshold = 50
+    expand_async_layers = 4
 
     def __init__(self, sampler: Sampler, args):
         self.sampler = sampler
@@ -73,13 +75,19 @@ class BeamAlgorithm:
         if node.is_final():
             estimates.add(serialized_path)
         else:
+            counter = 0
             for _ in range(self.score[serialized_path][1]):
                 new_node = None
                 for __ in range(self.max_final_iterations):
-                    node = self.sampler.random_node_with_prefix(path)
-                    if node and node.is_final() and not node.is_dead_end():
-                        new_node = node
+                    final_node = self.sampler.random_node_with_prefix(path)
+                    if final_node and final_node.is_final() and not final_node.is_dead_end():
+                        new_node = final_node
                         break
+                    
+                    counter += 1
+                    if counter == self.expand_async_threshold:
+                        logging.debug(f'Expand async: {path} ...')
+                        node.expand_async(self.expand_async_layers)
                 if new_node:
                     estimates.add(new_node.path.serialize())
         return estimates

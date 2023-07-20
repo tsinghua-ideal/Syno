@@ -82,6 +82,7 @@ def arg_parse():
     parser.add_argument('--kas-retry-interval', default=10, type=float, help='Client retry time interval')
     parser.add_argument('--kas-mcts-explorer-path', default='state.json', type=str, help='MCTS explorer path')
     parser.add_argument('--kas-inference-time-limit', default=10, type=float, help='Inference time limit (in seconds)')
+    parser.add_argument('--kas-expand-workers', default=40, type=int, help='Number of workers for expanding')
 
     args = parser.parse_args()
 
