@@ -2,6 +2,7 @@
 
 #include "KAS/Core/Lower.hpp"
 #include "KAS/Core/TensorView.hpp"
+#include "KAS/Transforms.hpp"
 
 
 using namespace kas;
@@ -53,4 +54,20 @@ TEST(core_tensor_tests, subgraph) {
     auto [inputTensors, outputTensor] = tensorBuilder.build({ interface });
     ASSERT_EQ(inputTensors.size(), 1);
     ASSERT_EQ(inputTensors[0], outputTensor);
+}
+
+TEST(core_tensor_tests, subgrapha_diagonal) {
+    auto ctx = BindingContext(2, 0);
+    BindingContext::DebugPublicCtx = &ctx;
+    auto [x_0, x_1] = ctx.getSizes("x_0", "x_1");
+    Iterator i_0 { 0, x_0 };
+    MapReduce i_1 { 0, x_1, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
+    ShareOp shareOp { &i_1 };
+    Dimensions interface = { &i_0, shareOp.getInputL(), shareOp.getInputR() };
+
+    Graph graph = interface.buildGraph();
+    Tensor::Builder tensorBuilder { graph };
+    auto [inputTensors, outputTensor] = tensorBuilder.build({ interface });
+    ASSERT_EQ(inputTensors.size(), 1);
+    ASSERT_EQ(outputTensor.toString(ctx), "([x_0, x_1, x_1] -> [x_0])");
 }

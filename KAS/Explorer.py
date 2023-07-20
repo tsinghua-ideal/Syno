@@ -1,5 +1,6 @@
 import os
 import re
+from typing import List, Optional
 
 from .Bindings import Next
 from .Node import Path, Node
@@ -17,10 +18,54 @@ class Explorer:
     def _add_node(self, node):
         self._collected.add(node.to_node())
 
-    def _expand(self, fro: Node, depth: int) -> None:
-        fro.expand(depth)
+    def _info(self, node: Node) -> None:
+        print(f"Node: {node.to_node()}")
+        print(f"\tis_terminal: {node.is_terminal()}")
+        print(f"\tis_final: {node.is_final()}")
+        print(f"\tis_dead_end: {node.is_dead_end()}")
+        print(f"\tdiscovered_final_descendant: {node.discovered_final_descendant()}")
+        print(f"Children summary: {node.get_children_types()}")
 
-    def interactive(self, working_dir: str = '.') -> None:
+    def _children(self, node: Node, ty: Optional[Next.Type]) -> None:
+        print("Children:")
+        to_print = filter(lambda x: ty is None or x.type == ty, node.get_children_handles())
+        for child in to_print:
+            child_node = node.get_child(child)
+            if child_node is None:
+                continue
+            self._add_node(child_node)
+            print(f"\t{child}:\t{node.get_child_description(child)}")
+
+    def _collected(self) -> None:
+        print(f"Collected in total {len(self._collected)} nodes.")
+        print(f"Among which,")
+        final = list(filter(lambda x: x.is_final(), self._collected))
+        print(f"\t{len(final)} are final.")
+
+    def _deadend(self) -> None:
+        dead_ends = list(filter(lambda x: x.is_dead_end(), self._collected))
+        print(f"\t{len(dead_ends)} are dead ends.")
+
+    def _expand(self, node: Node, depth: int) -> None:
+        node.expand(depth)
+        print(f"Expanded {depth} layers from current node.")
+
+    def _graphviz(self, node: Node, working_dir: os.PathLike) -> None:
+        # generate graphviz file and print it
+        file_name = os.path.join(working_dir, 'preview.dot')
+        node.generate_graphviz(file_name, "preview")
+        print(f"Generated as {file_name}.")
+
+    def _visit(self, path: Path, suffix: List[Next]) -> None:
+        for next in suffix:
+            path.append(next)
+
+    def _composing(self, node: Node) -> None:
+        print("Composing arcs:")
+        for arc in node.get_composing_arcs():
+            print(f"\t{arc}")
+
+    def interactive(self, working_dir: os.PathLike = '.') -> None:
         """
         Interactive exploration.
         The current path is displayed.
@@ -52,12 +97,7 @@ class Explorer:
                 if current_node is None:
                     print("Error: this node does not exist.")
                     continue
-                print(f"Node: {current_node.to_node()}")
-                print(f"\tis_terminal: {current_node.is_terminal()}")
-                print(f"\tis_final: {current_node.is_final()}")
-                print(f"\tis_dead_end: {current_node.is_dead_end()}")
-                print(f"\tdiscovered_final_descendant: {current_node.discovered_final_descendant()}")
-                print(f"Children summary: {current_node.get_children_types()}")
+                self._info(current_node)
             elif command.startswith("children"):
                 if current_node is None:
                     print("Error: this node does not exist.")
@@ -70,23 +110,11 @@ class Explorer:
                     except:
                         print("Invalid type.")
                         continue
-                # list all children
-                print("Children:")
-                to_print = filter(lambda x: ty is None or x.type == ty, current_node.get_children_handles())
-                for child in to_print:
-                    child_node = current_node.get_child(child)
-                    if child_node is None:
-                        continue
-                    self._add_node(child_node)
-                    print(f"\t{child}:\t{current_node.get_child_description(child)}")
+                self._children(current_node, ty)
             elif command == "collected":
-                print(f"Collected in total {len(self._collected)} nodes.")
-                print(f"Among which,")
-                final = list(filter(lambda x: x.is_final(), self._collected))
-                print(f"\t{len(final)} are final.")
+                self._collected()
             elif command == "deadend":
-                dead_ends = list(filter(lambda x: x.is_dead_end(), self._collected))
-                print(f"\t{len(dead_ends)} are dead ends.")
+                self._deadend()
             elif command.startswith("expand"):
                 # expand the current node
                 if current_node is None:
@@ -101,20 +129,16 @@ class Explorer:
                         print("Invalid depth.")
                         continue
                 self._expand(current_node, depth)
-                print(f"Expanded {depth} layers from current node.")
             elif command == "graphviz":
                 if current_node is None:
                     print("Error: this node does not exist.")
                     continue
-                # generate graphviz file and print it
-                file_name = os.path.join(working_dir, 'preview.dot')
-                current_node.generate_graphviz(file_name, "preview")
-                print(f"Generated as {file_name}.")
+                self._graphviz(current_node, working_dir)
             elif command.startswith("visit"):
                 if current_node is None:
                     print("Error: this node does not exist.")
                     continue
-                # go to child node
+                suffix = []
                 try:
                     # support multiple comma separated
                     sequence = list(filter(None, command.split(' ', 1)))[1]
@@ -123,16 +147,21 @@ class Explorer:
                         next_type, key = next_string.split('(')
                         key = int(key.split(')')[0])
                         next = Next(self._serializer.deserialize_type(next_type), key)
-                        path.append(next)
+                        suffix.append(next)
                 except:
                     print("Invalid command.")
+                self._visit(path, suffix)
+            elif command.startswith("goto"):
+                if current_node is None:
+                    print("Error: this node does not exist.")
+                    continue
+                serialized = command.split(' ', 1)[1]
+                path = Path.deserialize(serialized)
             elif command == "composing":
                 if current_node is None:
                     print("Error: this node does not exist.")
                     continue
-                print("Composing arcs:")
-                for arc in current_node.get_composing_arcs():
-                    print(f"\t{arc}")
+                self._composing(current_node)
             elif command == "back":
                 # go back to parent node
                 path.pop()

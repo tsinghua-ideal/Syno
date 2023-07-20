@@ -11,23 +11,38 @@ std::pair<std::vector<Tensor>, std::vector<Dimension>> Tensor::Builder::findTens
     for (const Dimension& dim: tensor.output()) {
         // They must be ours.
         KAS_ASSERT(owner.at(dim) == tensor);
-        if (
-            dim.type() == DimensionType::Share // We need to find the Share block.
-            && !contractedDimensions.contains(dim) // We have not done this.
-        ) {
-            auto discoverer = ShareBlockDiscoverer(graph, dim, [&](const Dimension& d) {
-                auto [_, inserted] = contractedDimensions.emplace(d);
-                KAS_ASSERT(inserted, "Cannot contract a dimension twice!");
-                if (auto it = owner.find(d); it != owner.end()) {
-                    // Maybe we have find another tensor to contract!
-                    if (std::ranges::find(contractedTensors, it->second) == contractedTensors.end()) {
-                        // Collect the tensors to contract.
-                        contractedTensors.emplace_back(it->second);
+        if (dim.type() == DimensionType::Share) { // We need to find the Share block.
+            if (!contractedDimensions.contains(dim)) {// We have not done this.
+                bool rollback = false;
+                const std::size_t previouslyContractedTensors = contractedTensors.size();
+                auto discoverer = ShareBlockDiscoverer(graph, dim, [&](const Dimension& d) {
+                    auto [_, inserted] = contractedDimensions.emplace(d);
+                    KAS_ASSERT(inserted, "Cannot contract a dimension twice!");
+                    if (auto it = owner.find(d); it != owner.end()) {
+                        // Maybe we have find another tensor to contract!
+                        if (std::ranges::find(contractedTensors, it->second) == contractedTensors.end()) {
+                            // Collect the tensors to contract.
+                            contractedTensors.emplace_back(it->second);
+                        }
+                    } else {
+                        // It seems that there are still some unreached dimensions!
+                        // Roll back! This cannot be contracted!
+                        rollback = true;
                     }
+                });
+                if (!rollback) {
+                    // Substitute the dimension with the contracted one.
+                    interface.emplace_back(discoverer.traverse());
+                } else {
+                    KAS_DEBUG("Rolling back...");
+                    // Undo all the changes.
+                    ShareBlockDiscoverer(graph, dim, [&](const Dimension& d) {
+                        contractedDimensions.erase(d);
+                    }).traverse();
+                    contractedTensors.resize(previouslyContractedTensors);
+                    interface.emplace_back(dim);
                 }
-            });
-            // Substitute the dimension with the contracted one.
-            interface.emplace_back(discoverer.traverse());
+            }
         } else {
             interface.emplace_back(dim);
         }
@@ -89,7 +104,7 @@ Subgraphs Tensor::Builder::build(const std::vector<std::vector<Dimension>>& rawI
         workingTensors.erase(removeBegin, removeEnd);
         workingTensors.insert(workingTensors.begin(), std::move(contractedTensor));
         ++counter;
-        KAS_ASSERT(counter < 10, "Too many contractions!");
+        KAS_ASSERT(counter < 20, "Too many contractions!");
     }
 
     // Great! We are done.
@@ -137,7 +152,22 @@ Tensor TensorImpl::CreateTensorView(Tensor::Builder& builder, const std::vector<
     // We cannot determine the output yet.
     Tensor result = std::shared_ptr<TensorImpl>(new TensorImpl(inputs, std::vector<Dimension>{}));
 
-    bool anyProgressAtAll = inputs.size() > 1;
+    // First mark as ours.
+    for (const auto& dim: interface) {
+        builder.owner.insert_or_assign(dim, result);
+    }
+
+    bool anyProgressAtAll;
+    if (inputs.size() == 1) {
+        // If we have performed some intra-tensor contraction, i.e., taking the diagonal entries, this is also a progress.
+        auto interfaceCopy = interface;
+        std::ranges::sort(interfaceCopy, Dimension::AddressLessThan{});
+        auto inputTensorCopy = inputs[0].output();
+        std::ranges::sort(inputTensorCopy, Dimension::AddressLessThan{});
+        anyProgressAtAll = interfaceCopy != inputTensorCopy;
+    } else {
+        anyProgressAtAll = true;
+    }
     // Although we have contracted the tensors, we actually need to do the reductions.
     std::size_t beforeReduction = interface.size();
     auto [removeBegin, removeEnd] = std::ranges::remove_if(interface, [](const Dimension& dim) {
@@ -196,14 +226,15 @@ Tensor TensorImpl::CreateTensorView(Tensor::Builder& builder, const std::vector<
         }
         void visit(Dimension dim, bool isSource) {
             if (!isSource) {
-                if (builder.owner.contains(dim)) {
+                auto [_, isNewlyExpanded] = builder.owner.emplace(dim, newTensor);
+                if (!isNewlyExpanded) {
                     // Visited.
                     return;
                 }
                 hasProgress = true;
+            } else {
+                KAS_ASSERT(builder.owner.at(dim) == newTensor);
             }
-            // Mark as ours.
-            builder.owner.insert_or_assign(dim, newTensor);
             // Match.
             DimVisitor::visit(dim);
         }

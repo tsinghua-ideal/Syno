@@ -50,7 +50,9 @@ def get_sampler(args, model):
             'search_space_options': '1000'
         }
     }
-    return Sampler(net=model, **params)
+    sampler = Sampler(net=model, **params)
+    sampler._bind_debug_context()
+    return sampler
 
 
 def get_model(args, return_sampler=False):
