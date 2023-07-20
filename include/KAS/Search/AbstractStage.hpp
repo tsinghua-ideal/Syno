@@ -13,6 +13,7 @@ enum class Finalizability {
     No, // Determined by expanding all subtrees or conservative experiments.
 };
 inline Finalizability operator+(const Finalizability& a, const Finalizability& b) {
+    // Observe the states constitute a group, where the identity is Finalizability::No.
     bool foundYes = a == Finalizability::Yes || b == Finalizability::Yes;
     bool allNo = a == Finalizability::No && b == Finalizability::No;
     if (foundYes) {
@@ -57,6 +58,22 @@ private:
 
     Finalizability state = Finalizability::Maybe;
     bool isFinalizabilityDetermined() const { return state != Finalizability::Maybe; }
+
+    std::atomic<int> expandedLayers = 0;
+    bool tryExpandingMoreLayers(int layers) {
+        // If layers > expandedLayers, actually perform the expansion.
+        // Otherwise, ignore.
+        while (true) {
+            int existingExpandedLayers = expandedLayers;
+            if (layers <= existingExpandedLayers) {
+                return false;
+            }
+            if (expandedLayers.compare_exchange_weak(existingExpandedLayers, layers)) {
+                break;
+            }
+        }
+        return true;
+    }
 
 protected:
     Sampler& sampler;
@@ -208,6 +225,8 @@ public:
     // This must be called by Pruner!
     virtual void updateFinalizability(Lock& lock) = 0;
 
+    virtual Node toNode() = 0;
+
     // Python.
     std::size_t hash() const {
         return interface.hash();
@@ -221,6 +240,17 @@ public:
     virtual Node getChild(Arc arc) = 0;
     std::string description() const {
         return DimensionArrayToString(interface, sampler.getBindingContext());
+    }
+
+    void expand(int layers) {
+        if (tryExpandingMoreLayers(layers)) {
+            sampler.getExpander().expand(toNode(), layers);
+        }
+    }
+    void expandSync(int layers) {
+        if (tryExpandingMoreLayers(layers)) {
+            sampler.getExpander().expandSync(toNode(), layers);
+        }
     }
 
     virtual ~AbstractStage() = default;
@@ -399,6 +429,10 @@ public:
         auto stage = std::make_unique<DerivedStageType>(std::forward<Args>(args)...);
         Lock lock = stage->obtainInitialLock();
         return { std::move(stage), std::move(lock) };
+    }
+
+    Node toNode() final override {
+        return Node { &sampler, &derived() };
     }
 
     std::size_t countChildren() final override {

@@ -235,12 +235,26 @@ std::vector<Arc> Node::getComposingArcs() const {
     return std::move(*arcs);
 }
 
-void Node::expand(int layers) const {
-    sampler->getExpander().expandSync(*this, layers);
+void Node::expandSync(int layers) const {
+    match<void>(
+        [&](AbstractStage *stage) {
+            stage->expandSync(layers);
+        },
+        [](std::shared_ptr<TensorView>) -> void {
+            return;
+        }
+    );
 }
 
-void Node::expandAsync(int layers) const {
-    sampler->getExpander().expand(*this, layers);
+void Node::expand(int layers) const {
+    match<void>(
+        [&](AbstractStage *stage) {
+            stage->expand(layers);
+        },
+        [](std::shared_ptr<TensorView>) -> void {
+            return;
+        }
+    );
 }
 
 std::optional<std::string> Node::getChildDescription(Next next) const {

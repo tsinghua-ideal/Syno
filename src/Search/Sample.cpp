@@ -451,7 +451,7 @@ Sampler::Expander::Expander(std::size_t numThreads) {
                         for (auto next: nexts) {
                             auto newNode = node.getChild(next);
                             if (newNode.has_value()) {
-                                expand(*newNode, layers - 1);
+                                newNode->expand(layers - 1);
                             }
                         }
                     }
