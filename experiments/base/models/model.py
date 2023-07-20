@@ -23,7 +23,7 @@ class KASModel(nn.Module):
             placeholder.reload(kernel_pack, compile)
             placeholder.refered_layer = None
             placeholder.set_flops(kernel.get_flops(i))
-            placeholder.set_params(sum(weight.numel() for weight in kernel_pack.weights))
+            placeholder.set_params(sum(weight.numel() for weight in kernel_pack.weights) if hasattr(kernel_pack, 'weights') else 0)
             flops.append(kernel.get_flops(i))
         assert kernel.get_total_flops() == sum(flops), f'Kernel {kernel} has {kernel.get_total_flops()} flops, but {sum(flops)} flops are found in the model'
 
