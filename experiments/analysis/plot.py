@@ -10,7 +10,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='KAS session plot')
     parser.add_argument('--dirs', type=str, nargs='+', default=None)
     parser.add_argument('--output', type=str, default='plot')
-    parser.add_argument('--time', type=bool, default=False, action='store_true')
+    parser.add_argument('--time', default=False, action='store_true')
     args = parser.parse_args()
     assert args.dirs is not None
     for dir in args.dirs:
