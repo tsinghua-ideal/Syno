@@ -38,6 +38,7 @@ def get_sampler(args, model):
         'save_path': args.kas_scheduler_cache_dir,
         'cuda': True,
         'autoscheduler': CodeGenOptions.AutoScheduler.Anderson2021,
+        'num_worker_threads': args.kas_expand_workers,
         'extra_options': {
             'beam_size': '32',
             'num_passes': '1',

@@ -76,8 +76,8 @@ def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], L
             val_errors.append(1 - correct / total)
         elapsed_valid_time = time.time() - start_time
         logging.info(f'Epoch [{epoch + 1}/{sched_epochs}], train loss: {loss_meter.avg}, test accuracy: {correct / total}, training time: {elapsed_train_time}, validation time: {elapsed_valid_time}')
-        if args.kas_inference_time_limit and elapsed_train_time > args.kas_inference_time_limit:
-            logging.info(f'Inference time limit reached, stopping training ...')
+        if epoch > 0 and args.kas_inference_time_limit and elapsed_train_time > args.kas_inference_time_limit:
+            logging.info(f'Inference time limit reached ({elapsed_train_time}s currently), stopping training ...')
             break
 
         # Temporary hack
