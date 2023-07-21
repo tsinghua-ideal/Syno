@@ -7,7 +7,7 @@
 namespace kas {
 
 void NormalStage::removeDeadChildrenFromSlots(const CollectedFinalizabilities& collected) {
-    if(!childrenGenerated) {
+    if (!childrenGenerated) {
         return;
     }
     Base::removeDeadChildrenFromSlots(collected);
@@ -19,7 +19,7 @@ void NormalStage::removeAllChildrenFromSlots() {
 }
 
 Finalizability NormalStage::checkForFinalizableChildren(const CollectedFinalizabilities& collected) const {
-    if(!childrenGenerated) {
+    if (!childrenGenerated) {
         return Finalizability::Maybe;
     }
     // If there are FinalizeOp's, of course this is finalizable.

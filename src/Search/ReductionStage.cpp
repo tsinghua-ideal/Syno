@@ -8,19 +8,69 @@
 
 namespace kas {
 
-void ReductionStage::expand() {
+ReductionStage::Expander::Expander(std::size_t numWorkers) {
+    for (std::size_t i = 0; i < numWorkers; ++i) {
+        workers.emplace_back([this](std::stop_token stopToken) {
+            while (!stopToken.stop_requested()) {
+                ReductionStage *stage = nullptr;
+                {
+                    std::unique_lock lock(mutex);
+                    if (cv.wait(lock, stopToken, [&] {
+                        return !queue.empty();
+                    })) {
+                        stage = queue.front();
+                        queue.pop();
+                    }
+                }
+                if (stage) {
+                    stage->expand(*this);
+                    ++completed;
+                    if (submitted == completed) {
+                        cvReady.notify_all();
+                    }
+                }
+            }
+        });
+    }
+}
+
+void ReductionStage::Expander::add(ReductionStage *stage, Lock) {
+    {
+        std::scoped_lock lock(mutex);
+        ++submitted;
+        queue.emplace(stage);
+    }
+    cv.notify_one();
+}
+
+void ReductionStage::Expander::addRoot(ReductionStage *stage, Lock stageLock) {
+    add(stage, std::move(stageLock));
+    std::unique_lock lock { mutex };
+    cvReady.wait(lock, [&] {
+        return submitted == completed;
+    });
+}
+
+ReductionStage::Expander::~Expander() {
+    for (auto& worker: workers) {
+        worker.request_stop();
+    }
+}
+
+void ReductionStage::expand(Expander& expander) {
+    Lock lock = acquireLock();
+    if (expanded) {
+        return;
+    }
+
     const auto& options = sampler.getOptions();
 
     // First create the corresponding NormalStage.
     // Note: you cannot getNextOp, because it shares the same hash with us.
-    Finalizability fin;
-    {
-        // Actually this lock is same as initialLock, because we share the same hash and depth.
-        // This is OK because we use std::recursive_lock.
-        Lock lock;
-        std::tie(nStage, lock) = NormalStage::Create(getInterface(), *this, std::nullopt, Lock{});
-        fin = nStage->getFinalizability(lock);
-    }
+    // The lock for the NormalStage and this are the same, because we share the same hash and depth.
+    // There is no dead lock because we use std::recursive_lock.
+    std::tie(nStage, lock) = NormalStage::Create(getInterface(), *this, std::nullopt, std::move(lock));
+    Finalizability fin = nStage->getFinalizability(lock);
 
     // Then attempt to generate new reductions.
     if (
@@ -53,6 +103,7 @@ void ReductionStage::expand() {
             Lock lock;
             std::tie(stage, lock) = getNextOp(op);
             f = stage->getFinalizability(lock);
+            expander.add(stage, std::move(lock));
         }
         if (f != Finalizability::No) {
             nextReductions.emplace_back(Next{Next::Type::MapReduce, NextStageSlot::GetKey(op)}, op, stage);
@@ -71,6 +122,8 @@ void ReductionStage::expand() {
         // No need to propagate because the reductions are built recursively.
         determineFinalizability(fin, false);
     }
+
+    expanded = true;
 }
 
 ReductionStage::CollectedFinalizabilities ReductionStage::collectFinalizabilities() {
@@ -84,15 +137,11 @@ Finalizability ReductionStage::checkForFinalizableChildren(const CollectedFinali
 
 ReductionStage::ReductionStage(Sampler& sampler, Dimensions interface, Lock lock):
     Base { sampler, std::move(interface), std::move(lock) }
-{
-    expand();
-}
+{}
 
 ReductionStage::ReductionStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
     Base { std::move(interface), creator, std::move(deltaOp), std::move(lock) }
-{
-    expand();
-}
+{}
 
 std::size_t ReductionStage::countChildrenImpl() const {
     return Base::countChildrenImpl() + nStage->countChildren();
@@ -111,7 +160,7 @@ std::vector<Arc> ReductionStage::getChildrenArcsImpl() {
 }
 
 std::optional<Arc> ReductionStage::getArcFromHandleImpl(Next next) {
-    if(next.type == Next::Type::MapReduce) {
+    if (next.type == Next::Type::MapReduce) {
         return Base::getArcFromHandleImpl(next);
     } else {
         return nStage->getArcFromHandle(next);
@@ -119,7 +168,7 @@ std::optional<Arc> ReductionStage::getArcFromHandleImpl(Next next) {
 }
 
 std::optional<Node> ReductionStage::getChildImpl(Next next) {
-    if(next.type == Next::Type::MapReduce) {
+    if (next.type == Next::Type::MapReduce) {
         return Base::getChildImpl(next);
     } else {
         return nStage->getChild(next);
