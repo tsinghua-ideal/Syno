@@ -13,7 +13,7 @@ enum class Finalizability {
     No, // Determined by expanding all subtrees or conservative experiments.
 };
 inline Finalizability operator+(const Finalizability& a, const Finalizability& b) {
-    // Observe the states constitute a group, where the identity is Finalizability::No.
+    // Observe "+" for states is commutative and associative, where the identity is Finalizability::No.
     bool foundYes = a == Finalizability::Yes || b == Finalizability::Yes;
     bool allNo = a == Finalizability::No && b == Finalizability::No;
     if (foundYes) {

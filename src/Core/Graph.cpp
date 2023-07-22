@@ -69,11 +69,17 @@ void Graph::Builder::visit(const Iterator& dim) {
 }
 void Graph::Builder::visit(const MapReduce& dim) {
     mapReduceIterators.insert(&dim);
+    if (auto op = dynamic_cast<const PrimitiveOp *>(&dim)) {
+        ops.emplace(op);
+    } else {
+        KAS_WARNING("Found naked MapReduce (not wrapped in a MapReduceOp) when building the graph!");
+    }
 }
 void Graph::Builder::visit(const RepeatLikeOp::Input& dim) {
     auto op = dim.getOp();
     parent = { op };
     visit(op->output);
+    ops.emplace(op);
 }
 void Graph::Builder::visit(const SplitLikeOp::Input& dim) {
     auto op = dim.getOp();
@@ -81,11 +87,13 @@ void Graph::Builder::visit(const SplitLikeOp::Input& dim) {
     visit(op->outputLhs);
     parent = { std::make_pair(op, Order::Right) };
     visit(op->outputRhs);
+    ops.emplace(op);
 }
 void Graph::Builder::visit(const MergeLikeOp::Input& dim) {
     auto op = dim.getOp();
     parent = { op };
     visit(op->output);
+    ops.emplace(op);
 }
 void Graph::Builder::visit(const Dimension& dim) {
     auto [it, inserted] = dimMeta.try_emplace(dim, parent, ancestor);
@@ -97,12 +105,13 @@ void Graph::Builder::visit(const Dimension& dim) {
     DimVisitor::visit(dim);
 }
 
-void Graph::Builder::addTopmost(const Dimension& dim) {
+Graph::Builder& Graph::Builder::addTopmost(const Dimension& dim) {
     auto index = CompactIndices::Single(topmost.size());
     topmost.emplace_back(dim);
     parent = { std::monostate{} };
     ancestor = index;
     visit(dim);
+    return *this;
 }
 
 Graph Graph::Builder::build() {
@@ -118,7 +127,8 @@ Graph Graph::Builder::build() {
         std::move(topmost),
         std::move(dimMeta),
         std::move(outputIterators),
-        std::move(mapReduceIterators)
+        std::move(mapReduceIterators),
+        std::move(ops),
     };
 }
 
@@ -160,6 +170,27 @@ VisitedVertex Graph::visitAlong(const Dimension& dim, Direction dir) const {
             return std::move(visitor.result);
         }
     }
+}
+
+const PrimitiveOp *Graph::getOpAbove(const Dimension& dim) const {
+    struct Visitor {
+        const PrimitiveOp *result = nullptr;
+        void operator()(std::monostate) {
+            result = nullptr;
+        }
+        void operator()(const RepeatLikeOp *op) {
+            result = op;
+        }
+        void operator()(std::pair<const SplitLikeOp *, Order> opAndOrder) {
+            result = opAndOrder.first;
+        }
+        void operator()(const MergeLikeOp *op) {
+            result = op;
+        }
+    };
+    Visitor v;
+    dimMeta.at(dim).opAbove.visit(v);
+    return v.result;
 }
 
 std::vector<Graph::ConnectedComponent> Graph::computeConnectedComponents() const {
