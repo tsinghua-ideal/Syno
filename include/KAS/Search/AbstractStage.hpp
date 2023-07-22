@@ -38,19 +38,19 @@ class AbstractStage {
 public:
     using Mutex = std::recursive_mutex;
     using Lock = std::unique_lock<Mutex>;
+protected:
+    [[nodiscard]] Lock acquireLock() const {
+        return Lock { mutex };
+    }
+    [[nodiscard]] Lock tryAcquireLock() const {
+        return Lock { mutex, std::try_to_lock };
+    }
 private:
     Lock initialLock;
     Mutex& mutex;
     Lock obtainInitialLock() {
         KAS_ASSERT(initialLock.owns_lock(), "Initial lock has already been obtained.");
         return std::move(initialLock);
-    }
-private:
-    [[nodiscard]] Lock acquireLock() const {
-        return Lock { mutex };
-    }
-    [[nodiscard]] Lock tryAcquireLock() const {
-        return Lock { mutex, std::try_to_lock };
     }
 
     // Parents of this Stage.

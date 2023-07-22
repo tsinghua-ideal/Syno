@@ -181,7 +181,7 @@ std::optional<Size::Trait> Size::testDividedBy(const Size& other) {
     for (std::size_t i = 0; i < primaryCount; ++i) {
         newPrimary[i] -= other.primary[i];
         // Ensure that no primary variable is in denominator
-        if(newPrimary[i] < 0) return std::nullopt;
+        if (newPrimary[i] < 0) return std::nullopt;
         hasPrimary |= newPrimary[i] > 0;
     }
     primary = newPrimary;
@@ -320,11 +320,11 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
                 ) {
                     co_yield divisor;
                 }
-                if(!NextSize(divisor.coefficient, coefficientNonzeroPowers, coefficientLower, coefficientUpper)) {
+                if (!NextSize(divisor.coefficient, coefficientNonzeroPowers, coefficientLower, coefficientUpper)) {
                     break;
                 }
             }
-            if(!NextSize(divisor.primary, primaryNonzeroPowers, {}, primary)) {
+            if (!NextSize(divisor.primary, primaryNonzeroPowers, {}, primary)) {
                 co_return;
             }
         }
@@ -360,11 +360,11 @@ Generator<Size> Size::EnumerateSizes(const BindingContext& ctx, Size lowerBound,
             ) {
                 co_yield size;
             }
-            if(!NextSize(size.coefficient, coefficientNonzeroPowers, lowerBound.coefficient, upperBound.coefficient)) {
+            if (!NextSize(size.coefficient, coefficientNonzeroPowers, lowerBound.coefficient, upperBound.coefficient)) {
                 break;
             }
         }
-        if(!NextSize(size.primary, primaryNonzeroPowers, lowerBound.primary, upperBound.primary)) {
+        if (!NextSize(size.primary, primaryNonzeroPowers, lowerBound.primary, upperBound.primary)) {
             co_return;
         }
     }

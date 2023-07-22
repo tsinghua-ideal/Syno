@@ -35,15 +35,11 @@ std::vector<const MapReduceOp *> MapReduceOp::Generate(PrimitiveOpStore& store, 
         return flops <= options.maxFLOPs;
     };
 
-    auto canonical = [&](const Size& size) {
-        return current.empty() || Size::LexicographicalLEQ(current.back()->size(), size);
-    };
-
     Allowance allowance = { outputSize * reductionSize, ctx };
 
     std::vector<const MapReduceOp *> res;
     for (Size size: allowance.enumerateSizes(ctx)) {
-        if (canonical(size) && withinFLOPs(size)) {
+        if (withinFLOPs(size)) {
             // For simplicity, we only use Identity and Mean. TODO: Add more.
             res.push_back(store.get<MapReduceOp>(current.size(), std::move(size), MapType::Identity, ReduceType::Mean));
         }

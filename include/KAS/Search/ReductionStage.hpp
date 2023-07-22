@@ -1,5 +1,7 @@
 #pragma once
 
+#include <condition_variable>
+
 #include "KAS/Search/AbstractStage.hpp"
 #include "KAS/Transforms/MapReduce.hpp"
 
@@ -7,12 +9,34 @@
 namespace kas {
 
 class ReductionStage final: public AbstractStageBase<ReductionStage> {
+public:
+    class Expander {
+        std::mutex mutex;
+        std::condition_variable_any cv;
+        std::condition_variable cvReady;
+        std::queue<ReductionStage *> queue;
+        std::vector<std::jthread> workers;
+        std::size_t submitted = 0;
+        std::size_t completed = 0;
+    public:
+        Expander(std::size_t numWorkers);
+        Expander(const Expander&) = delete;
+        Expander(Expander&&) = delete;
+        // Async.
+        void add(ReductionStage *stage, Lock lock);
+        // Synchronize.
+        void addRoot(ReductionStage *stage, Lock lock);
+        ~Expander();
+    };
+
+private:
     friend class AbstractStageBase<ReductionStage>;
 
     // The stage that is directly constructed, without appending any reduction.
     std::unique_ptr<NormalStage> nStage;
 
-    void expand();
+    bool expanded = false;
+    void expand(Expander& expander);
 
     struct CollectedFinalizabilities: Base::CollectedFinalizabilities {
         Finalizability nStageFinalizability;
