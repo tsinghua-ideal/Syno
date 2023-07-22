@@ -7,124 +7,162 @@
 
 #include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/Core/DimVisitor.hpp"
+#include "KAS/Core/Graph.hpp"
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Transforms.hpp"
 
 
 namespace kas {
 
 namespace {
-    // DFS the dimensions.
-    class DFS final: public DimVisitor {
+    struct OpCanvas: public OpVisitor {
         const BindingContext& ctx;
+        const Graph& graph;
         std::stringstream& ss;
-        std::vector<const Iterator *>& outputs;
-        std::vector<const MapReduce *>& reductions;
-        std::set<Dimension, Dimension::AddressLessThan> drawn;
-        std::set<const RepeatLikeOp *> drawnRepeatLikes;
-        std::set<const SplitLikeOp *> drawnSplitLikes;
-        std::set<const MergeLikeOp *> drawnMergeLikes;
-        std::string from;
-        auto SSIt() { return std::ostreambuf_iterator<char>(ss); }
-        void visit(const Iterator& dim) override {
-            outputs.emplace_back(&dim);
-            fmt::format_to(SSIt(), "{} -> out_{} [label=\"{}\"];\n", from, dim.getIndex(), dim.size().toString(ctx));
-        }
-        void visit(const MapReduce& dim) override {
-            reductions.emplace_back(&dim);
-            fmt::format_to(SSIt(), "{} -> reduce_{} [label=\"{}\"];\n", from, dim.getPriority(), dim.size().toString(ctx));
-        }
-        void visit(const RepeatLikeOp::Input& dim) override {
-            auto op = dim.getOp();
-            auto to = fmt::format("repeat_like_{}", fmt::ptr(op));
-            auto [_, toDraw] = drawnRepeatLikes.insert(op);
-            if (toDraw) {
-                fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", to, op->getType());
-            }
-            fmt::format_to(SSIt(), "{} -> {} [label=\"{}\"];\n", from, to, dim.size().toString(ctx));
-            from = std::move(to);
-            operator()(dim.getOp()->output);
-        }
-        void visit(const SplitLikeOp::Input& dim) override {
-            auto op = dim.getOp();
-            auto to = fmt::format("split_like_{}", fmt::ptr(op));
-            auto [_, toDraw] = drawnSplitLikes.insert(op);
-            if (toDraw) {
-                fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", to, op->getType());
-            }
-            fmt::format_to(SSIt(), "{} -> {} [label=\"{}\"];\n", from, to, dim.size().toString(ctx));
-            from = to;
-            operator()(dim.getOp()->outputLhs);
-            from = std::move(to);
-            operator()(dim.getOp()->outputRhs);
-        }
-        void visit(const MergeLikeOp::Input& dim) override {
-            auto op = dim.getOp();
-            auto to = fmt::format("merge_like_{}", fmt::ptr(op));
-            auto [_, toDraw] = drawnMergeLikes.insert(op);
-            if (toDraw) {
-                fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", to, op->getType());
-            }
-            fmt::format_to(SSIt(), "{} -> {} [label=\"{}\"];\n", from, to, dim.size().toString(ctx));
-            from = std::move(to);
-            operator()(dim.getOp()->output);
-        }
-        using DimVisitor::visit;
-        void operator()(const Dimension& edge) {
-            auto [_, toDraw] = drawn.insert(edge);
-            if (toDraw) {
-                visit(edge);
-            }
-        }
-    public:
-        DFS(const BindingContext& ctx, std::stringstream& ss, std::vector<const Iterator *>& outputs, std::vector<const MapReduce *>& reductions):
+        struct Attribute {
+            std::optional<Order> input, output;
+        };
+        std::map<Dimension, Attribute, Dimension::AddressLessThan> attributes;
+
+        OpCanvas(const BindingContext& ctx, const Graph& graph, std::stringstream& ss):
             ctx { ctx },
-            ss { ss },
-            outputs { outputs },
-            reductions { reductions }
+            graph { graph },
+            ss { ss }
         {}
-        void operator()(std::string_view from, const Dimension& edge) {
-            this->from = std::string { from };
-            operator()(edge);
+
+        auto SSIt() { return std::ostreambuf_iterator<char>(ss); }
+        static std::string Name(const PrimitiveOp& op) {
+            return fmt::format("op_{}", fmt::ptr(&op));
         }
-        void done() {
-            std::ranges::sort(reductions, {}, [](const MapReduce * i) { return i->getPriority(); });
-            for (std::size_t i = 0; auto&& reduction: reductions) {
-                fmt::format_to(SSIt(), "reduce_{} [label=\"{}\", shape=box];\n", i, reduction->whatReduce());
-                ++i;
+
+        void visits(const RepeatLikeOp& op) {
+            fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", Name(op), op.getType());
+        }
+        void visits(const SplitLikeOp& op) {
+            fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", Name(op), op.getType());
+            attributes[op.outputLhs].input = Order::Left;
+            attributes[op.outputRhs].input = Order::Right;
+        }
+        void visits(const MergeLikeOp& op) {
+            fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", Name(op), op.getType());
+            attributes[op.getInputL()].output = Order::Left;
+            attributes[op.getInputR()].output = Order::Right;
+        }
+        void visit(const MapReduceOp& op) override {
+            // The is left for other procedures to draw.
+        }
+        void visit(const MergeOp& op) override { visits(op); }
+        void visit(const ShareOp& op) override { visits(op); }
+        void visit(const ShiftOp& op) override { visits(op); }
+        void visit(const SplitOp& op) override { visits(op); }
+        void visit(const StrideOp& op) override { visits(op); }
+        void visit(const UnfoldOp& op) override { visits(op); }
+
+        std::string attributedLabelForDim(const Dimension& dim) {
+            auto [input, output] = attributes[dim];
+            std::string label = dim.size().toString(ctx);
+            if (!input && !output) {
+                return label;
+            } else {
+                return fmt::format("{} ({}->{})", label, OrderToLR(input).value_or(""), OrderToLR(output).value_or(""));
+            }
+        }
+
+        void draw() {
+            // Draw the Ops.
+            for (const PrimitiveOp *op: graph.getOps()) {
+                op->accept(*this);
             }
 
-            std::ranges::sort(outputs, {}, [](const Iterator * i) { return i->getIndex(); });
+            // Draw the reductions.
+            for (const MapReduce *reduction: graph.getMapReduceIterators()) {
+                fmt::format_to(SSIt(), "reduce_{} [label=\"{}\", shape=box];\n", reduction->getPriority(), reduction->whatReduce());
+            }
+
+            // Draw the outputs.
             ss << "subgraph cluster_out {\n";
             ss << "label = \"Output\";\n";
-            for (auto&& output: outputs) {
+            for (const Iterator *output: graph.getOutputIterators()) {
                 fmt::format_to(SSIt(), "out_{} [label=\"{}\", shape=none];\n", output->getIndex(), output->size().toString(ctx));
             }
             ss << "}\n";
 
+            // Align the reductions and outputs.
             ss << "{ rank = same;\n";
-            for (std::size_t i = 0; i < reductions.size(); ++i) {
-                fmt::format_to(SSIt(), "reduce_{};\n", i);
+            for (const MapReduce *reduction: graph.getMapReduceIterators()) {
+                fmt::format_to(SSIt(), "reduce_{};\n", reduction->getPriority());
             }
-            for (std::size_t i = 0; i < outputs.size(); ++i) {
-                fmt::format_to(SSIt(), "out_{};\n", i);
+            for (const Iterator *output: graph.getOutputIterators()) {
+                fmt::format_to(SSIt(), "out_{};\n", output->getIndex());
             }
             ss << "}\n";
         }
     };
-}
+    struct DimCanvas: public DimVisitor {
+        const Graph& graph;
+        OpCanvas& opCanvas;
+        std::stringstream& ss;
+        std::string from;
+        DimCanvas(const Graph& graph, OpCanvas& opCanvas, std::stringstream& ss):
+            graph { graph },
+            opCanvas { opCanvas },
+            ss { ss }
+        {}
+        auto SSIt() { return std::ostreambuf_iterator<char>(ss); }
+        void visit(const Iterator& dim) override {
+            fmt::format_to(SSIt(), "{} -> out_{} [label=\"{}\"];\n", from, dim.getIndex(), opCanvas.attributedLabelForDim(&dim));
+        }
+        void visit(const MapReduce& dim) override {
+            fmt::format_to(SSIt(), "{} -> reduce_{} [label=\"{}\"];\n", from, dim.getPriority(), opCanvas.attributedLabelForDim(&dim));
+        }
+        void visit(const RepeatLikeOp::Input& dim) override {
+            auto op = dim.getOp();
+            fmt::format_to(SSIt(), "{} -> {} [label=\"{}\"];\n", from, OpCanvas::Name(*op), opCanvas.attributedLabelForDim(&dim));
+        }
+        void visit(const SplitLikeOp::Input& dim) override {
+            auto op = dim.getOp();
+            fmt::format_to(SSIt(), "{} -> {} [label=\"{}\"];\n", from, OpCanvas::Name(*op), opCanvas.attributedLabelForDim(&dim));
+        }
+        void visit(const MergeLikeOp::Input& dim) override {
+            auto op = dim.getOp();
+            fmt::format_to(SSIt(), "{} -> {} [label=\"{}\"];\n", from, OpCanvas::Name(*op), opCanvas.attributedLabelForDim(&dim));
+        }
+        void drawInput(const Dimension& dim, std::string from) {
+            this->from = std::move(from);
+            DimVisitor::visit(dim);
+        }
+        void drawOthers() {
+            for (const Dimension& dim: graph.getDimensions()) {
+                const PrimitiveOp *opAbove = graph.getOpAbove(dim);
+                if (opAbove) {
+                    // This is not input.
+                    from = OpCanvas::Name(*opAbove);
+                    DimVisitor::visit(dim);
+                } else {
+                    // This is input, which will be handled elsewhere.
+                }
+            }
+        }
+    };
 
-namespace {
     template<TensorRange R>
     std::string draw(const BindingContext& ctx, R&& tensors) {
         std::stringstream ss;
         auto SSIt = [&]() { return std::ostreambuf_iterator<char>(ss); };
-        std::vector<const Iterator *> outputs;
-        std::vector<const MapReduce *> reductions;
-        auto dfs = DFS { ctx, ss, outputs, reductions };
+
+        Graph graph =
+            Graph::Builder()
+            .addTopmostAsTensors(std::forward<R>(tensors))
+            .build();
 
         ss << "newrank = true;\n"; // To allow alignment for subgraphs.
 
+        // First draw all the Ops.
+        OpCanvas opCanvas { ctx, graph, ss };
+        opCanvas.draw();
+
+        // Input labels.
         for (std::size_t j = 0; auto&& tensor: tensors) {
             fmt::format_to(SSIt(), "subgraph cluster_in_{} {{\n", j);
             fmt::format_to(SSIt(), "label = \"Input {}\";\n", j);
@@ -136,6 +174,7 @@ namespace {
             ++j;
         }
 
+        // Align the input labels.
         ss << "{ rank = same;\n";
         for (std::size_t j = 0; auto&& tensor: tensors) {
             for (std::size_t i = 0; i < std::ranges::size(tensor); ++i) {
@@ -145,14 +184,16 @@ namespace {
         }
         ss << "}\n";
 
+        // Draw the inputs.
+        DimCanvas dimCanvas { graph, opCanvas, ss };
         for (std::size_t j = 0; auto&& tensor: tensors) {
             for (std::size_t i = 0; auto&& dim: tensor) {
-                dfs(fmt::format("in_{}_{}", j, i), dim);
+                dimCanvas.drawInput(dim, fmt::format("in_{}_{}", j, i));
                 ++i;
             }
             ++j;
         }
-        dfs.done();
+        dimCanvas.drawOthers();
         return ss.str();
     }
 }

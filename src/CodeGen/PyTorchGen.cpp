@@ -243,13 +243,16 @@ void PyTorchGen::SubgraphGen::OpLower::visit(const UnfoldOp& op) {
     // First pad the unfolded dimension.
     const std::size_t unpaddedHeightSize = concretize(input.size()), kernelSize = concretize(op.outputRhs.size());
     const std::size_t paddingLeft = kernelSize / 2, paddingRight = kernelSize - 1 - paddingLeft;
-    printer.write("{0} = torch.nn.functional.pad({0}, (", name);
-    std::size_t numZeros = interface.size() - 1 - inputIndex;
-    while (numZeros --> 0) {
-        printer.write("0, 0, ");
+    bool useFusedPadding = paddingLeft == paddingRight; // If this is true, we can use the padding parameter in PyTorch.
+    if (!useFusedPadding) {
+        printer.write("{0} = torch.nn.functional.pad({0}, (", name);
+        std::size_t numZeros = interface.size() - 1 - inputIndex;
+        while (numZeros --> 0) {
+            printer.write("0, 0, ");
+        }
+        printer.writeLn("{}, {}, ))", paddingLeft, paddingRight);
     }
-    printer.writeLn("{}, {}, ))", paddingLeft, paddingRight);
-    const std::size_t paddedHeightSize = unpaddedHeightSize + kernelSize - 1;
+    const std::size_t paddedHeightSize = useFusedPadding ? unpaddedHeightSize : unpaddedHeightSize + kernelSize - 1;
 
     // Since unfold in PyTorch only supports 4-D tensors, we have to reshape it.
     reshapeToNCHW(inputIndex, paddedHeightSize);
@@ -260,7 +263,11 @@ void PyTorchGen::SubgraphGen::OpLower::visit(const UnfoldOp& op) {
     interface.insert(interface.begin() + inputIndex, op.outputRhs);
 
     // Now apply the PyTorch unfold.
-    printer.writeLn("{0} = torch.nn.functional.unfold({0}, ({1}, 1, ))", name, kernelSize);
+    if (useFusedPadding) {
+        printer.writeLn("{0} = torch.nn.functional.unfold({0}, ({1}, 1, ), padding=({2}, 0, ))", name, kernelSize, paddingLeft);
+    } else {
+        printer.writeLn("{0} = torch.nn.functional.unfold({0}, ({1}, 1, ))", name, kernelSize);
+    }
 
     // Finally, reshape it back.
     reshapeToInterface();

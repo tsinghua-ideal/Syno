@@ -153,6 +153,10 @@ public:
             std::forward<CaseMergeLike>(caseMergeLike)
         }, *vertexAndSource);
     }
+    template<typename F>
+    decltype(auto) match(F&& f) {
+        return match(std::forward<F>(f), std::forward<F>(f), std::forward<F>(f));
+    }
 };
 
 static_assert(Vertex<RepeatLikeVertex>);
@@ -223,6 +227,7 @@ public:
         std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
         std::set<const Iterator *> outputIterators;
         std::set<const MapReduce *> mapReduceIterators;
+        std::set<const PrimitiveOp *> ops;
 
         OpAbove parent;
         CompactIndices ancestor = CompactIndices::None();
@@ -234,12 +239,20 @@ public:
         void visit(const Dimension& dim);
 
     public:
-        void addTopmost(const Dimension& dim);
+        Builder& addTopmost(const Dimension& dim);
         template<DimensionRange R>
-        void addTopmost(R&& dims) {
-            for (const Dimension& dim: dims) {
+        Builder& addTopmost(R&& dims) {
+            for (auto&& dim: dims) {
                 addTopmost(dim);
             }
+            return *this;
+        }
+        template<TensorRange R>
+        Builder& addTopmostAsTensors(R&& tensors) {
+            for (auto&& tensor: tensors) {
+                addTopmost(tensor);
+            }
+            return *this;
         }
         Graph build();
     };
@@ -251,12 +264,14 @@ private:
     // And the output/reduce iterators as well.
     std::vector<const Iterator *> outputIterators;
     std::vector<const MapReduce *> mapReduceIterators;
+    std::set<const PrimitiveOp *> ops;
 
-    Graph(auto&& topmost, auto&& dimMeta, auto&& outputIterators, auto&& mapReduceIterators):
+    Graph(auto&& topmost, auto&& dimMeta, auto&& outputIterators, auto&& mapReduceIterators, auto&& ops):
         topmost { std::forward<decltype(topmost)>(topmost) },
         dimMeta { std::forward<decltype(dimMeta)>(dimMeta) },
         outputIterators { std::forward<decltype(outputIterators)>(outputIterators) },
-        mapReduceIterators { std::forward<decltype(mapReduceIterators)>(mapReduceIterators) }
+        mapReduceIterators { std::forward<decltype(mapReduceIterators)>(mapReduceIterators) },
+        ops { std::forward<decltype(ops)>(ops) }
     {}
 
     // Visitor that walks down along a dimension.
@@ -295,6 +310,9 @@ public:
     const std::vector<const Iterator *>& getOutputIterators() const { return outputIterators; }
     std::vector<const MapReduce *>& getMapReduceIterators() { return mapReduceIterators; }
     const std::vector<const MapReduce *>& getMapReduceIterators() const { return mapReduceIterators; }
+
+    const PrimitiveOp *getOpAbove(const Dimension& dim) const;
+    const std::set<const PrimitiveOp *> getOps() const { return ops; }
 
     struct ConnectedComponent {
         std::vector<Dimension> inputs;

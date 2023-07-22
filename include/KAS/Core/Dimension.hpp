@@ -75,6 +75,22 @@ enum class Order: bool {
     Left = false,
     Right = true,
 };
+constexpr std::string_view OrderToLR(Order order) {
+    using namespace std::string_view_literals;
+    switch (order) {
+    case Order::Left: return "L"sv;
+    case Order::Right: return "R"sv;
+    default: return "Unknown"sv;
+    }
+}
+// Implement functor.
+constexpr std::optional<std::string_view> OrderToLR(std::optional<Order> order) {
+    if (order.has_value()) {
+        return OrderToLR(order.value());
+    } else {
+        return std::nullopt;
+    }
+}
 
 class DimVisitor;
 
