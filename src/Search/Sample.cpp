@@ -24,6 +24,7 @@ void SampleOptions::check() const {
     KAS_ASSERT(maxUnfoldKernelSize > 1);
     KAS_ASSERT(minimumUnfoldRatio >= 1.0f);
     KAS_ASSERT(minimumMergeRatio >= 1.0f);
+    KAS_ASSERT(!requiresOddKernelSizeInUnfold || requiresExactDivision, "requiresOddKernelSizeInUnfold requires requiresExactDivision.");
     KAS_ASSERT(disallowSplitRAboveUnfold + disallowUnfoldLAboveSplit <= 1);
     KAS_ASSERT(disallowMergeWithLargeBlockAboveUnfold + disallowUnfoldLAboveMergeR <= 1);
     KAS_ASSERT(disallowSplitRAboveStride + disallowStrideAboveSplit <= 1);
@@ -157,6 +158,7 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     ctx.applySpecs(contractedPrimarySpecs, contractedCoefficientSpecs);
     ctx.setMaxVariablesInSize(options.maximumVariablesInSize);
     ctx.setMaxVariablesPowersInSize(options.maximumVariablesPowersInSize);
+    ctx.setRequiresExactDivision(options.requiresExactDivision);
 
     // Parse shape from names.
     this->inputShape = ctx.getShape(inputShapeNames);

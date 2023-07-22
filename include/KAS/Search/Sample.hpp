@@ -41,6 +41,8 @@ struct SampleOptions {
 
     std::size_t maximumVariablesInSize = std::numeric_limits<std::size_t>::max();
     std::size_t maximumVariablesPowersInSize = std::numeric_limits<std::size_t>::max();
+    bool requiresExactDivision = true;
+    bool requiresOddKernelSizeInUnfold = true;
 
     std::string expressionOneTensor = "in_0";
     std::string expressionTwoTensors = "in_0 * in_1";
@@ -59,7 +61,7 @@ struct SampleOptions {
     // Below are canonicalization options.
 
     // This option makes Split-Merge only be able to do views.
-    bool disallowDiscontinuousView = true;
+    bool disallowDiscontinuousView = false;
 
     // This option requires UnfoldOp chain to be in a specific order.
     bool canonicalizeUnfoldOrder = true;

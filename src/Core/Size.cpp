@@ -316,7 +316,7 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
                     dTrait && *dTrait != Trait::IllegalCoefficient && *dTrait != Trait::One
                     && qTrait && *qTrait != Trait::IllegalCoefficient && *qTrait != Trait::One
                     && divisor.lowerBoundEst(ctx) > 1.0f && quotient.lowerBoundEst(ctx) > 1.0f
-                    && ctx.isSizeValid(divisor)
+                    && ctx.isSizeValid(divisor) && ctx.isSizeValid(quotient)
                 ) {
                     co_yield divisor;
                 }
@@ -421,7 +421,7 @@ std::string Size::debugToString() const {
 }
 
 std::pair<int, int> PaddingSolver::evalFractionalCoefficient(const Size& size) const {
-    return size.evalFraction<int>(size.coefficientCount, consts.coefficientWrapper(), size.coefficient);
+    return size.EvalFraction<int>(size.coefficientCount, consts.coefficientWrapper(), size.coefficient);
 }
 
 PaddingSolver::Power PaddingSolver::lhsLowerBound(Prime prime, const PrimeFactorInequality::LHS& lhs) {

@@ -38,6 +38,7 @@ public:
         float minimumRatio = 2.0f;
         // kernel.size() <= maxUnfoldKernelSize. This should correspond to StrideOp::GenerateOptions::maxStridedDimSize.
         std::size_t maxUnfoldKernelSize = 30;
+        bool requiresOddKernelSizeInUnfold = false;
         bool disallowUnfoldLAboveSplit;
         bool canonicalizeUnfoldOrder;
         bool disallowUnfoldLAboveShift;

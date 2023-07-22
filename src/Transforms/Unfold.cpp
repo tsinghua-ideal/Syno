@@ -72,14 +72,27 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
         for (auto&& dimR: plausibleR) {
             if (dimL == dimR) continue;
             ++countPlausible;
+            const Size& kernelSize = dimR.size();
+            // Optionally require that the kernel size is odd.
+            // A precondition is that we are sure that all the fractions evaluate to integers.
+            if (
+                options.requiresOddKernelSizeInUnfold &&
+                std::ranges::any_of(options.ctx.getAllConsts(), [&](const ConcreteConsts& consts) {
+                    auto [nom, den] = kernelSize.evalFraction<std::size_t>(consts);
+                    KAS_ASSERT(nom % den == 0, "Fraction must evaluate to an integer.");
+                    return (nom / den) % 2 == 0; // even
+                })
+            ) {
+                continue;
+            }
             // First check whether the kernel is small enough.
             // Absolute size.
-            if (dimR.size().upperBoundEst(options.ctx) > options.maxUnfoldKernelSize) {
+            if (kernelSize.upperBoundEst(options.ctx) > options.maxUnfoldKernelSize) {
                 ++CountKernelAbsolutelyTooLarge;
                 continue;
             }
             // Relative size.
-            auto quotient = dimL.size() / dimR.size();
+            auto quotient = dimL.size() / kernelSize;
             if (quotient.lowerBoundEst(options.ctx) < options.minimumRatio) {
                 ++CountKernelRelativelyTooLarge;
                 continue;
@@ -87,7 +100,7 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
             // Canonicalize unfold chains, requiring that UnfoldOp's with smaller kernels be first built.
             if (options.canonicalizeUnfoldOrder) {
                 if (auto nextUnfold = dimL.tryAs<UnfoldOp::Input>(); nextUnfold) {
-                    auto quotient = dimR.size() / nextUnfold->getOp()->outputRhs.size();
+                    auto quotient = kernelSize / nextUnfold->getOp()->outputRhs.size();
                     if (quotient.lowerBoundEst(options.ctx) < 1) {
                         ++CountCanonicalizedUnfoldChains;
                         continue;

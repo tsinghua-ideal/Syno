@@ -51,7 +51,7 @@ private:
     ExprType coefficient;
 
     template<typename ValueType, typename Consts>
-    static std::pair<ValueType, ValueType> evalFraction(std::size_t cnt, Consts&& consts, const Size::ExprType& powers) {
+    static std::pair<ValueType, ValueType> EvalFraction(std::size_t cnt, Consts&& consts, const Size::ExprType& powers) {
         ValueType nominator = 1;
         ValueType denominator = 1;
         for (std::size_t i = 0; i < cnt; ++i) {
@@ -90,11 +90,24 @@ public:
     std::span<const PowerType> getCoefficient() const;
 
     template<typename ValueType, typename Tp, typename Tc>
-    ValueType eval(Tp&& p, Tc&& c) const {
-        auto [nP, dP] = evalFraction<ValueType>(primaryCount, std::forward<Tp>(p), primary);
-        auto [nC, dC] = evalFraction<ValueType>(coefficientCount, std::forward<Tc>(c), coefficient);
-        return nP * nC / dP / dC;
+    std::pair<ValueType, ValueType> evalFraction(Tp&& p, Tc&& c) const {
+        auto [nP, dP] = EvalFraction<ValueType>(primaryCount, std::forward<Tp>(p), primary);
+        auto [nC, dC] = EvalFraction<ValueType>(coefficientCount, std::forward<Tc>(c), coefficient);
+        return { nP * nC, dP * dC };
     };
+    template<typename ValueType, typename Tp, typename Tc>
+    ValueType eval(Tp&& p, Tc&& c) const {
+        auto [n, d] = evalFraction<ValueType>(std::forward<Tp>(p), std::forward<Tc>(c));
+        return n / d;
+    };
+    template<typename ValueType>
+    std::pair<ValueType, ValueType> evalFraction(const ConcreteConsts& consts) const {
+        return evalFraction<ValueType>(consts.primaryWrapper(), consts.coefficientWrapper());
+    }
+    bool isInteger(const ConcreteConsts& consts) const {
+        auto [nom, den] = evalFraction<std::size_t>(consts);
+        return nom % den == 0;
+    }
     template<typename ValueType>
     ValueType eval(const ConcreteConsts& consts) const {
         return eval<ValueType>(consts.primaryWrapper(), consts.coefficientWrapper());
