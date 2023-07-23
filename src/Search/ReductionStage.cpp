@@ -14,8 +14,8 @@ ReductionStage::Expander::Expander(std::size_t numWorkers) {
             while (!stopToken.stop_requested()) {
                 ReductionStage *stage = nullptr;
                 {
-                    auto expandeLock = lock();
-                    if (cv.wait(expandeLock, stopToken, [&] {
+                    auto expanderLock = lock();
+                    if (cv.wait(expanderLock, stopToken, [&] {
                         return !queue.empty();
                     })) {
                         stage = queue.front();
@@ -24,8 +24,10 @@ ReductionStage::Expander::Expander(std::size_t numWorkers) {
                 }
                 if (stage) {
                     stage->expand(*this);
+                    auto expanderLock = lock();
                     ++completed;
                     if (submitted == completed) {
+                        expanderLock.unlock();
                         cvReady.notify_all();
                     }
                 }
