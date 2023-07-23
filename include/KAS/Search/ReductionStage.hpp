@@ -22,10 +22,13 @@ public:
         Expander(std::size_t numWorkers);
         Expander(const Expander&) = delete;
         Expander(Expander&&) = delete;
+        std::unique_lock<std::mutex> lock() {
+            return std::unique_lock(mutex);
+        }
         // Async.
-        void add(ReductionStage *stage, Lock lock);
+        void add(std::unique_lock<std::mutex>& expanderLock, ReductionStage *stage);
         // Synchronize.
-        void addRoot(ReductionStage *stage, Lock lock);
+        void addRoot(ReductionStage *stage);
         ~Expander();
     };
 

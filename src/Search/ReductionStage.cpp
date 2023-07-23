@@ -14,8 +14,8 @@ ReductionStage::Expander::Expander(std::size_t numWorkers) {
             while (!stopToken.stop_requested()) {
                 ReductionStage *stage = nullptr;
                 {
-                    std::unique_lock lock(mutex);
-                    if (cv.wait(lock, stopToken, [&] {
+                    auto expandeLock = lock();
+                    if (cv.wait(expandeLock, stopToken, [&] {
                         return !queue.empty();
                     })) {
                         stage = queue.front();
@@ -34,19 +34,16 @@ ReductionStage::Expander::Expander(std::size_t numWorkers) {
     }
 }
 
-void ReductionStage::Expander::add(ReductionStage *stage, Lock) {
-    {
-        std::scoped_lock lock(mutex);
-        ++submitted;
-        queue.emplace(stage);
-    }
+void ReductionStage::Expander::add(std::unique_lock<std::mutex>&, ReductionStage *stage) {
+    ++submitted;
+    queue.emplace(stage);
     cv.notify_one();
 }
 
-void ReductionStage::Expander::addRoot(ReductionStage *stage, Lock stageLock) {
-    add(stage, std::move(stageLock));
-    std::unique_lock lock { mutex };
-    cvReady.wait(lock, [&] {
+void ReductionStage::Expander::addRoot(ReductionStage *stage) {
+    auto expanderLock = lock();
+    add(expanderLock, stage);
+    cvReady.wait(expanderLock, [&] {
         return submitted == completed;
     });
 }
@@ -70,16 +67,15 @@ void ReductionStage::expand(Expander& expander) {
     // The lock for the NormalStage and this are the same, because we share the same hash and depth.
     // There is no dead lock because we use std::recursive_lock.
     std::tie(nStage, lock) = NormalStage::Create(getInterface(), *this, std::nullopt, std::move(lock));
-    Finalizability fin = nStage->getFinalizability(lock);
 
     // Then attempt to generate new reductions.
     if (
         existingOp<MapReduceOp>() >= options.maximumReductions
         || existingOp<MapReduceOp>() >= options.depth
     ) {
-        if (fin != Finalizability::Maybe) {
-            // No need to propagate because the reductions are built recursively.
-            determineFinalizability(fin, false);
+        if (auto f = nStage->getFinalizability(lock); f != Finalizability::Maybe) {
+            // Need to propagate because we are the last reduction stage.
+            determineFinalizability(f, true);
         }
         return;
     }
@@ -90,7 +86,6 @@ void ReductionStage::expand(Expander& expander) {
     std::ranges::sort(reductions, std::less<>{}, &MapReduceOp::getPriority);
 
     std::vector<NextStageSlot> nextReductions;
-    std::map<AbstractStage *, Finalizability> childrenFinalizabilities;
     for (auto op: MapReduceOp::Generate(sampler.getOpStore(), reductions, {
         .ctx = sampler.getBindingContext(),
         .dimUpperBound = options.dimUpperBound,
@@ -98,32 +93,23 @@ void ReductionStage::expand(Expander& expander) {
         .maxFLOPs = options.maxFLOPs,
     })) {
         ReductionStage *stage;
-        Finalizability f;
         {
             Lock lock;
             std::tie(stage, lock) = getNextOp(op);
-            f = stage->getFinalizability(lock);
-            expander.add(stage, std::move(lock));
         }
-        if (f != Finalizability::No) {
-            nextReductions.emplace_back(Next{Next::Type::MapReduce, NextStageSlot::GetKey(op)}, op, stage);
-            childrenFinalizabilities.emplace(stage, f);
-        }
+        nextReductions.emplace_back(Next{Next::Type::MapReduce, NextStageSlot::GetKey(op)}, op, stage);
     }
     nextSlotStore.fill(nextReductions, [](NextStageSlot& slot) -> NextStageSlot&& {
         return std::move(slot);
     });
     nextSlotStore.checkHashCollisionAndRemove();
-    nextSlotStore.forEach([&](const NextStageSlot& slot) {
-        auto f = childrenFinalizabilities[slot.nextStage];
-        fin += f;
-    });
-    if (fin != Finalizability::Maybe) {
-        // No need to propagate because the reductions are built recursively.
-        determineFinalizability(fin, false);
-    }
-
     expanded = true;
+
+    auto expanderLock = expander.lock();
+    nextSlotStore.forEach([&](const NextStageSlot& slot) {
+        // Add children to queue.
+        expander.add(expanderLock, static_cast<ReductionStage *>(slot.nextStage));
+    });
 }
 
 ReductionStage::CollectedFinalizabilities ReductionStage::collectFinalizabilities() {

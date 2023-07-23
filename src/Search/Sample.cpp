@@ -213,7 +213,8 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     std::tie(rootStage, lock) = ReductionStage::Create(*this, std::move(interface), std::unique_lock<std::recursive_mutex>{});
     this->rootStage = dynamic_cast<ReductionStage *>(stageStore.insert(0, std::move(rootStage), lock));
     ReductionStage::Expander expander { numWorkerThreads };
-    expander.addRoot(this->rootStage, std::move(lock));
+    lock.unlock();
+    expander.addRoot(this->rootStage);
 }
 
 const TensorExpression& Sampler::getExpressionForTensorNum(std::size_t num) const {
