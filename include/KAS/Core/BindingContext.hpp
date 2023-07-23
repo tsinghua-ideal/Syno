@@ -59,6 +59,7 @@ protected:
 
     std::size_t maximumVariablesInSize = std::numeric_limits<std::size_t>::max();
     std::size_t maximumVariablesPowersInSize = std::numeric_limits<std::size_t>::max();
+    bool requiresExactDivision = false;
 
     ConcreteConsts defaultConsts;
     std::vector<ConcreteConsts> allConsts;
@@ -93,6 +94,7 @@ public:
     std::size_t getMaxVariablesInSize() const;
     void setMaxVariablesPowersInSize(std::size_t maximumVariablesPowersInSize);
     std::size_t getMaxVariablesPowersInSize() const;
+    void setRequiresExactDivision(bool requiresExactDivision);
     bool isSizeValid(const Size& size) const;
 
     std::vector<Size> getSizes(const std::vector<std::string>& names) const;

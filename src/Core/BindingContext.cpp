@@ -133,6 +133,9 @@ void BindingContext::setMaxVariablesPowersInSize(std::size_t maximumVariablesPow
 std::size_t BindingContext::getMaxVariablesPowersInSize() const {
     return maximumVariablesPowersInSize;
 }
+void BindingContext::setRequiresExactDivision(bool requiresExactDivision) {
+    this->requiresExactDivision = requiresExactDivision;
+}
 
 bool BindingContext::isSizeValid(const Size& size) const {
     int usedPrimaryVars = 0, primaryVarsPowers = 0;
@@ -145,9 +148,16 @@ bool BindingContext::isSizeValid(const Size& size) const {
         usedCoefficientVars += c != 0;
         coefficientVarsPowers += std::abs(c);
     }
-    return 
-        usedPrimaryVars + usedCoefficientVars <= maximumVariablesInSize
-        && primaryVarsPowers + coefficientVarsPowers <= maximumVariablesPowersInSize;
+    const bool divides =
+        !requiresExactDivision ||
+        std::ranges::all_of(
+            getAllConsts(),
+            [&](const ConcreteConsts& consts) { return size.isInteger(consts); }
+        );
+    return
+        divides &&
+        usedPrimaryVars + usedCoefficientVars <= maximumVariablesInSize &&
+        primaryVarsPowers + coefficientVarsPowers <= maximumVariablesPowersInSize;
 }
 
 std::vector<Size> BindingContext::getSizes(const std::vector<std::string>& names) const {

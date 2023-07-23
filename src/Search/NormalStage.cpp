@@ -107,6 +107,7 @@ void NormalStage::guardGeneratedChildren() {
                     .ctx = ctx,
                     .minimumRatio = options.minimumUnfoldRatio,
                     .maxUnfoldKernelSize = options.maxUnfoldKernelSize,
+                    .requiresOddKernelSizeInUnfold = options.requiresOddKernelSizeInUnfold,
                     .disallowUnfoldLAboveSplit = options.disallowUnfoldLAboveSplit,
                     .canonicalizeUnfoldOrder = options.canonicalizeUnfoldOrder,
                     .disallowUnfoldLAboveShift = options.disallowUnfoldLAboveShift,
