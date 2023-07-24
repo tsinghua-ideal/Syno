@@ -2,7 +2,7 @@ import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from KAS import Assembled, Assembler, Sampler, Placeholder, CodeGenOptions, Path
+from KAS import Assembled, Assembler, Sampler, Placeholder, CodeGenOptions, Path, Statistics
 
 
 class Model(nn.Module):
@@ -58,7 +58,7 @@ def manually_design(assembler: Assembler) -> Assembled:
 def perform_trials(manual: bool):
     net = Model()
     sampler = Sampler(
-        "[H,W]", "[H,W]", ["H: 2", "W: 2"], ["s_1=2: 2", "s_2=3: 2"], net=net, seed=42, depth=10,
+        "[H,W]", "[H,W]", ["H: 2", "W: 2"], ["s_1=2: 2", "s_2=3: 2"], net=net, seed=42, depth=6,
         maximum_reductions=3,
         cuda=False, autoscheduler=CodeGenOptions.Adams2019,
         extra_options={
@@ -67,12 +67,19 @@ def perform_trials(manual: bool):
             "shared_memory_sm_limit_kb": "64",
             "active_block_limit": "256",
             "active_warp_limit": "512",
-        })
+        },
+        num_worker_threads=16,
+    )
     sampler._bind_debug_context()
 
     if not manual:
+        Statistics.Print()
+        print("Expanding...")
+        sampler.root().expand(3)
+        print("Completed expansion. Now searching...")
         while True:
-            samples = sampler.random_final_nodes_with_prefix([], 5)
+            samples = sampler.random_final_nodes_with_prefix([], 256)
+            print(f"Collected {len(samples)} samples.")
             if len(samples) > 0:
                 node = samples[0]
                 kernel = sampler.realize(net, node)
@@ -80,8 +87,10 @@ def perform_trials(manual: bool):
                     kernel_packs = kernel.construct_kernel_packs()
                     print(f"Kernel files stored in {kernel.get_directory()}")
                     break
+        Statistics.Print()
         print(node.get_nested_loops_as_final())
         print(node.get_composing_arcs())
+        print(node.get_possible_path())
     else:
         assembler = sampler.create_assembler()
         node = manually_design(assembler)

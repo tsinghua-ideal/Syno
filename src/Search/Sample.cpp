@@ -283,41 +283,77 @@ std::optional<std::pair<std::vector<Next>, Node>> Sampler::randomNodeWithPrefix(
 }
 
 std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPrefix(const std::vector<Next>& prefix, std::size_t count) {
+    if (count == 0) return {};
+
     const std::optional<Node> optCur = visit(prefix);
     if (!optCur) {
         return {};
     }
 
-    using Workers = ThreadPool<void, std::pair<std::vector<Next>, Node>>;
-    auto workers = Workers(numWorkerThreads, [&optCur, &prefix](Workers& pool) {
-        static thread_local std::mt19937 rng { std::random_device{}() };
-        Node cur = *optCur;
-        std::vector<Next> path = prefix;
-        while (true) {
-            auto children = cur.getChildrenHandles();
-            if (children.empty()) break;
-            auto next = children[std::uniform_int_distribution<std::size_t>{0, children.size() - 1}(rng)];
-            path.emplace_back(next);
-            auto nextNode = cur.getChild(next);
-            if (!nextNode) {
-                return;
-            }
-            cur = *nextNode;
-        }
-        if (cur.isFinal()) {
-            pool.emplaceResult(std::move(path), std::move(cur));
-        }
-    });
-    std::vector<std::pair<std::vector<Next>, Node>> results;
-    auto batch = [&](std::size_t numTasks) {
-        workers.addMultipleSync(numTasks);
-        auto newResults = workers.dumpResults();
-        results.insert(results.end(), newResults.begin(), newResults.end());
+    struct RandomTask {
+        std::vector<Next> path;
+        Node node;
+        std::size_t quota;
     };
-    for (std::size_t i = numWorkerThreads; i <= count; i += numWorkerThreads) {
-        batch(numWorkerThreads);
-    }
-    batch(count % numWorkerThreads);
+    using Workers = ThreadPool<RandomTask, std::pair<std::vector<Next>, Node>>;
+    // Hierarchical sampling.
+    auto workers = Workers(numWorkerThreads, [](Workers& pool, RandomTask task) {
+        static thread_local std::mt19937 rng { std::random_device{}() };
+
+        const auto& [path, node, quota] = task;
+        KAS_ASSERT(quota > 0);
+
+        // If this is final, return it.
+        if (node.isFinal()) {
+            pool.emplaceResult(std::move(path), std::move(node));
+            return;
+        }
+
+        // Obtain the children.
+        auto children = node.getChildrenHandles();
+        if (children.empty()) return;
+
+        // Pick each child with equal probability.
+        auto assignment = std::vector<std::size_t>(children.size(), 0);
+        auto dist = std::uniform_int_distribution<std::size_t>{0, children.size() - 1};
+        for (std::size_t i = 0; i < quota; ++i) {
+            auto next = dist(rng);
+            ++assignment[next];
+        }
+
+        // First collect the required nexts and convert them to Nodes.
+        std::vector<std::size_t> subQuotas;
+        std::vector<Next> subNexts;
+        for (std::size_t i = 0; i < children.size(); ++i) {
+            std::size_t subQuota = assignment[i];
+            if (subQuota == 0) continue;
+            subQuotas.emplace_back(subQuota);
+            subNexts.emplace_back(children[i]);
+        }
+        auto optSubNodes = node.getChildren(subNexts);
+
+        KAS_ASSERT(subQuotas.size() == optSubNodes.size() && subQuotas.size() == subNexts.size());
+
+        // Next level of hierarchy.
+        std::vector<RandomTask> subTasks;
+        for (std::size_t i = 0; i < subQuotas.size(); ++i) {
+            auto& optSubNode = optSubNodes[i];
+            if (!optSubNode) continue;
+            std::size_t subQuota = subQuotas[i];
+            std::vector<Next> subPath = path;
+            subPath.emplace_back(subNexts[i]);
+            subTasks.emplace_back(std::move(subPath), std::move(*optSubNode), subQuota);
+        }
+
+        // For better randomness, to reduce waiting for locks.
+        std::shuffle(subTasks.begin(), subTasks.end(), rng);
+
+        pool.addMultiple(std::move(subTasks));
+    });
+
+    workers.addSync(RandomTask { prefix, *optCur, count });
+    auto results = workers.dumpResults();
+
     std::ranges::sort(results, std::less{}, &std::pair<std::vector<Next>, Node>::second);
     auto [uniqueB, uniqueE] = std::ranges::unique(results, std::equal_to{}, &std::pair<std::vector<Next>, Node>::second);
     results.erase(uniqueB, uniqueE);

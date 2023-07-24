@@ -201,6 +201,15 @@ std::optional<Node> Node::getChild(Next next) const {
     );
 }
 
+std::vector<std::optional<Node>> Node::getChildren(const std::vector<Next>& nexts) const {
+    return match<std::vector<std::optional<Node>>>(
+        [&](AbstractStage *stage) { return stage->getChildren(nexts); },
+        [&](std::shared_ptr<TensorView> tensor) {
+            return std::vector<std::optional<Node>>(nexts.size());
+        }
+    );
+}
+
 bool Node::canAcceptArc(Arc arc) const {
     return match<bool>(
         [&](AbstractStage *stage) { return stage->canAcceptArc(arc); },
