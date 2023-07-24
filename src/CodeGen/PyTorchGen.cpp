@@ -17,12 +17,23 @@ std::pair<Dimension, std::size_t> PyTorchGen::SubgraphGen::assignShare(Dimension
 
 std::vector<Dimension> PyTorchGen::SubgraphGen::performContraction(std::string_view name) {
     KAS_ASSERT(!tensor.isInputTensor());
+
+    auto isToBeShared = [&](const Dimension& dim) {
+        return
+            // This is a ShareOp.
+            dim.type() == DimensionType::Share &&
+            // But we have to check whether it is preserved in the output.
+            std::ranges::find(tensor.output(), dim) == tensor.output().end();
+    };
+
     // Consider the special case where we do not need any Share or reduction.
     if (
         const auto& inputTensor = tensor.inputs()[0];
         tensor.inputs().size() == 1 && // We only have one input tensor so we do not need to perform Share
-        std::ranges::none_of(inputTensor.output(), [](const Dimension& dim) {
-            return dim.type() == DimensionType::MapReduce; // and there is no reduction.
+        std::ranges::none_of(inputTensor.output(), [&](const Dimension& dim) {
+            return
+                dim.type() == DimensionType::MapReduce || // there is no reduction.
+                isToBeShared(dim); // and there is no Share to be performed.
         })
     ) {
         printer.writeLn("{} = {}", name, tensorNames.at(inputTensor));
@@ -42,10 +53,7 @@ std::vector<Dimension> PyTorchGen::SubgraphGen::performContraction(std::string_v
                 inputSubscripts.emplace_back(it->second);
                 continue;
             }
-            if (
-                dim.type() == DimensionType::Share // This is a ShareOp.
-                && std::ranges::find(tensor.output(), dim) == tensor.output().end() // But we have to check whether it is preserved in the output.
-            ) {
+            if (isToBeShared(dim)) {
                 // Assign with new subscript.
                 auto [realDim, subscript] = assignShare(dim);
                 inputSubscripts.emplace_back(subscript);
@@ -207,6 +215,9 @@ void PyTorchGen::SubgraphGen::OpLower::visit(const MergeOp& op) {
 
     // Now do the reshape.
     reshapeToInterface();
+}
+void PyTorchGen::SubgraphGen::OpLower::visit(const ShareOp& op) {
+    // No progress. successfulVisit == false.
 }
 void PyTorchGen::SubgraphGen::OpLower::visit(const ShiftOp& op) {
     const auto [input, inputIndex] = getSingleInput(op);

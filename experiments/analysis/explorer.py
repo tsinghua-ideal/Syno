@@ -12,9 +12,12 @@ if __name__ == '__main__':
     args = parser.arg_parse()
 
     # Sampler
-    _, sampler = models.get_model(args, return_sampler=True)
+    model, sampler = models.get_model(args, return_sampler=True)
 
     # Explorer
     explorer = Explorer(sampler)
 
-    explorer.interactive()
+    node = explorer.interactive()
+    if node and node.is_final():
+        print("Realizing the result {} from explorer...", node)
+        model.load_kernel(sampler, node, "trial")
