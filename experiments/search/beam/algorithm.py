@@ -7,9 +7,8 @@ from KAS.Node import Path
 
 class BeamAlgorithm:
     max_queue_size = 1000
-    max_estimates = 5
-    max_final_iterations = 100
-    expand_async_layers = 2
+    max_final_iterations = 150
+    expand_async_layers = 3
     noise_weight = 0.4
 
     def __init__(self, sampler: Sampler, args):
@@ -21,6 +20,7 @@ class BeamAlgorithm:
         self.score: Dict[str, Tuple[float, int]] = dict()
 
         # For estimating
+        self.max_depth = args.kas_depth
         self.ancestors = dict()
         self.issued = set()
         self.cached = dict()
@@ -45,10 +45,12 @@ class BeamAlgorithm:
             return
         
         # Not visited
-        logging.info(f'Pushing path({serialized_path}) to heap with async expand ...')
         node = self.sampler.visit(path)
         node.expand_async(self.expand_async_layers)
-        self.score[serialized_path] = (0, self.max_estimates)
+        num_est = self.max_depth - len(path) + 2
+        assert num_est > 0
+        logging.info(f'Pushing path({serialized_path}, depth: {len(path)}, est: {num_est}) to heap with async expand ...')
+        self.score[serialized_path] = (0, num_est)
         self.heap.append(serialized_path)
         self.sort_heap()
         if len(self.heap) > self.max_queue_size:

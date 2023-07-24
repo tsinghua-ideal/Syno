@@ -25,13 +25,6 @@ class Session:
         self.last_save_time = time.time()
         self.start_time = time.time()
 
-        # Prefetcher for final node
-        self.num_prefetch = args.kas_num_virtual_evaluator
-        if self.num_prefetch > 0:
-            self.prefetched = queue.Queue(maxsize=self.num_prefetch)
-            self.prefetcher = threading.Thread(target=self.prefetcher_main)
-            self.prefetcher.start()
-
         # Pending results
         self.pending = set()
         self.waiting = set()
@@ -45,6 +38,13 @@ class Session:
         assert hasattr(self.algo, 'serialize'), f'Algorithm {algo} does not implement `serialize`'
         assert hasattr(self.algo, 'update'), f'Algorithm {algo} does not implement `update`'
         assert hasattr(self.algo, 'sample'), f'Algorithm {algo} does not implement `sample`'
+
+        # Prefetcher for final node
+        self.num_prefetch = args.kas_num_virtual_evaluator
+        if self.num_prefetch > 0:
+            self.prefetched = queue.Queue(maxsize=self.num_prefetch)
+            self.prefetcher = threading.Thread(target=self.prefetcher_main)
+            self.prefetcher.start()
 
     def save(self, force=True):
         if self.save_dir is None:
@@ -102,13 +102,9 @@ class Session:
     def prefetcher_main(self):
         try:
             while True:
-                num_to_prefetch = self.num_prefetch - self.prefetched.qsize()
-                logging.info(f'Prefetching {num_to_prefetch} samples ...')
-                for _ in range(num_to_prefetch):
-                    new_sample = self.algo.sample()
-                    self.prefetched.put(new_sample)
+                self.prefetched.put(self.algo.sample())
         except KeyboardInterrupt:
-            logging.info('Prefetcher stopped by KeyboardInterrupt')
+            logging.info('Prefetcher stopped by keyboard interrupt')
             return
 
     def sample_impl(self):
@@ -117,6 +113,8 @@ class Session:
             return self.algo.sample()
 
         # Get a final node from the buffer
+        if self.prefetched.empty():
+            logging.info(f'Waiting for prefetched samples ...')
         return self.prefetched.get()
 
 
