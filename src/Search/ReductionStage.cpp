@@ -48,6 +48,7 @@ void ReductionStage::Expander::addRoot(ReductionStage *stage) {
     cvReady.wait(expanderLock, [&] {
         return submitted == completed;
     });
+    KAS_DEBUG("Finished building {} ReductionStage's.", completed);
 }
 
 ReductionStage::Expander::~Expander() {
@@ -69,22 +70,16 @@ void ReductionStage::expand(Expander& expander) {
     // The lock for the NormalStage and this are the same, because we share the same hash and depth.
     // There is no dead lock because we use std::recursive_lock.
     std::tie(nStage, lock) = NormalStage::Create(getInterface(), *this, std::nullopt, std::move(lock));
-    auto nStageFinalizability = nStage->getFinalizability(lock);
-
-    if (nStageFinalizability == Finalizability::Yes) {
-        // If this is true, then this stage is finalizable.
-        // We do not even need to know the finalizability of the other children.
-        determineFinalizability(Finalizability::Yes, true);
-    }
+    auto fin = nStage->getFinalizability(lock);
 
     // Check if there is need to generate new stages.
     if (
         existingOp<MapReduceOp>() >= options.maximumReductions
         || existingOp<MapReduceOp>() >= options.depth
     ) {
-        if (nStageFinalizability == Finalizability::No) {
-            // This stage is dead.
-            determineFinalizability(nStageFinalizability, true);
+        if (fin != Finalizability::Maybe) {
+            // This stage is determined.
+            determineFinalizability(fin, true);
         }
         return;
     }
@@ -96,6 +91,7 @@ void ReductionStage::expand(Expander& expander) {
     std::ranges::sort(reductions, std::less<>{}, &MapReduceOp::getPriority);
 
     std::vector<NextStageSlot> nextReductions;
+    std::map<AbstractStage *, Finalizability> childrenFinalizabilities;
     for (auto op: MapReduceOp::Generate(sampler.getOpStore(), reductions, {
         .ctx = sampler.getBindingContext(),
         .dimUpperBound = options.dimUpperBound,
@@ -103,23 +99,30 @@ void ReductionStage::expand(Expander& expander) {
         .maxFLOPs = options.maxFLOPs,
     })) {
         ReductionStage *stage;
+        Finalizability f;
         {
             Lock lock;
             std::tie(stage, lock) = getNextOp(op);
+            f = stage->getFinalizability(lock);
         }
-        nextReductions.emplace_back(Next{Next::Type::MapReduce, NextStageSlot::GetKey(op)}, op, stage);
+        if (f != Finalizability::No) {
+            nextReductions.emplace_back(Next{Next::Type::MapReduce, NextStageSlot::GetKey(op)}, op, stage);
+            childrenFinalizabilities.emplace(stage, f);
+        }
     }
     nextSlotStore.fill(nextReductions, [](NextStageSlot& slot) -> NextStageSlot&& {
         return std::move(slot);
     });
     nextSlotStore.checkHashCollisionAndRemove();
+    nextSlotStore.forEach([&](const NextStageSlot& slot) {
+        auto f = childrenFinalizabilities[slot.nextStage];
+        fin += f;
+    });
     expanded = true;
 
-    if (nextSlotStore.size() == 0 && nStageFinalizability == Finalizability::No) {
-        // Clearly we are dead.
+    if (fin != Finalizability::Maybe) {
         // Need to propagate because we are the last reduction stage.
-        determineFinalizability(Finalizability::No, true);
-        return;
+        determineFinalizability(fin, true);
     }
 
     auto expanderLock = expander.lock();
