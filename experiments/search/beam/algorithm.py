@@ -7,11 +7,10 @@ from KAS.Node import Path
 
 class BeamAlgorithm:
     max_queue_size = 1000
-    max_estimates = 5
-    max_final_iterations = 500
-    expand_async_threshold = 50
+    max_estimates = 4
+    max_final_iterations = 100
     expand_async_layers = 3
-    noise_weight = 0.2
+    noise_weight = 0.4
 
     def __init__(self, sampler: Sampler, args):
         self.sampler = sampler
@@ -41,14 +40,16 @@ class BeamAlgorithm:
             return
 
         # Already visited
-        path = path.serialize()
-        if path in self.score:
+        serialized_path = path.serialize()
+        if serialized_path in self.score:
             return
         
         # Not visited
-        logging.info(f'Pushing path({path}) to heap ...')
-        self.score[path] = (0, self.max_estimates)
-        self.heap.append(path)
+        logging.info(f'Pushing path({serialized_path}) to heap with async expand ...')
+        node = self.sampler.visit(path)
+        node.expand_async(self.expand_async_layers)
+        self.score[serialized_path] = (0, self.max_estimates)
+        self.heap.append(serialized_path)
         self.sort_heap()
         if len(self.heap) > self.max_queue_size:
             self.heap.pop(0)
@@ -81,19 +82,14 @@ class BeamAlgorithm:
         if node.is_final():
             estimates.add(serialized_path)
         else:
-            counter = 0
             for _ in range(self.score[serialized_path][1]):
                 new_node = None
-                for __ in range(self.max_final_iterations):
+                for i in range(self.max_final_iterations):
                     final_node = self.sampler.random_node_with_prefix(path)
                     if final_node and final_node.is_final() and not final_node.is_dead_end():
                         new_node = final_node
+                        logging.info(f'Got final node at hit {i} / {self.max_final_iterations}')
                         break
-                    
-                    counter += 1
-                    if counter == self.expand_async_threshold:
-                        logging.debug(f'Expand async: {path} ...')
-                        node.expand_async(self.expand_async_layers)
                 if new_node:
                     estimates.add(new_node.path.serialize())
         return estimates
