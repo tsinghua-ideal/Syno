@@ -9,6 +9,8 @@ from base import log, models, parser, dataset, trainer
 
 
 class Handler:
+    timeout = 600
+
     def __init__(self, args):
         self.addr = f'http://{args.kas_server_addr}:{args.kas_server_port}'
         self.session = requests.Session()
@@ -17,13 +19,13 @@ class Handler:
 
     def sample(self):
         logging.info(f'Get: {self.addr}/sample')
-        j = self.session.get(f'{self.addr}/sample').json()
+        j = self.session.get(f'{self.addr}/sample', timeout=self.timeout).json()
         assert 'path' in j
         return j['path']
 
     def reward(self, path, reward):
         logging.info(f'Post: {self.addr}/reward?path={path}&value={reward}')
-        self.session.post(f'{self.addr}/reward?path={path}&value={reward}')
+        self.session.post(f'{self.addr}/reward?path={path}&value={reward}', timeout=self.timeout)
 
 
 if __name__ == '__main__':
