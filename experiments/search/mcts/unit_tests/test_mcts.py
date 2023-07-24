@@ -32,7 +32,6 @@ def test_mcts():
         print(f"Iteration {idx}. Sampled {node} for {path}")
         mcts.back_propagate(receipt, 0.5, node[0])
         
-    return
     for k, v in mcts.virtual_loss_count.items():
         assert v == 0, f"Virtual loss count for {k} is {v}"
     
@@ -67,4 +66,4 @@ def test_mcts():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
-    profile.run("test_mcts()")
+    test_mcts()

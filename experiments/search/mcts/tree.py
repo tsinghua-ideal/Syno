@@ -51,14 +51,16 @@ class MCTSTree:
         self.virtual_loss_count[tree_node] += delta
         tree_node.flush_T(tree_node.N + self.virtual_loss_count[tree_node], self._treenode_store, self.g_rave, self._c_l, self._b)
         for next in path:
-            tree_node, _ = tree_node.get_child(next.type, self._treenode_store, on_tree=True)
+            tree_node = tree_node.get_child(next.type, self._treenode_store, on_tree=True)
             assert tree_node is not None
+            tree_node, _ = tree_node
             self.virtual_loss_count[tree_node] += delta
             tree_node.flush_T(tree_node.N + self.virtual_loss_count[tree_node], self._treenode_store, self.g_rave, self._c_l, self._b)
             if next.key == 0:
                 break
-            tree_node, _ = tree_node.get_child(next.key, self._treenode_store, on_tree=True)
+            tree_node = tree_node.get_child(next.key, self._treenode_store, on_tree=True)
             assert tree_node is not None
+            tree_node, _ = tree_node
             self.virtual_loss_count[tree_node] += delta
             tree_node.flush_T(tree_node.N + self.virtual_loss_count[tree_node], self._treenode_store, self.g_rave, self._c_l, self._b)
 
@@ -67,16 +69,37 @@ class MCTSTree:
         tree_node = self.tree_root
         self.virtual_loss_count[tree_node] -= delta
         for next in path:
-            tree_node, _ = tree_node.get_child(next.type, self._treenode_store, on_tree=True)
-            assert tree_node is not None
-            self.virtual_loss_count[tree_node] -= 1
-            assert self.virtual_loss_count[tree_node] >= 0
+            tree_node = tree_node.get_child(next.type, self._treenode_store, on_tree=True)
+            # assert tree_node is not None
+            if tree_node is None:
+                break
+            tree_node, _ = tree_node
+            self.virtual_loss_count[tree_node] -= delta
+            assert self.virtual_loss_count[tree_node] >= 0, (self.virtual_loss_count[tree_node], tree_node)
             if next.key == 0:
                 break
-            tree_node, _ = tree_node.get_child(next.key, self._treenode_store, on_tree=True)
-            assert tree_node is not None
-            self.virtual_loss_count[tree_node] -= 1
-            assert self.virtual_loss_count[tree_node] >= 0
+            tree_node = tree_node.get_child(next.key, self._treenode_store, on_tree=True)
+            # assert tree_node is not None
+            if tree_node is None:
+                break
+            tree_node, _ = tree_node
+            self.virtual_loss_count[tree_node] -= delta
+            assert self.virtual_loss_count[tree_node] >= 0, (self.virtual_loss_count[tree_node], tree_node)
+    
+    def visit(self, path: TreePath) -> Optional[TreeNode]:
+        tree_node = self.tree_root
+        for next in path:
+            tree_node = tree_node.get_child(next.type, self._treenode_store, on_tree=True)
+            if tree_node is None:
+                return None
+            tree_node, _ = tree_node
+            if next.key == 0:
+                break
+            tree_node = tree_node.get_child(next.key, self._treenode_store, on_tree=True)
+            if tree_node is None:
+                return None
+            tree_node, _ = tree_node
+        return tree_node
 
     # The receipt which is used for back propagation, which is the root node and the path.
     Receipt = TreePath
@@ -261,6 +284,11 @@ class MCTSTree:
         logging.debug("Back propagation start")
         path = receipt
         self._decrement_virtual_loss(path)
+        
+        # This SHOULD NOT happen when pruning is good enough, but now we are compensating the correctness for efficiency. 
+        if self.visit(path) is None:
+            logging.debug(f"Back propagating a \"dead path\" {path}...")
+            return
         
         # update rewards
         self.update_nodes(receipt, reward)

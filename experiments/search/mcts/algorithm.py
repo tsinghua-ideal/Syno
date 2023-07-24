@@ -8,11 +8,11 @@ from .tree import MCTSTree
 
 class MCTSAlgorithm:
     # TODO: may move to program arguments
-    virtual_loss_constant = .5
+    virtual_loss_constant = .3
     leaf_parallelization_number = 1
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
-    max_final_iterations = 500
+    max_final_iterations = 10000
     b = 0.4
     c_l = 40.
 

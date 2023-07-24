@@ -22,6 +22,8 @@ class KASModel(nn.Module):
         assert len(placeholders) == kernel.get_count_placeholders(), f'Kernel {kernel} has {kernel.get_count_placeholders()} placeholders, but {len(placeholders)} placeholders are found in the model'
         flops = []
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
+            placeholder.reload(kernel_pack, False)
+            placeholder.refered_layer = None
             placeholder.set_flops(kernel.get_flops(i))
             placeholder.set_params(sum(weight.numel() for weight in kernel_pack.weights) if hasattr(kernel_pack, 'weights') else 0)
             flops.append(kernel.get_flops(i))
@@ -30,8 +32,8 @@ class KASModel(nn.Module):
         self.flops, self.params = self.profile(batch_size, force_update=True)
         
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
-            placeholder.refered_layer = None
             placeholder.reload(kernel_pack, compile)
+            placeholder.refered_layer = None
 
     def profile(self, batch_size=1, force_update=False) -> Tuple[int, int]:
         if not (self.flops == 0 and self.params == 0) and not force_update:
