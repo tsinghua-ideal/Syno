@@ -82,7 +82,7 @@ if __name__ == '__main__':
                 client.reward(path, accuracy)
             elif args.kas_target == 'flops':
                 if accuracy >= args.kas_min_accuracy:
-                    reward = args.kas_min_accuracy + max(0, 1. - flops / args.kas_max_flops) * (1 - args.kas_min_accuracy)
+                    reward = args.kas_min_accuracy + max(0, 1. - flops / args.kas_flops_trunc) * (1 - args.kas_min_accuracy)
                 else:
                     reward = accuracy
                 client.reward(path, reward)

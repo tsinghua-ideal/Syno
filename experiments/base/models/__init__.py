@@ -78,7 +78,7 @@ def get_model(args, return_sampler=False) -> Union[Tuple[KASModel, Optional[Samp
         cls_name = args.kas_replace_placeholder.capitalize() + 'Placeholder'
         assembled = getattr(placeholder, cls_name).impl(sampler.create_assembler())
         logging.debug(f'Assembled path: {assembled.convert_to_path(sampler)}')
-        model.load_kernel(sampler, assembled, args.kas_replace_placeholder, compile=args.compile)
+        model.load_kernel(sampler, assembled, args.kas_replace_placeholder, compile=args.compile, batch_size=args.batch_size)
 
     if return_sampler:
         assert sampler

@@ -20,7 +20,8 @@ class MCTSTree:
     def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20, policy: str='update-descent', max_final_iterations=500) -> None:
 
         self._treenode_store: Dict[Node, TreeNode] = dict()
-        self._root = sampler.visit([]).to_node()
+        self._root = sampler.root().to_node()
+        assert not self._root.is_dead_end()
         self.tree_root = TreeNode(self._root)
         self._treenode_store[self._root] = self.tree_root
         self.g_rave: DefaultDict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)

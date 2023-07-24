@@ -70,6 +70,8 @@ def arg_parse():
                         help='Minimum accuracy for network')
     parser.add_argument('--kas-target', default='accuracy', type=str,
                         help='Target metric of KAS')
+    parser.add_argument('--kas-flops-trunc', default=1e15, type=float,
+                        help='Maximum FLOPs to be counted as reward. ')
     parser.add_argument('--kas-reward-trunc', default=0, type=float, help='Reward lower bound')
     parser.add_argument('--kas-reward-power', default=2, type=float, help='Reward power')
     
