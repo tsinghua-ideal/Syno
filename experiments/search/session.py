@@ -88,8 +88,7 @@ class Session:
             
             # Loop
             with open(os.path.join(kernel_save_dir, 'loop.txt'), 'w') as f:
-                loop_str = node._node.get_nested_loops_as_final()
-                f.write(str(loop_str))
+                f.write(str(node._node.get_nested_loops_as_final()))
 
             # Meta information
             with open(os.path.join(kernel_save_dir, 'meta.json'), 'w') as f:

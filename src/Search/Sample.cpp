@@ -308,8 +308,16 @@ std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPre
             pool.emplaceResult(std::move(path), std::move(cur));
         }
     });
-    workers.addMultipleSync(count);
-    auto results = workers.dumpResults();
+    std::vector<std::pair<std::vector<Next>, Node>> results;
+    auto batch = [&](std::size_t numTasks) {
+        workers.addMultipleSync(numTasks);
+        auto newResults = workers.dumpResults();
+        results.insert(results.end(), newResults.begin(), newResults.end());
+    };
+    for (std::size_t i = numWorkerThreads; i <= count; i += numWorkerThreads) {
+        batch(numWorkerThreads);
+    }
+    batch(count % numWorkerThreads);
     std::ranges::sort(results, std::less{}, &std::pair<std::vector<Next>, Node>::second);
     auto [uniqueB, uniqueE] = std::ranges::unique(results, std::equal_to{}, &std::pair<std::vector<Next>, Node>::second);
     results.erase(uniqueB, uniqueE);
