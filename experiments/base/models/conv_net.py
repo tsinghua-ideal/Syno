@@ -40,7 +40,7 @@ class ConvNet(KASModel):
             'input_shape': '[N, C_in, H, W]',
             'output_shape': '[N, C_out, H, W]',
             'primary_specs': ['N: 0', 'C_in: 2', 'C_out: 2', 'H: 2', 'W: 2'],
-            'coefficient_specs': ['k=3: 4', 's=2: 4'],
+            'coefficient_specs': ['k=3: 6', 's=2: 4'],
             'fixed_io_pairs': [(0, 0)],
         }
 
