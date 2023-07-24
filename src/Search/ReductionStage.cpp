@@ -69,19 +69,27 @@ void ReductionStage::expand(Expander& expander) {
     // The lock for the NormalStage and this are the same, because we share the same hash and depth.
     // There is no dead lock because we use std::recursive_lock.
     std::tie(nStage, lock) = NormalStage::Create(getInterface(), *this, std::nullopt, std::move(lock));
+    auto nStageFinalizability = nStage->getFinalizability(lock);
 
-    // Then attempt to generate new reductions.
+    if (nStageFinalizability == Finalizability::Yes) {
+        // If this is true, then this stage is finalizable.
+        // We do not even need to know the finalizability of the other children.
+        determineFinalizability(Finalizability::Yes, true);
+    }
+
+    // Check if there is need to generate new stages.
     if (
         existingOp<MapReduceOp>() >= options.maximumReductions
         || existingOp<MapReduceOp>() >= options.depth
     ) {
-        if (auto f = nStage->getFinalizability(lock); f != Finalizability::Maybe) {
-            // Need to propagate because we are the last reduction stage.
-            determineFinalizability(f, true);
+        if (nStageFinalizability == Finalizability::No) {
+            // This stage is dead.
+            determineFinalizability(nStageFinalizability, true);
         }
         return;
     }
 
+    // Then attempt to generate new reductions.
     std::vector<const MapReduceOp *> reductions;
     std::ranges::move(getInterface() | std::views::transform([](const Dimension& dim) { return dynamic_cast<const MapReduceOp *>(dim.tryAs<MapReduce>()); }) | std::views::filter([](auto ptr) { return ptr != nullptr; }), std::back_inserter(reductions));
     KAS_ASSERT(reductions.size() == existingOp<MapReduceOp>());
@@ -106,6 +114,13 @@ void ReductionStage::expand(Expander& expander) {
     });
     nextSlotStore.checkHashCollisionAndRemove();
     expanded = true;
+
+    if (nextSlotStore.size() == 0 && nStageFinalizability == Finalizability::No) {
+        // Clearly we are dead.
+        // Need to propagate because we are the last reduction stage.
+        determineFinalizability(Finalizability::No, true);
+        return;
+    }
 
     auto expanderLock = expander.lock();
     nextSlotStore.forEach([&](const NextStageSlot& slot) {
