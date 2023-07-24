@@ -3,6 +3,8 @@ import json
 import logging
 import os
 import time
+import threading
+import queue
 from KAS.Node import Path, Node
 
 
@@ -11,16 +13,26 @@ class Session:
     # TODO: add timeout handling
 
     def __init__(self, sampler, algo, args):
+        # Parameters
         self.args = args
         self.sampler = sampler
         self.reward_power = args.kas_reward_power
         self.reward_trunc = args.kas_reward_trunc
 
+        # Configs
         self.save_interval = args.kas_server_save_interval
         self.save_dir = args.kas_server_save_dir
         self.last_save_time = time.time()
         self.start_time = time.time()
 
+        # Prefetcher for final node
+        self.num_prefetch = args.kas_num_virtual_evaluator
+        if self.num_prefetch > 0:
+            self.prefetched = queue.Queue(maxsize=self.num_prefetch)
+            self.prefetcher = threading.Thread(target=self.prefetcher_main)
+            self.prefetcher.start()
+
+        # Pending results
         self.pending = set()
         self.waiting = set()
 
@@ -87,10 +99,31 @@ class Session:
         logging.info(f'Updating with reward {reward} ...')
         self.algo.update(path, reward)
 
+    def prefetcher_main(self):
+        try:
+            while True:
+                num_to_prefetch = self.num_prefetch - self.prefetched.qsize()
+                logging.info(f'Prefetching {num_to_prefetch} samples ...')
+                for _ in range(num_to_prefetch):
+                    new_sample = self.algo.sample()
+                    self.prefetched.put(new_sample)
+        except KeyboardInterrupt:
+            logging.info('Prefetcher stopped by KeyboardInterrupt')
+            return
+
+    def sample_impl(self):
+        # No prefetch
+        if self.num_prefetch == 0:
+            return self.algo.sample()
+
+        # Get a final node from the buffer
+        return self.prefetched.get()
+
+
     def sample(self):
         # Get new samples if there is no pending samples
         if len(self.pending) == 0:
-            new_samples = self.algo.sample()
+            new_samples = self.sample_impl()
 
             # String information
             if type(new_samples) == str:

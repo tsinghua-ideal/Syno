@@ -7,9 +7,9 @@ from KAS.Node import Path
 
 class BeamAlgorithm:
     max_queue_size = 1000
-    max_estimates = 4
+    max_estimates = 5
     max_final_iterations = 100
-    expand_async_layers = 3
+    expand_async_layers = 2
     noise_weight = 0.4
 
     def __init__(self, sampler: Sampler, args):
