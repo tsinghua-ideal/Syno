@@ -16,8 +16,11 @@ class Session:
         # Parameters
         self.args = args
         self.sampler = sampler
-        self.reward_power = args.kas_reward_power
-        self.reward_trunc = args.kas_reward_trunc
+        self.reward_power: int = args.kas_reward_power
+        self.reward_trunc: float = args.kas_reward_trunc
+        self.target: str = args.kas_target
+        self.min_accuracy: float = args.kas_min_accuracy
+        self.flops_trunc: int = int(args.kas_flops_trunc)
 
         # Configs
         self.save_interval = args.kas_server_save_interval
@@ -67,7 +70,7 @@ class Session:
         with open(os.path.join(self.save_dir, 'args.json'), 'w') as f:
             json.dump(vars(self.args), f, indent=2)
 
-    def update(self, path, accuracy):
+    def update(self, path, accuracy, flops, params):
         # Not more waiting
         self.waiting.remove(path)
 
@@ -78,9 +81,11 @@ class Session:
         # Save into directory
         if self.save_dir:
             os.makedirs(self.save_dir, exist_ok=True)
-            score_str = ('0' * max(0, 5 - len(f'{int(accuracy * 10000)}'))) + f'{int(accuracy * 10000)}' if accuracy >= 0 else 'ERROR'
+            acc_str = ('0' * max(0, 5 - len(f'{int(accuracy * 10000)}'))) + f'{int(accuracy * 10000)}' if accuracy >= 0 else 'ERROR'
+            flops_str = ('0' * max(0, 10 - len(f'{flops}'))) + f'{flops}'
+            params_str = ('0' * max(0, 10 - len(f'{params}'))) + f'{params}'
             hash_str = f'{ctypes.c_size_t(hash(path)).value}'
-            kernel_save_dir = os.path.join(self.save_dir, f'{score_str}_{hash_str}')
+            kernel_save_dir = os.path.join(self.save_dir, '_'.join([acc_str, flops_str, params_str, hash_str]))
             os.makedirs(kernel_save_dir, exist_ok=True)
 
             # GraphViz
@@ -95,7 +100,15 @@ class Session:
                 json.dump({'path': path.serialize(), 'accuracy': accuracy, 'time': time.time() - self.start_time}, f, indent=2)
 
         # Update with reward
-        reward = ((max(accuracy, self.reward_trunc) - self.reward_trunc) / (1 - self.reward_trunc)) ** self.reward_power if accuracy > 0 else -1
+        if accuracy > 0:
+            if self.target == 'flops' and accuracy >= self.min_accuracy:
+                reward = self.min_accuracy + max(0, 1. - flops / self.flops_trunc) * (1 - self.min_accuracy)
+            else:
+                reward = (max(accuracy, self.reward_trunc) - self.reward_trunc) / (1 - self.reward_trunc)
+            reward = reward ** self.reward_power
+        else:
+            reward = -1
+            
         logging.info(f'Updating with reward {reward} ...')
         self.algo.update(path, reward)
 

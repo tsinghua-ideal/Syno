@@ -37,9 +37,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def reward(self):
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        path, accuracy = params['path'][0], float(params['value'][0])
-        logging.info(f'Path received to /reward request: {path}, accuracy: {accuracy}')
-        self.session.update(path, accuracy)
+        path, accuracy, flops, nparams = params['path'][0], float(params['accuracy'][0]), int(params['flops'][0]), int(params['params'][0])
+        logging.info(f'Path received to /reward request: {path}, accuracy: {accuracy}, flops: {flops}, params: {nparams}')
+        self.session.update(path, accuracy, flops, nparams)
         self.session.save(force=False)
         
         # Send response

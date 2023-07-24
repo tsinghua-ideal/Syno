@@ -23,9 +23,9 @@ class Handler:
         assert 'path' in j
         return j['path']
 
-    def reward(self, path, reward):
-        logging.info(f'Post: {self.addr}/reward?path={path}&value={reward}')
-        self.session.post(f'{self.addr}/reward?path={path}&value={reward}', timeout=self.timeout)
+    def reward(self, path, accuracy, flops, params):
+        logging.info(f'Post: {self.addr}/reward?path={path}&accuracy={accuracy}&flops={flops}&params={params}')
+        self.session.post(f'{self.addr}/reward?path={path}&accuracy={accuracy}&flops={flops}&params={params}', timeout=self.timeout)
 
 
 if __name__ == '__main__':
@@ -67,7 +67,7 @@ if __name__ == '__main__':
             # Mock evaluate
             if args.kas_mock_evaluate:
                 logging.info('Mock evaluating ...')
-                client.reward(path, -1 if random.random() < 0.5 else random.random())
+                client.reward(path, -1 if random.random() < 0.5 else random.random(), random.randint(int(1e6), int(1e7)), random.randint(int(1e6), int(1e7)))
                 continue
             
             # Evaluate on a dataset
@@ -80,15 +80,6 @@ if __name__ == '__main__':
             _, val_errors = trainer.train(model, train_dataloader, val_dataloader, args)
             accuracy = 1 - min(val_errors)
             
-            if args.kas_target == 'accuracy':
-                client.reward(path, accuracy)
-            elif args.kas_target == 'flops':
-                if accuracy >= args.kas_min_accuracy:
-                    reward = args.kas_min_accuracy + max(0, 1. - flops / args.kas_flops_trunc) * (1 - args.kas_min_accuracy)
-                else:
-                    reward = accuracy
-                client.reward(path, reward)
-            else:
-                raise ValueError(f'Unknown target: {args.kas_target}')
+            client.reward(path, accuracy, flops, params)
     except KeyboardInterrupt:
         logging.info('Interrupted by user, exiting ...')
