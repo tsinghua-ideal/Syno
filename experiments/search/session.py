@@ -53,6 +53,7 @@ class Session:
         if not force and time.time() - self.last_save_time < self.save_interval:
             return
 
+        self.last_save_time = time.time()
         logging.info(f'Saving search session into {self.save_dir}')
         os.makedirs(self.save_dir, exist_ok=True)
 
