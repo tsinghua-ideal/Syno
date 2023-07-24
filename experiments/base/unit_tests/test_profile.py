@@ -18,6 +18,8 @@ def get_model_args(model_name: str, batch_size=2, kas_replace_placeholder=None) 
         kas_max_tensors=3,
         kas_max_reductions=4,
         kas_max_flops=1e9,
+        kas_sampler_workers=1,
+        compile=True,
         kas_scheduler_cache_dir='.scheduler-cache',
     )
 

@@ -12,22 +12,31 @@ from .placeholder import LinearPlaceholder, ConvPlaceholder
 class KASModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()
+        self.flops = 0
+        self.params = 0
     
-    def load_kernel(self, sampler: KAS.Sampler, node: KAS.Node, name: str=None, compile=False):
+    def load_kernel(self, sampler: KAS.Sampler, node: KAS.Node, name: str=None, compile=False, batch_size=1):
         kernel = sampler.realize(self, node, name)
         kernel_packs = kernel.construct_kernel_packs()
         placeholders = sampler._extract_placeholders(self)
         assert len(placeholders) == kernel.get_count_placeholders(), f'Kernel {kernel} has {kernel.get_count_placeholders()} placeholders, but {len(placeholders)} placeholders are found in the model'
         flops = []
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
-            placeholder.reload(kernel_pack, compile)
-            placeholder.refered_layer = None
             placeholder.set_flops(kernel.get_flops(i))
             placeholder.set_params(sum(weight.numel() for weight in kernel_pack.weights) if hasattr(kernel_pack, 'weights') else 0)
             flops.append(kernel.get_flops(i))
         assert kernel.get_total_flops() == sum(flops), f'Kernel {kernel} has {kernel.get_total_flops()} flops, but {sum(flops)} flops are found in the model'
+        
+        self.flops, self.params = self.profile(batch_size, force_update=True)
+        
+        for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
+            placeholder.refered_layer = None
+            placeholder.reload(kernel_pack, compile)
 
-    def profile(self, batch_size=1) -> Tuple[int, int]:
+    def profile(self, batch_size=1, force_update=False) -> Tuple[int, int]:
+        if not (self.flops == 0 and self.params == 0) and not force_update:
+            return self.flops, self.params
+        
         # Get statistics (count with batch size = 1)    
         def count_placeholder(m: Placeholder, x, y):
             if m.kernel:

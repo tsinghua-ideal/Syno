@@ -438,11 +438,7 @@ class TreeNode:
         if self._is_mid:
             for handle in self._node.get_children_handles():
                 if handle.type == self._type:
-                    try:
-                        child = self._node.get_child(Next(self._type, handle.key))
-                    except RuntimeError as e:
-                        logging.debug(f"Runtime error: {self._node} {self._node.get_possible_path()} {Next(self._type, handle.key)}")
-                        raise e
+                    child = self._node.get_child(Next(self._type, handle.key))
                     if child and (child not in factory or not factory[child]._is_dead):
                         return False
             self._is_dead = True
@@ -460,7 +456,6 @@ class TreeNode:
         if self._exhausted:
             return True
         if self.is_final() and (self.reward > 0 or self.filtered):
-            logging.debug("exhaust, final")
             self._exhausted = True
         if not self.is_fully_in_tree(factory):
             return False
