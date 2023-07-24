@@ -34,7 +34,7 @@ HACK: comment line 130-134 in `$CONDA_PATH/envs/kas/include/crt/host_config.h`
 CMake tests are available.
 
 ```bash
-cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=true -DCMAKE_CXX_FLAGS="$/home/timsu1104/mambaforge/envs/kas/include" -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` .
+cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=true -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` .
 cmake --build build
 cd build && ctest
 ```

@@ -51,9 +51,9 @@ class Assembler:
         """Create a ShiftOp. Note that the shift is not a Size but a constant."""
         return self._assembler.create_shift(input, shift)
 
-    def create_split(self, input: ForwardDimension) -> Tuple[ForwardDimension, ForwardDimension]:
+    def create_split(self, input: ForwardDimension, block: Bindings.Size) -> Tuple[ForwardDimension, ForwardDimension]:
         """Create a SplitOp."""
-        return self._assembler.create_split(input)
+        return self._assembler.create_split(input, block)
 
     def create_stride(self, input: ForwardDimension, stride: Bindings.Size) -> ForwardDimension:
         """Create a StrideOp."""

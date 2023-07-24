@@ -239,7 +239,7 @@ cython_debug/
 **/samples
 
 # Commands buffer
-commands.txt
+commands.md
 
 # NSight system
 *.nsys-rep

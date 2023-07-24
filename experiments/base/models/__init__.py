@@ -2,7 +2,7 @@ import logging
 import random
 import sys
 import torch
-from typing import Tuple
+from typing import Tuple, Optional, Union
 from KAS import Sampler
 from KAS.Bindings import CodeGenOptions
 from KAS.Placeholder import build_placeholder_mappings
@@ -19,7 +19,7 @@ def get_model_input_size(args):
     return model_cls.sample_input_shape()
 
 
-def get_sampler(args, model):
+def get_sampler(args, model) -> Sampler:
     # Build sampler
     model_params = model.sampler_parameters()
     params = {
@@ -39,6 +39,8 @@ def get_sampler(args, model):
         'cuda': True,
         'autoscheduler': CodeGenOptions.AutoScheduler.Anderson2021,
         'num_worker_threads': args.kas_sampler_workers,
+        'requires_exact_division': True,
+        'requires_odd_kernel_size_in_unfold': False,
         'extra_options': {
             'beam_size': '32',
             'num_passes': '1',
@@ -55,7 +57,7 @@ def get_sampler(args, model):
     return sampler
 
 
-def get_model(args, return_sampler=False):
+def get_model(args, return_sampler=False) -> Union[Tuple[KASModel, Optional[Sampler]], KASModel]:
     # Create model instance
     assert hasattr(sys.modules[__name__], args.model), f'Could not find model {args.model}'
     model_cls = getattr(sys.modules[__name__], args.model)
