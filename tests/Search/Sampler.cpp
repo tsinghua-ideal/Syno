@@ -7,14 +7,14 @@ TEST_F(search_tests, sampler) {
     constexpr std::size_t trials = 500;
     std::size_t successes = 0;
     for (int i = 0; i < trials; ++i) {
-        auto randomLeaf = sampler.randomNodeWithPrefix({});
-        if (!randomLeaf || !randomLeaf->second.isFinal()) {
+        auto randomLeaves = sampler.randomFinalNodesWithPrefix({}, 5);
+        if (randomLeaves.empty() || !randomLeaves[0].second.isFinal()) {
             fmt::print("Trial {} failed.\n", i);
             continue;
         } else {
             fmt::print("Trial {} succeeded.\n", i);
         }
-        auto [_, node] = *randomLeaf;
+        auto [_, node] = randomLeaves[0];
         ++successes;
         auto& tensorView = *node.asFinal();
 
