@@ -7,9 +7,9 @@ from KAS.Node import Path
 
 class BeamAlgorithm:
     max_queue_size = 1000000
-    max_final_iterations = 150
+    max_final_iterations = 1000
     expand_async_layers = 3
-    noise_weight = 0.4
+    noise_weight = 0.5
 
     def __init__(self, sampler: Sampler, args):
         self.sampler = sampler
@@ -47,7 +47,7 @@ class BeamAlgorithm:
         # Not visited
         node = self.sampler.visit(path)
         node.expand_async(self.expand_async_layers)
-        num_est = self.max_depth - len(path) + 2
+        num_est = 2 * (self.max_depth - len(path) + 2)
         assert num_est > 0
         logging.info(f'Pushing path({serialized_path}, depth: {len(path)}, est: {num_est}) to heap with async expand ...')
         self.score[serialized_path] = (0, num_est)
@@ -84,16 +84,13 @@ class BeamAlgorithm:
         if node.is_final():
             estimates.add(serialized_path)
         else:
-            for _ in range(self.score[serialized_path][1]):
-                new_node = None
-                for i in range(self.max_final_iterations):
-                    final_node = self.sampler.random_node_with_prefix(path)
-                    if final_node and final_node.is_final() and not final_node.is_dead_end():
-                        new_node = final_node
-                        logging.info(f'Got final node at hit {i} / {self.max_final_iterations}')
-                        break
-                if new_node:
-                    estimates.add(new_node.path.serialize())
+            sample_times = self.score[serialized_path][1] * self.max_final_iterations
+            assert sample_times > 0
+            estimates = self.sampler.random_final_nodes_with_prefix(path, sample_times)
+            estimates = list(set([est.path.serialize() for est in estimates]))
+            random.shuffle(estimates)
+            estimates = set(estimates[:min(len(estimates), self.score[serialized_path][1])])
+            logging.info(f'Got {len(estimates)} estimates ({sample_times} samples) for path({serialized_path})')
         return estimates
 
 
