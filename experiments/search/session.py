@@ -103,6 +103,7 @@ class Session:
     def prefetcher_main(self):
         try:
             while True:
+                logging.info(f'Prefetcher calls the next sample ...')
                 self.prefetched.put(self.algo.sample())
         except KeyboardInterrupt:
             logging.info('Prefetcher stopped by keyboard interrupt')

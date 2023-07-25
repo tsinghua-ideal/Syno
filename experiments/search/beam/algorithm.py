@@ -46,7 +46,7 @@ class BeamAlgorithm:
         
         # Not visited
         node = self.sampler.visit(path)
-        node.expand_async(self.expand_async_layers)
+        # node.expand_async(self.expand_async_layers)
         num_est = 2 * (self.max_depth - len(path) + 2)
         assert num_est > 0
         logging.info(f'Pushing path({serialized_path}, depth: {len(path)}, est: {num_est}) to heap with async expand ...')
@@ -86,6 +86,7 @@ class BeamAlgorithm:
         else:
             sample_times = self.score[serialized_path][1] * self.max_final_iterations
             assert sample_times > 0
+            logging.info(f'Getting estimates for path({serialized_path}) with {sample_times} samples ...')
             estimates = self.sampler.random_final_nodes_with_prefix(path, sample_times)
             estimates = list(set([est.path.serialize() for est in estimates]))
             random.shuffle(estimates)
