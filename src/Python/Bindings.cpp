@@ -319,6 +319,10 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("prefix")
         )
         .def(
+            "random_final_nodes_with_prefix", &Sampler::randomFinalNodesWithPrefix,
+            pybind11::arg("prefix"), pybind11::arg("count")
+        )
+        .def(
             "create_assembler", [](Sampler& self) {
                 return std::make_unique<Forward::Factory>(self.getBindingContext());
             }

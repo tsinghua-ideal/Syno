@@ -236,6 +236,12 @@ class Sampler:
         path, node = visited_node
         return VisitedNode(Path(path), node)
 
+    def random_final_nodes_with_prefix(self, prefix: PseudoPath, count: int) -> List[VisitedNode]:
+        """Find final nodes with specified prefix. Note that the returned list may not contain as many nodes as required, and even an empty list can be returned."""
+        prefix = Path(prefix)
+        visited_nodes = self._sampler.random_final_nodes_with_prefix(prefix.abs_path, count)
+        return [VisitedNode(Path(path), node) for path, node in visited_nodes]
+
     def path_to_strs(self, path: PseudoPath) -> List[str]:
         node = self.root()
         strs = []

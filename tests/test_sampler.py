@@ -72,8 +72,9 @@ def perform_trials(manual: bool):
 
     if not manual:
         while True:
-            node = sampler.random_node_with_prefix(Path([]))
-            if node.is_final():
+            samples = sampler.random_final_nodes_with_prefix([], 5)
+            if len(samples) > 0:
+                node = samples[0]
                 kernel = sampler.realize(net, node)
                 if kernel.get_count_inputs() > 1:
                     kernel_packs = kernel.construct_kernel_packs()

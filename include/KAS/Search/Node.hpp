@@ -371,6 +371,9 @@ public:
     // For Python.
     std::size_t hash() const;
 
+    // For convenience.
+    std::strong_ordering operator<=>(const Node& rhs) const = default;
+
     AbstractStage *tryAsStage() const;
     NormalStage *asNormalStage() const;
     std::shared_ptr<TensorView> asFinal() const;

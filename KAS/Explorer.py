@@ -65,7 +65,7 @@ class Explorer:
         for arc in node.get_composing_arcs():
             print(f"\t{arc}")
 
-    def interactive(self, working_dir: os.PathLike = '.') -> None:
+    def interactive(self, working_dir: os.PathLike = '.') -> Optional[Node]:
         """
         Interactive exploration.
         The current path is displayed.
@@ -170,7 +170,7 @@ class Explorer:
                 Statistics.Print()
             elif command == "exit":
                 # exit interactive mode
-                break
+                return current_node
             elif command == "help":
                 # print help
                 print(self.interactive.__doc__)

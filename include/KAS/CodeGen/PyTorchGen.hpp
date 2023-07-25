@@ -132,7 +132,7 @@ public:
 
             void visit(const MapReduceOp& op) override { KAS_CRITICAL("Cannot lower MapReduce to PyTorch as an Op."); }
             void visit(const MergeOp& op) override;
-            void visit(const ShareOp& op) override { KAS_CRITICAL("ShareOp is not directly lowerable. It can only be lowered as contraction!"); }
+            void visit(const ShareOp& op) override;
             void visit(const ShiftOp& op) override;
             void visit(const SplitOp& op) override;
             void visit(const StrideOp& op) override;

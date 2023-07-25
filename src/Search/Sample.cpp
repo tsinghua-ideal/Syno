@@ -1,3 +1,5 @@
+#include <future>
+
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/MapReduce.hpp"
@@ -257,14 +259,14 @@ std::optional<std::pair<std::vector<Next>, Node>> Sampler::randomNodeWithPrefix(
     Node cur = *optCur;
     // Recursively visit children.
     while (true) {
-        auto cnt = cur.countChildren();
-        if (cnt == 0) {
+        auto children = cur.getChildrenHandles();
+        if (children.empty()) {
             // Since the update is performed in multithreaded manner, we cannot assert this.
             // auto stage = cur.tryAsStage();
             // KAS_ASSERT(!stage || stage->getFinalizability() == Finalizability::No);
             break;
         }
-        auto next = cur.getChildrenHandles()[random(cnt)];
+        auto next = children[random(children.size())];
         path.emplace_back(next);
         auto nextNode = cur.getChild(next);
         if (!nextNode) {
@@ -273,6 +275,48 @@ std::optional<std::pair<std::vector<Next>, Node>> Sampler::randomNodeWithPrefix(
         cur = *nextNode;
     };
     return std::optional<std::pair<std::vector<Next>, Node>>(std::in_place, std::move(path), std::move(cur));
+}
+
+std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPrefix(const std::vector<Next>& prefix, std::size_t count) {
+    const std::optional<Node> optCur = visit(prefix);
+    if (!optCur) {
+        return {};
+    }
+
+    std::vector<std::future<std::optional<std::pair<std::vector<Next>, Node>>>> results;
+    for (std::size_t i= 0; i < count; ++i) {
+        results.emplace_back(std::async(std::launch::async, [&optCur, &prefix]() -> std::optional<std::pair<std::vector<Next>, Node>> {
+            static thread_local std::mt19937 rng { std::random_device{}() };
+            Node cur = *optCur;
+            std::vector<Next> path = prefix;
+            while (true) {
+                auto children = cur.getChildrenHandles();
+                if (children.empty()) break;
+                auto next = children[std::uniform_int_distribution<std::size_t>{0, children.size() - 1}(rng)];
+                path.emplace_back(next);
+                auto nextNode = cur.getChild(next);
+                if (!nextNode) {
+                    return std::nullopt;
+                }
+                cur = *nextNode;
+            }
+            if (!cur.isFinal()) {
+                return std::nullopt;
+            }
+            return std::optional<std::pair<std::vector<Next>, Node>>(std::in_place, std::move(path), std::move(cur));
+        }));
+    }
+    std::vector<std::pair<std::vector<Next>, Node>> filteredResults;
+    for (auto& result: results) {
+        auto optResult = result.get();
+        if (optResult) {
+            filteredResults.emplace_back(std::move(*optResult));
+        }
+    }
+    std::ranges::sort(filteredResults, std::less{}, &std::pair<std::vector<Next>, Node>::second);
+    auto [uniqueB, uniqueE] = std::ranges::unique(filteredResults, std::equal_to{}, &std::pair<std::vector<Next>, Node>::second);
+    filteredResults.erase(uniqueB, uniqueE);
+    return filteredResults;
 }
 
 void Sampler::ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimension>>& tensorView) {
