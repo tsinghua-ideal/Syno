@@ -8,56 +8,7 @@
 
 namespace kas {
 
-ReductionStage::Expander::Expander(std::size_t numWorkers) {
-    for (std::size_t i = 0; i < numWorkers; ++i) {
-        workers.emplace_back([this](std::stop_token stopToken) {
-            while (!stopToken.stop_requested()) {
-                ReductionStage *stage = nullptr;
-                {
-                    auto expanderLock = lock();
-                    if (cv.wait(expanderLock, stopToken, [&] {
-                        return !queue.empty();
-                    })) {
-                        stage = queue.front();
-                        queue.pop();
-                    }
-                }
-                if (stage) {
-                    stage->expand(*this);
-                    auto expanderLock = lock();
-                    ++completed;
-                    if (submitted == completed) {
-                        expanderLock.unlock();
-                        cvReady.notify_all();
-                    }
-                }
-            }
-        });
-    }
-}
-
-void ReductionStage::Expander::add(std::unique_lock<std::mutex>&, ReductionStage *stage) {
-    ++submitted;
-    queue.emplace(stage);
-    cv.notify_one();
-}
-
-void ReductionStage::Expander::addRoot(ReductionStage *stage) {
-    auto expanderLock = lock();
-    add(expanderLock, stage);
-    cvReady.wait(expanderLock, [&] {
-        return submitted == completed;
-    });
-    KAS_DEBUG("Finished building {} ReductionStage's.", completed);
-}
-
-ReductionStage::Expander::~Expander() {
-    for (auto& worker: workers) {
-        worker.request_stop();
-    }
-}
-
-void ReductionStage::expand(Expander& expander) {
+void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
     Lock lock = acquireLock();
     if (expanded) {
         return;
@@ -81,6 +32,7 @@ void ReductionStage::expand(Expander& expander) {
             // This stage is determined.
             determineFinalizability(fin, true);
         }
+        expanded = true;
         return;
     }
 
@@ -125,11 +77,12 @@ void ReductionStage::expand(Expander& expander) {
         determineFinalizability(fin, true);
     }
 
-    auto expanderLock = expander.lock();
-    nextSlotStore.forEach([&](const NextStageSlot& slot) {
-        // Add children to queue.
-        expander.add(expanderLock, static_cast<ReductionStage *>(slot.nextStage));
-    });
+    expander.addMultiple(
+        nextSlotStore.getRawSlots()
+        | std::views::transform([](const NextStageSlot& slot) {
+            return static_cast<ReductionStage *>(slot.nextStage);
+        })
+    );
 }
 
 ReductionStage::CollectedFinalizabilities ReductionStage::collectFinalizabilities() {
@@ -150,22 +103,26 @@ ReductionStage::ReductionStage(Dimensions interface, AbstractStage& creator, std
 {}
 
 std::size_t ReductionStage::countChildrenImpl() const {
+    KAS_ASSERT(expanded);
     return Base::countChildrenImpl() + nStage->countChildren();
 }
 
 std::vector<Next> ReductionStage::getChildrenHandlesImpl() {
+    KAS_ASSERT(expanded);
     std::vector<Next> handles = Base::getChildrenHandlesImpl();
     std::ranges::move(nStage->getChildrenHandles(), std::back_inserter(handles));
     return handles;
 }
 
 std::vector<Arc> ReductionStage::getChildrenArcsImpl() {
+    KAS_ASSERT(expanded);
     std::vector<Arc> arcs = Base::getChildrenArcsImpl();
     std::ranges::move(nStage->getChildrenArcs(), std::back_inserter(arcs));
     return arcs;
 }
 
 std::optional<Arc> ReductionStage::getArcFromHandleImpl(Next next) {
+    KAS_ASSERT(expanded);
     if (next.type == Next::Type::MapReduce) {
         return Base::getArcFromHandleImpl(next);
     } else {
@@ -174,6 +131,7 @@ std::optional<Arc> ReductionStage::getArcFromHandleImpl(Next next) {
 }
 
 std::optional<Node> ReductionStage::getChildImpl(Next next) {
+    KAS_ASSERT(expanded);
     if (next.type == Next::Type::MapReduce) {
         return Base::getChildImpl(next);
     } else {
@@ -182,6 +140,7 @@ std::optional<Node> ReductionStage::getChildImpl(Next next) {
 }
 
 bool ReductionStage::canAcceptArcImpl(Arc arc) {
+    KAS_ASSERT(expanded);
     return arc.match<bool>(
         [&](const PrimitiveOp *op) -> bool {
             if (op->getType() == DimensionType::MapReduce) {
@@ -200,6 +159,7 @@ bool ReductionStage::canAcceptArcImpl(Arc arc) {
 }
 
 Node ReductionStage::getChildImpl(Arc arc) {
+    KAS_ASSERT(expanded);
     return arc.match<Node>(
         [&](auto op) -> Node {
             if (op->getType() == DimensionType::MapReduce) {

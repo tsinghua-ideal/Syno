@@ -13,6 +13,7 @@
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/Threads.hpp"
 
 
 namespace kas {
@@ -122,6 +123,7 @@ std::size_t MutexCountFromNumWorkers(std::size_t numWorkerThreads) {
 
 Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const std::vector<std::pair<std::size_t, std::size_t>>& fixedIODims, const SampleOptions& options, std::size_t numWorkerThreads):
     rng { options.seed },
+    numWorkerThreads { numWorkerThreads },
     options { options },
     stageStore { options.depth + 1, MutexCountFromNumWorkers(numWorkerThreads) },
     countMutexesInLayer { MutexCountFromNumWorkers(numWorkerThreads) },
@@ -214,9 +216,12 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
     std::tie(rootStage, lock) = ReductionStage::Create(*this, std::move(interface), std::unique_lock<std::recursive_mutex>{});
     this->rootStage = dynamic_cast<ReductionStage *>(stageStore.insert(0, std::move(rootStage), lock));
-    ReductionStage::Expander expander { numWorkerThreads };
     lock.unlock();
-    expander.addRoot(this->rootStage);
+    auto expander = ThreadPool<ReductionStage *>(numWorkerThreads, [&](ThreadPool<ReductionStage *>& expander, ReductionStage *stage) {
+        stage->expand(expander);
+    });
+    std::size_t numReductionStages = expander.addSync(this->rootStage);
+    KAS_DEBUG("Built {} ReductionStage's", numReductionStages);
 }
 
 const TensorExpression& Sampler::getExpressionForTensorNum(std::size_t num) const {
@@ -283,40 +288,32 @@ std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPre
         return {};
     }
 
-    std::vector<std::future<std::optional<std::pair<std::vector<Next>, Node>>>> results;
-    for (std::size_t i= 0; i < count; ++i) {
-        results.emplace_back(std::async(std::launch::async, [&optCur, &prefix]() -> std::optional<std::pair<std::vector<Next>, Node>> {
-            static thread_local std::mt19937 rng { std::random_device{}() };
-            Node cur = *optCur;
-            std::vector<Next> path = prefix;
-            while (true) {
-                auto children = cur.getChildrenHandles();
-                if (children.empty()) break;
-                auto next = children[std::uniform_int_distribution<std::size_t>{0, children.size() - 1}(rng)];
-                path.emplace_back(next);
-                auto nextNode = cur.getChild(next);
-                if (!nextNode) {
-                    return std::nullopt;
-                }
-                cur = *nextNode;
+    using Workers = ThreadPool<void, std::pair<std::vector<Next>, Node>>;
+    auto workers = Workers(numWorkerThreads, [&optCur, &prefix](Workers& pool) {
+        static thread_local std::mt19937 rng { std::random_device{}() };
+        Node cur = *optCur;
+        std::vector<Next> path = prefix;
+        while (true) {
+            auto children = cur.getChildrenHandles();
+            if (children.empty()) break;
+            auto next = children[std::uniform_int_distribution<std::size_t>{0, children.size() - 1}(rng)];
+            path.emplace_back(next);
+            auto nextNode = cur.getChild(next);
+            if (!nextNode) {
+                return;
             }
-            if (!cur.isFinal()) {
-                return std::nullopt;
-            }
-            return std::optional<std::pair<std::vector<Next>, Node>>(std::in_place, std::move(path), std::move(cur));
-        }));
-    }
-    std::vector<std::pair<std::vector<Next>, Node>> filteredResults;
-    for (auto& result: results) {
-        auto optResult = result.get();
-        if (optResult) {
-            filteredResults.emplace_back(std::move(*optResult));
+            cur = *nextNode;
         }
-    }
-    std::ranges::sort(filteredResults, std::less{}, &std::pair<std::vector<Next>, Node>::second);
-    auto [uniqueB, uniqueE] = std::ranges::unique(filteredResults, std::equal_to{}, &std::pair<std::vector<Next>, Node>::second);
-    filteredResults.erase(uniqueB, uniqueE);
-    return filteredResults;
+        if (cur.isFinal()) {
+            pool.emplaceResult(std::move(path), std::move(cur));
+        }
+    });
+    workers.addMultipleSync(count);
+    auto results = workers.dumpResults();
+    std::ranges::sort(results, std::less{}, &std::pair<std::vector<Next>, Node>::second);
+    auto [uniqueB, uniqueE] = std::ranges::unique(results, std::equal_to{}, &std::pair<std::vector<Next>, Node>::second);
+    results.erase(uniqueB, uniqueE);
+    return results;
 }
 
 void Sampler::ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimension>>& tensorView) {

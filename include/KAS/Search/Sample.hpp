@@ -153,6 +153,7 @@ class Sampler final {
         std::uniform_int_distribution<T> dist { 0, upper - 1 };
         return dist(rng);
     }
+    const std::size_t numWorkerThreads;
 
     BindingContext ctx;
     SampleOptions options;

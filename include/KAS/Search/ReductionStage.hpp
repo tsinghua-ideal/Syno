@@ -1,45 +1,19 @@
 #pragma once
 
-#include <condition_variable>
-
 #include "KAS/Search/AbstractStage.hpp"
 #include "KAS/Transforms/MapReduce.hpp"
+#include "KAS/Utils/Threads.hpp"
 
 
 namespace kas {
 
 class ReductionStage final: public AbstractStageBase<ReductionStage> {
-public:
-    class Expander {
-        std::mutex mutex;
-        std::condition_variable_any cv;
-        std::condition_variable cvReady;
-        std::queue<ReductionStage *> queue;
-        std::vector<std::jthread> workers;
-        std::size_t submitted = 0;
-        std::size_t completed = 0;
-    public:
-        Expander(std::size_t numWorkers);
-        Expander(const Expander&) = delete;
-        Expander(Expander&&) = delete;
-        std::unique_lock<std::mutex> lock() {
-            return std::unique_lock(mutex);
-        }
-        // Async.
-        void add(std::unique_lock<std::mutex>& expanderLock, ReductionStage *stage);
-        // Synchronize.
-        void addRoot(ReductionStage *stage);
-        ~Expander();
-    };
-
-private:
     friend class AbstractStageBase<ReductionStage>;
 
     // The stage that is directly constructed, without appending any reduction.
     std::unique_ptr<NormalStage> nStage;
 
     bool expanded = false;
-    void expand(Expander& expander);
 
     struct CollectedFinalizabilities: Base::CollectedFinalizabilities {
         Finalizability nStageFinalizability;
@@ -48,6 +22,9 @@ private:
     Finalizability checkForFinalizableChildren(const CollectedFinalizabilities& collected) const;
 
 public:
+    // Only for sampler. Before calling this, any attempt to access the properties is illegal.
+    void expand(ThreadPool<ReductionStage *>& expander);
+
     // This is the root.
     ReductionStage(Sampler& sampler, Dimensions interface, Lock lock);
     ReductionStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock);
