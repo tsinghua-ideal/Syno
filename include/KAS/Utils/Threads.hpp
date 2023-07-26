@@ -43,7 +43,7 @@ public:
                     std::optional<T> task;
                     {
                         std::unique_lock lock { mutex };
-                        if(cv.wait(lock, stopToken, [this] { return !queue.empty(); })) {
+                        if (cv.wait(lock, stopToken, [this] { return !queue.empty(); })) {
                             task.emplace(std::move(queue.front()));
                             queue.pop();
                         }
