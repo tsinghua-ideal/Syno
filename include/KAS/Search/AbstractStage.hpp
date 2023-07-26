@@ -106,6 +106,8 @@ protected:
             KAS_CRITICAL("Invalid Finalizability.");
         }
         if (propagate) {
+            // Again!
+            requestFinalizabilityUpdate(this);
             for (auto parent: parents) {
                 parent->requestFinalizabilityUpdate(this);
             }
