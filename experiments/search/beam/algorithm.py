@@ -46,7 +46,7 @@ class BeamAlgorithm:
         
         # Not visited
         node = self.sampler.visit(path)
-        # node.expand_async(self.expand_async_layers)
+        node.expand_async(self.expand_async_layers)
         num_est = 2 * (self.max_depth - len(path) + 2)
         assert num_est > 0
         logging.info(f'Pushing path({serialized_path}, depth: {len(path)}, est: {num_est}) to heap with async expand ...')
