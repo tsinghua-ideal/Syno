@@ -82,10 +82,8 @@ class Session:
         if self.save_dir:
             os.makedirs(self.save_dir, exist_ok=True)
             acc_str = ('0' * max(0, 5 - len(f'{int(accuracy * 10000)}'))) + f'{int(accuracy * 10000)}' if accuracy >= 0 else 'ERROR'
-            flops_str = ('0' * max(0, 10 - len(f'{flops}'))) + f'{flops}'
-            params_str = ('0' * max(0, 10 - len(f'{params}'))) + f'{params}'
             hash_str = f'{ctypes.c_size_t(hash(path)).value}'
-            kernel_save_dir = os.path.join(self.save_dir, '_'.join([acc_str, flops_str, params_str, hash_str]))
+            kernel_save_dir = os.path.join(self.save_dir, '_'.join([acc_str, hash_str]))
             os.makedirs(kernel_save_dir, exist_ok=True)
 
             # GraphViz
@@ -97,7 +95,7 @@ class Session:
 
             # Meta information
             with open(os.path.join(kernel_save_dir, 'meta.json'), 'w') as f:
-                json.dump({'path': path.serialize(), 'accuracy': accuracy, 'time': time.time() - self.start_time}, f, indent=2)
+                json.dump({'path': path.serialize(), 'accuracy': accuracy, 'flops': flops, 'params': params, 'time': time.time() - self.start_time}, f, indent=2)
 
         # Update with reward
         if accuracy > 0:
