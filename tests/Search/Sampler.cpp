@@ -7,7 +7,7 @@ TEST_F(search_tests, sampler) {
     constexpr std::size_t trials = 500;
     std::size_t successes = 0;
     for (int i = 0; i < trials; ++i) {
-        auto randomLeaves = sampler.randomFinalNodesWithPrefix({}, 5);
+        auto randomLeaves = sampler.randomFinalNodesWithPrefix({}, 32);
         if (randomLeaves.empty() || !randomLeaves[0].second.isFinal()) {
             fmt::print("Trial {} failed.\n", i);
             continue;

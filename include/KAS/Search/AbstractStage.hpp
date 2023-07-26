@@ -236,6 +236,7 @@ public:
     virtual std::vector<Arc> getChildrenArcs() = 0;
     virtual std::optional<Arc> getArcFromHandle(Next next) = 0;
     virtual std::optional<Node> getChild(Next next) = 0;
+    virtual std::vector<std::optional<Node>> getChildren(const std::vector<Next>& nexts) = 0;
     virtual bool canAcceptArc(Arc arc) = 0;
     virtual Node getChild(Arc arc) = 0;
     std::string description() const {
@@ -454,6 +455,15 @@ public:
     std::optional<Node> getChild(Next next) final override {
         Lock lock = acquireLock();
         return derived().getChildImpl(next);
+    }
+    std::vector<std::optional<Node>> getChildren(const std::vector<Next>& nexts) final override {
+        Lock lock = acquireLock();
+        return ranges::to<std::vector<std::optional<Node>>>(
+            nexts
+            | std::views::transform([&](Next next) -> std::optional<Node> {
+                return derived().getChildImpl(next);
+            })
+        );
     }
     bool canAcceptArc(Arc arc) final override {
         Lock lock = acquireLock();
