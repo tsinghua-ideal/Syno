@@ -5,6 +5,9 @@ import os
 import torch
 import torch.nn as nn
 
+from torch import _dynamo
+_dynamo.config.suppress_errors = True
+
 # Initialize the Triton runtime symbols, by compiling a dummy kernel before importing KAS cpp bindings.
 class _initial_compile(nn.Module):
     def __init__(self):
