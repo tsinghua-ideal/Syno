@@ -6,7 +6,7 @@ from KAS.Node import Path
 
 
 class BeamAlgorithm:
-    max_queue_size = 1000000
+    max_queue_size = 5000000
     max_final_iterations = 1000
     expand_async_layers = 3
     noise_weight = 0.5

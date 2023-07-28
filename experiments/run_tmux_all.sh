@@ -36,7 +36,7 @@ tmux send-keys -t 0 "echo TMUX Pane 1" Enter
 tmux send-keys -t 0 "mamba activate $2" Enter
 tmux send-keys -t 0 "cd ${current_path}" Enter
 tmux send-keys -t 0 "export CUDA_VISIBLE_DEVICES=0" Enter
-tmux send-keys -t 0 "./launch_server.sh ${*:3}" Enter
+tmux send-keys -t 0 "./launch_server.sh ${*:3} --seed $RANDOM" Enter
 
 # Client.
 for ((i = 1; i <= $1; i ++)); do
