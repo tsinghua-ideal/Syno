@@ -40,7 +40,7 @@ def get_sampler(args, model) -> Sampler:
         'autoscheduler': CodeGenOptions.AutoScheduler.Anderson2021,
         'num_worker_threads': args.kas_sampler_workers,
         'requires_exact_division': True,
-        'requires_odd_kernel_size_in_unfold': False,
+        'requires_odd_kernel_size_in_unfold': True,
         'extra_options': {
             'beam_size': '32',
             'num_passes': '1',
