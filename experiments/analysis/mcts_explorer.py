@@ -4,7 +4,7 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
 from base import log, models, parser, parser
-from search import MCTSTree, MCTSExplorer
+from search import MCTSTree, MCTSExplorer, MCTSAlgorithm
 
 
 if __name__ == '__main__':
@@ -17,8 +17,18 @@ if __name__ == '__main__':
     _, sampler = models.get_model(args, return_sampler=True)
 
     # Explorer
-    with open(args.kas_mcts_explorer_path, 'r') as file:
-        mcts = MCTSTree.deserialize(json.load(file), sampler)
+    if args.kas_mcts_explorer_path:
+        with open(args.kas_mcts_explorer_path, 'r') as file:
+            mcts = MCTSTree.deserialize(json.load(file), sampler)
+    else:
+        mcts = MCTSAlgorithm(sampler, args).mcts
     explorer = MCTSExplorer(mcts)
     
-    explorer.interactive()
+    prefix = []
+    if args.kas_mcts_explorer_script:
+        assert os.path.exists(args.kas_mcts_explorer_script), f"{args.kas_mcts_explorer_script} is not a file"
+        with open(args.kas_mcts_explorer_script) as f:
+            for command in f:
+                if not command.startswith('#'):
+                    prefix.append(command.rstrip('\n'))
+    explorer.interactive(prefix=prefix)
