@@ -2,6 +2,9 @@
 
 ## Core
 
+- [ ] Do not distinguish betweeen primary variables and coefficient variables.
+- [ ] Fractional I/O shape.
+
 ### Autodiff
 
 - [x] Fix propagation of iterator values by adding orientation to dimensions.
@@ -34,6 +37,7 @@
 - [x] Adjust the order of dimensions in weights for better cache locality.
 - [ ] TVM codegen.
 - [x] PyTorch codegen.
+- [ ] Make padding algorithm primary-coefficient-ignorant.
 
 ## Transforms
 
@@ -43,6 +47,8 @@
 - [ ] What is a MergeOp by the way?
 - [ ] To support Attention, what can we do?
 - [ ] Make FinalizeOp a PrimitiveOp.
+- [ ] Remove `priority` from `MapReduce`.
+- [ ] Add ExpandOp.
 
 ## Search
 
@@ -57,7 +63,7 @@
 - [x] Redesign generation algorithm for each Op.
 - [x] Accept FLOPs constraints in Sampler, and generate MapReduceOp's accordingly.
 - [ ] If ShapeComplexity finds the stage is in critical state, do not generate unnecessary Op's.
-- [ ] Make `Allowance` depends on global invariant.
+- [ ] Make `Allowance` depend on global invariant.
 
 ### Pruning
 
@@ -69,6 +75,7 @@
 - [ ] Add mechanisms to automatically discover equivalent kernels. (TASO-like?)
 - [ ] Unfolding some dimensions to output iterators seems to be not a good idea.
 - [x] Make dead ends propagate. (By storing parent nodes.)
+- [ ] Canonicalization for reshape.
 
 ### Bindings
 
