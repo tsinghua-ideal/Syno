@@ -535,8 +535,8 @@ Sampler::Expander::Expander(std::size_t numThreads) {
                     if (layers > 0) {
                         auto nexts = node.getChildrenHandles();
                         std::shuffle(nexts.begin(), nexts.end(), rng);
-                        for (auto next: nexts) {
-                            auto newNode = node.getChild(next);
+                        auto newNodes = node.getChildren(nexts);
+                        for (const auto& newNode: newNodes) {
                             if (newNode.has_value()) {
                                 newNode->expand(layers - 1);
                             }

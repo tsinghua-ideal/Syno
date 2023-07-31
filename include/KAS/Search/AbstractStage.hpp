@@ -106,8 +106,6 @@ protected:
             KAS_CRITICAL("Invalid Finalizability.");
         }
         if (propagate) {
-            // Again!
-            requestFinalizabilityUpdate(this);
             for (auto parent: parents) {
                 parent->requestFinalizabilityUpdate(this);
             }
@@ -333,6 +331,17 @@ private:
                 derived().removeDeadChildrenFromSlots(collected);
             } else {
                 // Otherwise, we have determined the finalizability.
+                // Do the update first.
+                switch (newFinalizability) {
+                case Finalizability::Yes:
+                    derived().removeDeadChildrenFromSlots(collected);
+                    break;
+                case Finalizability::No:
+                    derived().removeAllChildrenFromSlots();
+                    break;
+                default: KAS_UNREACHABLE();
+                }
+                // Then determine.
                 determineFinalizability(newFinalizability, true);
                 // This call puts this stage in Pruner's queue.
             }
