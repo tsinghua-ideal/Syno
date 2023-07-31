@@ -5,26 +5,30 @@ import os
 import torch
 import torch.nn as nn
 
-from torch import _dynamo
-_dynamo.config.suppress_errors = True
+major, minor = torch.cuda.get_device_capability()
 
-# Initialize the Triton runtime symbols, by compiling a dummy kernel before importing KAS cpp bindings.
-class _initial_compile(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv = nn.Conv2d(3, 32, 3, padding=1)
-        self.relu = nn.ReLU()
+if major >= 7:
+    # Initialize the Triton runtime symbols, by compiling a dummy kernel before importing KAS cpp bindings.
+    class _initial_compile(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = nn.Conv2d(3, 32, 3, padding=1)
+            self.relu = nn.ReLU()
 
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.relu(x)
-        return x
-    
-assert torch.cuda.is_available(), 'CUDA is not available'
-_initial_kernel = _initial_compile().cuda()
-_initial_compiled_kernel = torch.compile(_initial_kernel, backend='inductor', mode='reduce-overhead', dynamic=False, fullgraph=False)
-_initial_compiled_kernel(torch.ones([1, 3, 32, 32]).cuda())
-del _initial_kernel
+        def forward(self, x):
+            x = self.conv(x)
+            x = self.relu(x)
+            return x
+        
+    assert torch.cuda.is_available(), 'CUDA is not available'
+    _initial_kernel = _initial_compile().cuda()
+    _initial_compiled_kernel = torch.compile(_initial_kernel, backend='inductor', mode='reduce-overhead', dynamic=False, fullgraph=False)
+    _initial_compiled_kernel(torch.ones([1, 3, 32, 32]).cuda())
+    del _initial_kernel
+else:
+    from torch import _dynamo
+    _dynamo.config.suppress_errors = True
+    print("WARNING: The CUDA capability does not meet the requirement of this project. Only a subset of the functions will be available.")
 
 # Now import the bindings. First backup the flags.
 old_flags = sys.getdlopenflags()

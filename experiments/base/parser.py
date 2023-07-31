@@ -86,6 +86,7 @@ def arg_parse():
     parser.add_argument('--kas-mcts-explorer-script', default='', type=str, help='MCTS explorer script path')
     parser.add_argument('--kas-inference-time-limit', default=10, type=float, help='Inference time limit (in seconds)')
     parser.add_argument('--kas-sampler-workers', default=32, type=int, help='Number of workers for the sampler')
+    parser.add_argument('--kas-mcts-workers', default=32, type=int, help='Number of workers for MCTS to simulate')
     parser.add_argument('--kas-num-virtual-evaluator', default=4, type=int, help='Number of virtual evaluators (for prefetching)')
 
     args = parser.parse_args()

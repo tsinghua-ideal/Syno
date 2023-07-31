@@ -5,6 +5,10 @@ import time
 from collections import defaultdict
 from typing import List, Tuple, Optional, DefaultDict, Set, Union, Dict
 
+# Multi-thread support
+import threading
+import queue
+
 from KAS.Node import Node
 from KAS.Sampler import Sampler
 from KAS.Bindings import Next, Arc
@@ -16,8 +20,32 @@ from .avg_meter import AverageMeter
 
 MockArc = Union[Next, Arc]
 
+def join_all(threads, timeout):
+    """
+    Reference: https://stackoverflow.com/questions/24065808/python-join-multiple-threads-with-timeout
+    Args:
+        threads: a list of thread objects to join
+        timeout: the maximum time to wait for the threads to finish
+    Raises:
+        RuntimeError: is not all the threads have finished by the timeout
+    """
+    start = cur_time = time.time()
+    while cur_time <= (start + timeout):
+        for thread in threads:
+            if thread.is_alive():
+                thread.join(timeout=0)
+        if all(not t.is_alive() for t in threads):
+            break
+        time.sleep(0.1)
+        cur_time = time.time()
+    else:
+        still_running = [t for t in threads if t.is_alive()]
+        num = len(still_running)
+        names = [t.name for t in still_running]
+        raise TimeoutError('Timeout on {0} threads: {1}'.format(num, names))
+
 class MCTSTree:
-    def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20, policy: str='update-descent', max_final_iterations=500) -> None:
+    def __init__(self, sampler: Sampler, virtual_loss_constant: float = 0.0, leaf_num: int = 1, exploration_weight: float = math.sqrt(2), b: float=0.5, c_l: float=20, policy: str='update-descent', time_limits: List[int]=[30], kas_mcts_workers: int=4) -> None:
 
         self._treenode_store: Dict[Node, TreeNode] = dict()
         self._root = sampler.root().to_node()
@@ -31,7 +59,8 @@ class MCTSTree:
         self._c_l = c_l
         self._b = b
         self._policy = policy
-        self._max_final_iterations = max_final_iterations
+        self._time_limits = time_limits
+        self._kas_mcts_workers = kas_mcts_workers
         assert policy in ['update-all', 'update-descent']
         random.seed(sampler._seed)
 
@@ -175,27 +204,65 @@ class MCTSTree:
             logging.debug(f"Expansion end {path} {leaf_expanded}")
 
         # Simulate
-        leaves = []
+        leaves_queue = queue.Queue(maxsize=self.leaf_num)
         logging.debug(f"Simulation start")
-        retry_count = 0
-        power = 0
-        while not leaf_expanded.is_dead_end(self._treenode_store):
-            leaf_simul = self._simulate(path, leaf_expanded)
-            if leaf_simul is None: # Encountered dead end
-                retry_count += 1
-                if retry_count == 10 ** power:
-                    power = power + 1
-                    logging.debug(f"Expand {power} layers from {leaf_expanded}. ")
-                    leaf_expanded._node.expand_async(power) # expand a level deeper in the background
-                if retry_count == self._max_final_iterations and leaf_expanded != self.tree_root:
+        leaf_expanded._node.expand_async(3)
+        
+        # Multi-thread object
+        def thread_simulate(path: TreePath, node: TreeNode):
+            logging.debug(f"Thread {threading.get_ident()} start")
+            while not leaves_queue.full() and not node.is_dead_end(self._treenode_store):
+                leaf_simul = self._simulate(path, node)
+                if leaf_simul is not None:
+                    try:
+                        leaves_queue.put_nowait(leaf_simul)
+                    except queue.Full:
+                        assert leaves.full()
+                        pass
+            logging.debug(f"Thread {threading.get_ident()} end")
+        
+        threads = [threading.Thread(target=thread_simulate, args=(path, leaf_expanded)) for _ in range(self._kas_mcts_workers)]
+        for thread in threads:
+            thread.start()
+        
+        last_limit = 0
+        for i, time_limit in enumerate(self._time_limits):
+            try:
+                join_all(threads, timeout=time_limit-last_limit)
+            except TimeoutError as e:
+                logging.debug(e)
+                if i < len(self._time_limits) - 1:
+                    leaf_expanded._node.expand_async(4+i)
+                else:
+                    # HACK: We cannot set root to be dead
+                    if leaf_expanded == self.tree_root:
+                        continue
                     logging.debug(f"Force {leaf_expanded} to be dead because simulate failed for too many times. ")
                     leaf_expanded._is_dead = True
-                    assert leaf_expanded.is_dead_end(self._treenode_store)
-                continue
+            last_limit = time_limit
+        
+        leaves: List[TreeNode] = list(leaves_queue.queue)
+        
+        # retry_count = 0
+        # power = 0
+        # while not leaf_expanded.is_dead_end(self._treenode_store):
+        #     leaf_simul = self._simulate(path, leaf_expanded)
+        #     if leaf_simul is None: # Encountered dead end
+        #         retry_count += 1
+        #         if retry_count == 10 ** power:
+        #             power = power + 1
+        #             logging.debug(f"Expand {power} layers from {leaf_expanded}. ")
+        #             leaf_expanded._node.expand_async(power) # expand a level deeper in the background
+        #         if retry_count == self._max_final_iterations and leaf_expanded != self.tree_root:
+        #             logging.debug(f"Force {leaf_expanded} to be dead because simulate failed for too many times. ")
+        #             leaf_expanded._is_dead = True
+        #             assert leaf_expanded.is_dead_end(self._treenode_store)
+        #         continue
             
-            leaves.append(leaf_simul)
-            if len(leaves) == self.leaf_num:
-                break
+        #     leaves.append(leaf_simul)
+        #     if len(leaves) == self.leaf_num:
+        #         break
+        
         if leaf_expanded.is_dead_end(self._treenode_store):
             return None
 
@@ -596,8 +663,7 @@ class MCTSTree:
             exploration_weight=self._exploration_weight,
             b=self._b,
             c_l=self._c_l,
-            policy=self._policy,
-            max_final_iterations=self._max_final_iterations,
+            policy=self._policy
         )
         j = dict(
             node_list=node_list,
