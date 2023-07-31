@@ -153,6 +153,8 @@ class MCTSTree:
                 path, trials = result
                 logging.debug(
                     f"Successful rollout: {path} {trials}. Evaluation to be done.")
+                assert all(trial.is_final() for _, trial in trials)
+                assert len(trials) == self.leaf_num
                 self._increment_virtual_loss(path, len(trials))
                 return path, trials
             else:
@@ -217,15 +219,16 @@ class MCTSTree:
                     try:
                         leaves_queue.put_nowait(leaf_simul)
                     except queue.Full:
-                        assert leaves.full()
+                        assert leaves_queue.full()
                         pass
-            logging.debug(f"Thread {threading.get_ident()} end")
+            logging.debug(f"Thread {threading.get_ident()} end (full={leaves_queue.full()}, dead={node.is_dead_end(self._treenode_store)})")
         
         threads = [threading.Thread(target=thread_simulate, args=(path, leaf_expanded)) for _ in range(self._kas_mcts_workers)]
         for thread in threads:
             thread.start()
         
         last_limit = 0
+        failure_flag = False
         for i, time_limit in enumerate(self._time_limits):
             try:
                 join_all(threads, timeout=time_limit-last_limit)
@@ -234,13 +237,18 @@ class MCTSTree:
                 if i < len(self._time_limits) - 1:
                     leaf_expanded._node.expand_async(4+i)
                 else:
+                    failure_flag = True
                     # HACK: We cannot set root to be dead
                     if leaf_expanded == self.tree_root:
                         continue
                     logging.debug(f"Force {leaf_expanded} to be dead because simulate failed for too many times. ")
-                    leaf_expanded._is_dead = True
+                    leaf_expanded.set_dead()
+                    assert leaf_expanded.is_dead_end(self._treenode_store)
             last_limit = time_limit
         
+        if leaf_expanded.is_dead_end(self._treenode_store):
+            failure_flag = True
+            
         leaves: List[TreeNode] = list(leaves_queue.queue)
         
         # retry_count = 0
@@ -263,8 +271,9 @@ class MCTSTree:
         #     if len(leaves) == self.leaf_num:
         #         break
         
-        if leaf_expanded.is_dead_end(self._treenode_store):
+        if failure_flag:
             return None
+        assert len(leaves) == self.leaf_num, leaves
 
         return path, leaves
     
@@ -314,7 +323,7 @@ class MCTSTree:
             assert isinstance(node, TreeNode)
             nexts = node.get_children_nexts(self._treenode_store)
             if len(nexts) == 0:
-                logging.debug(f"Simulation Encountered dead father {node}")
+                # logging.debug(f"Simulation Encountered dead father {node}")
                 assert node.is_dead_end(self._treenode_store)
                 return None
             next = random.choice(nexts)
@@ -323,7 +332,7 @@ class MCTSTree:
                 selected_child, edge_state = child
                 return next, selected_child, edge_state
             else:
-                logging.debug(f"Simulation Encountered dead child {node} -> {next}")
+                # logging.debug(f"Simulation Encountered dead child {node} -> {next}")
                 return None
 
         while not node.is_terminal(self._treenode_store):
@@ -336,7 +345,7 @@ class MCTSTree:
         if node.is_final():
             return path, node
         else:
-            logging.debug(f"Simulation Encountered dead end {node}")
+            # logging.debug(f"Simulation Encountered dead end {node}")
             return None
 
     def back_propagate(self, receipt: Receipt, reward: float, path_to_trial: TreePath) -> None:

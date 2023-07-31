@@ -420,6 +420,9 @@ class TreeNode:
         Dependencies: is_dead_end -> is_final -> None
         """
         return self.is_final() or self.is_dead_end(factory)
+
+    def set_dead(self) -> None:
+        self._is_dead = True
     
     def is_dead_end(self, factory: Dict[Node, "TreeNode"]) -> bool:
         """
@@ -460,7 +463,7 @@ class TreeNode:
         if not self.is_fully_in_tree(factory):
             return False
         if self.is_dead_end(factory):
-            logging.debug("exhaust, dead end")
+            logging.debug(f"exhaust, dead end (internal node state: {self._node.is_dead_end()})")
             self._exhausted = True
         if self._exhausted:
             return True
