@@ -251,26 +251,6 @@ class MCTSTree:
             
         leaves: List[TreeNode] = list(leaves_queue.queue)
         
-        # retry_count = 0
-        # power = 0
-        # while not leaf_expanded.is_dead_end(self._treenode_store):
-        #     leaf_simul = self._simulate(path, leaf_expanded)
-        #     if leaf_simul is None: # Encountered dead end
-        #         retry_count += 1
-        #         if retry_count == 10 ** power:
-        #             power = power + 1
-        #             logging.debug(f"Expand {power} layers from {leaf_expanded}. ")
-        #             leaf_expanded._node.expand_async(power) # expand a level deeper in the background
-        #         if retry_count == self._max_final_iterations and leaf_expanded != self.tree_root:
-        #             logging.debug(f"Force {leaf_expanded} to be dead because simulate failed for too many times. ")
-        #             leaf_expanded._is_dead = True
-        #             assert leaf_expanded.is_dead_end(self._treenode_store)
-        #         continue
-            
-        #     leaves.append(leaf_simul)
-        #     if len(leaves) == self.leaf_num:
-        #         break
-        
         if failure_flag:
             return None
         assert len(leaves) == self.leaf_num, leaves
