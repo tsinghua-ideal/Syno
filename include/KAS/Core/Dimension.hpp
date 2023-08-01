@@ -248,8 +248,8 @@ public:
 } while (false)
 
 template<>
-struct std::hash<kas::Dimensions> {
-    // Since this is a template function, std::hash<Dimensions> can provide hash for arbitrary DimensionRange.
+struct std::hash<std::vector<kas::Dimension>> {
+    // Since this is a template function, std::hash<std::vector<Dimension>> can provide hash for arbitrary DimensionRange.
     template<kas::DimensionRange R>
     std::size_t operator()(R&& interface) const noexcept {
         using namespace std::string_view_literals;
@@ -264,15 +264,15 @@ struct std::hash<kas::Dimensions> {
 };
 
 template<>
-struct std::hash<std::vector<kas::Dimensions>> {
-    // Since this is a template function, std::hash<std::vector<Dimensions>> can provide hash for arbitrary TensorRange.
+struct std::hash<std::vector<std::vector<kas::Dimension>>> {
+    // Since this is a template function, std::hash<std::vector<std::vector<Dimension>>> can provide hash for arbitrary TensorRange.
     template<kas::TensorRange R>
     std::size_t operator()(R&& tensors) const noexcept {
         using namespace std::string_view_literals;
         static const auto trHash = std::hash<std::string_view>{}("TensorRange"sv);
         auto h = trHash;
         kas::HashCombine(h, tensors.size());
-        auto hasher = std::hash<kas::Dimensions>{};
+        auto hasher = std::hash<std::vector<kas::Dimension>>{};
         for (const auto& tensor: tensors) {
             kas::HashCombineRaw(h, hasher(tensor));
         }

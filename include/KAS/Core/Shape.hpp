@@ -66,18 +66,13 @@ public:
         return Size::Product(*this);
     }
 
-    template<typename ValueType, typename Tp, typename Tc>
-    std::vector<ValueType> eval(Tp&& p, Tc&& c) const {
-        std::vector<ValueType> result;
-        for (const auto& size: *this) {
-            result.emplace_back(size.template eval<ValueType>(std::forward<Tp>(p), std::forward<Tc>(c)));
-        }
-        return result;
-    };
-
     template<typename ValueType>
     std::vector<ValueType> eval(const ConcreteConsts& consts) const {
-        return eval<ValueType>(consts.primaryWrapper(), consts.coefficientWrapper());
+        std::vector<ValueType> result;
+        for (const auto& size: *this) {
+            result.emplace_back(size.template eval<ValueType>(consts));
+        }
+        return result;
     }
 
     std::string toString(const BindingContext& ctx) const {

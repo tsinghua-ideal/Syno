@@ -19,7 +19,7 @@ public:
     GraphvizGen(const TensorView& tensorView, const BindingContext& ctx);
     void generate(const std::filesystem::path& outputPath, std::string_view funcName) const;
     std::string print(std::string_view funcName) const;
-    // Functions to emphasize some Dimensions. TODO
+    // Functions to emphasize some Dimension's. TODO
 };
 
 } // namespace kas

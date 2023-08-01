@@ -175,7 +175,7 @@ public:
         }
     };
 
-    // Use bits to record the Dimensions of which this Dimension is a descendant.
+    // Use bits to record the Dimension's of which this Dimension is a descendant.
     class CompactIndices {
         std::size_t content;
         CompactIndices(std::size_t raw): content { raw } {}
@@ -218,7 +218,7 @@ public:
 
     struct DimensionMetadata {
         OpAbove opAbove; // Op above each dimension.
-        CompactIndices ancestors; // Dimensions of which this Dimension is a descendant.
+        CompactIndices ancestors; // Dimension's of which this Dimension is a descendant.
     };
 
     // Use Builder to construct a Graph.
@@ -259,7 +259,7 @@ public:
 private:
     // The input dimensions;
     std::vector<Dimension> topmost;
-    // The Op's above the Dimensions.
+    // The Op's above the Dimension's.
     std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
     // And the output/reduce iterators as well.
     std::vector<const Iterator *> outputIterators;

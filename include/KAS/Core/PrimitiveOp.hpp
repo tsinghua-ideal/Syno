@@ -108,11 +108,11 @@ template<std::size_t Count>
 requires(Count <= 3)
 struct Valuations {
     std::array<Valuation, Count> values;
-    // All Dimensions are valued.
+    // All Dimension's are valued.
     bool allValued() const noexcept {
         return std::all_of(values.begin(), values.end(), [](const Valuation& val) { return val.isValued(); });
     }
-    // We know nothing about these Dimensions.
+    // We know nothing about these Dimension's.
     bool allUnoriented() const noexcept {
         return std::all_of(values.begin(), values.end(), [](const Valuation& val) { return val.isUnoriented(); });
     }

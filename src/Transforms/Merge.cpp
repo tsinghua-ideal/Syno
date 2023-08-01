@@ -83,13 +83,13 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Di
             ++CountUselessImmediateReductions;
             return; // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
         }
-        if ((dim.size() / block).lowerBoundEst(options.ctx) < options.minimumRatio) {
+        if (boost::rational_cast<float>((dim.size() / block).lowerBoundEst(options.ctx)) < options.minimumRatio) {
             ++CountBlockRelativelyTooLarge;
             return;
         }
         if (options.disallowMergeWithLargeBlockAboveStride) {
             if (auto s = dim.tryAs<StrideOp::Input>(); s) {
-                if ((block / s->getDerivedOp<StrideOp>()->getStride()).lowerBoundEst(options.ctx) > 1) {
+                if ((block / s->getDerivedOp<StrideOp>()->getStride()).lowerBoundEst(options.ctx) > static_cast<std::size_t>(1)) {
                     ++CountDisallowedAboveStride;
                     return;
                 }
@@ -97,7 +97,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Di
         }
         if (options.disallowMergeWithLargeBlockAboveUnfold) {
             if (auto u = dim.tryAs<UnfoldOp::Input>(); u) {
-                if ((block / u->getOp()->outputRhs.size()).lowerBoundEst(options.ctx) > 1) {
+                if ((block / u->getOp()->outputRhs.size()).lowerBoundEst(options.ctx) > static_cast<std::size_t>(1)) {
                     ++CountDisallowedAboveUnfold;
                     return;
                 }

@@ -39,29 +39,29 @@ std::span<const Size::PowerType> Size::getCoefficient() const {
     return { coefficient.data(), coefficientCount };
 }
 
-float Size::lowerBoundEst(const BindingContext& ctx) const {
+boost::rational<std::size_t> Size::lowerBoundEst(const BindingContext& ctx) const {
     const auto& allConsts = ctx.getAllConsts();
     if (allConsts.empty()) {
         const auto& defaultConsts = ctx.getDefaultConsts();
-        return eval<float>(defaultConsts);
+        return eval<std::size_t>(defaultConsts);
     }
     return std::ranges::min(
         allConsts
         | std::views::transform([&](const ConcreteConsts& consts) {
-            return eval<float>(consts);
+            return eval<std::size_t>(consts);
         })
     );
 }
-float Size::upperBoundEst(const BindingContext& ctx) const {
+boost::rational<std::size_t> Size::upperBoundEst(const BindingContext& ctx) const {
     const auto& allConsts = ctx.getAllConsts();
     if (allConsts.empty()) {
         const auto& defaultConsts = ctx.getDefaultConsts();
-        return eval<float>(defaultConsts);
+        return eval<std::size_t>(defaultConsts);
     }
     return std::ranges::max(
         allConsts
         | std::views::transform([&](const ConcreteConsts& consts) {
-            return eval<float>(consts);
+            return eval<std::size_t>(consts);
         })
     );
 }
@@ -315,7 +315,8 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
                 if (
                     dTrait && *dTrait != Trait::IllegalCoefficient && *dTrait != Trait::One
                     && qTrait && *qTrait != Trait::IllegalCoefficient && *qTrait != Trait::One
-                    && divisor.lowerBoundEst(ctx) > 1.0f && quotient.lowerBoundEst(ctx) > 1.0f
+                    && divisor.lowerBoundEst(ctx) >= static_cast<std::size_t>(1)
+                    && quotient.lowerBoundEst(ctx) >= static_cast<std::size_t>(1)
                     && ctx.isSizeValid(divisor) && ctx.isSizeValid(quotient)
                 ) {
                     co_yield divisor;
@@ -355,7 +356,7 @@ Generator<Size> Size::EnumerateSizes(const BindingContext& ctx, Size lowerBound,
             auto trait = size.getTrait();
             if (
                 trait && *trait != Trait::IllegalCoefficient && *trait != Trait::One
-                && size.lowerBoundEst(ctx) > 1.0f
+                && size.lowerBoundEst(ctx) >= static_cast<std::size_t>(1)
                 && ctx.isSizeValid(size)
             ) {
                 co_yield size;
@@ -420,8 +421,8 @@ std::string Size::debugToString() const {
     return BindingContext::ApplyDebugPublicCtx(&Size::toString, *this);
 }
 
-std::pair<int, int> PaddingSolver::evalFractionalCoefficient(const Size& size) const {
-    return size.EvalFraction<int>(size.coefficientCount, consts.coefficientWrapper(), size.coefficient);
+boost::rational<int> PaddingSolver::evalFractionalCoefficient(const Size& size) const {
+    return Size::EvalFraction<int>(size.coefficientCount, consts.coefficientWrapper(), size.coefficient);
 }
 
 PaddingSolver::Power PaddingSolver::lhsLowerBound(Prime prime, const PrimeFactorInequality::LHS& lhs) {
@@ -461,9 +462,8 @@ PaddingSolver::PaddingSolver(const BindingContext& ctx, const ConcreteConsts& co
 
 void PaddingSolver::addConstraint(const Size& size) {
     // First we need to determine the factors of primary variables.
-    auto [numerator, denominator] = evalFractionalCoefficient(size);
-    int gcd = std::gcd(numerator, denominator);
-    int remaining = denominator / gcd;
+    auto fractionalCoefficient = evalFractionalCoefficient(size);
+    int remaining = fractionalCoefficient.denominator();
     // Factor the remaining denominator using prime table.
     Divisors factorization;
     for (Prime prime: Primes) {
@@ -478,7 +478,7 @@ void PaddingSolver::addConstraint(const Size& size) {
         }
     }
     if (remaining != 1) {
-        KAS_CRITICAL("Don't you think you have passed in too big a coefficient variable? denominator = {}", denominator / gcd);
+        KAS_CRITICAL("Don't you think you have passed in too big a coefficient variable? denominator = {}", fractionalCoefficient.denominator());
     }
 
     // Now we have the factorization of the remaining denominator. Derive inequalities.

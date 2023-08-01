@@ -11,6 +11,8 @@
 #include <vector>
 #include <optional>
 
+#include <boost/rational.hpp>
+
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Coroutine.hpp"
@@ -50,8 +52,8 @@ private:
     // Powers of small variables. Can be negative (when in denominator).
     ExprType coefficient;
 
-    template<typename ValueType, typename Consts>
-    static std::pair<ValueType, ValueType> EvalFraction(std::size_t cnt, Consts&& consts, const Size::ExprType& powers) {
+    template<std::integral ValueType, typename Consts>
+    static boost::rational<ValueType> EvalFraction(std::size_t cnt, Consts&& consts, const Size::ExprType& powers) {
         ValueType nominator = 1;
         ValueType denominator = 1;
         for (std::size_t i = 0; i < cnt; ++i) {
@@ -69,7 +71,7 @@ private:
                 }
             }
         }
-        return { nominator, denominator };
+        return boost::rational<ValueType>(nominator, denominator);
     };
 
 public:
@@ -89,34 +91,32 @@ public:
     std::span<PowerType> getCoefficient();
     std::span<const PowerType> getCoefficient() const;
 
-    template<typename ValueType, typename Tp, typename Tc>
-    std::pair<ValueType, ValueType> evalFraction(Tp&& p, Tc&& c) const {
-        auto [nP, dP] = EvalFraction<ValueType>(primaryCount, std::forward<Tp>(p), primary);
-        auto [nC, dC] = EvalFraction<ValueType>(coefficientCount, std::forward<Tc>(c), coefficient);
-        return { nP * nC, dP * dC };
+    template<std::integral ValueType, typename Tp, typename Tc>
+    boost::rational<ValueType> evalFraction(Tp&& p, Tc&& c) const {
+        auto fractionP = EvalFraction<ValueType>(primaryCount, std::forward<Tp>(p), primary);
+        auto fractionC = EvalFraction<ValueType>(coefficientCount, std::forward<Tc>(c), coefficient);
+        return fractionP * fractionC;
     };
-    template<typename ValueType, typename Tp, typename Tc>
-    ValueType eval(Tp&& p, Tc&& c) const {
-        auto [n, d] = evalFraction<ValueType>(std::forward<Tp>(p), std::forward<Tc>(c));
-        return n / d;
-    };
-    template<typename ValueType>
-    std::pair<ValueType, ValueType> evalFraction(const ConcreteConsts& consts) const {
+    template<std::integral ValueType>
+    boost::rational<ValueType> evalFraction(const ConcreteConsts& consts) const {
         return evalFraction<ValueType>(consts.primaryWrapper(), consts.coefficientWrapper());
     }
     bool isInteger(const ConcreteConsts& consts) const {
-        auto [nom, den] = evalFraction<std::size_t>(consts);
-        return nom % den == 0;
+        return evalFraction<std::size_t>(consts).denominator() == 1;
     }
-    template<typename ValueType>
+    template<std::integral ValueType>
     ValueType eval(const ConcreteConsts& consts) const {
-        return eval<ValueType>(consts.primaryWrapper(), consts.coefficientWrapper());
+        return boost::rational_cast<ValueType>(evalFraction<ValueType>(consts.primaryWrapper(), consts.coefficientWrapper()));
+    }
+    template<std::floating_point ValueType>
+    ValueType eval(const ConcreteConsts& consts) const {
+        return boost::rational_cast<ValueType>(evalFraction<std::size_t>(consts.primaryWrapper(), consts.coefficientWrapper()));
     }
 
     // Evaluates with all the consts and take the minimum of all results.
-    float lowerBoundEst(const BindingContext& ctx) const;
+    boost::rational<std::size_t> lowerBoundEst(const BindingContext& ctx) const;
     // Evaluates with all the consts and take the maximum of all results.
-    float upperBoundEst(const BindingContext& ctx) const;
+    boost::rational<std::size_t> upperBoundEst(const BindingContext& ctx) const;
 
     Size identity() const;
     static Size Identity(const BindingContext& ctx);
@@ -218,7 +218,7 @@ class PaddingSolver {
     std::map<Prime, std::vector<PrimeFactorInequality>> inequalities;
 
     // Evaluates only the coefficients, and return a fraction.
-    std::pair<int, int> evalFractionalCoefficient(const Size& size) const;
+    boost::rational<int> evalFractionalCoefficient(const Size& size) const;
 
     // Look up the determinedPaddings and find the value of a LHS.
     Power lhsLowerBound(Prime prime, const PrimeFactorInequality::LHS& lhs);

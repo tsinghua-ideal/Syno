@@ -84,7 +84,7 @@ public:
 struct NextFinalizeSlot: Next {
     FinalizeOp finalization;
     template<TensorRange TR>
-    static std::size_t GetKey(TR&& tensors) { return std::hash<std::vector<Dimensions>>{}(tensors); }
+    static std::size_t GetKey(TR&& tensors) { return std::hash<std::vector<std::vector<Dimension>>>{}(tensors); }
     Arc toArc(const Sampler *sampler) const { return Arc(sampler, &finalization); }
 };
 

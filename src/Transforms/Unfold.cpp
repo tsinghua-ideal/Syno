@@ -78,9 +78,9 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
             if (
                 options.requiresOddKernelSizeInUnfold &&
                 std::ranges::any_of(options.ctx.getAllConsts(), [&](const ConcreteConsts& consts) {
-                    auto [nom, den] = kernelSize.evalFraction<std::size_t>(consts);
-                    KAS_ASSERT(nom % den == 0, "Fraction must evaluate to an integer.");
-                    return (nom / den) % 2 == 0; // even
+                    const auto kernelSizeValue = kernelSize.evalFraction<std::size_t>(consts);
+                    KAS_ASSERT(kernelSizeValue.denominator() == 1, "Fraction must evaluate to an integer.");
+                    return kernelSizeValue.numerator() % 2 == 0; // even
                 })
             ) {
                 continue;
@@ -93,7 +93,7 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
             }
             // Relative size.
             auto quotient = dimL.size() / kernelSize;
-            if (quotient.lowerBoundEst(options.ctx) < options.minimumRatio) {
+            if (boost::rational_cast<float>(quotient.lowerBoundEst(options.ctx)) < options.minimumRatio) {
                 ++CountKernelRelativelyTooLarge;
                 continue;
             }
@@ -101,7 +101,7 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
             if (options.canonicalizeUnfoldOrder) {
                 if (auto nextUnfold = dimL.tryAs<UnfoldOp::Input>(); nextUnfold) {
                     auto quotient = kernelSize / nextUnfold->getOp()->outputRhs.size();
-                    if (quotient.lowerBoundEst(options.ctx) < 1) {
+                    if (quotient.lowerBoundEst(options.ctx) < static_cast<std::size_t>(1)) {
                         ++CountCanonicalizedUnfoldChains;
                         continue;
                     }

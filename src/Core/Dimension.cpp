@@ -80,7 +80,7 @@ std::string Dimension::debugDescendantsDescription() const {
 }
 
 std::size_t Dimensions::hash() const {
-    return std::hash<Dimensions>{}(*this);
+    return std::hash<std::vector<Dimension>>{}(*this);
 }
 
 Dimensions Dimensions::insert1(const Dimension& value) const {
