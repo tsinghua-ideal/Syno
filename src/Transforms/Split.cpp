@@ -1,10 +1,63 @@
+#include "KAS/Core/Graph.hpp"
 #include "KAS/Core/MapReduce.hpp"
+#include "KAS/Transforms/Merge.hpp"
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Transforms/Split.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
+
+auto ReshapeBlockNeighbors::separatedBy(const MergeOp *separator) const -> std::pair<Self, Self> {
+    KAS_ASSERT(separator);
+    return {
+        { left, separator },
+        { separator, right },
+    };
+};
+
+auto ReshapeBlockNeighbors::isAdjacentTo(const Self& rhs) const -> bool {
+    // They originate from the very same MergeOp.
+    return right && rhs.left && right == rhs.left;
+}
+
+auto ReshapeBlockNeighbors::combinedWith(const Self& rhs) const -> Self {
+    KAS_ASSERT(!isAdjacentTo(rhs));
+    return { left, rhs.right };
+}
+
+auto ReshapeCanonicalizer::transform(const Iterator&) const -> Adjacent {
+    return {};
+}
+
+auto ReshapeCanonicalizer::transform(const MapReduce&) const -> Adjacent {
+    return {};
+}
+
+auto ReshapeCanonicalizer::transform(const RepeatLikeOp::Input&) const -> Adjacent {
+    return {};
+}
+
+auto ReshapeCanonicalizer::transform(const SplitLikeOp::Input& dim) const -> Adjacent {
+    if (auto split = dynamic_cast<const SplitOp::Input *>(&dim); split) {
+        auto op = split->getOp();
+        return attributes.at(op->outputLhs).combinedWith(attributes.at(op->outputRhs));
+    } else {
+        return {};
+    }
+}
+auto ReshapeCanonicalizer::transform(const MergeLikeOp::Input& dim) const -> std::pair<Adjacent, Adjacent> {
+    if (auto merge = dynamic_cast<const MergeOp::Input *>(&dim); merge) {
+        auto op = merge->getDerivedOp<MergeOp>();
+        return attributes.at(op->output).separatedBy(op);
+    } else {
+        return {};
+    }
+}
+
+auto ReshapeCanonicalizer::at(const Dimension& dim) const -> const Adjacent& {
+    return attributes.at(dim);
+}
 
 SplitOp::SplitOp(const Dimension& outputLhs, const Dimension& outputRhs):
     SplitLikeOp { outputLhs, outputRhs },
@@ -56,8 +109,11 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Di
     auto plausibleL = interface.filterOut(disallowsL);
     auto plausibleR = interface.filterOut(disallowsR);
 
+    ReshapeCanonicalizer canonicalizer;
+    options.graph.accept(canonicalizer);
+
     std::vector<const SplitOp *> result;
-    auto checkThenAdd = [&store, &result, disallowDiscontinuousView = options.disallowDiscontinuousView](const Dimension& dimL, const Dimension& dimR) {
+    auto checkThenAdd = [&store, &canonicalizer, &result, disallowDiscontinuousView = options.disallowDiscontinuousView](const Dimension& dimL, const Dimension& dimR) {
         if (auto l = dimL.tryAs<MergeOp::Input>(); l) {
             if (auto r = dimR.tryAs<MergeOp::Input>(); r) {
                 if (l->getOp() == r->getOp()) {
@@ -72,6 +128,12 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Di
                     }
                 }
             }
+        }
+        // Perform canonicalization for reshape.
+        if (canonicalizer.at(dimL).isAdjacentTo(canonicalizer.at(dimR))) {
+            // They are redundant!
+            ++CountCounteractedMerges;
+            return;
         }
         if (auto l = dimL.tryAs<MapReduce>(); l) {
             if (auto r = dimR.tryAs<MapReduce>(); r) {

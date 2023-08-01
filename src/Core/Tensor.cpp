@@ -236,7 +236,7 @@ Tensor TensorImpl::CreateTensorView(Tensor::Builder& builder, const std::vector<
                 KAS_ASSERT(builder.owner.at(dim) == newTensor);
             }
             // Match.
-            DimVisitor::visit(dim);
+            dim.accept(*this);
         }
     };
     auto visitor = Visitor { builder, result, interface };

@@ -116,27 +116,27 @@ ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const Concr
         visitor(PaddingSolver& sol): sol(sol) {}
         void visit(const RepeatLikeOp::Input& dim) override {
             auto [_, inserted] = visited.insert(&dim);
-            if (inserted) DimVisitor::visit(dim.getOp()->output);
+            if (inserted) dim.getOp()->output.accept(*this);
         }
         void visit(const SplitLikeOp::Input& dim) override {
             auto [_, inserted] = visited.insert(&dim);
             if (inserted) {
-                DimVisitor::visit(dim.getOp()->outputLhs);
-                DimVisitor::visit(dim.getOp()->outputRhs);
+                dim.getOp()->outputLhs.accept(*this);
+                dim.getOp()->outputRhs.accept(*this);
             }
         }
         void visit(const MergeLikeOp::Input& dim) override {
             auto [_, inserted] = visited.insert(&dim);
             if (inserted) {
                 sol.addConstraint(dim.size());
-                DimVisitor::visit(dim.getOp()->output);
+                dim.getOp()->output.accept(*this);
             }
         }
         using DimVisitor::visit;
     };
     visitor v { sol };
     for (const Dimension& dim: getUnderlyingDimensions()) {
-        v.visit(dim);
+        dim.accept(v);
     }
     for (auto it: interface) {
         sol.addConstraint(it->size());

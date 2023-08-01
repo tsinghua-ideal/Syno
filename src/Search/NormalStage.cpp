@@ -96,6 +96,7 @@ void NormalStage::guardGeneratedChildren() {
             // Split^{-1}
             if (options.maximumSplits == -1 || options.maximumSplits > existingOp<SplitOp>()) {
                 add(SplitOp::Generate(store, interface, {
+                    .graph = graph,
                     .disallowDiscontinuousView = options.disallowDiscontinuousView,
                     .disallowSplitRAboveUnfold = options.disallowSplitRAboveUnfold,
                     .disallowSplitRAboveStride = options.disallowSplitRAboveStride,

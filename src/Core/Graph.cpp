@@ -102,7 +102,7 @@ void Graph::Builder::visit(const Dimension& dim) {
         it->second.ancestors.merges(ancestor);
     }
     // Since we need to propagate the ancestor all the way down, we always need to visit, no matter inserted or not.
-    DimVisitor::visit(dim);
+    dim.accept(*this);
 }
 
 Graph::Builder& Graph::Builder::addTopmost(const Dimension& dim) {
@@ -161,7 +161,7 @@ VisitedVertex Graph::visitAlong(const Dimension& dim, Direction dir) const {
     switch (dir) {
         case Direction::Down: {
             WalkDownVisitor visitor { *this };
-            visitor.visit(dim);
+            dim.accept(visitor);
             return std::move(visitor.result);
         }
         case Direction::Up: {

@@ -22,14 +22,14 @@ void MergeLikeOp::Input::accept(DimVisitor& visitor) const {
 void DimVisitor::visit(const Iterator& dim) {}
 void DimVisitor::visit(const MapReduce& dim) {}
 void DimVisitor::visit(const RepeatLikeOp::Input& dim) {
-    visit(dim.getOp()->output);
+    dim.getOp()->output.accept(*this);
 }
 void DimVisitor::visit(const SplitLikeOp::Input& dim) {
-    visit(dim.getOp()->outputLhs);
-    visit(dim.getOp()->outputRhs);
+    dim.getOp()->outputLhs.accept(*this);
+    dim.getOp()->outputRhs.accept(*this);
 }
 void DimVisitor::visit(const MergeLikeOp::Input& dim) {
-    visit(dim.getOp()->output);
+    dim.getOp()->output.accept(*this);
 }
 
 } // namespace kas

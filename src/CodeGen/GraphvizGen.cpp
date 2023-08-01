@@ -130,7 +130,7 @@ namespace {
         }
         void drawInput(const Dimension& dim, std::string from) {
             this->from = std::move(from);
-            DimVisitor::visit(dim);
+            dim.accept(*this);
         }
         void drawOthers() {
             for (const Dimension& dim: graph.getDimensions()) {
@@ -138,7 +138,7 @@ namespace {
                 if (opAbove) {
                     // This is not input.
                     from = OpCanvas::Name(*opAbove);
-                    DimVisitor::visit(dim);
+                    dim.accept(*this);
                 } else {
                     // This is input, which will be handled elsewhere.
                 }

@@ -131,6 +131,7 @@ public:
     bool operator==(const Dimension& other) const {
         return inner == other.inner; // If the impls are equal, they have equal hash.
     }
+    void accept(DimVisitor& visitor) const { inner->accept(visitor); }
     // Sort the dimensions in an interface to obtain hash for it.
     std::size_t hash() const noexcept { return hashValue; }
     struct HashLessThan {

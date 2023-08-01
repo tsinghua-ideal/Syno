@@ -1,8 +1,9 @@
 #include <filesystem>
 #include <fstream>
+#include <future>
 
 #include <fmt/format.h>
-#include <future>
+#include <fmt/std.h>
 
 #include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/CodeGen/GraphvizGen.hpp"
@@ -45,6 +46,7 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
             // The kernel is already generated.
             return;
         }
+        KAS_WARNING("Overwriting existing generated kernel files: {}, due to collision!", dir);
     }
     std::vector<std::size_t> validPlaceholdersIndices;
     std::vector<KernelMetadata::PlaceholderMetadata> validPlaceholders;

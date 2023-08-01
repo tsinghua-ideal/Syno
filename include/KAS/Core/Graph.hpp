@@ -21,14 +21,14 @@ class VisitedVertex;
 // Then, pass 3 callback functions into VisitedVertex::match, which will be called depending on the type of the vertex. This is a bit like pattern matching.
 
 template<typename V>
-concept Vertex = requires(V v, V::OpType::Branch b) {
-    typename V::OpType;
-    typename V::OpType::Branch;
-    typename V::BranchType;
-    typename V::OpType::Values;
-    { V::OpType::BranchCount } -> std::convertible_to<std::size_t>;
-    requires std::same_as<typename V::OpType::Values, Valuations<V::OpType::BranchCount>>;
-    { v.op } -> std::same_as<const typename V::OpType&>;
+concept Vertex = requires(std::remove_cvref_t<V> v, std::remove_cvref_t<V>::OpType::Branch b) {
+    typename std::remove_cvref_t<V>::OpType;
+    typename std::remove_cvref_t<V>::OpType::Branch;
+    typename std::remove_cvref_t<V>::BranchType;
+    typename std::remove_cvref_t<V>::OpType::Values;
+    { std::remove_cvref_t<V>::OpType::BranchCount } -> std::convertible_to<std::size_t>;
+    requires std::same_as<typename std::remove_cvref_t<V>::OpType::Values, Valuations<std::remove_cvref_t<V>::OpType::BranchCount>>;
+    { v.op } -> std::same_as<const typename std::remove_cvref_t<V>::OpType&>;
     { v[b] } -> std::convertible_to<Dimension>;
     { v.outgoingDirection(b) } -> std::convertible_to<Direction>;
     { v.visitAdjacent(b) } -> std::convertible_to<VisitedVertex>;
@@ -302,6 +302,9 @@ public:
     // Walk along a dimension in a direction to find a vertex.
     VisitedVertex visitAlong(const Dimension& dim, Direction dir) const;
 
+    template<typename Visitor, typename AttributeType>
+    void accept(BottomTopDimVisitor<Visitor, AttributeType>& visitor) const { visitor.propagate(topmost); }
+
     const std::vector<Dimension>& getTopmost() const { return topmost; }
     decltype(auto) getDimensions() const {
         return dimMeta | std::views::transform([](auto&& pair) -> const Dimension& { return pair.first; });
@@ -327,8 +330,7 @@ public:
         std::map<const MergeLikeVertex::OpType *, Value> mAttr;
 
     public:
-        template<typename V>
-        requires Vertex<std::remove_cvref_t<V>>
+        template<Vertex V>
         Value& operator[](V&& v) {
             if constexpr (std::is_same_v<std::remove_cvref_t<V>, RepeatLikeVertex>) {
                 return rAttr[&v.op];
@@ -342,8 +344,7 @@ public:
                               std::is_same_v<std::remove_cvref_t<V>, MergeLikeVertex>);
             }
         }
-        template<typename V>
-        requires Vertex<std::remove_cvref_t<V>>
+        template<Vertex V>
         Value *find(V&& v) {
             if constexpr (std::is_same_v<std::remove_cvref_t<V>, RepeatLikeVertex>) {
                 auto it = rAttr.find(&v.op);

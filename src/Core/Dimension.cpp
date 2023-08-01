@@ -68,7 +68,7 @@ std::string Dimension::descendantsDescription(const BindingContext& ctx) const {
         using DimVisitor::visit;
     };
     visitor v { ctx };
-    v.visit(*this);
+    accept(v);
     return fmt::format("{}({})", description(ctx), std::move(v.result));
 }
 

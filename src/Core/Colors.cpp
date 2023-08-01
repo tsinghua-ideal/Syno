@@ -110,7 +110,7 @@ bool Color::CheckFinalization(const std::vector<std::vector<Dimension>>& tensors
                 fail = true;
             }
             colorMap.emplace(dim.getOp()->output, newColor);
-            visit(dim.getOp()->output);
+            dim.getOp()->output.accept(*this);
         }
         void visit(const SplitLikeOp::Input& dim) override {
             auto [accept, newColorL, newColorR] = dim.getOp()->transformColor(colorMap.at(&dim));
@@ -119,8 +119,8 @@ bool Color::CheckFinalization(const std::vector<std::vector<Dimension>>& tensors
             }
             colorMap.emplace(dim.getOp()->outputLhs, newColorL);
             colorMap.emplace(dim.getOp()->outputRhs, newColorR);
-            visit(dim.getOp()->outputLhs);
-            visit(dim.getOp()->outputRhs);
+            dim.getOp()->outputLhs.accept(*this);
+            dim.getOp()->outputRhs.accept(*this);
         }
         void visit(const MergeLikeOp::Input& dim) override {
             auto otherDim = dim.getOther();
@@ -135,7 +135,7 @@ bool Color::CheckFinalization(const std::vector<std::vector<Dimension>>& tensors
                     fail = true;
                 }
                 colorMap.emplace(dim.getOp()->output, newColor);
-                visit(dim.getOp()->output);
+                dim.getOp()->output.accept(*this);
             }
         }
         using DimVisitor::visit;
@@ -149,7 +149,7 @@ bool Color::CheckFinalization(const std::vector<std::vector<Dimension>>& tensors
         for (auto&& dim: tensor) {
             auto [_, inserted] = colorMap.emplace(dim, color);
             KAS_ASSERT(inserted);
-            visitor.visit(dim);
+            dim.accept(visitor);
         }
         ++color;
     }

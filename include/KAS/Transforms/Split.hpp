@@ -1,10 +1,35 @@
 #pragma once
 
+#include "KAS/Core/DimVisitor.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
+
+struct ReshapeBlockNeighbors {
+    const MergeOp *left = nullptr;
+    const MergeOp *right = nullptr;
+    using Self = ReshapeBlockNeighbors;
+    auto separatedBy(const MergeOp *separator) const -> std::pair<Self, Self>;
+    auto isAdjacentTo(const Self& rhs) const -> bool;
+    auto combinedWith(const Self& rhs) const -> Self;
+};
+
+// Canonicalize reshape.
+// First we only allow Split's above Merge's,
+// then we check for redundant Split's.
+// The rule is simple. After the sequence of Merge's, we obtain the smallest reshape blocks,
+// and if the blocks that are adjacent get combined by Split's again, this is illegal.
+struct ReshapeCanonicalizer: public BottomTopDimVisitor<ReshapeCanonicalizer, ReshapeBlockNeighbors> {
+    using Adjacent = ReshapeBlockNeighbors;
+    auto transform(const Iterator&) const -> Adjacent;
+    auto transform(const MapReduce&) const -> Adjacent;
+    auto transform(const RepeatLikeOp::Input&) const -> Adjacent;
+    auto transform(const SplitLikeOp::Input& dim) const -> Adjacent;
+    auto transform(const MergeLikeOp::Input& dim) const -> std::pair<Adjacent, Adjacent>;
+    auto at(const Dimension& dim) const -> const Adjacent&;
+};
 
 class SplitOp final: public SplitLikeOp {
 public:
@@ -35,6 +60,7 @@ public:
     }
 
     struct GenerateOptions {
+        const Graph& graph;
         bool disallowDiscontinuousView;
         bool disallowSplitRAboveUnfold;
         bool disallowSplitRAboveStride;
