@@ -12,12 +12,12 @@ class MCTSAlgorithm:
     leaf_parallelization_number = 1
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
-    max_final_iterations = 10000
+    time_limits = [3, 10, 30]
     b = 0.4
     c_l = 40.
 
     def __init__(self, sampler, args):
-        self.mcts = MCTSTree(sampler, self.virtual_loss_constant, self.leaf_parallelization_number,  self.exploration_weight, self.b, self.c_l, max_final_iterations=self.max_final_iterations)
+        self.mcts = MCTSTree(sampler, self.virtual_loss_constant, self.leaf_parallelization_number,  self.exploration_weight, self.b, self.c_l, time_limits=self.time_limits, kas_mcts_workers=args.kas_mcts_workers)
         self.path_to_meta_data = dict()
 
     def serialize(self):
