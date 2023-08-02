@@ -2,7 +2,7 @@
 
 ## Core
 
-- [ ] Do not distinguish betweeen primary variables and coefficient variables.
+- [ ] Do not distinguish between primary variables and coefficient variables.
 - [ ] Fractional I/O shape.
 
 ### Autodiff
@@ -103,27 +103,10 @@
 ### MCTS
 
 - [x] Multi-process support for MCTS. (Tree parallelization)
+- [x] Multi-thread support for MCTS. (multi-thread simulation)
 - [x] Two-step primitive selection. 
-- [x] Cache searched nodes. 
-- [ ] Parametrize filtering and reward returning. 
-- [x] Search State and Result Saving (path, mcts, etc.). 
-- [ ] Experiment on MNIST. 
-- [ ] Experiment on CIFAR10. 
-- [ ] Reward formatting. 
-- [x] Stop automatically when the space is exhausted. 
+- [x] Implement FUSE
 
-- [-] Implement FUSE
-- [ ] Implement AlphaFUSE
-- [x] Serialization and Deserialization
-- [x] Mock test for MCTS (DAG)
-    - [x] update
-    - [x] serialization & deserialization
-    - [x] virtual loss
+### More Scenarios
 
-### Train
-
-- [x] Add MNIST MLP models. 
-- [ ] Speed up data loading
-- [ ] Early Stopping and NaN filtering during training. 
-- [ ] Filter by Fisher Potential. 
-
+- [ ] Find more scenarios
