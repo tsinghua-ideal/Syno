@@ -75,7 +75,7 @@
 - [ ] Add mechanisms to automatically discover equivalent kernels. (TASO-like?)
 - [ ] Unfolding some dimensions to output iterators seems to be not a good idea.
 - [x] Make dead ends propagate. (By storing parent nodes.)
-- [ ] Canonicalization for reshape.
+- [x] Canonicalization for reshape.
 
 ### Bindings
 

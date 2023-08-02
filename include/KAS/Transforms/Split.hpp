@@ -28,7 +28,6 @@ struct ReshapeCanonicalizer: public BottomTopDimVisitor<ReshapeCanonicalizer, Re
     auto transform(const RepeatLikeOp::Input&) const -> Adjacent;
     auto transform(const SplitLikeOp::Input& dim) const -> Adjacent;
     auto transform(const MergeLikeOp::Input& dim) const -> std::pair<Adjacent, Adjacent>;
-    auto at(const Dimension& dim) const -> const Adjacent&;
 };
 
 class SplitOp final: public SplitLikeOp {
@@ -39,7 +38,7 @@ public:
         Input(const SplitOp* op):
             SplitLikeOp::Input { op }
         {}
-        const Size& size() const noexcept override { return getDerivedOp<SplitOp>()->sz; }
+        const Size& size() const override { return getDerivedOp<SplitOp>()->sz; }
         constexpr DimensionType type() const noexcept override { return Type; }
     };
 

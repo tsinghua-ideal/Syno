@@ -14,7 +14,7 @@ public:
         Input(const ShareOp* op, Order order):
             MergeLikeOp::Input { op, order }
         {}
-        const Size& size() const noexcept override { return op->output.size(); }
+        const Size& size() const override { return op->output.size(); }
         constexpr DimensionType type() const noexcept override { return Type; }
         bool is(DimensionTypeWithOrder ty) const noexcept override {
             return (ty == DimensionTypeWithOrder::ShareL && order == Order::Left)

@@ -10,7 +10,6 @@ class MapReduceOp final: public MapReduce, public PrimitiveOp {
 public:
     static constexpr DimensionType Type = DimensionType::MapReduce;
 
-public:
     MapReduceOp(std::size_t priority, const Size& domain, MapType mapType, ReduceType reduceType):
         MapReduce { priority, domain, mapType, reduceType },
         PrimitiveOp { Color::None }

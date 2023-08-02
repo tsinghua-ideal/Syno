@@ -130,6 +130,7 @@ struct Valuations {
     }
 };
 
+class ExpandOp;
 class MapReduceOp;
 class MergeOp;
 class ShareOp;
@@ -139,6 +140,7 @@ class StrideOp;
 class UnfoldOp;
 class OpVisitor {
 public:
+    virtual void visit(const ExpandOp& op) = 0;
     virtual void visit(const MapReduceOp& op) = 0;
     virtual void visit(const MergeOp& op) = 0;
     virtual void visit(const ShareOp& op) = 0;

@@ -7,7 +7,7 @@
 
 namespace kas {
 
-const Size& MergeOp::Input::size() const noexcept {
+const Size& MergeOp::Input::size() const {
     switch (order) {
     case Order::Left:
         return getDerivedOp<MergeOp>()->majorSize;

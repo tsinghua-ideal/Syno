@@ -14,7 +14,7 @@ public:
         Input(const StrideOp* op):
             RepeatLikeOp::Input { op }
         {}
-        const Size& size() const noexcept override { return getDerivedOp<StrideOp>()->sz; }
+        const Size& size() const override { return getDerivedOp<StrideOp>()->sz; }
         constexpr DimensionType type() const noexcept override { return Type; }
     };
 

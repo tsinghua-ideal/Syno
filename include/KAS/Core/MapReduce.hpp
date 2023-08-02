@@ -43,7 +43,7 @@ protected:
 
 public:
     MapReduce(std::size_t priority, const Size& domain, MapType mapType, ReduceType reduceType);
-    const Size& size() const noexcept final override { return domain; }
+    const Size& size() const final override { return domain; }
     std::size_t hash() const noexcept final override;
     constexpr DimensionType type() const noexcept final override { return DimensionType::MapReduce; }
     void accept(DimVisitor& visitor) const final override;
