@@ -64,7 +64,7 @@ public:
         MaximumTensorsExceeded,
         SuccessfulGenerations,
     )
-    static std::vector<const ShareOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
+    static std::vector<const ShareOp *> Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<ShareOp>);

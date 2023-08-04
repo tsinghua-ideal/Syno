@@ -26,8 +26,8 @@ public:
     const MapReduce *getRaw() const { return this; }
     Dimension getInput() const { return this; }
 
-    bool canApplyToInterface(const Dimensions& interface) const override;
-    Dimensions applyToInterface(const Dimensions& interface) const override;
+    bool canApplyToInterface(const GraphHandle& interface) const override;
+    GraphHandle applyToInterface(const GraphHandle& interface) const override;
 
     bool operator==(const MapReduceOp& other) const noexcept {
         return getMap() == other.getMap() && getReduce() == other.getReduce() && getPriority() == other.getPriority() && size() == other.size();

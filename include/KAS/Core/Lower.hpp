@@ -16,7 +16,7 @@ class LocalityOptimizer {
     const Graph& graph;
 public:
     LocalityOptimizer(const Graph& graph): graph { graph } {}
-    void permuteWeightDimensions(std::vector<std::vector<Dimension>>& tensors) const;
+    void permuteWeightDimensions(std::vector<Topmost>& tensors) const;
 };
 
 class TensorExpressionDifferentiator final: public ValuedTensorExpressionVisitor<

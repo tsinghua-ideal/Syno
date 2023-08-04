@@ -73,7 +73,7 @@ public:
         UselessImmediateReductions,
         SuccessfulGenerations,
     )
-    static std::vector<const SplitOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
+    static std::vector<const SplitOp *> Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<SplitOp>);

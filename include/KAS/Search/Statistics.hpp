@@ -6,7 +6,7 @@
 #include "KAS/Search/AbstractStage.hpp"
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Search/NormalStage.hpp"
-#include "KAS/Transforms.hpp"
+#include "KAS/Transforms/Transforms.hpp"
 
 
 namespace kas {

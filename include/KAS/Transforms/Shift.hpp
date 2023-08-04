@@ -44,7 +44,7 @@ public:
         DisallowedAttempts,
         SuccessfulGenerations,
     )
-    static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const Dimensions& outputShape, const GenerateOptions& options);
+    static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const GraphHandle& outputShape, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<ShiftOp>);

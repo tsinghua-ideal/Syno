@@ -6,7 +6,6 @@
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Transforms.hpp"
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -114,7 +113,8 @@ public:
     void storeIterator(std::unique_ptr<Iterator> iterator);
     void storeMapReduce(std::unique_ptr<MapReduceOp> mapReduce);
 
-    static std::vector<std::vector<BackwardDimension>> ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors);
+    // TODO!!! Expand needs to be wrapped in ForwardDimension!
+    static std::vector<Topmost> ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors);
     TensorView& buildTensorView(const std::vector<std::vector<Dimension>>& tensors, TensorExpression blending);
 };
 

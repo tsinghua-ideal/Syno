@@ -9,7 +9,6 @@
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/TensorView.hpp"
-#include "KAS/Transforms.hpp"
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Functional.hpp"

@@ -11,7 +11,7 @@
 
 #include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
-#include "KAS/Transforms.hpp"
+#include "KAS/Transforms/Transforms.hpp"
 #include "KAS/Utils/Hash.hpp"
 #include "KAS/Utils/Ranges.hpp"
 

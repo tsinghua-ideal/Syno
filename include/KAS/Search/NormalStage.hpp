@@ -62,7 +62,7 @@ public:
         ShapeDeviatesTooMuch,
     );
     // NormalStage cannot be root.
-    NormalStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock);
+    NormalStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock);
 
     std::size_t countChildrenImpl();
     std::vector<Next> getChildrenHandlesImpl();

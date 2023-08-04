@@ -1,20 +1,19 @@
 #pragma once
 
+#include "KAS/Core/Expand.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
 
-class ExpandOp final: public PrimitiveOp {
+class ExpandOp final: public Expand, public PrimitiveOp {
 public:
     static constexpr DimensionType Type = DimensionType::Expand;
 
-    Dimension output;
-
     ExpandOp(const Dimension& output):
-        PrimitiveOp { Color { output.getColor() } },
-        output { output }
+        Expand { output },
+        PrimitiveOp { Color { output.getColor() } }
     {}
     ExpandOp(const ExpandOp&) = delete;
     ExpandOp(ExpandOp&&) = delete;
@@ -28,10 +27,10 @@ public:
     }
     void accept(OpVisitor& visitor) const override { visitor.visit(*this); }
 
-    bool canApplyToInterface(const Dimensions& interface) const final override {
+    bool canApplyToInterface(const GraphHandle& interface) const final override {
         return interface.contains(output);
     }
-    Dimensions applyToInterface(const Dimensions& interface) const final override;
+    GraphHandle applyToInterface(const GraphHandle& interface) const final override;
 
     std::string description(const BindingContext& ctx) const final override {
         return fmt::format("-> {}", output.description(ctx));
@@ -43,7 +42,7 @@ public:
     struct GenerateOptions {
         bool disallowMergeInputAndWeight;
     };
-    static std::vector<const ExpandOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
+    static std::vector<const ExpandOp *> Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<ExpandOp>);

@@ -14,8 +14,8 @@ namespace kas {
 class GraphvizGen {
     std::string code;
 public:
-    GraphvizGen(const std::vector<Dimension>& inputs, const BindingContext& ctx);
-    GraphvizGen(const std::vector<std::vector<Dimension>>& tensors, const BindingContext& ctx);
+    GraphvizGen(const Topmost& inputs, const BindingContext& ctx);
+    GraphvizGen(const std::vector<Topmost>& tensors, const BindingContext& ctx);
     GraphvizGen(const TensorView& tensorView, const BindingContext& ctx);
     void generate(const std::filesystem::path& outputPath, std::string_view funcName) const;
     std::string print(std::string_view funcName) const;

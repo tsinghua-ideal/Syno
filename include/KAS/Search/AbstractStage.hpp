@@ -79,7 +79,7 @@ protected:
     Sampler& sampler;
 
     // The interface decides the hash. Other properties are computed.
-    Dimensions interface;
+    GraphHandle interface;
 
     // Stages with identical interfaces must be of the same depth.
     std::size_t depth;
@@ -134,7 +134,7 @@ public:
         FinalizabilityNo,
     )
     // Create a root stage.
-    AbstractStage(Sampler& sampler, Dimensions interface, Lock lock):
+    AbstractStage(Sampler& sampler, GraphHandle interface, Lock lock):
         initialLock { [&]() -> Lock {
             if (!lock.owns_lock()) {
                 return Lock { sampler.getMutex(0, interface) };
@@ -153,7 +153,7 @@ public:
         ++CountFinalizabilityMaybe;
     }
     // Create a non-root stage.
-    AbstractStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> optionalDeltaOp, Lock lock):
+    AbstractStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> optionalDeltaOp, Lock lock):
         initialLock { [&]() -> Lock {
             if (!lock.owns_lock()) {
                 return Lock { creator.sampler.getMutex(creator.depth + static_cast<std::size_t>(optionalDeltaOp.has_value()), interface) };
@@ -199,7 +199,7 @@ public:
     AbstractStage(const AbstractStage&) = delete;
     AbstractStage(AbstractStage&&) = delete;
 
-    const Dimensions& getInterface() const { return interface; }
+    const GraphHandle& getInterface() const { return interface; }
     std::size_t getDepth() const { return depth; }
 
     // Compute from Sampler.
@@ -229,7 +229,7 @@ public:
 
     // Python.
     std::size_t hash() const {
-        return interface.hash();
+        return std::hash<GraphHandle>{}(interface);
     }
     virtual std::size_t countChildren() = 0;
     virtual std::vector<Next> getChildrenHandles() = 0;
@@ -240,7 +240,7 @@ public:
     virtual bool canAcceptArc(Arc arc) = 0;
     virtual Node getChild(Arc arc) = 0;
     std::string description() const {
-        return DimensionArrayToString(interface, sampler.getBindingContext());
+        return interface.description(sampler.getBindingContext());
     }
 
     void expand(int layers) {
@@ -418,17 +418,17 @@ protected:
                 return op->canApplyToInterface(interface);
             },
             [&](const FinalizeOp *op) -> bool {
-                return op->toDimensions() == interface;
+                return op->toGraphHandle() == interface;
             }
         );
     }
 
-    AbstractStageBase(Sampler& sampler, Dimensions interface, Lock lock):
+    AbstractStageBase(Sampler& sampler, GraphHandle interface, Lock lock):
         AbstractStage(sampler, std::move(interface), std::move(lock))
     {
         static_assert(StageImpl<DerivedStageType>);
     }
-    AbstractStageBase(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
+    AbstractStageBase(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
         AbstractStage(std::move(interface), creator, std::move(deltaOp), std::move(lock))
     {
         static_assert(StageImpl<DerivedStageType>);

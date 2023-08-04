@@ -1,7 +1,7 @@
 #include <fstream>
 
 #include "KAS/CodeGen/PyTorchGen.hpp"
-#include "KAS/Transforms.hpp"
+#include "KAS/Transforms/Transforms.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
 

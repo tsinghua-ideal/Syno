@@ -54,7 +54,7 @@ public:
         CanonicalizedUnfoldChains,
         SuccessfulGenerations,
     )
-    static std::vector<const UnfoldOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
+    static std::vector<const UnfoldOp *> Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<UnfoldOp>);

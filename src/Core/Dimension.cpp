@@ -5,6 +5,7 @@
 
 #include "KAS/Core/DimVisitor.hpp"
 #include "KAS/Core/Dimension.hpp"
+#include "KAS/Core/Expand.hpp"
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -79,7 +80,18 @@ std::string Dimension::debugDescendantsDescription() const {
     return BindingContext::ApplyDebugPublicCtx(&Dimension::descendantsDescription, *this);
 }
 
+void GraphHandle::sort() {
+    std::ranges::sort(interface, Dimension::HashLessThan{});
+    std::ranges::sort(expansions, Dimension::HashLessThan{}, Expand::PointerToDimension{});
+}
+bool GraphHandle::is_sorted() const {
+    return
+        std::ranges::is_sorted(interface, Dimension::HashLessThan{}) &&
+        std::ranges::is_sorted(expansions, Dimension::HashLessThan{}, Expand::PointerToDimension{});
+}
+
 std::size_t Dimensions::hash() const {
+    /// TODO!!!
     return std::hash<std::vector<Dimension>>{}(*this);
 }
 
@@ -113,7 +125,7 @@ Dimensions Dimensions::substitute2to1(const Dimension& fro1, const Dimension& fr
 
 Graph Dimensions::buildGraph() const {
     Graph::Builder builder;
-    builder.addTopmost(*this);
+    builder.addTopmost(*this); // TODO!!! Add expansions!
     return builder.build();
 }
 

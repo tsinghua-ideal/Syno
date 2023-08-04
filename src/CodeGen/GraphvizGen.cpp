@@ -10,7 +10,7 @@
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
-#include "KAS/Transforms.hpp"
+#include "KAS/Transforms/Transforms.hpp"
 
 
 namespace kas {

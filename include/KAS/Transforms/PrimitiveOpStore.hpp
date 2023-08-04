@@ -7,7 +7,7 @@
 
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
-#include "KAS/Transforms.hpp"
+#include "KAS/Transforms/Transforms.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Hash.hpp"
 #include "KAS/Utils/Tuple.hpp"
@@ -79,6 +79,7 @@ class PrimitiveOpStore {
     // Remember to register the Ops!
     detail::OpStores<
         MapReduceOp,
+        ExpandOp,
         ShiftOp, StrideOp,
         SplitOp, UnfoldOp,
         MergeOp, ShareOp

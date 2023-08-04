@@ -200,43 +200,117 @@ std::string TensorArrayToString(R&& tensors, const BindingContext& ctx) {
     ", "));
 }
 
+class Expand;
 class Graph;
 
-class Dimensions: public std::vector<Dimension> {
+class Topmost {
+protected:
+    std::vector<Dimension> interface;
+    std::vector<const Expand *> expansions;
+
+    std::vector<Dimension>::const_iterator binarySearch(const Dimension& value) const {
+        return WeakOrderedBinarySearch(interface, value, Dimension::HashLessThan{});
+    }
+    std::vector<Dimension>::iterator binarySearch(const Dimension& value) {
+        auto it = std::as_const(*this).binarySearch(value);
+        // Amazing trick: https://stackoverflow.com/questions/765148/how-to-remove-constness-of-const-iterator
+        return interface.erase(it, it);
+    }
+    std::size_t binarySearchIndexOf(const Dimension& value) const {
+        return std::distance(interface.begin(), binarySearch(value));
+    }
+
 public:
-    using std::vector<Dimension>::vector;
-    // This is required to make the Dimensions legal.
-    void sort() { std::ranges::sort(*this, Dimension::HashLessThan{}); }
-    bool is_sorted() const { return std::ranges::is_sorted(*this, Dimension::HashLessThan{}); }
-    std::size_t hash() const;
+    // This is required to make `interface` and `expansions` sorted for hashing.
+    void sort();
+    bool is_sorted() const;
+
+    explicit Topmost() = default;
+    template<
+        std::convertible_to<std::vector<Dimension>> I,
+        std::convertible_to<std::vector<const Expand *>> E
+    >
+    explicit Topmost(I&& interface, E&& expansions):
+        interface(std::forward<I>(interface)),
+        expansions(std::forward<E>(expansions))
+    {}
+    Topmost(std::initializer_list<Dimension> interface, std::initializer_list<const Expand *> expansions):
+        interface(interface),
+        expansions(expansions)
+    {}
+
+    const std::vector<Dimension>& getDimensions() const { return interface; }
+    std::vector<Dimension>& getDimensions() { return interface; }
+    const std::vector<const Expand *>& getExpansions() const { return expansions; }
+    std::vector<const Expand *>& getExpansions() { return expansions; }
+
+    bool operator==(const Topmost& other) const = default;
+
+    ShapeView getShape() const { return ShapeView(interface); }
+
+    // E.g., [[H]@Merge0]{[k]@Merge1}, where the braces mean expansions.
+    std::string description(const BindingContext& ctx) const;
+};
+
+template<typename R>
+concept TopmostRange =
+    std::ranges::input_range<R> &&
+    std::convertible_to<std::ranges::range_value_t<R>, Topmost>;
+
+class GraphHandle: protected Topmost {
+public:
+    template<
+        std::convertible_to<std::vector<Dimension>> I,
+        std::convertible_to<std::vector<const Expand *>> E
+    >
+    explicit GraphHandle(I&& interface, E&& expansions):
+        Topmost(
+            std::forward<I>(interface),
+            std::forward<E>(expansions)
+        )
+    {
+        // So that we can use hash to identify this.
+        sort();
+    }
+    template<typename T>
+    explicit GraphHandle(T&& topmost):
+        Topmost(std::forward<T>(topmost))
+    {
+        KAS_ASSERT(is_sorted());
+    }
+    GraphHandle(std::initializer_list<Dimension> interface, std::initializer_list<const Expand *> expansions):
+        Topmost(interface, expansions)
+    {
+        // So that we can use hash to identify this.
+        sort();
+    }
+    // Merge them.
+    static GraphHandle fromInterfaces(const std::vector<Topmost>& interfaces);
+
+    const Topmost& getRaw() const { return *this; }
+    const std::vector<Dimension>& getDimensions() const { return interface; }
+    const std::vector<const Expand *>& getExpansions() const { return expansions; }
+
+    using Topmost::operator==;
+
+    using Topmost::getShape;
+
+    using Topmost::description;
 
     std::size_t maximumTags() const;
     std::size_t countDataDiscardingDims() const;
 
-    ShapeView getShape() const { return ShapeView(*this); }
-
-    const_iterator binarySearch(const Dimension& value) const {
-        return WeakOrderedBinarySearch(*this, value, Dimension::HashLessThan{});
-    }
-    iterator binarySearch(const Dimension& value) {
-        auto it = std::as_const(*this).binarySearch(value);
-        // Amazing trick: https://stackoverflow.com/questions/765148/how-to-remove-constness-of-const-iterator
-        return erase(it, it);
-    }
-    std::size_t binarySearchIndexOf(const Dimension& value) const {
-        return std::distance(begin(), binarySearch(value));
-    }
-
-    bool contains(const Dimension& value) const { return binarySearch(value) != end(); }
-    Dimensions insert1(const Dimension& value) const;
-    Dimensions substitute1to1(const Dimension& fro, const Dimension& to) const;
-    Dimensions substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2) const;
-    Dimensions substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const;
+    bool contains(const Dimension& value) const { return binarySearch(value) != interface.end(); }
+    GraphHandle insert1(const Dimension& value) const;
+    GraphHandle moveToExpansions(const Dimension& value) const;
+    GraphHandle substitute1to1(const Dimension& fro, const Dimension& to) const;
+    GraphHandle substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2) const;
+    GraphHandle substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const;
 
     Graph buildGraph() const;
 
     auto filterOut(const std::vector<DimensionTypeWithOrder>& disallows) const {
-        return *this | std::views::filter([&](const Dimension& dim) {
+        return interface | std::views::filter([&](const Dimension& dim) {
             return std::ranges::none_of(disallows, [&](auto disallow) { return dim.is(disallow); });
         });
     }
@@ -301,6 +375,7 @@ struct fmt::formatter<kas::DimensionType>: formatter<string_view> {
         case Share:     name = "Share"sv; break;
         case Iterator:  name = "Iterator"sv; break;
         case MapReduce: name = "MapReduce"sv; break;
+        case Expand:    name = "Expand"sv; break;
         }
         return formatter<string_view>::format(name, ctx);
     }

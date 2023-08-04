@@ -140,6 +140,7 @@ std::string Tensor::debugToString() const {
 }
 
 Tensor TensorImpl::CreateInputTensor(Tensor::Builder& builder, const std::vector<Dimension>& dimensions) {
+    // TODO!!! add expansions to builder
     Tensor result = std::shared_ptr<TensorImpl>(new TensorImpl(dimensions));
     for (const auto& dim: dimensions) {
         auto [it, inserted] = builder.owner.emplace(dim, result);

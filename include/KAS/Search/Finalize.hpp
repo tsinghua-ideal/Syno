@@ -31,7 +31,7 @@ struct FixedDimension;
 // Contains multiple finalization options.
 class FinalizeOp {
     friend class NormalStage;
-    std::vector<std::vector<Dimension>> tensors;
+    std::vector<Topmost> tensors;
 
 public:
     FinalizeOp(auto&& tensors):
@@ -43,7 +43,8 @@ public:
     std::size_t hash() const noexcept;
     std::size_t count() const noexcept { return tensors.size(); }
 
-    Dimensions toDimensions() const;
+    // TODO!!!
+    GraphHandle toGraphHandle() const;
 
     double weightVariance(const ConcreteConsts& consts) const;
     double weightVariance(const BindingContext& ctx) const;
@@ -78,7 +79,7 @@ public:
     };
 
     static Generator<std::vector<std::vector<Dimension>>> AssignToWeights(const std::vector<ColoredDimension>& remaining, std::size_t maxWeights);
-    static std::vector<FinalizeOp> Generate(const Dimensions& interface, const Graph& graph, const GenerateOptions& options);
+    static std::vector<FinalizeOp> Generate(const GraphHandle& interface, const Graph& graph, const GenerateOptions& options);
 };
 
 struct NextFinalizeSlot: Next {

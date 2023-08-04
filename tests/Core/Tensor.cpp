@@ -2,7 +2,7 @@
 
 #include "KAS/Core/Lower.hpp"
 #include "KAS/Core/TensorView.hpp"
-#include "KAS/Transforms.hpp"
+#include "KAS/Transforms/Transforms.hpp"
 
 
 using namespace kas;
