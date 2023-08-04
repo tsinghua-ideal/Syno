@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import math
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -67,14 +68,15 @@ if __name__ == '__main__':
         y_max = []
         for i in range(len(y)):
             y_max.append(y[i] if i == 0 else max(y_max[-1], y[i]))
+        y_max_log = [-math.log2(1-y) for y in y_max]
         m, c = markers.pop(0), colors.pop(0)
         markers.append(m)
         colors.append(c)
-        plt.plot(x, y_max, marker=m, color=c, label=name, markersize=3)
+        plt.plot(x, y_max_log, marker=m, color=c, label=name, markersize=3)
 
     # Plot and save into file
     plt.xlabel('Time' if args.time else 'Samples')
-    plt.ylabel('Accuracy (max)')
+    plt.ylabel('Accuracy (max, negative log2 scale)')
     plt.legend()
     plt.savefig(f'{args.output}-max.png')
 
