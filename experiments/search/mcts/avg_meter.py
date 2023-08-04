@@ -46,20 +46,23 @@ class AverageMeter:
         else:
             return [False, [self.sum, self.N]]
 
-    def load(self, serial: Tuple[bool, Union[List, List]]) -> None:
+    def refresh(self, serial: Tuple[bool, List]) -> None:
+        """
+        Load or Update 
+        """
         std_flag, state = serial
-        if self.empty():
+        if self.empty() or self.N < state[-1]:
             self.support_std = std_flag
             if std_flag:
                 self.sum, self.sumsq, self.N = state
             else:
                 self.sum, self.N = state
-        else:
-            assert self.support_std == std_flag, "g_rave inconsistency found!"
-            if std_flag:
-                assert [self.sum, self.sumsq, self.N] == state, "g_rave inconsistency found!"
-            else:
-                assert [self.sum, self.N] == state, "g_rave inconsistency found!"
+        # else:
+        #     assert self.support_std == std_flag, f"g_rave inconsistency found! {std_flag} v.s. {self.support_std}"
+        #     if std_flag:
+        #         assert [self.sum, self.sumsq, self.N] == state, f"g_rave inconsistency found! {state} v.s. {[self.sum, self.sumsq, self.N]}"
+        #     else:
+        #         assert [self.sum, self.N] == state, f"g_rave inconsistency found! {state} v.s. {[self.sum, self.N]}"
     
     def empty(self) -> bool:
         if self.support_std:

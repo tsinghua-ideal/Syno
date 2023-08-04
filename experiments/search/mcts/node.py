@@ -181,7 +181,7 @@ class TreeNode:
         return empty_flag
         
     def load(self, state_dict: Dict) -> None:
-        self.state.load(state_dict["state"])
+        self.state.refresh(state_dict["state"])
         self._last_T = state_dict["_last_T"]
         self._is_dead = state_dict["_is_dead"]
         self._exhausted = state_dict["_exhausted"]
@@ -270,12 +270,12 @@ class TreeNode:
             
         unrevealed_children = self.get_unrevealed_children(factory)
         if len(unrevealed_children) == 0:
-            logging.debug("No new children to be added")
+            # logging.debug("No new children to be added")
             assert self.is_fully_in_tree(factory), f"{self} is not fully expanded but no children can be revealed"
             return False
         key = max(unrevealed_children, key=rave)
         if rave(key) == -1:
-            logging.debug("No new children to be added")
+            # logging.debug("No new children to be added")
             return False
         _, child, _ = key
         child._isin_tree = True
@@ -476,7 +476,7 @@ class TreeNode:
                     continue
                 if child not in factory or not factory[child].is_exhausted(factory):
                     return False
-            logging.debug("exhaust, recursive")
+            # logging.debug("exhaust, recursive")
             self._exhausted = True
         else:
             non_exhausted_children = [child for child in self.children if not child.is_exhausted(factory)]

@@ -199,6 +199,7 @@ class MCTSTree:
             logging.debug("Expansion start")
             expand_result = self._expand(leaf)
             if expand_result is None:
+                logging.debug("Expansion failed.")
                 return None
             next_expand, leaf_expanded = expand_result
             path = path.concat(next_expand)
@@ -208,11 +209,12 @@ class MCTSTree:
         # Simulate
         leaves_queue = queue.Queue(maxsize=self.leaf_num)
         logging.debug(f"Simulation start")
-        leaf_expanded._node.expand_async(3)
+        leaf_expanded._node.expand(3)
+        logging.debug(f"Expanded 3 layers")
         
         # Multi-thread object
         def thread_simulate(path: TreePath, node: TreeNode):
-            logging.debug(f"Thread {threading.get_ident()} start")
+            # logging.debug(f"Thread {threading.get_ident()} start")
             while not leaves_queue.full() and not node.is_dead_end(self._treenode_store):
                 leaf_simul = self._simulate(path, node)
                 if leaf_simul is not None:
@@ -221,7 +223,7 @@ class MCTSTree:
                     except queue.Full:
                         assert leaves_queue.full()
                         pass
-            logging.debug(f"Thread {threading.get_ident()} end (full={leaves_queue.full()}, dead={node.is_dead_end(self._treenode_store)})")
+            # logging.debug(f"Thread {threading.get_ident()} end (full={leaves_queue.full()}, dead={node.is_dead_end(self._treenode_store)})")
         
         threads = [threading.Thread(target=thread_simulate, args=(path, leaf_expanded)) for _ in range(self._kas_mcts_workers)]
         for thread in threads:
@@ -240,6 +242,7 @@ class MCTSTree:
                     failure_flag = True
                     # HACK: We cannot set root to be dead
                     if leaf_expanded == self.tree_root:
+                        logging.debug(f"Simulation from root failed for too many times, retry...")
                         continue
                     logging.debug(f"Force {leaf_expanded} to be dead because simulate failed for too many times. ")
                     leaf_expanded.set_dead()
@@ -286,7 +289,6 @@ class MCTSTree:
 
         unexpanded_children = node.get_unexpanded_children(self._treenode_store, on_tree=True)
         if len(unexpanded_children) == 0:
-            logging.debug("Expansion failed.")
             return None
 
         # randomly select a child from pool
@@ -685,8 +687,8 @@ class MCTSTree:
                 child_node = TreeNode(node_, is_mid=True, type=_type)
                 
                 # Rave
-                tree_node.l_rave[_type].load(child_serial["lrave"])
-                mcts.g_rave[_type].load(child_serial["grave"])
+                tree_node.l_rave[_type].refresh(child_serial["lrave"])
+                mcts.g_rave[_type].refresh(child_serial["grave"])
                 
                 child_node.load(child_serial["state"])
                 for next, grand_child_index, edge_serial, rave_score in child_serial["children"]:     
@@ -702,10 +704,10 @@ class MCTSTree:
                     assert grand_child_next == Next(_type, next), (grand_child_next, Next(_type, next))
                     grand_child_arc = child_node._node.get_arc_from_handle(grand_child_next)
                     assert grand_child_arc is not None
-                    child_node.edge_states[grand_child_next.key].load(edge_serial)
+                    child_node.edge_states[grand_child_next.key].refresh(edge_serial)
                     # Rave
-                    child_node.l_rave[grand_child_arc].load(rave_score["lrave"])
-                    mcts.g_rave[grand_child_arc].load(rave_score["grave"])
+                    child_node.l_rave[grand_child_arc].refresh(rave_score["lrave"])
+                    mcts.g_rave[grand_child_arc].refresh(rave_score["grave"])
                     
                 tree_node.children.append(child_node)
             if not path.is_root():
