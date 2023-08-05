@@ -12,7 +12,7 @@ class MCTSAlgorithm:
     leaf_parallelization_number = 1
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
-    time_limits = [3, 10, 30]
+    time_limits = [(10, True), (30, False), (120, False)]
     b = 0.4
     c_l = 40.0
 
