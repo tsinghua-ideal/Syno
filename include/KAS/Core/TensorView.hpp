@@ -27,6 +27,10 @@ public:
             std::forward<decltype(expands)>(expands)
         )
     {}
+    PureTensor(TensorExpression::Position position, auto&& topmost):
+        position { position },
+        content { std::forward<decltype(topmost)>(topmost) }
+    {}
     bool operator==(const PureTensor& rhs) const {
         return position == rhs.position && content == rhs.content;
     }

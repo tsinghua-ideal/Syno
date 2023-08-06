@@ -236,7 +236,7 @@ public:
         void visit(const RepeatLikeOp::Input& dim) override;
         void visit(const SplitLikeOp::Input& dim) override;
         void visit(const MergeLikeOp::Input& dim) override;
-        void visit(const Dimension& dim);
+        void match(const Dimension& dim);
 
     public:
         Builder& addDimension(const Dimension& dim);
@@ -329,12 +329,6 @@ public:
 
     const PrimitiveOp *getOpAbove(const Dimension& dim) const;
     const std::set<const PrimitiveOp *> getOps() const { return ops; }
-
-    struct ConnectedComponent {
-        std::vector<Dimension> inputs;
-        std::vector<Dimension> outputs; // Iterator's and MapReduce's
-    };
-    std::vector<ConnectedComponent> computeConnectedComponents() const;
 
     template<typename Value>
     class AttributeMap {

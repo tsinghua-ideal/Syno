@@ -301,6 +301,7 @@ std::vector<std::size_t> PyTorchGen::concretize(const std::vector<Dimension>& in
 PyTorchGen::PyTorchGen(const BindingContext& ctx, Graph graph, const Subgraphs& subgraphs):
     ctx { ctx },
     graph { std::move(graph) },
+    expansions(subgraphs.expansions),
     inputTensors(subgraphs.inputTensors),
     outputTensor { subgraphs.outputTensor }
 {
@@ -326,17 +327,27 @@ PyTorchGen::PyTorchGen(const BindingContext& ctx, Graph graph, const Subgraphs& 
 void PyTorchGen::loadWeights(PythonCodePrinter& printer) const {
     for (std::size_t index = 1; const Tensor& weight: inputTensors | std::views::drop(1)) {
         printer.writeLn("{} = self.weights[{}]", use(weight), index - 1);
+        KAS_ASSERT(expansions.at(index).empty(), "Expansion for weights unsupported.");
         ++index;
     }
 }
 
 void PyTorchGen::padInputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const {
     const Tensor& inputTensor = inputTensors.at(0);
-    const auto& shape = inputTensor.output();
-    auto unpaddedShape = concretize(shape, consts.unpadded);
-    auto paddedShape = concretize(shape, consts.padded);
+    const auto& inputExpansions = expansions.at(0);
+    const auto& expandedShape = inputTensor.output();
+    // Note that inputTensor.output() contain all the expanded dimensions. So we need to filter them out to obtain the original input.
+    auto isExpanded = [&inputExpansions](const Dimension& dim) {
+        return std::ranges::find(inputExpansions, dim, Expand::PointerToDimension{}) != inputExpansions.end();
+    };
+    const auto originalShape = ranges::to<std::vector<Dimension>>(
+        expandedShape
+        | std::views::filter(std::not_fn(isExpanded))
+    );
+    auto unpaddedShape = concretize(originalShape, consts.unpadded);
+    auto paddedShape = concretize(originalShape, consts.padded);
     std::vector<std::pair<int, int>> paddingParams;
-    for (std::size_t i = 0; i < shape.size(); ++i) {
+    for (std::size_t i = 0; i < originalShape.size(); ++i) {
         int delta = static_cast<int>(paddedShape[i]) - static_cast<int>(unpaddedShape[i]);
         KAS_ASSERT(delta >= 0, "Padded shape must be larger than unpadded shape!");
         if (delta == 0) {
@@ -357,6 +368,21 @@ void PyTorchGen::padInputTensor(PythonCodePrinter& printer, const PaddedConsts& 
     } else {
         printer.writeLn("# No need to pad the input tensor.");
         printer.writeLn("{} = x", use(inputTensor));
+    }
+    if (originalShape.size() != expandedShape.size()) {
+        // We need to perform unsqueeze and expand to obtain the interface for the subgraph.
+        printer.writeLn("# We need to unsqueeze and expand the input tensor.");
+        for (std::size_t i = 0; const Dimension& dim: expandedShape) {
+            if (isExpanded(dim)) {
+                printer.writeLn("{0} = torch.unsqueeze({0}, {1})", use(inputTensor), i);
+            }
+            ++i;
+        }
+        printer.writeLn(
+            "{0} = {0}.expand({1})",
+            use(inputTensor),
+            fmt::join(paddedShape, ", ")
+        );
     }
     printer.writeLn();
 }
@@ -435,7 +461,7 @@ void PyTorchGen::generate(std::ostream& outputStream, std::string_view className
             // Load the weights.
             loadWeights(printer);
             for (const Tensor& tensor: topologicallyOrderedTensors) {
-                SubgraphGen gen { ctx, graph, tensorNames, printer, tensor};
+                SubgraphGen gen { ctx, graph, tensorNames, printer, tensor };
                 gen.generate(consts.padded);
             }
             cropOutputTensor(printer, consts);

@@ -35,16 +35,23 @@ void SampleOptions::check() const {
     KAS_ASSERT(disallowUnfoldLAboveShift + disallowShiftAboveUnfold <= 1);
 }
 
+StageStore::Query::Query(const GraphHandle& interface):
+    interface { interface },
+    hash { Hash{}(interface) }
+{}
+
 std::size_t StageStore::Hash::operator()(const Query& query) const noexcept {
     return query.hash;
 }
-
+std::size_t StageStore::Hash::operator()(const GraphHandle& interface) const noexcept {
+    return std::hash<GraphHandle>{}(interface);
+}
 std::size_t StageStore::Hash::operator()(AbstractStage *stage) const noexcept {
-    return stage->getInterface().hash();
+    return (*this)(stage->getInterface());
 }
 
-bool StageStore::Equal::operator()(const Dimensions& lhs, const Dimensions& rhs) const noexcept {
-    return std::ranges::equal(lhs, rhs);
+bool StageStore::Equal::operator()(const GraphHandle& lhs, const GraphHandle& rhs) const noexcept {
+    return lhs == rhs;
 }
 bool StageStore::Equal::operator()(const Query& lhs, const Query& rhs) const noexcept {
     return (*this)(lhs.interface, rhs.interface);
@@ -59,10 +66,9 @@ bool StageStore::Equal::operator()(AbstractStage *lhs, AbstractStage *rhs) const
     return (*this)(lhs->getInterface(), rhs->getInterface());
 }
 
-AbstractStage *StageStore::find(std::size_t depth, const Dimensions& interface, std::unique_lock<std::recursive_mutex>& lock) const {
-    KAS_ASSERT(interface.is_sorted(), "Interface is not sorted.");
+AbstractStage *StageStore::find(std::size_t depth, const GraphHandle& interface, std::unique_lock<std::recursive_mutex>& lock) const {
     KAS_ASSERT(lock.owns_lock());
-    Query q = { .interface = interface, .hash = interface.hash() };
+    auto q = Query(interface);
     const auto& bucket = bucketsOfStages[depth][q.hash % buckets];
     if (auto it = bucket.find(q); it != bucket.end()) {
         return *it;
@@ -73,11 +79,13 @@ AbstractStage *StageStore::find(std::size_t depth, const Dimensions& interface, 
 
 AbstractStage *StageStore::insert(std::size_t depth, std::unique_ptr<AbstractStage> stage, std::unique_lock<std::recursive_mutex>& lock) {
     KAS_ASSERT(lock.owns_lock());
-    std::size_t bucketIndex = stage->getInterface().hash() % buckets;
+    std::size_t bucketIndex = Hash{}(stage->getInterface()) % buckets;
     auto& bucket = bucketsOfStages[depth][bucketIndex];
     auto [it, inserted] = bucket.insert(stage.get());
-    [[maybe_unused]] auto _ = stage.release();
-    return inserted ? *it : nullptr;
+    if (inserted) {
+        return stage.release();
+    }
+    return nullptr;
 }
 
 StageStore::~StageStore() {
@@ -195,22 +203,20 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         this->outputShape.sizes.erase(this->outputShape.sizes.begin() + o);
     }
 
-    // DO NOT modify root after this, because Dimension references by address these iterators.
-    for (const auto& it: outputIterators) {
-        // Exclude the bound dimensions.
-        if (std::ranges::binary_search(boundOutputDimensions, it.getIndex())) {
-            continue;
-        }
-        root.emplace_back(&it);
-    }
-
     expressionOneTensor = Parser(options.expressionOneTensor).parseTensorExpression();
     expressionTwoTensors = Parser(options.expressionTwoTensors).parseTensorExpression();
     expressionThreeTensors = Parser(options.expressionThreeTensors).parseTensorExpression();
     expressionFourTensors = Parser(options.expressionFourTensors).parseTensorExpression();
 
-    Dimensions interface = getRootInterface();
-    interface.sort();
+    std::vector<Dimension> rootDimensions;
+    for (const auto& it: outputIterators) {
+        // Exclude the bound dimensions.
+        if (std::ranges::binary_search(boundOutputDimensions, it.getIndex())) {
+            continue;
+        }
+        rootDimensions.emplace_back(&it);
+    }
+    auto interface = GraphHandle(std::move(rootDimensions), std::vector<const Expand *>{});
     std::unique_ptr<ReductionStage> rootStage;
     std::unique_lock<std::recursive_mutex> lock;
     // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
@@ -576,8 +582,8 @@ Sampler::Expander::~Expander() {
     }
 }
 
-std::recursive_mutex& Sampler::getMutex(std::size_t depth, const Dimensions& interface) {
-    return mutexes[depth][interface.hash() % countMutexesInLayer];
+std::recursive_mutex& Sampler::getMutex(std::size_t depth, const GraphHandle& interface) {
+    return mutexes[depth][std::hash<GraphHandle>{}(interface) % countMutexesInLayer];
 }
 
 } // namespace kas

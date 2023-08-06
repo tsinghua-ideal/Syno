@@ -41,7 +41,14 @@ public:
 
     struct GenerateOptions {
         bool disallowMergeInputAndWeight;
+        bool disallowTile;
     };
+    KAS_STATISTICS_DEF(
+        GenerateInvocations,
+        GenerateAttempts,
+        DisallowedAttempts,
+        SuccessfulGenerations,
+    )
     static std::vector<const ExpandOp *> Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options);
 };
 

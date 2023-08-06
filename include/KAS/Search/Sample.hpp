@@ -110,11 +110,13 @@ class StageStore {
         const GraphHandle& interface;
         // Test hash equal.
         std::size_t hash;
+        Query(const GraphHandle& interface);
     };
 
     struct Hash {
         using is_transparent = void;
         std::size_t operator()(const Query& query) const noexcept;
+        std::size_t operator()(const GraphHandle& interface) const noexcept;
         std::size_t operator()(AbstractStage *stage) const noexcept;
     };
     struct Equal {
@@ -162,7 +164,6 @@ class Sampler final {
 
     std::vector<Iterator> outputIterators;
     std::vector<FixedDimension> fixedDimensions;
-    GraphHandle root;
 
     TensorExpression expressionOneTensor, expressionTwoTensors, expressionThreeTensors, expressionFourTensors;
 
@@ -186,7 +187,6 @@ public:
     const SampleOptions& getOptions() const { return options; }
     PrimitiveOpStore& getOpStore() { return opStore; }
     StageStore& getStageStore() { return stageStore; }
-    const GraphHandle& getRootInterface() const { return root; }
 
     const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }
     const TensorExpression& getExpressionForTensorNum(std::size_t num) const;

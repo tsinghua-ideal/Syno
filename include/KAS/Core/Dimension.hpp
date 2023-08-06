@@ -203,6 +203,12 @@ std::string TensorArrayToString(R&& tensors, const BindingContext& ctx) {
 class Expand;
 class Graph;
 
+class Topmost;
+template<typename R>
+concept TopmostRange =
+    std::ranges::input_range<R> &&
+    std::convertible_to<std::ranges::range_value_t<R>, Topmost>;
+
 class Topmost {
 protected:
     std::vector<Dimension> interface;
@@ -243,6 +249,7 @@ public:
     std::vector<Dimension>& getDimensions() { return interface; }
     const std::vector<const Expand *>& getExpansions() const { return expansions; }
     std::vector<const Expand *>& getExpansions() { return expansions; }
+    std::vector<Dimension> getAllDimensions() const;
 
     bool operator==(const Topmost& other) const = default;
 
@@ -250,12 +257,17 @@ public:
 
     // E.g., [[H]@Merge0]{[k]@Merge1}, where the braces mean expansions.
     std::string description(const BindingContext& ctx) const;
+    template<TopmostRange R>
+    static std::string Description(R&& topmosts, const BindingContext& ctx) {
+        return fmt::format("[{}]", fmt::join(
+            topmosts
+            | std::views::transform([&ctx](const Topmost& topmost) {
+                return topmost.description(ctx);
+            }),
+            ", "
+        ));
+    }
 };
-
-template<typename R>
-concept TopmostRange =
-    std::ranges::input_range<R> &&
-    std::convertible_to<std::ranges::range_value_t<R>, Topmost>;
 
 class GraphHandle: protected Topmost {
 public:
@@ -291,7 +303,7 @@ public:
     const std::vector<Dimension>& getDimensions() const { return interface; }
     const std::vector<const Expand *>& getExpansions() const { return expansions; }
 
-    using Topmost::operator==;
+    bool operator==(const GraphHandle& other) const = default;
 
     using Topmost::getShape;
 
@@ -312,6 +324,11 @@ public:
     auto filterOut(const std::vector<DimensionTypeWithOrder>& disallows) const {
         return interface | std::views::filter([&](const Dimension& dim) {
             return std::ranges::none_of(disallows, [&](auto disallow) { return dim.is(disallow); });
+        });
+    }
+    auto filterIn(const std::vector<DimensionTypeWithOrder>& allows) const {
+        return interface | std::views::filter([&](const Dimension& dim) {
+            return std::ranges::any_of(allows, [&](auto allow) { return dim.is(allow); });
         });
     }
 };

@@ -75,17 +75,16 @@ std::pair<std::vector<Tensor>, std::vector<Dimension>> Tensor::Builder::findTens
     return { std::move(contractedTensors), std::move(interface) };
 }
 
-Subgraphs Tensor::Builder::build(const std::vector<std::vector<Dimension>>& rawInputTensors) {
-    auto inputTensors = ranges::to<std::vector<Tensor>>(rawInputTensors
-        | std::views::transform([this](const std::vector<Dimension>& tensor) {
-            return TensorImpl::CreateInputTensor(*this, tensor);
-        })
-    );
+Subgraphs Tensor::Builder::build(const std::vector<Topmost>& rawInputTensors) {
+    std::vector<Tensor> inputTensors;
+    for (const Topmost& rawInputTensor: rawInputTensors) {
+        inputTensors.emplace_back(TensorImpl::CreateInputTensor(*this, rawInputTensor));
+    }
 
     // Perform early reduction.
     std::vector<Tensor> workingTensors;
-    for (std::size_t i = 0; i < rawInputTensors.size(); ++i) {
-        workingTensors.emplace_back(TensorImpl::CreateTensorView(*this, { inputTensors[i] }, rawInputTensors[i]));
+    for (const Tensor& tensor: inputTensors) {
+        workingTensors.emplace_back(TensorImpl::CreateTensorView(*this, { tensor }, tensor.output()));
     }
 
     std::size_t counter = 0;
@@ -114,7 +113,7 @@ Subgraphs Tensor::Builder::build(const std::vector<std::vector<Dimension>>& rawI
     std::ranges::copy(graph.getOutputIterators(), std::back_inserter(expectedOutput));
     // Do not forget to permute the dimensions.
     outputTensor.inner->adjustOutputOrder(expectedOutput);
-    return { std::move(inputTensors), std::move(outputTensor) };
+    return { std::move(expansions), std::move(inputTensors), std::move(outputTensor) };
 }
 
 const std::vector<Tensor>& Tensor::inputs() const {
@@ -139,10 +138,11 @@ std::string Tensor::debugToString() const {
     return BindingContext::ApplyDebugPublicCtx(&Tensor::toString, *this);
 }
 
-Tensor TensorImpl::CreateInputTensor(Tensor::Builder& builder, const std::vector<Dimension>& dimensions) {
-    // TODO!!! add expansions to builder
-    Tensor result = std::shared_ptr<TensorImpl>(new TensorImpl(dimensions));
-    for (const auto& dim: dimensions) {
+Tensor TensorImpl::CreateInputTensor(Tensor::Builder& builder, const Topmost& topmost) {
+    // Maybe we should add some heuristics to determine how the expansions are unsqueezed. TODO
+    Tensor result = std::shared_ptr<TensorImpl>(new TensorImpl(topmost.getAllDimensions()));
+    builder.expansions.emplace_back(topmost.getExpansions());
+    for (const auto& dim: result.output()) {
         auto [it, inserted] = builder.owner.emplace(dim, result);
         KAS_ASSERT(inserted);
     }

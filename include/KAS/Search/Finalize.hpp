@@ -43,15 +43,12 @@ public:
     std::size_t hash() const noexcept;
     std::size_t count() const noexcept { return tensors.size(); }
 
-    // TODO!!!
     GraphHandle toGraphHandle() const;
 
     double weightVariance(const ConcreteConsts& consts) const;
     double weightVariance(const BindingContext& ctx) const;
 
     std::string description(const BindingContext& ctx) const;
-
-    static bool Prune(const std::vector<Graph::ConnectedComponent>& components, const std::vector<std::vector<Dimension>>& trial);
 
     struct WeightOptions {
         std::size_t maximumTensors;
@@ -84,8 +81,8 @@ public:
 
 struct NextFinalizeSlot: Next {
     FinalizeOp finalization;
-    template<TensorRange TR>
-    static std::size_t GetKey(TR&& tensors) { return std::hash<std::vector<std::vector<Dimension>>>{}(tensors); }
+    template<TopmostRange TR>
+    static std::size_t GetKey(TR&& tensors) { return std::hash<std::vector<Topmost>>{}(tensors); }
     Arc toArc(const Sampler *sampler) const { return Arc(sampler, &finalization); }
 };
 

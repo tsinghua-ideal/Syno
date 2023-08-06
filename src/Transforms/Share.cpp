@@ -58,7 +58,7 @@ std::pair<bool, CompactColor> ShareOp::transformColor(CompactColor fro1, Compact
     return { !(fro1 & fro2), fro1 | fro2 };
 }
 
-std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options) {
+std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // "Chained" Share.
@@ -68,7 +68,7 @@ std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Di
 
     Allowance allowance { Size::Product(interface.getShape()), options.ctx };
     std::vector<const ShareOp *> result;
-    CountGenerateAttempts += interface.size();
+    CountGenerateAttempts += interface.getDimensions().size();
     std::size_t countPlausible = 0;
     for (auto&& dim: plausible) {
         const auto& color = dim.getColor();
@@ -92,7 +92,7 @@ std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Di
         ++CountSuccessfulGenerations;
         result.emplace_back(store.get<ShareOp>(dim));
     }
-    CountDisallowedAttempts += interface.size() - countPlausible;
+    CountDisallowedAttempts += interface.getDimensions().size() - countPlausible;
     return result;
 }
 

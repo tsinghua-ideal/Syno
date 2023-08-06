@@ -43,7 +43,7 @@ StrideOp::Values StrideOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for StrideOp: input = {}, output = {}", input, output);
 }
 
-std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options) {
+std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     using enum DimensionTypeWithOrder;
@@ -58,7 +58,7 @@ std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const 
     Allowance allowance { interface.getShape().totalSize(), options.ctx };
 
     std::vector<const StrideOp *> result;
-    CountGenerateAttempts += interface.size();
+    CountGenerateAttempts += interface.getDimensions().size();
     for (Size stride: allowance.enumerateSizes(options.ctx)) {
         for (auto&& dim: plausible) {
             // Disallow too large strides.
@@ -70,7 +70,7 @@ std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const 
             result.emplace_back(store.get<StrideOp>(dim, stride));
         }
     }
-    CountDisallowedAttempts += interface.size() - plausible.size();
+    CountDisallowedAttempts += interface.getDimensions().size() - plausible.size();
     return result;
 }
 

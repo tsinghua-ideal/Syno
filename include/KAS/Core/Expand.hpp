@@ -11,6 +11,7 @@ public:
     Expand(const Dimension& output):
         output { output }
     {}
+    virtual ~Expand() = default;
     struct PointerToDimension {
         const Dimension& operator()(const Expand *expand) const noexcept { return expand->output; }
     };

@@ -142,11 +142,11 @@ void Node::generateGraphviz(const std::filesystem::path& path, const std::string
     const auto& ctx = sampler->getBindingContext();
     match<void>(
         [&](ReductionStage *rStage) {
-            GraphvizGen gen { rStage->getInterface(), ctx };
+            GraphvizGen gen { rStage->getInterface().getRaw(), ctx };
             gen.generate(path, name);
         },
         [&](NormalStage *nStage) {
-            GraphvizGen gen { nStage->getInterface(), ctx };
+            GraphvizGen gen { nStage->getInterface().getRaw(), ctx };
             gen.generate(path, name);
         },
         [&](std::shared_ptr<TensorView>) -> void {

@@ -7,7 +7,7 @@
 
 namespace kas {
 
-void LocalityOptimizer::permuteWeightDimensions(std::vector<std::vector<Dimension>>& tensors) const {
+void LocalityOptimizer::permuteWeightDimensions(std::vector<Topmost>& tensors) const {
     // The less value, the outer the loop is.
     std::list<int> priorityConstants;
     // Assign each dimension with a priority.
@@ -50,7 +50,8 @@ void LocalityOptimizer::permuteWeightDimensions(std::vector<std::vector<Dimensio
         );
     };
     const auto& inputTensor = tensors.at(0);
-    for (const Dimension& inputDim: inputTensor) {
+    // Maybe we should insert the expansions in the dimensions, instead of appending them to the end. TODO
+    for (const Dimension& inputDim: inputTensor.getAllDimensions()) {
         priorityConstants.push_back(0);
         priorityAssigner(priorityAssigner, inputDim, --priorityConstants.end());
     }
@@ -95,7 +96,7 @@ void LocalityOptimizer::permuteWeightDimensions(std::vector<std::vector<Dimensio
         }
     };
     for (auto& tensor: tensors | std::views::drop(1)) {
-        std::ranges::sort(tensor, priorityLessThan);
+        std::ranges::sort(tensor.getDimensions(), priorityLessThan);
     }
 }
 
@@ -189,7 +190,8 @@ void DimensionEvaluator::fillWithReductions() {
         // (Note that forward pipeline does not even need to call this.)
         // Use input dimensions as reduction variables. In this way we can increase probability of loop fusion. And we can make better use of locality as well.
         for (const auto& inputTensor: inputTensors) {
-            for (const Dimension& inputDim: inputTensor.getDimensions() | std::views::reverse) {
+            auto allDimensions = inputTensor.getContent().getAllDimensions();
+            for (const Dimension& inputDim: allDimensions | std::views::reverse) {
                 // In reverse. Because we use row-major representation, and it is better to reduce the innermost dimension first.
                 if (freeCandidates.contains(inputDim)) {
                     reduceAt(inputDim);
@@ -218,7 +220,7 @@ void DimensionEvaluator::adjustReductionOrder() {
     std::vector<std::size_t> transposition(totalLoops, remainTheSame);
     std::size_t adjusted = 0;
     for (const auto& inputTensor: inputTensors) {
-        for (const Dimension& inputDim: inputTensor.getDimensions() | std::views::reverse) {
+        for (const Dimension& inputDim: inputTensor.getDims() | std::views::reverse) {
             if (auto var = values.at(inputDim).extractValue().tryAs<VariableValueNode>(); var && var->isReduce) {
                 if (transposition[var->index] == remainTheSame) {
                     transposition[var->index] = adjusted++;
@@ -260,7 +262,7 @@ void DimensionEvaluator::adjustReductionOrder() {
 
 AbstractAccess DimensionEvaluator::toAccess(int position, const std::vector<Dimension>& output) {
     std::vector<std::vector<IteratorValue>> inputsAccesses;
-    std::ranges::move(inputTensors | std::views::transform([&](const auto& tensor) { return extractValues(tensor.getDimensions()); }), std::back_inserter(inputsAccesses));
+    std::ranges::move(inputTensors | std::views::transform([&](const auto& tensor) { return extractValues(tensor.getDims()); }), std::back_inserter(inputsAccesses));
     return AbstractAccess {
         .position = position,
         .outerLoops = std::move(outerLoops),
