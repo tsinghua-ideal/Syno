@@ -58,6 +58,10 @@ struct SampleOptions {
     float minimumUnfoldRatio = 2.0f;
     float minimumMergeRatio = 2.0f;
 
+    // ExpandOp related.
+    bool disallowMergeInputAndWeight = false;
+    bool disallowTile = true;
+
     // Below are canonicalization options.
 
     // This option makes Split-Merge only be able to do views.
@@ -87,6 +91,7 @@ struct SampleOptions {
     bool disallowShiftAboveUnfold = false;
 
     // Some limit controls.
+    int maximumExpands = -1;
     int maximumMerges = -1;
     int maximumSplits = -1;
     int maximumShifts = -1;

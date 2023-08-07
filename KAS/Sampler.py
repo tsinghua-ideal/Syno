@@ -53,7 +53,7 @@ class Sampler:
         for placeholder, kernel_pack in zip(placeholders, kernel_packs):
             placeholder.reload(kernel_pack)
 
-    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, maximum_variables_in_size: int = 16, maximum_variables_powers_in_size: int = 16, requires_exact_division: bool = True, requires_odd_kernel_size_in_unfold: bool = True, expression_one_tensor: str = "in_0", expression_two_tensors: str = "in_0 * in_1", expression_three_tensors: str = "in_0 * in_1 * in_2", expression_four_tensors: str = "in_0 * in_1 * in_2 * in_3", maximum_finalizations: int = 5, allow_weight_permutation: bool = False, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_discontinuous_view: bool = False, canonicalize_unfold_order: bool = True, maximum_merges: int = -1, maximum_splits: int = -1, maximum_shifts: int = -1, maximum_strides: int = -1, maximum_unfolds: int = -1, maximum_shares: int = -1, num_worker_threads: int = 12, save_path: str = './samples', halide: bool = False, cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot, extra_options: Dict[str, str] = {}, rfactor_threshold: int = 32, in_bounds_likely_threshold: float = 0.3):
+    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, maximum_variables_in_size: int = 16, maximum_variables_powers_in_size: int = 16, requires_exact_division: bool = True, requires_odd_kernel_size_in_unfold: bool = True, expression_one_tensor: str = "in_0", expression_two_tensors: str = "in_0 * in_1", expression_three_tensors: str = "in_0 * in_1 * in_2", expression_four_tensors: str = "in_0 * in_1 * in_2 * in_3", maximum_finalizations: int = 5, allow_weight_permutation: bool = False, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_merge_input_and_weight: bool = False, disallow_tile: bool = True, disallow_discontinuous_view: bool = False, canonicalize_unfold_order: bool = True, maximum_expands: int = -1, maximum_merges: int = -1, maximum_splits: int = -1, maximum_shifts: int = -1, maximum_strides: int = -1, maximum_unfolds: int = -1, maximum_shares: int = -1, num_worker_threads: int = 12, save_path: str = './samples', halide: bool = False, cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot, extra_options: Dict[str, str] = {}, rfactor_threshold: int = 32, in_bounds_likely_threshold: float = 0.3):
         """
         Parameters
         ----------
@@ -120,10 +120,16 @@ class Sampler:
             Minimum ratio of the size of the input dimension to the parameter of UnfoldOp.
         minimum_merge_ratio : float, optional
             Minimum ratio of the size of the left input dimension to the right input dimension of MergeOp.
+        disallow_merge_input_and_weight : bool, optional
+            Merging input tensor and weight tensor via ExpandOp.
+        disallow_tile : bool, optional
+            Generate ExpandOp above lhs of MergeOp.
         disallow_discontinuous_view : bool, optional
             We know that `Split s*k -> s, k` along with `Merge s, k -> s*k` is meaningless, but what if `Split s*k -> s, k` along with `Merge k, s -> s*k`? It seems meaningless either. Set this argument to true to disallow this.
         canonicalize_unfold_order : bool, optional
             Make chained UnfoldOp's appear in ascending parameter order.
+        maximum_expands : int, optional
+            Maximum number of ExpandOp's. `-1` for infinite.
         maximum_merges : int, optional
             Maximum number of MergeOp's. `-1` for infinite.
         maximum_splits : int, optional
@@ -187,8 +193,11 @@ class Sampler:
             max_unfold_kernel_size=max_unfold_kernel_size,
             minimum_unfold_ratio=minimum_unfold_ratio,
             minimum_merge_ratio=minimum_merge_ratio,
+            disallow_merge_input_and_weight=disallow_merge_input_and_weight,
+            disallow_tile=disallow_tile,
             disallow_discontinuous_view=disallow_discontinuous_view,
             canonicalize_unfold_order=canonicalize_unfold_order,
+            maximum_expands=maximum_expands,
             maximum_merges=maximum_merges,
             maximum_splits=maximum_splits,
             maximum_shifts=maximum_shifts,

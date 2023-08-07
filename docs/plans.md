@@ -48,7 +48,7 @@
 - [ ] To support Attention, what can we do?
 - [ ] Make FinalizeOp a PrimitiveOp.
 - [ ] Remove `priority` from `MapReduce`.
-- [ ] Add ExpandOp.
+- [x] Add ExpandOp.
 
 ## Search
 

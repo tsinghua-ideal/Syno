@@ -13,6 +13,7 @@ TEST_F(search_tests, shape_complexity) {
         .remainingMerges = 0,
         .remainingSplits = 0,
         .remainingUnfolds = 0,
+        .remainingExpands = 0,
         .overflow = 1,
     };
 

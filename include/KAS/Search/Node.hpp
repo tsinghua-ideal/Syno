@@ -24,6 +24,7 @@ struct Next {
         // Root -> Growing
         MapReduce,
         // Growing -> Growing, i.e., PrimitiveOp's
+        Expand,
         Shift,
         Stride,
         Split,
@@ -33,7 +34,7 @@ struct Next {
         // Growing -> Final
         Finalize,
     };
-    static constexpr std::size_t NumTypes = 8;
+    static constexpr std::size_t NumTypes = 9;
     using OpCounterType = std::uint8_t;
     struct OpTypeCounter: std::array<OpCounterType, Next::NumTypes> {
         const OpCounterType& operator[](Type t) const noexcept {
@@ -68,6 +69,7 @@ struct Next {
     template<PrimitiveOpImpl Op>
     static constexpr Type TypeOf() {
         if constexpr (std::same_as<Op, MapReduceOp>) { return Type::MapReduce; }
+        else if constexpr (std::same_as<Op, ExpandOp>) { return Type::Expand; }
         else if constexpr (std::same_as<Op, ShiftOp>) { return Type::Shift; }
         else if constexpr (std::same_as<Op, StrideOp>) { return Type::Stride; }
         else if constexpr (std::same_as<Op, SplitOp>) { return Type::Split; }
@@ -79,6 +81,7 @@ struct Next {
     static constexpr Type TypeOf(DimensionType t) {
         switch (t) {
         case DimensionType::MapReduce: return Type::MapReduce;
+        case DimensionType::Expand: return Type::Expand;
         case DimensionType::Shift: return Type::Shift;
         case DimensionType::Stride: return Type::Stride;
         case DimensionType::Split: return Type::Split;

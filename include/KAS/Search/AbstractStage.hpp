@@ -123,6 +123,7 @@ public:
     KAS_STATISTICS_DEF(
         Creations,
         ChildrenMapReduce,
+        ChildrenExpand,
         ChildrenShift,
         ChildrenStride,
         ChildrenSplit,
@@ -175,6 +176,7 @@ public:
             existingOps[deltaOp] += 1;
             switch (deltaOp) {
             case Next::Type::MapReduce: ++CountChildrenMapReduce; break;
+            case Next::Type::Expand: ++CountChildrenExpand; break;
             case Next::Type::Shift: ++CountChildrenShift; break;
             case Next::Type::Stride: ++CountChildrenStride; break;
             case Next::Type::Split: ++CountChildrenSplit; break;

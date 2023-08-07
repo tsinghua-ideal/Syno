@@ -39,6 +39,10 @@ class Assembler:
         """
         return self._assembler.make_dims_of_sizes(list(names))
 
+    def create_expand(self, size: Bindings.Size) -> ForwardDimension:
+        """Create an ExpandOp."""
+        return self._assembler.create_expand(size)
+
     def create_merge(self, lhs: ForwardDimension, rhs: ForwardDimension) -> ForwardDimension:
         """Create a MergeOp."""
         return self._assembler.create_merge(lhs, rhs)

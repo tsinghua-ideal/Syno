@@ -64,8 +64,6 @@ public:
         FailedInvocations,
         LegalFinalizations,
         UncanonicalWeight,
-        ConflictingColors,
-        PrunedFinalizations,
     )
     struct GenerateOptions {
         const BindingContext& ctx;

@@ -121,27 +121,22 @@ std::size_t FinalizeOp::Distance(const std::vector<Dimension>& current, const Sh
 
     // Then, experimentally finalize.
     std::size_t minimumComplexity = ShapeComplexity::Infinity;
-    int newStrideDist = strideDist;
     std::vector<Size> newCurrent = mustBeInput;
-    auto recursion = [&](const auto& self, std::size_t trialIndex) {
-        if (newStrideDist > options.remainingUnfolds) {
-            return;
-        }
+    auto recursion = [&](const auto& self, std::size_t trialIndex) -> void {
         auto trial = ShapeComplexity::Compute(desired, newCurrent, {
             .ctx = options.ctx,
             .remainingMerges = options.remainingMerges,
             .remainingSplits = options.remainingSplits,
-            .remainingUnfolds = options.remainingUnfolds - newStrideDist,
+            .remainingUnfolds = options.remainingUnfolds - strideDist,
+            .remainingExpands = options.remainingExpands,
             .overflow = std::min(minimumComplexity, options.overflow), // In either cases, we do not need to further compute.
         });
         minimumComplexity = std::min(minimumComplexity, trial);
         if (trialIndex < canBeWeight.size()) {
             self(self, trialIndex + 1);
-            newStrideDist += 1;
             newCurrent.emplace_back(canBeWeight[trialIndex]);
             self(self, trialIndex + 1);
             newCurrent.pop_back();
-            newStrideDist -= 1;
         }
     };
     recursion(recursion, 0);

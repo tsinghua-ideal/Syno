@@ -137,6 +137,10 @@ struct DimCanvas: public DimVisitor {
         this->from = std::move(from);
         dim.accept(*this);
     }
+    void drawExpand(const Expand *op) {
+        this->from = OpCanvas::Name(dynamic_cast<const ExpandOp&>(*op));
+        op->output.accept(*this);
+    }
     void drawOthers() {
         for (const Dimension& dim: graph.getDimensions()) {
             const PrimitiveOp *opAbove = graph.getOpAbove(dim);
@@ -145,7 +149,7 @@ struct DimCanvas: public DimVisitor {
                 from = OpCanvas::Name(*opAbove);
                 dim.accept(*this);
             } else {
-                // This is input, which will be handled elsewhere.
+                // This is input or expand, which will be handled elsewhere.
             }
         }
     }
@@ -197,6 +201,10 @@ std::string draw(const BindingContext& ctx, R&& tensors) {
             ++i;
         }
         ++j;
+    }
+    // Draw the expands.
+    for (const Expand *op: graph.getTopmost().getExpansions()) {
+        dimCanvas.drawExpand(op);
     }
     dimCanvas.drawOthers();
     return ss.str();

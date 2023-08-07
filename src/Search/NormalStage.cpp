@@ -91,7 +91,7 @@ void NormalStage::guardGeneratedChildren() {
             }));
         }
 
-        // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s.
+        // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s or `ExpandOp`^{-1}s.
         if (interface.getDimensions().size() > options.dimLowerBound) {
             // Split^{-1}
             if (options.maximumSplits == -1 || options.maximumSplits > existingOp<SplitOp>()) {
@@ -113,6 +113,12 @@ void NormalStage::guardGeneratedChildren() {
                     .canonicalizeUnfoldOrder = options.canonicalizeUnfoldOrder,
                     .disallowUnfoldLAboveShift = options.disallowUnfoldLAboveShift,
                     .disallowUnfoldLAboveMergeR = options.disallowUnfoldLAboveMergeR,
+                }));
+            }
+            if (options.maximumExpands == -1 || options.maximumExpands > existingOp<ExpandOp>()) {
+                add(ExpandOp::Generate(store, interface, {
+                    .disallowMergeInputAndWeight = options.disallowMergeInputAndWeight,
+                    .disallowTile = options.disallowTile,
                 }));
             }
         }
@@ -196,6 +202,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
         .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
         .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),
         .remainingUnfolds = remaining(options.maximumUnfolds, Next::Type::Unfold),
+        .remainingExpands = remaining(options.maximumExpands, Next::Type::Expand),
         .overflow = remainingDepth(),
     });
     if (distance > remainingDepth()) {

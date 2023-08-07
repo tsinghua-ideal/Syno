@@ -369,7 +369,9 @@ void PyTorchGen::padInputTensor(PythonCodePrinter& printer, const PaddedConsts& 
         printer.writeLn("# No need to pad the input tensor.");
         printer.writeLn("{} = x", use(inputTensor));
     }
+    printer.writeLn();
     if (originalShape.size() != expandedShape.size()) {
+        auto paddedExpandedShape = concretize(expandedShape, consts.padded);
         // We need to perform unsqueeze and expand to obtain the interface for the subgraph.
         printer.writeLn("# We need to unsqueeze and expand the input tensor.");
         for (std::size_t i = 0; const Dimension& dim: expandedShape) {
@@ -381,10 +383,10 @@ void PyTorchGen::padInputTensor(PythonCodePrinter& printer, const PaddedConsts& 
         printer.writeLn(
             "{0} = {0}.expand({1})",
             use(inputTensor),
-            fmt::join(paddedShape, ", ")
+            fmt::join(paddedExpandedShape, ", ")
         );
+        printer.writeLn();
     }
-    printer.writeLn();
 }
 
 void PyTorchGen::cropOutputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const {
