@@ -200,10 +200,19 @@ public:
     // Visit multiple final nodes.
     std::vector<std::pair<std::vector<Next>, Node>> randomFinalNodesWithPrefix(const std::vector<Next>& prefix, std::size_t count);
 
-    static void ConvertTensorViewToSearchableOrder(std::vector<Topmost>& tensorView);
-    static std::vector<Next> ConvertGraphToPath(const Graph& graph);
-    // TODO!!! Split this. First remove the fixed dimensions, then call ConvertTensorViewToSearchableOrder and ConvertGraphToPath.
-    std::vector<Next> convertTensorsToPath(const std::vector<Topmost>& tensors) const;
+    // Remove all the fixed dimensions.
+    void removeFixedDimensions(std::vector<Topmost>& tensors) const;
+    // Sort the dimensions of weights in order of hash. This also sorts the weights if permutation of weights is disallowed.
+    void sortAllExpansionsAndWeightDimensions(std::vector<Topmost>& tensors) const;
+    // This calls the above two functions. Then you can use these tensors to build a GraphHandle.
+    void convertTensorsToSearchableForm(std::vector<Topmost>& tensors) const;
+    // This cannot figure out Finalize.
+    static std::vector<Next> ConvertGraphHandleToPath(const GraphHandle& handle);
+    // This in effect calls ConvertGraphHandleToPath, then adds a Finalize to it.
+    static std::vector<Next> ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors);
+    // A convenience method.
+    std::vector<Next> convertTensorViewToPath(const TensorView& tensorView) const;
+
     std::optional<std::vector<Arc>> convertPathToArcs(const std::vector<Next>& path);
 
     class Pruner {

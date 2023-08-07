@@ -5,9 +5,7 @@ namespace kas {
 
 TEST_F(transforms_tests, share) {
     ShareOp shareOp { dimH };
-    std::vector<Dimension> in0 { shareOp.getInputL(), dimW, dimCH };
-    std::vector<Dimension> in1 { shareOp.getInputR() };
-    auto tensorView = TensorView({ in0, in1 }, TensorExpression::ProductOfTensors(2));
+    auto tensorView = TensorView({{{shareOp.getInputL(), dimW, dimCH}, {}}, {{shareOp.getInputR()}, {}}}, TensorExpression::ProductOfTensors(2));
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H, W, c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H, W, c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[1].shapeToString(ctx), "[H]");

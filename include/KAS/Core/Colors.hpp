@@ -53,10 +53,6 @@ public:
     bool empty() const { return tags.empty(); }
 
     static const Color None;
-
-    // This assigns the dimensions with colors, and verify that color constraints are not violated. 
-    // For correctly constructed Finalizations, this is intended to return true.
-    static bool CheckFinalization(const std::vector<std::vector<Dimension>>& tensors);
 };
 
 // Different from usual colors, a weight can have left color and right color.

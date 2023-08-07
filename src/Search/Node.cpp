@@ -227,12 +227,10 @@ Node Node::getChildFromArc(Arc arc) const {
 std::vector<Next> Node::getPossiblePath() const {
     return match<std::vector<Next>>(
         [](AbstractStage *stage) {
-            auto graph = stage->getInterface().buildGraph();
-            return Sampler::ConvertGraphToPath(graph);
+            return Sampler::ConvertGraphHandleToPath(stage->getInterface());
         },
         [&](std::shared_ptr<TensorView> tensorView) {
-            auto tensors = ranges::to<std::vector<std::vector<Dimension>>>(tensorView->getUnderlyingTensorRange());
-            return sampler->convertTensorsToPath(tensors);
+            return sampler->convertTensorViewToPath(*tensorView);
         }
     );
 }

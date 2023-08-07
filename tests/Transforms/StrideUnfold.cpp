@@ -7,8 +7,7 @@ TEST_F(transforms_tests, stride_unfold) {
     auto itC = Iterator { 2, sizeC }; // C
     StrideOp strideOp { &itC, sizeC }; // C^2
     UnfoldOp unfoldOp { dimH, strideOp.getInput() };
-    std::vector<Dimension> in { unfoldOp.getInput(), dimW };
-    auto tensorView = TensorView({ in }, TensorExpression::ProductOfTensors(1));
+    auto tensorView = TensorView({{{unfoldOp.getInput(), dimW}, {}}}, TensorExpression::ProductOfTensors(1));
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H, W, c]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H, W]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),

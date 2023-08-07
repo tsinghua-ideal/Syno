@@ -73,7 +73,7 @@ void Graph::Builder::visit(const MapReduce& dim) {
     if (auto op = dynamic_cast<const PrimitiveOp *>(&dim)) {
         ops.emplace(op);
     } else {
-        KAS_WARNING("Found naked MapReduce (not wrapped in a MapReduceOp) when building the graph!");
+        KAS_CRITICAL("Found naked MapReduce (not wrapped in a MapReduceOp) when building the graph!");
     }
 }
 void Graph::Builder::visit(const RepeatLikeOp::Input& dim) {
@@ -121,7 +121,7 @@ Graph::Builder& Graph::Builder::addExpansion(const Expand *exp) {
     if (auto op = dynamic_cast<const PrimitiveOp *>(exp)) {
         ops.emplace(op);
     } else {
-        KAS_CRITICAL("Found naked Expand (not wrapped in a ExpandOp) when building the graph!");
+        KAS_CRITICAL("Found naked Expand (not wrapped in an ExpandOp) when building the graph!");
     }
     return *this;
 }
@@ -140,6 +140,7 @@ Graph Graph::Builder::build() {
     std::ranges::sort(mapReduceIterators, [](const MapReduce *lhs, const MapReduce *rhs) {
         return lhs->getPriority() < rhs->getPriority();
     });
+    topmost.sort();
     return {
         std::move(topmost),
         std::move(dimMeta),

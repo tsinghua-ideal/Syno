@@ -214,22 +214,16 @@ protected:
     std::vector<Dimension> interface;
     std::vector<const Expand *> expansions;
 
-    std::vector<Dimension>::const_iterator binarySearch(const Dimension& value) const {
-        return WeakOrderedBinarySearch(interface, value, Dimension::HashLessThan{});
-    }
-    std::vector<Dimension>::iterator binarySearch(const Dimension& value) {
-        auto it = std::as_const(*this).binarySearch(value);
-        // Amazing trick: https://stackoverflow.com/questions/765148/how-to-remove-constness-of-const-iterator
-        return interface.erase(it, it);
-    }
-    std::size_t binarySearchIndexOf(const Dimension& value) const {
-        return std::distance(interface.begin(), binarySearch(value));
-    }
+    std::vector<Dimension>::const_iterator binarySearch(const Dimension& value) const;
+    std::vector<Dimension>::iterator binarySearch(const Dimension& value);
+    std::size_t binarySearchIndexOf(const Dimension& value) const;
 
 public:
+    void sortDimensions();
+    void sortExpansions();
     // This is required to make `interface` and `expansions` sorted for hashing.
     void sort();
-    bool is_sorted() const;
+    bool isSorted() const;
 
     explicit Topmost() = default;
     template<
@@ -288,7 +282,7 @@ public:
     explicit GraphHandle(T&& topmost):
         Topmost(std::forward<T>(topmost))
     {
-        KAS_ASSERT(is_sorted());
+        KAS_ASSERT(isSorted());
     }
     GraphHandle(std::initializer_list<Dimension> interface, std::initializer_list<const Expand *> expansions):
         Topmost(interface, expansions)
@@ -297,11 +291,12 @@ public:
         sort();
     }
     // Merge them.
-    static GraphHandle fromInterfaces(const std::vector<Topmost>& interfaces);
+    static GraphHandle FromInterfaces(const std::vector<Topmost>& interfaces);
 
     const Topmost& getRaw() const { return *this; }
     const std::vector<Dimension>& getDimensions() const { return interface; }
     const std::vector<const Expand *>& getExpansions() const { return expansions; }
+    using Topmost::getAllDimensions;
 
     bool operator==(const GraphHandle& other) const = default;
 
@@ -309,12 +304,9 @@ public:
 
     using Topmost::description;
 
-    std::size_t maximumTags() const;
-    std::size_t countDataDiscardingDims() const;
-
     bool contains(const Dimension& value) const { return binarySearch(value) != interface.end(); }
     GraphHandle insert1(const Dimension& value) const;
-    GraphHandle moveToExpansions(const Dimension& value) const;
+    GraphHandle moveToExpansions(const Expand *value) const;
     GraphHandle substitute1to1(const Dimension& fro, const Dimension& to) const;
     GraphHandle substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2) const;
     GraphHandle substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const;

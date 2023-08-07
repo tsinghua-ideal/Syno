@@ -32,6 +32,10 @@ public:
     }
     GraphHandle applyToInterface(const GraphHandle& interface) const final override;
 
+    bool operator==(const ExpandOp& other) const noexcept {
+        return output == other.output;
+    }
+
     std::string description(const BindingContext& ctx) const final override {
         return fmt::format("-> {}", output.description(ctx));
     }

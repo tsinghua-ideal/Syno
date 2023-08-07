@@ -37,7 +37,7 @@ std::size_t FinalizeOp::hash() const noexcept {
 }
 
 GraphHandle FinalizeOp::toGraphHandle() const {
-    return GraphHandle::fromInterfaces(tensors);
+    return GraphHandle::FromInterfaces(tensors);
 }
 
 double FinalizeOp::weightVariance(const ConcreteConsts& consts) const {
@@ -51,7 +51,7 @@ double FinalizeOp::weightVariance(const ConcreteConsts& consts) const {
     weights.reserve(tensors.size() - 1);
     for (std::size_t tId = 1; tId < tensors.size(); ++tId) {
         const auto& tensor = tensors[tId];
-        ShapeView shape { tensor };
+        ShapeView shape = tensor.getShape();
         double weight = shape.totalSize().eval<double>(consts);
         elements *= weight;
         sum += weight;
@@ -415,12 +415,6 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const GraphHandle& dimensionsAndExp
                 }
             }
             tensors.insert(tensors.begin(), std::move(inputTensor));
-            if (!Color::CheckFinalization(tensors)) {
-                // We really should avoid this!
-                KAS_WARNING("Finalization with conflicting colors generated!");
-                ++CountConflictingColors;
-                return;
-            }
             addToResults(std::move(tensors));
         }
     };

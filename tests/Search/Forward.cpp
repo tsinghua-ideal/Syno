@@ -30,11 +30,19 @@ TEST_F(search_tests, forward) {
     dimK1_shared.reduce(1, MapReduce::MapType::Identity, MapReduce::ReduceType::Mean);
     // [N, H, W], the output.
 
-    std::vector<Dimension> input { dimN, dimH, dimW }, weight { dimK1, dimK2 };
-    std::vector<std::vector<Dimension>> tensors { input, weight };
-    Sampler::ConvertTensorViewToSearchableOrder(tensors);
+    auto input = Topmost({ dimN, dimH, dimW }, {});
+    auto weight = Topmost({ dimK1, dimK2 }, {});
+    std::vector<Topmost> tensors { input, weight };
+    sampler.sortAllExpansionsAndWeightDimensions(tensors);
     auto tensorView = TensorView(tensors, TensorExpression::ProductOfTensors(tensors.size()));
-    auto path = sampler.convertTensorsToPath(tensors);
+    auto obtainedTensors = ranges::to<std::vector<Topmost>>(tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent));
+    sampler.sortAllExpansionsAndWeightDimensions(obtainedTensors);
+    ASSERT_EQ(tensors.size(), obtainedTensors.size());
+    for (std::size_t i = 0; i < tensors.size(); ++i) {
+        ASSERT_EQ(tensors[i].description(ctx), obtainedTensors[i].description(ctx));
+    }
+    sampler.removeFixedDimensions(tensors);
+    auto path = Sampler::ConvertSearchableTensorsToPath(tensors);
     fmt::print("A possible path is:\n");
     for (auto&& next: path) {
         fmt::print("{}\n", next.toString());

@@ -5,8 +5,7 @@ namespace kas {
 
 TEST_F(transforms_tests, merge) {
     MergeOp mergeOp { dimCH, sizeH };
-    std::vector<Dimension> in { mergeOp.getInputL(), mergeOp.getInputR(), dimH, dimW };
-    auto tensorView = TensorView({ in }, TensorExpression::ProductOfTensors(1));
+    auto tensorView = TensorView({{{mergeOp.getInputL(), mergeOp.getInputR(), dimH, dimW}, {}}}, TensorExpression::ProductOfTensors(1));
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H, W, c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[c, H, H, W]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),

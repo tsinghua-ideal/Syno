@@ -6,8 +6,23 @@ namespace kas {
 TEST_F(search_tests, sampler) {
     constexpr std::size_t trials = 500;
     std::size_t successes = 0;
+    std::size_t successfulReconstruction = 0;
+    std::size_t failedReconstruction = 0;
     for (int i = 0; i < trials; ++i) {
         auto randomLeaves = sampler.randomFinalNodesWithPrefix({}, 32);
+        for (const auto& [_, node]: randomLeaves) {
+            auto path = sampler.convertTensorViewToPath(*node.asFinal());
+            auto reconstructedNode = sampler.visit(path);
+            if (reconstructedNode.has_value()) {
+                ASSERT_EQ(
+                    node.asFinal()->printNestedLoopsForAll(ctx),
+                    reconstructedNode->asFinal()->printNestedLoopsForAll(ctx)
+                );
+                ++successfulReconstruction;
+            } else {
+                ++failedReconstruction;
+            }
+        }
         if (randomLeaves.empty() || !randomLeaves[0].second.isFinal()) {
             fmt::print("Trial {} failed.\n", i);
             continue;
@@ -36,6 +51,8 @@ TEST_F(search_tests, sampler) {
     }
     StatisticsCollector::PrintSummary(std::cout);
     fmt::print("Success rate: {:.2f} ({} / {})\n", static_cast<float>(successes) / trials, successes, trials);
+    fmt::print("Reconstruction: successful = {}, failed = {}\n", successfulReconstruction, failedReconstruction);
+    ASSERT_GT(successfulReconstruction, failedReconstruction);
 }
 
 TEST_F(search_tests, require_value_for_every_variable) {

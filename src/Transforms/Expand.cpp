@@ -6,7 +6,7 @@
 namespace kas {
 
 GraphHandle ExpandOp::applyToInterface(const GraphHandle& interface) const {
-    return interface.moveToExpansions(output);
+    return interface.moveToExpansions(this);
 }
 
 std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
