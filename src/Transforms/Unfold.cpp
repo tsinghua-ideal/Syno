@@ -52,7 +52,7 @@ UnfoldOp::Values UnfoldOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for UnfoldOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
-std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options) {
+std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // In addition, canonicalization can require that UnfoldOp chain be structured in ascending order of kernel size. This changes semantics but it seems to be fine.
@@ -65,7 +65,7 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
     auto plausibleR = interface.filterOut(disallowsR);
 
     std::vector<const UnfoldOp *> result;
-    const auto totalAttempts = interface.size() * interface.size() - interface.size();
+    const auto totalAttempts = interface.getDimensions().size() * (interface.getDimensions().size() - 1);
     CountGenerateAttempts += totalAttempts;
     std::size_t countPlausible = 0;
     for (auto&& dimL: plausibleL) {

@@ -4,11 +4,11 @@
 
 namespace kas {
 
-bool MapReduceOp::canApplyToInterface(const Dimensions& interface) const {
+bool MapReduceOp::canApplyToInterface(const GraphHandle& interface) const {
     KAS_CRITICAL("You cannot decide whether a MapReduceOp can be applied to an interface without the StageStore.");
 }
 
-Dimensions MapReduceOp::applyToInterface(const Dimensions& interface) const {
+GraphHandle MapReduceOp::applyToInterface(const GraphHandle& interface) const {
     return interface.insert1(getInput());
 }
 

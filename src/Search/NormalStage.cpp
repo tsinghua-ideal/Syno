@@ -91,8 +91,8 @@ void NormalStage::guardGeneratedChildren() {
             }));
         }
 
-        // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s.
-        if (interface.size() > options.dimLowerBound) {
+        // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s or `ExpandOp`^{-1}s.
+        if (interface.getDimensions().size() > options.dimLowerBound) {
             // Split^{-1}
             if (options.maximumSplits == -1 || options.maximumSplits > existingOp<SplitOp>()) {
                 add(SplitOp::Generate(store, interface, {
@@ -115,10 +115,16 @@ void NormalStage::guardGeneratedChildren() {
                     .disallowUnfoldLAboveMergeR = options.disallowUnfoldLAboveMergeR,
                 }));
             }
+            if (options.maximumExpands == -1 || options.maximumExpands > existingOp<ExpandOp>()) {
+                add(ExpandOp::Generate(store, interface, {
+                    .disallowMergeInputAndWeight = options.disallowMergeInputAndWeight,
+                    .disallowTile = options.disallowTile,
+                }));
+            }
         }
 
         // Try increasing dimensionality, by applying `MergeLikeOp`^{-1}s.
-        if (interface.size() < options.dimUpperBound) {
+        if (interface.getDimensions().size() < options.dimUpperBound) {
             // Merge^{-1}
             if (options.maximumMerges == -1 || options.maximumMerges > existingOp<MergeOp>()) {
                 add(MergeOp::Generate(store, interface, {
@@ -172,7 +178,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     const BindingContext& ctx = sampler.getBindingContext();
 
     std::vector<Dimension> onlyWeights, weightsExcluded;
-    for (const Dimension& dim: interface) {
+    for (const Dimension& dim: interface.getDimensions()) {
         if (dim.deduceOrigin() == Dimension::Origin::Weight) {
             onlyWeights.emplace_back(dim);
         } else {
@@ -196,6 +202,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
         .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
         .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),
         .remainingUnfolds = remaining(options.maximumUnfolds, Next::Type::Unfold),
+        .remainingExpands = remaining(options.maximumExpands, Next::Type::Expand),
         .overflow = remainingDepth(),
     });
     if (distance > remainingDepth()) {
@@ -228,7 +235,7 @@ const NextFinalizeSlot *NormalStage::getChildFinalizeSlot(Next next) const {
     return nextFinalizations.getSlot(next);
 }
 
-NormalStage::NormalStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
+NormalStage::NormalStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
     Base { std::move(interface), creator, std::move(deltaOp), std::move(lock) }
 {
     // Perform experimental finalization, i.e., compute the ShapeComplexity of the interface.
@@ -239,10 +246,10 @@ NormalStage::NormalStage(Dimensions interface, AbstractStage& creator, std::opti
         // Luckily our parent will first check the finalizability of this.
         determineFinalizability(Finalizability::No, false);
     } else {
-        auto it = std::ranges::adjacent_find(interface, [](const Dimension& a, const Dimension& b) {
+        auto it = std::ranges::adjacent_find(interface.getDimensions(), [](const Dimension& a, const Dimension& b) {
             return a.hash() == b.hash();
         });
-        if (it != interface.end()) {
+        if (it != interface.getDimensions().end()) {
             KAS_REPORT_DIMENSION_HASH_COLLISION(*it, *std::next(it));
         }
     }

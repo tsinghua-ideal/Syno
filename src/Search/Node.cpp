@@ -142,11 +142,11 @@ void Node::generateGraphviz(const std::filesystem::path& path, const std::string
     const auto& ctx = sampler->getBindingContext();
     match<void>(
         [&](ReductionStage *rStage) {
-            GraphvizGen gen { rStage->getInterface(), ctx };
+            GraphvizGen gen { rStage->getInterface().getRaw(), ctx };
             gen.generate(path, name);
         },
         [&](NormalStage *nStage) {
-            GraphvizGen gen { nStage->getInterface(), ctx };
+            GraphvizGen gen { nStage->getInterface().getRaw(), ctx };
             gen.generate(path, name);
         },
         [&](std::shared_ptr<TensorView>) -> void {
@@ -227,12 +227,10 @@ Node Node::getChildFromArc(Arc arc) const {
 std::vector<Next> Node::getPossiblePath() const {
     return match<std::vector<Next>>(
         [](AbstractStage *stage) {
-            auto graph = stage->getInterface().buildGraph();
-            return Sampler::ConvertGraphToPath(graph);
+            return Sampler::ConvertGraphHandleToPath(stage->getInterface());
         },
         [&](std::shared_ptr<TensorView> tensorView) {
-            auto tensors = ranges::to<std::vector<std::vector<Dimension>>>(tensorView->getUnderlyingTensorRange());
-            return sampler->convertTensorsToPath(tensors);
+            return sampler->convertTensorViewToPath(*tensorView);
         }
     );
 }

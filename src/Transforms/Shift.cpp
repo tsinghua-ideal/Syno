@@ -46,7 +46,7 @@ ShiftOp::Values ShiftOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for ShiftOp: input = {}, output = {}", input, output);
 }
 
-std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options) {
+std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     using enum DimensionTypeWithOrder;
@@ -55,14 +55,14 @@ std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const Di
     auto plausible = interface.filterOut(disallows);
 
     std::vector<const ShiftOp *> result;
-    CountGenerateAttempts += interface.size();
+    CountGenerateAttempts += interface.getDimensions().size();
     std::size_t countPlausible = 0;
     for (auto&& dim: plausible) {
         ++countPlausible;
         ++CountSuccessfulGenerations;
         result.emplace_back(store.get<ShiftOp>(dim, 1));
     }
-    CountDisallowedAttempts += interface.size() - countPlausible;
+    CountDisallowedAttempts += interface.getDimensions().size() - countPlausible;
     return result;
 }
 

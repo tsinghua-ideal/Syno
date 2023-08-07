@@ -14,7 +14,7 @@ public:
         Input(const StrideOp* op):
             RepeatLikeOp::Input { op }
         {}
-        const Size& size() const noexcept override { return getDerivedOp<StrideOp>()->sz; }
+        const Size& size() const override { return getDerivedOp<StrideOp>()->sz; }
         constexpr DimensionType type() const noexcept override { return Type; }
     };
 
@@ -51,7 +51,7 @@ public:
         SizeTooLarge,
         SuccessfulGenerations,
     )
-    static std::vector<const StrideOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
+    static std::vector<const StrideOp *> Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<StrideOp>);

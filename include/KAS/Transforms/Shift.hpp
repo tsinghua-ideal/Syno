@@ -14,7 +14,7 @@ public:
         Input(const ShiftOp* op):
             RepeatLikeOp::Input { op }
         {}
-        const Size& size() const noexcept override { return op->output.size(); }
+        const Size& size() const override { return op->output.size(); }
         constexpr DimensionType type() const noexcept override { return Type; }
     };
 
@@ -44,7 +44,7 @@ public:
         DisallowedAttempts,
         SuccessfulGenerations,
     )
-    static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const Dimensions& outputShape, const GenerateOptions& options);
+    static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const GraphHandle& outputShape, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<ShiftOp>);

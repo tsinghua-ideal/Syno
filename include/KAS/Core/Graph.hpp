@@ -223,7 +223,7 @@ public:
 
     // Use Builder to construct a Graph.
     class Builder final: public DimVisitor {
-        std::vector<Dimension> topmost;
+        Topmost topmost;
         std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
         std::set<const Iterator *> outputIterators;
         std::set<const MapReduce *> mapReduceIterators;
@@ -236,21 +236,34 @@ public:
         void visit(const RepeatLikeOp::Input& dim) override;
         void visit(const SplitLikeOp::Input& dim) override;
         void visit(const MergeLikeOp::Input& dim) override;
-        void visit(const Dimension& dim);
+        void match(const Dimension& dim);
 
     public:
-        Builder& addTopmost(const Dimension& dim);
-        template<DimensionRange R>
-        Builder& addTopmost(R&& dims) {
-            for (auto&& dim: dims) {
-                addTopmost(dim);
+        Builder& addDimension(const Dimension& dim);
+        Builder& addExpansion(const Expand *exp);
+        Builder& addTopmost(const Topmost& interface);
+        static Graph BuildFromHandle(const GraphHandle& handle);
+        template<std::ranges::input_range R>
+        requires std::same_as<std::ranges::range_value_t<R>, Dimension>
+        Builder& addDimensions(R&& dims) {
+            for (const Dimension& dim: dims) {
+                addDimension(dim);
             }
             return *this;
         }
-        template<TensorRange R>
-        Builder& addTopmostAsTensors(R&& tensors) {
-            for (auto&& tensor: tensors) {
-                addTopmost(tensor);
+        template<std::ranges::input_range R>
+        requires std::same_as<std::ranges::range_value_t<R>, const Expand *>
+        Builder& addExpansions(R&& exps) {
+            for (const Expand *exp: exps) {
+                addExpansion(exp);
+            }
+            return *this;
+        }
+        template<std::ranges::input_range R>
+        requires std::same_as<std::ranges::range_value_t<R>, Topmost>
+        Builder& addTopmosts(R&& interfaces) {
+            for (const Topmost& interface: interfaces) {
+                addTopmost(interface);
             }
             return *this;
         }
@@ -258,7 +271,7 @@ public:
     };
 private:
     // The input dimensions;
-    std::vector<Dimension> topmost;
+    Topmost topmost;
     // The Op's above the Dimension's.
     std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
     // And the output/reduce iterators as well.
@@ -303,9 +316,9 @@ public:
     VisitedVertex visitAlong(const Dimension& dim, Direction dir) const;
 
     template<typename Visitor, typename AttributeType>
-    void accept(BottomTopDimVisitor<Visitor, AttributeType>& visitor) const { visitor.propagate(topmost); }
+    void accept(BottomTopDimVisitor<Visitor, AttributeType>& visitor) const { visitor.propagate(topmost.getAllDimensions()); }
 
-    const std::vector<Dimension>& getTopmost() const { return topmost; }
+    const Topmost& getTopmost() const { return topmost; }
     decltype(auto) getDimensions() const {
         return dimMeta | std::views::transform([](auto&& pair) -> const Dimension& { return pair.first; });
     }
@@ -316,12 +329,6 @@ public:
 
     const PrimitiveOp *getOpAbove(const Dimension& dim) const;
     const std::set<const PrimitiveOp *> getOps() const { return ops; }
-
-    struct ConnectedComponent {
-        std::vector<Dimension> inputs;
-        std::vector<Dimension> outputs; // Iterator's and MapReduce's
-    };
-    std::vector<ConnectedComponent> computeConnectedComponents() const;
 
     template<typename Value>
     class AttributeMap {

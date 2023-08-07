@@ -99,63 +99,6 @@ bool Color::removeTag(Tag tag) {
 
 const Color Color::None = Color();
 
-bool Color::CheckFinalization(const std::vector<std::vector<Dimension>>& tensors) {
-    struct Visitor: public DimVisitor {
-        std::map<Dimension, CompactColor, Dimension::AddressLessThan>& colorMap;
-        Visitor(std::map<Dimension, CompactColor, Dimension::AddressLessThan>& colorMap): colorMap(colorMap) {}
-        bool fail = false;
-        void visit(const RepeatLikeOp::Input& dim) override {
-            auto [accept, newColor] = dim.getOp()->transformColor(colorMap.at(&dim));
-            if (!accept) {
-                fail = true;
-            }
-            colorMap.emplace(dim.getOp()->output, newColor);
-            dim.getOp()->output.accept(*this);
-        }
-        void visit(const SplitLikeOp::Input& dim) override {
-            auto [accept, newColorL, newColorR] = dim.getOp()->transformColor(colorMap.at(&dim));
-            if (!accept) {
-                fail = true;
-            }
-            colorMap.emplace(dim.getOp()->outputLhs, newColorL);
-            colorMap.emplace(dim.getOp()->outputRhs, newColorR);
-            dim.getOp()->outputLhs.accept(*this);
-            dim.getOp()->outputRhs.accept(*this);
-        }
-        void visit(const MergeLikeOp::Input& dim) override {
-            auto otherDim = dim.getOther();
-            if (auto it = colorMap.find(otherDim); it != colorMap.end()) {
-                auto lhs = colorMap.at(&dim);
-                auto rhs = it->second;
-                if (dim.getOrder() == Order::Right) {
-                    std::swap(lhs, rhs);
-                }
-                auto [accept, newColor] = dim.getOp()->transformColor(lhs, rhs);
-                if (!accept) {
-                    fail = true;
-                }
-                colorMap.emplace(dim.getOp()->output, newColor);
-                dim.getOp()->output.accept(*this);
-            }
-        }
-        using DimVisitor::visit;
-        bool pass() {
-            return !fail;
-        }
-    };
-    std::map<Dimension, CompactColor, Dimension::AddressLessThan> colorMap;
-    Visitor visitor { colorMap };
-    for (int color = 0; auto&& tensor: tensors) {
-        for (auto&& dim: tensor) {
-            auto [_, inserted] = colorMap.emplace(dim, color);
-            KAS_ASSERT(inserted);
-            dim.accept(visitor);
-        }
-        ++color;
-    }
-    return visitor.pass();
-}
-
 WeightColor::WeightColor(const Dimension& dim):
     leftTags(dim.getColor().tags), rightTags()
 {

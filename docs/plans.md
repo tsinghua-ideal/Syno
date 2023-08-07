@@ -48,7 +48,7 @@
 - [ ] To support Attention, what can we do?
 - [ ] Make FinalizeOp a PrimitiveOp.
 - [ ] Remove `priority` from `MapReduce`.
-- [ ] Add ExpandOp.
+- [x] Add ExpandOp.
 
 ## Search
 
@@ -75,7 +75,7 @@
 - [ ] Add mechanisms to automatically discover equivalent kernels. (TASO-like?)
 - [ ] Unfolding some dimensions to output iterators seems to be not a good idea.
 - [x] Make dead ends propagate. (By storing parent nodes.)
-- [ ] Canonicalization for reshape.
+- [x] Canonicalization for reshape.
 
 ### Bindings
 

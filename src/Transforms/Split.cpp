@@ -41,22 +41,19 @@ auto ReshapeCanonicalizer::transform(const RepeatLikeOp::Input&) const -> Adjace
 auto ReshapeCanonicalizer::transform(const SplitLikeOp::Input& dim) const -> Adjacent {
     if (auto split = dynamic_cast<const SplitOp::Input *>(&dim); split) {
         auto op = split->getOp();
-        return attributes.at(op->outputLhs).combinedWith(attributes.at(op->outputRhs));
-    } else {
-        return {};
-    }
-}
-auto ReshapeCanonicalizer::transform(const MergeLikeOp::Input& dim) const -> std::pair<Adjacent, Adjacent> {
-    if (auto merge = dynamic_cast<const MergeOp::Input *>(&dim); merge) {
-        auto op = merge->getDerivedOp<MergeOp>();
-        return attributes.at(op->output).separatedBy(op);
+        return at(op->outputLhs).combinedWith(at(op->outputRhs));
     } else {
         return {};
     }
 }
 
-auto ReshapeCanonicalizer::at(const Dimension& dim) const -> const Adjacent& {
-    return attributes.at(dim);
+auto ReshapeCanonicalizer::transform(const MergeLikeOp::Input& dim) const -> std::pair<Adjacent, Adjacent> {
+    if (auto merge = dynamic_cast<const MergeOp::Input *>(&dim); merge) {
+        auto op = merge->getDerivedOp<MergeOp>();
+        return at(op->output).separatedBy(op);
+    } else {
+        return {};
+    }
 }
 
 SplitOp::SplitOp(const Dimension& outputLhs, const Dimension& outputRhs):
@@ -97,7 +94,7 @@ SplitOp::Values SplitOp::value(const Values &known) const {
     KAS_CRITICAL("Conflicting values for SplitOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
-std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options) {
+std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // Canonicalization requires SplitOp to be chained.
@@ -145,7 +142,7 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Di
         ++CountSuccessfulGenerations;
         result.emplace_back(store.get<SplitOp>(dimL, dimR));
     };
-    const auto totalAttempts = interface.size() * interface.size() - interface.size();
+    const auto totalAttempts = interface.getDimensions().size() * (interface.getDimensions().size() - 1);
     CountGenerateAttempts += totalAttempts;
     std::size_t countPlausible = 0;
     for (auto&& dimL: plausibleL) {

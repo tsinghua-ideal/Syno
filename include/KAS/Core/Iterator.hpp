@@ -14,7 +14,7 @@ public:
         index { index },
         domain { std::forward<decltype(domain)>(domain) }
     {}
-    const Size& size() const noexcept override { return domain; }
+    const Size& size() const override { return domain; }
     std::size_t hash() const noexcept override {
         using namespace std::string_view_literals;
         constexpr int SizeTypeWidth = std::numeric_limits<std::size_t>::digits;

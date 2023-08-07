@@ -5,6 +5,7 @@
 
 #include "KAS/Core/DimVisitor.hpp"
 #include "KAS/Core/Dimension.hpp"
+#include "KAS/Core/Expand.hpp"
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -79,39 +80,126 @@ std::string Dimension::debugDescendantsDescription() const {
     return BindingContext::ApplyDebugPublicCtx(&Dimension::descendantsDescription, *this);
 }
 
-std::size_t Dimensions::hash() const {
-    return std::hash<std::vector<Dimension>>{}(*this);
+std::vector<Dimension>::const_iterator Topmost::binarySearch(const Dimension& value) const {
+    return WeakOrderedBinarySearch(interface, value, Dimension::HashLessThan{});
 }
 
-Dimensions Dimensions::insert1(const Dimension& value) const {
-    auto newInterface = *this;
+std::vector<Dimension>::iterator Topmost::binarySearch(const Dimension& value) {
+    auto it = std::as_const(*this).binarySearch(value);
+    // Amazing trick: https://stackoverflow.com/questions/765148/how-to-remove-constness-of-const-iterator
+    return interface.erase(it, it);
+}
+
+std::size_t Topmost::binarySearchIndexOf(const Dimension& value) const {
+    return std::distance(interface.begin(), binarySearch(value));
+}
+
+void Topmost::sortDimensions() {
+    std::ranges::sort(interface, Dimension::HashLessThan{});
+}
+
+void Topmost::sortExpansions() {
+    std::ranges::sort(expansions, Dimension::HashLessThan{}, Expand::PointerToDimension{});
+}
+
+void Topmost::sort() {
+    sortDimensions();
+    sortExpansions();
+}
+bool Topmost::isSorted() const {
+    return
+        std::ranges::is_sorted(interface, Dimension::HashLessThan{}) &&
+        std::ranges::is_sorted(expansions, Dimension::HashLessThan{}, Expand::PointerToDimension{});
+}
+
+std::vector<Dimension> Topmost::getAllDimensions() const {
+    std::vector<Dimension> result = interface;
+    std::ranges::copy(expansions | std::views::transform(Expand::PointerToDimension{}), std::back_inserter(result));
+    return result;
+}
+
+std::string Topmost::description(const BindingContext& ctx) const {
+    if (expansions.empty()) {
+        return fmt::format(
+            "[{}]",
+            fmt::join(
+                interface | std::views::transform([&ctx](const Dimension& dim) { return dim.description(ctx); }),
+                ", "
+            )
+        );
+    } else {
+        return fmt::format(
+            "[{}]{{{}}}",
+            fmt::join(
+                interface | std::views::transform([&ctx](const Dimension& dim) { return dim.description(ctx); }),
+                ", "
+            ),
+            fmt::join(
+                expansions | std::views::transform([&ctx](const Expand *exp) { return exp->output.description(ctx); }),
+                ", "
+            )
+        );
+    }
+}
+
+GraphHandle GraphHandle::FromInterfaces(const std::vector<Topmost>& interfaces) {
+    std::vector<Dimension> interface;
+    std::vector<const Expand *> expansions;
+    for (const auto& topmost: interfaces) {
+        interface.insert(interface.end(), topmost.getDimensions().begin(), topmost.getDimensions().end());
+        expansions.insert(expansions.end(), topmost.getExpansions().begin(), topmost.getExpansions().end());
+    }
+    return GraphHandle(std::move(interface), std::move(expansions));
+}
+
+GraphHandle GraphHandle::insert1(const Dimension& value) const {
+    auto newHandle = *this;
+    auto& newInterface = newHandle.interface;
     auto insertionPoint = std::lower_bound(newInterface.begin(), newInterface.end(), value, Dimension::HashLessThan{});
     newInterface.insert(insertionPoint, value);
-    return newInterface;
+    return newHandle;
 }
 
-Dimensions Dimensions::substitute1to1(const Dimension& fro, const Dimension& to) const {
-    auto newInterface = *this;
+GraphHandle GraphHandle::moveToExpansions(const Expand *value) const {
+    auto newHandle = *this;
+    auto& newInterface = newHandle.interface;
+    auto& newExpansions = newHandle.expansions;
+    auto removed = newHandle.binarySearch(value->output);
+    KAS_ASSERT(removed != newInterface.end());
+    newInterface.erase(removed);
+    auto insertionPoint = std::lower_bound(newExpansions.begin(), newExpansions.end(), value, [](const Expand *lhs, const Expand *rhs) {
+        return Dimension::HashLessThan{}(lhs->output, rhs->output);
+    });
+    newExpansions.insert(insertionPoint, value);
+    return newHandle;
+}
+
+GraphHandle GraphHandle::substitute1to1(const Dimension& fro, const Dimension& to) const {
+    auto newHandle = *this;
+    auto& newInterface = newHandle.interface;
     bool res = WeakOrderedSubstituteVector1To1IfAny(newInterface, fro, to, Dimension::HashLessThan{});
     KAS_ASSERT(res);
-    return newInterface;
+    return newHandle;
 }
 
-Dimensions Dimensions::substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2) const {
-    auto newInterface = *this;
+GraphHandle GraphHandle::substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2) const {
+    auto newHandle = *this;
+    auto& newInterface = newHandle.interface;
     bool res = WeakOrderedSubstituteVector1To2IfAny(newInterface, fro, to1, to2, Dimension::HashLessThan{});
     KAS_ASSERT(res);
-    return newInterface;
+    return newHandle;
 }
 
-Dimensions Dimensions::substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const {
-    auto newInterface = *this;
+GraphHandle GraphHandle::substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const {
+    auto newHandle = *this;
+    auto& newInterface = newHandle.interface;
     bool res = WeakOrderedSubstituteVector2To1IfAny(newInterface, fro1, fro2, to, Dimension::HashLessThan{});
     KAS_ASSERT(res);
-    return newInterface;
+    return newHandle;
 }
 
-Graph Dimensions::buildGraph() const {
+Graph GraphHandle::buildGraph() const {
+    KAS_ASSERT(isSorted());
     Graph::Builder builder;
     builder.addTopmost(*this);
     return builder.build();

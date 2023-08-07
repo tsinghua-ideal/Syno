@@ -10,6 +10,10 @@ struct DistanceOptions {
     int remainingMerges;
     int remainingSplits;
     int remainingUnfolds;
+    int remainingExpands;
+    int remainingUnfoldsAndExpands() const {
+        return remainingUnfolds + remainingExpands;
+    }
     std::size_t overflow;
 };
 
@@ -28,7 +32,7 @@ public:
     int countSplits() const;
     int countTrivialMerges() const;
     int countFinalAdditionalMerges() const;
-    int countFinalUnfolds() const;
+    int countFinalUnfoldsAndExpands() const;
 };
 
 struct ReshapeGroups {
@@ -71,7 +75,7 @@ struct ReshapeGroups {
     bool isLegal() const;
     struct FinalCounts: Counts {
         int additionalMerges;
-        int unfolds;
+        int unfoldsAndExpands;
         int merges() const;
         std::size_t steps() const;
     };

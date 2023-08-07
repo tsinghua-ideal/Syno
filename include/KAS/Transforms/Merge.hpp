@@ -14,7 +14,7 @@ public:
         Input(const MergeOp* op, Order order):
             MergeLikeOp::Input { op, order }
         {}
-        const Size& size() const noexcept override;
+        const Size& size() const override;
         constexpr DimensionType type() const noexcept override { return Type; }
         bool is(DimensionTypeWithOrder ty) const noexcept override {
             return (ty == DimensionTypeWithOrder::MergeL && order == Order::Left)
@@ -58,7 +58,7 @@ public:
         DisallowedAboveUnfold,
         SuccessfulGenerations,
     )
-    static std::vector<const MergeOp *> Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options);
+    static std::vector<const MergeOp *> Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<MergeOp>);

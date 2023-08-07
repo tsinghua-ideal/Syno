@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "KAS/Core/CodeGen.hpp"
+#include "KAS/Core/Expand.hpp"
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/MapReduce.hpp"
 #include "KAS/Core/Shape.hpp"
@@ -17,18 +18,27 @@ namespace kas {
 class PureTensor {
 protected:
     TensorExpression::Position position;
-    std::vector<Dimension> dims;
+    Topmost content;
 public:
-    PureTensor(TensorExpression::Position position, auto&& dims):
+    PureTensor(TensorExpression::Position position, auto&& dims, auto&&expands):
         position { position },
-        dims { std::forward<decltype(dims)>(dims) }
+        content(
+            std::forward<decltype(dims)>(dims),
+            std::forward<decltype(expands)>(expands)
+        )
+    {}
+    PureTensor(TensorExpression::Position position, auto&& topmost):
+        position { position },
+        content { std::forward<decltype(topmost)>(topmost) }
     {}
     bool operator==(const PureTensor& rhs) const {
-        return position == rhs.position && dims == rhs.dims;
+        return position == rhs.position && content == rhs.content;
     }
     const TensorExpression::Position& getPosition() const { return position; }
-    const std::vector<Dimension>& getDimensions() const { return dims; }
-    ShapeView getShape() const { return ShapeView(dims); }
+    const Topmost& getContent() const { return content; }
+    const std::vector<Dimension>& getDims() const { return content.getDimensions(); }
+    const std::vector<const Expand *>& getExpands() const { return content.getExpansions(); }
+    ShapeView getShape() const { return content.getShape(); }
     std::string shapeToString(const BindingContext& ctx) const;
     std::string description(const BindingContext& ctx) const;
 };
@@ -81,7 +91,7 @@ protected:
 
 public:
     // Build the tensor from iterator DAG.
-    explicit TensorView(const std::vector<std::vector<Dimension>>& tensors, TensorExpression blending);
+    explicit TensorView(const std::vector<Topmost>& tensors, TensorExpression blending);
 
     const Subgraphs& getSubgraphs() const { return subgraphs; }
 
@@ -89,17 +99,10 @@ public:
 
     // Returns the underlying tensor underneath the view.
     const std::vector<PureTensor>& getUnderlyingTensors() const { return tensors; }
-    auto getUnderlyingTensorRange() const { return tensors | std::views::transform(&PureTensor::getDimensions); }
-    // Returns all dimensions in the underlying tensors.
-    auto getUnderlyingDimensions() const {
-        return tensors
-            | std::views::transform(&PureTensor::getDimensions)
-            | std::views::join;
-    }
 
     Graph buildGraph() const {
         Graph::Builder builder;
-        builder.addTopmost(getUnderlyingDimensions());
+        builder.addTopmosts(tensors | std::views::transform(&PureTensor::getContent));
         return builder.build();
     }
 
@@ -107,7 +110,7 @@ public:
         return std::ranges::equal(tensors, rhs.tensors);
     }
     std::size_t hash() const {
-        return std::hash<std::vector<std::vector<Dimension>>>{}(getUnderlyingTensorRange());
+        return std::hash<std::vector<Topmost>>{}(tensors | std::views::transform(&PureTensor::getContent));
     }
 
     const AbstractAccess& getForwardAccess() const { return forwardAccess; }

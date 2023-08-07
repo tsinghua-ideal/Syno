@@ -26,8 +26,8 @@ public:
     void expand(ThreadPool<ReductionStage *>& expander);
 
     // This is the root.
-    ReductionStage(Sampler& sampler, Dimensions interface, Lock lock);
-    ReductionStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock);
+    ReductionStage(Sampler& sampler, GraphHandle interface, Lock lock);
+    ReductionStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock);
 
     std::size_t countChildrenImpl() const;
     std::vector<Next> getChildrenHandlesImpl();

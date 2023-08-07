@@ -38,7 +38,7 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
 
     // Then attempt to generate new reductions.
     std::vector<const MapReduceOp *> reductions;
-    std::ranges::move(getInterface() | std::views::transform([](const Dimension& dim) { return dynamic_cast<const MapReduceOp *>(dim.tryAs<MapReduce>()); }) | std::views::filter([](auto ptr) { return ptr != nullptr; }), std::back_inserter(reductions));
+    std::ranges::move(getInterface().getDimensions() | std::views::transform([](const Dimension& dim) { return dynamic_cast<const MapReduceOp *>(dim.tryAs<MapReduce>()); }) | std::views::filter([](auto ptr) { return ptr != nullptr; }), std::back_inserter(reductions));
     KAS_ASSERT(reductions.size() == existingOp<MapReduceOp>());
     std::ranges::sort(reductions, std::less<>{}, &MapReduceOp::getPriority);
 
@@ -94,11 +94,11 @@ Finalizability ReductionStage::checkForFinalizableChildren(const CollectedFinali
     return rStageFinalizability + collected.nStageFinalizability;
 }
 
-ReductionStage::ReductionStage(Sampler& sampler, Dimensions interface, Lock lock):
+ReductionStage::ReductionStage(Sampler& sampler, GraphHandle interface, Lock lock):
     Base { sampler, std::move(interface), std::move(lock) }
 {}
 
-ReductionStage::ReductionStage(Dimensions interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
+ReductionStage::ReductionStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
     Base { std::move(interface), creator, std::move(deltaOp), std::move(lock) }
 {}
 

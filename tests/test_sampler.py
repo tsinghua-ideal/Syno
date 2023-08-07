@@ -47,13 +47,17 @@ def manually_design(assembler: Assembler) -> Assembled:
     # shifted_W = assembler.create_shift(in_W, 1)
     # [H, s_2, W]
 
+    # Create an ExpandOp.
+    expanded_s_1 = assembler.create_expand(s_1)
+
     main_H.output(0) # Mark the H as output.
     in_W.output(1)
     # shifted_W.output(1) # Mark the W as output.
     shared_s_2.mean(0) # Mark the s_2 as sum reduction.
+    expanded_s_1.mean(1) # Mark the s_1 as sum reduction.
 
     # Specify the input tensors.
-    return assembler.assemble("simple_primitives_test", "in_0 * in_1", [in_H, in_W], [w_s_2])
+    return assembler.assemble("simple_primitives_test", "in_0 * in_1", [in_H, in_W, expanded_s_1], [w_s_2])
 
 def perform_trials(manual: bool):
     net = Model()

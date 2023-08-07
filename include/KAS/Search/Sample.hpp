@@ -58,6 +58,10 @@ struct SampleOptions {
     float minimumUnfoldRatio = 2.0f;
     float minimumMergeRatio = 2.0f;
 
+    // ExpandOp related.
+    bool disallowMergeInputAndWeight = false;
+    bool disallowTile = true;
+
     // Below are canonicalization options.
 
     // This option makes Split-Merge only be able to do views.
@@ -87,6 +91,7 @@ struct SampleOptions {
     bool disallowShiftAboveUnfold = false;
 
     // Some limit controls.
+    int maximumExpands = -1;
     int maximumMerges = -1;
     int maximumSplits = -1;
     int maximumShifts = -1;
@@ -107,19 +112,21 @@ struct FixedDimension {
 class StageStore {
     struct Query {
         // Test value equal.
-        const Dimensions& interface;
+        const GraphHandle& interface;
         // Test hash equal.
         std::size_t hash;
+        Query(const GraphHandle& interface);
     };
 
     struct Hash {
         using is_transparent = void;
         std::size_t operator()(const Query& query) const noexcept;
+        std::size_t operator()(const GraphHandle& interface) const noexcept;
         std::size_t operator()(AbstractStage *stage) const noexcept;
     };
     struct Equal {
         using is_transparent = void;
-        bool operator()(const Dimensions& lhs, const Dimensions& rhs) const noexcept;
+        bool operator()(const GraphHandle& lhs, const GraphHandle& rhs) const noexcept;
         bool operator()(const Query& lhs, const Query& rhs) const noexcept;
         bool operator()(const Query& lhs, AbstractStage *rhs) const noexcept;
         bool operator()(AbstractStage *lhs, const Query& rhs) const noexcept;
@@ -141,7 +148,7 @@ public:
             bucket.resize(buckets);
         }
     }
-    AbstractStage *find(std::size_t depth, const Dimensions& interface, std::unique_lock<std::recursive_mutex>& lock) const;
+    AbstractStage *find(std::size_t depth, const GraphHandle& interface, std::unique_lock<std::recursive_mutex>& lock) const;
     AbstractStage *insert(std::size_t depth, std::unique_ptr<AbstractStage> stage, std::unique_lock<std::recursive_mutex>& lock);
     ~StageStore();
 };
@@ -162,7 +169,6 @@ class Sampler final {
 
     std::vector<Iterator> outputIterators;
     std::vector<FixedDimension> fixedDimensions;
-    Dimensions root;
 
     TensorExpression expressionOneTensor, expressionTwoTensors, expressionThreeTensors, expressionFourTensors;
 
@@ -186,7 +192,6 @@ public:
     const SampleOptions& getOptions() const { return options; }
     PrimitiveOpStore& getOpStore() { return opStore; }
     StageStore& getStageStore() { return stageStore; }
-    const Dimensions& getRootInterface() const { return root; }
 
     const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }
     const TensorExpression& getExpressionForTensorNum(std::size_t num) const;
@@ -200,9 +205,19 @@ public:
     // Visit multiple final nodes.
     std::vector<std::pair<std::vector<Next>, Node>> randomFinalNodesWithPrefix(const std::vector<Next>& prefix, std::size_t count);
 
-    static void ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimension>>& tensorView);
-    static std::vector<Next> ConvertGraphToPath(const Graph& graph);
-    std::vector<Next> convertTensorsToPath(const std::vector<std::vector<Dimension>>& tensors) const;
+    // Remove all the fixed dimensions.
+    void removeFixedDimensions(std::vector<Topmost>& tensors) const;
+    // Sort the dimensions of weights in order of hash. This also sorts the weights if permutation of weights is disallowed.
+    void sortAllExpansionsAndWeightDimensions(std::vector<Topmost>& tensors) const;
+    // This calls the above two functions. Then you can use these tensors to build a GraphHandle.
+    void convertTensorsToSearchableForm(std::vector<Topmost>& tensors) const;
+    // This cannot figure out Finalize.
+    static std::vector<Next> ConvertGraphHandleToPath(const GraphHandle& handle);
+    // This in effect calls ConvertGraphHandleToPath, then adds a Finalize to it.
+    static std::vector<Next> ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors);
+    // A convenience method.
+    std::vector<Next> convertTensorViewToPath(const TensorView& tensorView) const;
+
     std::optional<std::vector<Arc>> convertPathToArcs(const std::vector<Next>& path);
 
     class Pruner {
@@ -245,7 +260,7 @@ private:
     Pruner pruner;
     Expander expander;
 public:
-    std::recursive_mutex& getMutex(std::size_t depth, const Dimensions& interface);
+    std::recursive_mutex& getMutex(std::size_t depth, const GraphHandle& interface);
     Pruner& getPruner() { return pruner; }
     Expander& getExpander() { return expander; }
 };

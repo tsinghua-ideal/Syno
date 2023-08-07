@@ -20,7 +20,7 @@ protected:
 TEST_F(codegen_tests, generate) {
     auto [sizeN, sizeH, sizeW] = ctx.getSizes("N", "H", "W");
     Iterator itN { 0, sizeN }, itH { 1, sizeH }, itW { 2, sizeW };
-    auto sample = TensorView({{ &itN, &itH, &itW }}, TensorExpression::ProductOfTensors(1));
+    auto sample = TensorView({{{&itN, &itH, &itW}, {}}}, TensorExpression::ProductOfTensors(1));
     std::cout << sample.printNestedLoopsForAll(ctx);
     HalideGen gen { ctx, sample, CodeGenOptions() };
     auto consts = ctx.realizeConsts({});

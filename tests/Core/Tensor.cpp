@@ -2,7 +2,7 @@
 
 #include "KAS/Core/Lower.hpp"
 #include "KAS/Core/TensorView.hpp"
-#include "KAS/Transforms.hpp"
+#include "KAS/Transforms/Transforms.hpp"
 
 
 using namespace kas;
@@ -18,9 +18,8 @@ TEST(core_tensor_tests, tensor) {
     auto sizeC1 = ctx.getSingleCoefficientVariableSize(1);
     ASSERT_EQ(sizeC1.toString(ctx), "c_1");
     Iterator i_0 { 0, sizeX0 }, i_1 { 1, sizeX1 }, i_2 { 2, sizeC0 };
-    MapReduce i_3 { 0, sizeC1, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
-    std::vector<Dimension> interface { &i_0, &i_1, &i_2, &i_3 };
-    auto tensorView = TensorView({ interface }, TensorExpression::ProductOfTensors(1));
+    MapReduceOp i_3 { 0, sizeC1, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
+    auto tensorView = TensorView({{{&i_0, &i_1, &i_2, &i_3}, {}}}, TensorExpression::ProductOfTensors(1));
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[x_0, x_1, c_0]");
     ASSERT_EQ(tensorView.getForwardAccess().outerLoopsIteratorsToString(), "[i_0, i_1, i_2]");
     ASSERT_EQ(tensorView.getForwardAccess().innerLoopsIteratorsToString(), "[ri_0]");
@@ -47,27 +46,29 @@ TEST(core_tensor_tests, subgraph) {
     auto ctx = BindingContext(3, 2);
     auto [x_0, x_1, x_2, c_0, c_1] = ctx.getSizes("x_0", "x_1", "x_2", "c_0", "c_1");
     Iterator i_0 { 0, x_0 }, i_1 { 1, x_1 }, i_2 { 2, x_2 };
-    Dimensions interface = { &i_0, &i_1, &i_2 };
+    GraphHandle interface = {{&i_0, &i_1, &i_2}, {}};
 
     Graph graph = interface.buildGraph();
     Tensor::Builder tensorBuilder { graph };
-    auto [inputTensors, outputTensor] = tensorBuilder.build({ interface });
+    auto [expansions, inputTensors, outputTensor] = tensorBuilder.build({{{&i_0, &i_1, &i_2}, {}}});
+    ASSERT_TRUE(std::ranges::all_of(expansions, [](const auto& expansion) { return expansion.empty(); }));
     ASSERT_EQ(inputTensors.size(), 1);
     ASSERT_EQ(inputTensors[0], outputTensor);
 }
 
-TEST(core_tensor_tests, subgrapha_diagonal) {
+TEST(core_tensor_tests, subgraph_diagonal) {
     auto ctx = BindingContext(2, 0);
     BindingContext::DebugPublicCtx = &ctx;
     auto [x_0, x_1] = ctx.getSizes("x_0", "x_1");
     Iterator i_0 { 0, x_0 };
-    MapReduce i_1 { 0, x_1, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
+    MapReduceOp i_1 { 0, x_1, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
     ShareOp shareOp { &i_1 };
-    Dimensions interface = { &i_0, shareOp.getInputL(), shareOp.getInputR() };
+    GraphHandle interface = {{&i_0, shareOp.getInputL(), shareOp.getInputR()}, {}};
 
     Graph graph = interface.buildGraph();
     Tensor::Builder tensorBuilder { graph };
-    auto [inputTensors, outputTensor] = tensorBuilder.build({ interface });
+    auto [expansions, inputTensors, outputTensor] = tensorBuilder.build({{{&i_0, shareOp.getInputL(), shareOp.getInputR()}, {}}});
+    ASSERT_TRUE(std::ranges::all_of(expansions, [](const auto& expansion) { return expansion.empty(); }));
     ASSERT_EQ(inputTensors.size(), 1);
     ASSERT_EQ(outputTensor.toString(ctx), "([x_0, x_1, x_1] -> [x_0])");
 }

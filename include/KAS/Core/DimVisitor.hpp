@@ -33,7 +33,7 @@ concept BottomTopDimPropagator =
         { v.transform(mergeLike) } -> std::same_as<std::pair<AttributeType, AttributeType>>;
     };
 
-// A CRTP class that do a DFS, while preserving the dependencies in the DAG.
+// A CRTP class that does a DFS, while preserving the dependencies in the DAG.
 // That is, a SplitLikeOp will not be visited until both of its outputs are visited.
 template<typename Derived, typename AttributeType>
 class BottomTopDimVisitor: public DimVisitor {
@@ -49,6 +49,8 @@ public:
     BottomTopDimVisitor() {
         static_assert(BottomTopDimPropagator<Derived, AttributeType>);
     }
+    AttributeType& at(const Dimension& dim) { return attributes.at(dim); }
+    const AttributeType& at(const Dimension& dim) const { return attributes.at(dim); }
     void visit(const Iterator& dim) final {
         auto [_, isNewElem] = attributes.try_emplace(Dimension(&dim), derived().transform(dim));
         KAS_ASSERT(isNewElem);

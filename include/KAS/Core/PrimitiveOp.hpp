@@ -130,6 +130,7 @@ struct Valuations {
     }
 };
 
+class ExpandOp;
 class MapReduceOp;
 class MergeOp;
 class ShareOp;
@@ -139,6 +140,7 @@ class StrideOp;
 class UnfoldOp;
 class OpVisitor {
 public:
+    virtual void visit(const ExpandOp& op) = 0;
     virtual void visit(const MapReduceOp& op) = 0;
     virtual void visit(const MergeOp& op) = 0;
     virtual void visit(const ShareOp& op) = 0;
@@ -161,8 +163,8 @@ public:
     virtual std::size_t initialHash() const noexcept = 0;
     virtual std::size_t opHash() const noexcept = 0;
     virtual void accept(OpVisitor& visitor) const = 0;
-    virtual bool canApplyToInterface(const Dimensions& interface) const = 0;
-    virtual Dimensions applyToInterface(const Dimensions& interface) const = 0;
+    virtual bool canApplyToInterface(const GraphHandle& interface) const = 0;
+    virtual GraphHandle applyToInterface(const GraphHandle& interface) const = 0;
     virtual std::string description(const BindingContext& ctx) const = 0;
     virtual std::string descendantsDescription(const BindingContext& ctx) const = 0;
     virtual ~PrimitiveOp() = default;
@@ -226,10 +228,10 @@ public:
     virtual Values value(const Values& known) const = 0;
 
     virtual std::pair<bool, CompactColor> transformColor(CompactColor fro) const { return { true, fro }; }
-    bool canApplyToInterface(const Dimensions& interface) const final override {
+    bool canApplyToInterface(const GraphHandle& interface) const final override {
         return interface.contains(output);
     }
-    Dimensions applyToInterface(const Dimensions& interface) const final override {
+    GraphHandle applyToInterface(const GraphHandle& interface) const final override {
         return interface.substitute1to1(output, getInput());
     }
 
@@ -294,10 +296,10 @@ public:
     virtual Values value(const Values& known) const = 0;
 
     virtual std::tuple<bool, CompactColor, CompactColor> transformColor(CompactColor fro) const { return { true, fro, fro }; }
-    bool canApplyToInterface(const Dimensions& interface) const final override {
+    bool canApplyToInterface(const GraphHandle& interface) const final override {
         return interface.contains(outputLhs) && interface.contains(outputRhs);
     }
-    Dimensions applyToInterface(const Dimensions& interface) const final override {
+    GraphHandle applyToInterface(const GraphHandle& interface) const final override {
         return interface.substitute2to1(outputLhs, outputRhs, getInput());
     }
 
@@ -368,10 +370,10 @@ public:
     virtual Values value(const Values& known) const = 0;
 
     virtual std::pair<bool, CompactColor> transformColor(CompactColor fro1, CompactColor fro2) const { return { true, fro1 | fro2 }; }
-    bool canApplyToInterface(const Dimensions& interface) const final override {
+    bool canApplyToInterface(const GraphHandle& interface) const final override {
         return interface.contains(output);
     }
-    Dimensions applyToInterface(const Dimensions& interface) const final override {
+    GraphHandle applyToInterface(const GraphHandle& interface) const final override {
         return interface.substitute1to2(output, getInputL(), getInputR());
     }
 

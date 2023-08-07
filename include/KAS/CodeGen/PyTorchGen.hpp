@@ -47,7 +47,8 @@ public:
 class PyTorchGen {
     const BindingContext& ctx;
     Graph graph;
-    
+
+    std::vector<std::vector<const Expand *>> expansions;
     std::vector<Tensor> inputTensors;
     Tensor outputTensor;
 
@@ -130,6 +131,7 @@ public:
             // Reshape the PyTorch tensor to NCHW, making the specified dimension as height. Note that all other dimensions sizes are computed from interface, except for the size of the specified dimension.
             std::array<std::size_t, 4> reshapeToNCHW(std::size_t heightIndexInInterface, std::size_t heightSize);
 
+            void visit(const ExpandOp& op) override { KAS_CRITICAL("Cannot lower Expand to PyTorch as an Op."); }
             void visit(const MapReduceOp& op) override { KAS_CRITICAL("Cannot lower MapReduce to PyTorch as an Op."); }
             void visit(const MergeOp& op) override;
             void visit(const ShareOp& op) override;

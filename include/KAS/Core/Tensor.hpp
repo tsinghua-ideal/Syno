@@ -63,13 +63,14 @@ public:
         friend class TensorImpl;
 
         const Graph& graph;
+        std::vector<std::vector<const Expand *>> expansions;
         std::map<Dimension, Tensor, Dimension::AddressLessThan> owner;
         // Discover Share blocks to determine the contractions. Return the contracted interface as well.
         std::pair<std::vector<Tensor>, std::vector<Dimension>> findTensorsWhichWeNeedToContract(const Tensor& tensor) const;
 
     public:
         Builder(const Graph& graph): graph(graph) {}
-        Subgraphs build(const std::vector<std::vector<Dimension>>& rawInputTensors);
+        Subgraphs build(const std::vector<Topmost>& rawInputTensors);
     };
 
     // So that Tensor can be stored in an std::map.
@@ -86,6 +87,7 @@ public:
 };
 
 struct Subgraphs {
+    std::vector<std::vector<const Expand *>> expansions;
     std::vector<Tensor> inputTensors;
     Tensor outputTensor;
 };
@@ -115,7 +117,7 @@ protected:
     TensorImpl(I&& inputs, O&& output): inputs { std::forward<I>(inputs) }, output { std::forward<O>(output) } {}
 
 public:
-    static Tensor CreateInputTensor(Tensor::Builder& builder, const std::vector<Dimension>& dimensions);
+    static Tensor CreateInputTensor(Tensor::Builder& builder, const Topmost& topmost);
     static Tensor CreateTensorView(Tensor::Builder& builder, const std::vector<Tensor>& inputs, std::vector<Dimension> contracted);
 
     bool isInputTensor() const { return inputs.empty(); }

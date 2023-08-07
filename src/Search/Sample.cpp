@@ -35,16 +35,23 @@ void SampleOptions::check() const {
     KAS_ASSERT(disallowUnfoldLAboveShift + disallowShiftAboveUnfold <= 1);
 }
 
+StageStore::Query::Query(const GraphHandle& interface):
+    interface { interface },
+    hash { Hash{}(interface) }
+{}
+
 std::size_t StageStore::Hash::operator()(const Query& query) const noexcept {
     return query.hash;
 }
-
+std::size_t StageStore::Hash::operator()(const GraphHandle& interface) const noexcept {
+    return std::hash<GraphHandle>{}(interface);
+}
 std::size_t StageStore::Hash::operator()(AbstractStage *stage) const noexcept {
-    return stage->getInterface().hash();
+    return (*this)(stage->getInterface());
 }
 
-bool StageStore::Equal::operator()(const Dimensions& lhs, const Dimensions& rhs) const noexcept {
-    return std::ranges::equal(lhs, rhs);
+bool StageStore::Equal::operator()(const GraphHandle& lhs, const GraphHandle& rhs) const noexcept {
+    return lhs == rhs;
 }
 bool StageStore::Equal::operator()(const Query& lhs, const Query& rhs) const noexcept {
     return (*this)(lhs.interface, rhs.interface);
@@ -59,10 +66,9 @@ bool StageStore::Equal::operator()(AbstractStage *lhs, AbstractStage *rhs) const
     return (*this)(lhs->getInterface(), rhs->getInterface());
 }
 
-AbstractStage *StageStore::find(std::size_t depth, const Dimensions& interface, std::unique_lock<std::recursive_mutex>& lock) const {
-    KAS_ASSERT(interface.is_sorted(), "Interface is not sorted.");
+AbstractStage *StageStore::find(std::size_t depth, const GraphHandle& interface, std::unique_lock<std::recursive_mutex>& lock) const {
     KAS_ASSERT(lock.owns_lock());
-    Query q = { .interface = interface, .hash = interface.hash() };
+    auto q = Query(interface);
     const auto& bucket = bucketsOfStages[depth][q.hash % buckets];
     if (auto it = bucket.find(q); it != bucket.end()) {
         return *it;
@@ -73,11 +79,13 @@ AbstractStage *StageStore::find(std::size_t depth, const Dimensions& interface, 
 
 AbstractStage *StageStore::insert(std::size_t depth, std::unique_ptr<AbstractStage> stage, std::unique_lock<std::recursive_mutex>& lock) {
     KAS_ASSERT(lock.owns_lock());
-    std::size_t bucketIndex = stage->getInterface().hash() % buckets;
+    std::size_t bucketIndex = Hash{}(stage->getInterface()) % buckets;
     auto& bucket = bucketsOfStages[depth][bucketIndex];
     auto [it, inserted] = bucket.insert(stage.get());
-    [[maybe_unused]] auto _ = stage.release();
-    return inserted ? *it : nullptr;
+    if (inserted) {
+        return stage.release();
+    }
+    return nullptr;
 }
 
 StageStore::~StageStore() {
@@ -195,22 +203,20 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         this->outputShape.sizes.erase(this->outputShape.sizes.begin() + o);
     }
 
-    // DO NOT modify root after this, because Dimension references by address these iterators.
-    for (const auto& it: outputIterators) {
-        // Exclude the bound dimensions.
-        if (std::ranges::binary_search(boundOutputDimensions, it.getIndex())) {
-            continue;
-        }
-        root.emplace_back(&it);
-    }
-
     expressionOneTensor = Parser(options.expressionOneTensor).parseTensorExpression();
     expressionTwoTensors = Parser(options.expressionTwoTensors).parseTensorExpression();
     expressionThreeTensors = Parser(options.expressionThreeTensors).parseTensorExpression();
     expressionFourTensors = Parser(options.expressionFourTensors).parseTensorExpression();
 
-    Dimensions interface = getRootInterface();
-    interface.sort();
+    std::vector<Dimension> rootDimensions;
+    for (const auto& it: outputIterators) {
+        // Exclude the bound dimensions.
+        if (std::ranges::binary_search(boundOutputDimensions, it.getIndex())) {
+            continue;
+        }
+        rootDimensions.emplace_back(&it);
+    }
+    auto interface = GraphHandle(std::move(rootDimensions), std::vector<const Expand *>{});
     std::unique_ptr<ReductionStage> rootStage;
     std::unique_lock<std::recursive_mutex> lock;
     // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
@@ -360,16 +366,41 @@ std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPre
     return results;
 }
 
-void Sampler::ConvertTensorViewToSearchableOrder(std::vector<std::vector<Dimension>>& tensorView) {
-    // First sort the weights in order of hash. This somewhat duplicates the functionality in Forward::buildTensorView(). TODO
-    std::ranges::for_each(tensorView | std::views::drop(1), [](std::vector<Dimension>& dims) {
-        std::ranges::sort(dims, Dimension::HashLessThan{});
-    });
+void Sampler::removeFixedDimensions(std::vector<Topmost>& tensors) const {
+    auto& inputTensor = tensors.at(0).getDimensions();
+    for (const auto& [i, dim]: fixedDimensions | std::views::reverse) {
+        // Compare the description here, because it is possible that the dimensions are constructed independently.
+        KAS_ASSERT(inputTensor.at(i).description(ctx) == dim.description(ctx));
+        inputTensor.erase(inputTensor.begin() + i);
+    }
 }
 
-std::vector<Next> Sampler::ConvertGraphToPath(const Graph& graph) {
+void Sampler::sortAllExpansionsAndWeightDimensions(std::vector<Topmost>& tensors) const {
+    // First sort the weights in order of hash.
+    std::ranges::for_each(tensors | std::views::drop(1), [](Topmost& tensor) {
+        tensor.sort();
+    });
+    // Then sort the expansions in input tensor.
+    tensors.at(0).sortExpansions();
+    // Then consider if we should disallow permutation of weights.
+    if (!options.allowWeightPermutation) {
+        auto weights = std::span<Topmost>(tensors.data() + 1, tensors.size() - 1);
+        std::ranges::sort(weights, std::less{}, [](const Topmost& topmost) {
+            return topmost.getDimensions().at(0).hash();
+        });
+    }
+}
+
+void Sampler::convertTensorsToSearchableForm(std::vector<Topmost>& tensors) const {
+    removeFixedDimensions(tensors);
+    sortAllExpansionsAndWeightDimensions(tensors);
+}
+
+std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
     std::vector<Next> result;
     // To obtain the path, we need to follow the 3 stages of searching.
+
+    const Graph graph = handle.buildGraph();
 
     // First, ReductionStage.
     {
@@ -412,36 +443,33 @@ std::vector<Next> Sampler::ConvertGraphToPath(const Graph& graph) {
             );
         };
         // We need to generate Next's in canonical order of ShareOp! We need to add ShareOp::IsSharedDimensionCanonical(). TODO.
-        for (const Dimension& dim: graph.getTopmost()) {
+        for (const Dimension& dim: handle.getAllDimensions()) {
             dfs(dfs, dim);
+        }
+        // Do not forget to add expansions.
+        for (const Expand *exp: handle.getExpansions()) {
+            result.emplace_back(Next::TypeOf<ExpandOp>(), dynamic_cast<const ExpandOp *>(exp)->opHash());
         }
     }
 
     return result;
 }
 
-std::vector<Next> Sampler::convertTensorsToPath(const std::vector<std::vector<Dimension>>& tensors) const {
-    Graph::Builder builder;
-    builder.addTopmost(tensors | std::views::join);
-    Graph graph = builder.build();
-
-    auto result = ConvertGraphToPath(graph);
+std::vector<Next> Sampler::ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors) {
+    auto handle = GraphHandle::FromInterfaces(tensors);
+    auto result = ConvertGraphHandleToPath(handle);
 
     // We have now done the previous two stages.
     // Finally, Finalize.
-    {
-        // The fixed dimensions should be removed first.
-        std::vector<std::vector<Dimension>> tensorsInSearchTree;
-        std::ranges::copy(tensors, std::back_inserter(tensorsInSearchTree));
-        ConvertTensorViewToSearchableOrder(tensorsInSearchTree);
-        auto& inputTensor = tensorsInSearchTree.at(0);
-        for (const auto& [i, _]: fixedDimensions | std::views::reverse) {
-            inputTensor.erase(inputTensor.begin() + i);
-        }
-        result.emplace_back(Next::Type::Finalize, NextFinalizeSlot::GetKey(tensorsInSearchTree));
-    }
+    result.emplace_back(Next::Type::Finalize, NextFinalizeSlot::GetKey(tensors));
 
     return result;
+}
+
+std::vector<Next> Sampler::convertTensorViewToPath(const TensorView& tensorView) const {
+    auto tensors = ranges::to<std::vector<Topmost>>(tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent));
+    convertTensorsToSearchableForm(tensors);
+    return ConvertSearchableTensorsToPath(tensors);
 }
 
 std::optional<std::vector<Arc>> Sampler::convertPathToArcs(const std::vector<Next>& path) {
@@ -567,7 +595,10 @@ void Sampler::Expander::expandSync(Node node, int layers) {
 }
 
 void Sampler::Expander::sync() {
-
+    std::unique_lock lock { mutex };
+    cvReady.wait(lock, [this] {
+        return ready;
+    });
 }
 
 Sampler::Expander::~Expander() {
@@ -576,8 +607,8 @@ Sampler::Expander::~Expander() {
     }
 }
 
-std::recursive_mutex& Sampler::getMutex(std::size_t depth, const Dimensions& interface) {
-    return mutexes[depth][interface.hash() % countMutexesInLayer];
+std::recursive_mutex& Sampler::getMutex(std::size_t depth, const GraphHandle& interface) {
+    return mutexes[depth][std::hash<GraphHandle>{}(interface) % countMutexesInLayer];
 }
 
 } // namespace kas

@@ -6,6 +6,17 @@ namespace kas {
 
 namespace Forward {
 
+void Expand::notifyParent() {
+    KAS_ASSERT(evaluated());
+    BackwardDimension outputDim = get();
+    op = factory.getStore().get<::kas::ExpandOp>(outputDim);
+}
+
+const ::kas::ExpandOp *Expand::getOp() const {
+    KAS_ASSERT(op);
+    return op;
+}
+
 std::string Dimension::sizeToString() const {
     return getSize().toString(inner->getFactory().getBindingContext());
 }
@@ -29,15 +40,22 @@ void Factory::storeMapReduce(std::unique_ptr<MapReduceOp> mapReduce) {
     mapReduces.emplace_back(std::move(mapReduce));
 }
 
-std::vector<std::vector<BackwardDimension>> Factory::ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors) {
-    std::vector<std::vector<BackwardDimension>> backwardTensors(tensors.size());
+std::vector<Topmost> Factory::ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors) {
+    std::vector<Topmost> backwardTensors(tensors.size());
     for (std::size_t i = 0; i < tensors.size(); ++i) {
-        std::ranges::copy(tensors[i], std::back_inserter(backwardTensors[i]));
+        for (const Dimension& dim: tensors[i]) {
+            if (auto expand = dim.asExpanded(); expand) {
+                backwardTensors[i].getExpansions().emplace_back(expand->getOp());
+            } else {
+                backwardTensors[i].getDimensions().emplace_back(dim);
+            }
+        }
     }
     // Sort the dimensions by hash.
     // TODO: what if we change the order, due to performance considerations?
+    backwardTensors[0].sortExpansions();
     for (std::size_t i = 1; i < tensors.size(); ++i) {
-        std::ranges::sort(backwardTensors[i], BackwardDimension::HashLessThan{});
+        backwardTensors[i].sort();
     }
     return backwardTensors;
 }

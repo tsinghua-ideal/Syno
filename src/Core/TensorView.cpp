@@ -27,7 +27,7 @@ std::string PureTensor::shapeToString(const BindingContext& ctx) const {
 }
 
 std::string PureTensor::description(const BindingContext& ctx) const {
-    return DimensionArrayToString(dims, ctx);
+    return content.description(ctx);
 }
 
 std::string AbstractAccess::outerLoopsIteratorsToString() const {
@@ -135,7 +135,7 @@ ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const Concr
         using DimVisitor::visit;
     };
     visitor v { sol };
-    for (const Dimension& dim: getUnderlyingDimensions()) {
+    for (const Dimension& dim: getUnderlyingTensors() | std::views::transform(&PureTensor::getDims) | std::views::join) {
         dim.accept(v);
     }
     for (auto it: interface) {
@@ -144,7 +144,7 @@ ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const Concr
     for (auto it: manipulations) {
         sol.addConstraint(it->size());
     }
-    return sol.solve(Size::Product(getUnderlyingDimensions() | std::views::transform(&Dimension::size)), Size::Product(getInterfaceShape()));
+    return sol.solve(Size::Product(getUnderlyingTensors() | std::views::transform(&PureTensor::getDims) | std::views::join | std::views::transform(&Dimension::size)), Size::Product(getInterfaceShape()));
 }
 
 std::size_t TensorView::getFLOPs(const ConcreteConsts& consts) const {
@@ -230,13 +230,12 @@ std::string TensorView::printNestedLoopsForAll(const BindingContext& ctx) const 
 }
 
 std::string TensorView::description(const BindingContext& ctx) const {
-    return TensorArrayToString(tensors | std::views::transform(&PureTensor::getDimensions), ctx);
+    return Topmost::Description(tensors | std::views::transform(&PureTensor::getContent), ctx);
 }
 
-TensorView::TensorView(const std::vector<std::vector<Dimension>>& canonicalTensors, TensorExpression blending) {
-    Graph::Builder builder;
-    builder.addTopmost(canonicalTensors | std::views::join);
-    const Graph graph = builder.build();
+TensorView::TensorView(const std::vector<Topmost>& canonicalTensors, TensorExpression blending) {
+    const Graph graph =
+        Graph::Builder().addTopmosts(canonicalTensors).build();
     const auto& outputIterators = graph.getOutputIterators();
     const auto& mapReduceIterators = graph.getMapReduceIterators();
 
@@ -262,7 +261,7 @@ TensorView::TensorView(const std::vector<std::vector<Dimension>>& canonicalTenso
     for (std::size_t tId = 0; auto&& tensor: this->tensors) {
         // KAS_DEBUG("Differentiating input {}...", tId);
         auto backwardEval = DimensionEvaluator(graph, this->tensors, blending);
-        backwardEval.makeVars(tensor.getDimensions());
+        backwardEval.makeVars(tensor.getDims());
         backwardEval.fillWithReductions();
         backwardEval.adjustReductionOrder();
         backwardAccesses.emplace_back(backwardEval.toAccess(tId, interfaceDimensions));

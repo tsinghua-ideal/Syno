@@ -57,7 +57,7 @@ int ReshapeGroup::countFinalAdditionalMerges() const {
     return static_cast<int>(trait.value() != Size::Trait::One);
 }
 
-int ReshapeGroup::countFinalUnfolds() const {
+int ReshapeGroup::countFinalUnfoldsAndExpands() const {
     if (hasNoInput) {
         return 1;
     }
@@ -192,7 +192,7 @@ ReshapeGroups::FinalCounts ReshapeGroups::finalCount() const {
         counts.trivialMerges += group.countTrivialMerges();
         counts.splits += group.countSplits();
         counts.additionalMerges += group.countFinalAdditionalMerges();
-        counts.unfolds += group.countFinalUnfolds();
+        counts.unfoldsAndExpands += group.countFinalUnfoldsAndExpands();
     }
     return counts;
 }
@@ -202,7 +202,7 @@ int ReshapeGroups::FinalCounts::merges() const {
 }
 
 std::size_t ReshapeGroups::FinalCounts::steps() const {
-    return trivialMerges + splits + additionalMerges + unfolds;
+    return trivialMerges + splits + additionalMerges + unfoldsAndExpands;
 }
 
 namespace {
@@ -232,8 +232,8 @@ std::size_t Compute(const Shape& desired, const std::vector<Size>& current, cons
     // Ideally, the groups are merge-split towers, i.e., reshapes.
     // Let there be N groups. Then the waist is N sizes.
     // N + #Splits = #current.
-    // N + #Merges = #desired + #Unfolds.
-    // N >= #Unfolds.
+    // N + #Merges = #desired + #Unfolds + #Expands.
+    // N >= #Unfolds + #Expands.
     // const int minGroups = std::max({
     //     0,
     //     numCurrent - options.remainingSplits,
@@ -275,7 +275,7 @@ std::size_t Compute(const Shape& desired, const std::vector<Size>& current, cons
                 return std::nullopt;
             }
             const auto finalCounts = groups.finalCount();
-            if (finalCounts.unfolds > options.remainingUnfolds || finalCounts.merges() > options.remainingMerges) {
+            if (finalCounts.unfoldsAndExpands > options.remainingUnfoldsAndExpands() || finalCounts.merges() > options.remainingMerges) {
                 return std::nullopt;
             }
             return finalCounts.steps();

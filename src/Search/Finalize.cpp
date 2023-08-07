@@ -18,9 +18,9 @@ std::shared_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedD
     if (fixed.empty()) {
         return std::make_unique<TensorView>(tensors, std::move(blending));
     }
-    std::vector<std::vector<Dimension>> tensors;
+    std::vector<Topmost> tensors;
     std::ranges::copy(this->tensors, std::back_inserter(tensors));
-    auto& inputTensor = tensors.at(0);
+    auto& inputTensor = tensors.at(0).getDimensions();
     for (const auto& [index, dim]: fixed) {
         // Given the fact that fixed is sorted.
         inputTensor.insert(inputTensor.begin() + index, dim);
@@ -36,10 +36,8 @@ std::size_t FinalizeOp::hash() const noexcept {
     return NextFinalizeSlot::GetKey(tensors);
 }
 
-Dimensions FinalizeOp::toDimensions() const {
-    auto result = ranges::to<Dimensions>(tensors | std::views::join);
-    std::ranges::sort(result, Dimension::HashLessThan{});
-    return result;
+GraphHandle FinalizeOp::toGraphHandle() const {
+    return GraphHandle::FromInterfaces(tensors);
 }
 
 double FinalizeOp::weightVariance(const ConcreteConsts& consts) const {
@@ -53,7 +51,7 @@ double FinalizeOp::weightVariance(const ConcreteConsts& consts) const {
     weights.reserve(tensors.size() - 1);
     for (std::size_t tId = 1; tId < tensors.size(); ++tId) {
         const auto& tensor = tensors[tId];
-        ShapeView shape { tensor };
+        ShapeView shape = tensor.getShape();
         double weight = shape.totalSize().eval<double>(consts);
         elements *= weight;
         sum += weight;
@@ -78,60 +76,7 @@ double FinalizeOp::weightVariance(const BindingContext& ctx) const {
 }
 
 std::string FinalizeOp::description(const BindingContext& ctx) const {
-    return TensorArrayToString(tensors, ctx);
-}
-
-bool FinalizeOp::Prune(const std::vector<Graph::ConnectedComponent>& components, const std::vector<std::vector<Dimension>>& trial) {
-    std::map<Dimension, std::size_t, Dimension::AddressLessThan> dim2tensorId;
-    for (std::size_t tId = 0; tId < trial.size(); ++tId) {
-        for (auto&& dim: trial[tId]) {
-            if (tId >= 1) {
-                // We also check for uncanonical cases here.
-                // In a single tensor, there must not be both inputs of MergeOp, or SplitOp, or ShiftOp.
-                auto dimType = dim.type();
-                switch (dimType) {
-                case DimensionType::Merge: {
-                    const auto& merge = dim.as<MergeOp::Input>();
-                    if (auto it = dim2tensorId.find(merge.getOther()); it != dim2tensorId.end()) {
-                        if (it->second == tId) {
-                            return true;
-                        }
-                    }
-                    break;
-                }
-                case DimensionType::Split:
-                case DimensionType::Unfold:
-                    // Unfold is not semantically equivalent to Split, but if we substitute it to a Split, we are essentially adding more parameters, so there always exists a valuation of weight such that Split and Unfold is equivalent here. In other words, Split can cover the semantics of Unfold.
-                case DimensionType::Shift:
-                    return true;
-                default:
-                    break;
-                }
-            }
-            dim2tensorId[dim] = tId;
-        }
-    }
-
-    // Early reduction analysis. For identity-mapped, sum-reduced, if a weight needs early reduction, then it is not canonical, which means we need to prune. TODO: if more types are added, change this.
-    // We need to first identify the connected components in the indirected graph. If in a connected component, all output iterators are Sum, and all input iterators come from exactly one tensor, then this means we can do early reduction. For weight tensors, it is not reasonable to have early reduction, because this is pointless.
-    for (auto&& component: components) {
-        bool allSum = std::ranges::all_of(component.outputs, [](const Dimension& dim) {
-            return dim.is(DimensionType::MapReduce);
-        });
-        if (!allSum) continue;
-        const std::size_t tId = dim2tensorId.at(component.inputs.at(0));
-        bool sameTensor = std::ranges::all_of(component.inputs | std::views::drop(1), [&](const Dimension& dim) {
-            return tId == dim2tensorId.at(dim);
-        });
-        if (sameTensor) {
-            // If this is from input tensor, then we can do early reduction to reduce FLOPs. TODO
-            // But if this is from weight tensor, prune.
-            if (tId != 0) {
-                return true;
-            }
-        }
-    }
-    return false;
+    return Topmost::Description(tensors, ctx);
 }
 
 bool FinalizeOp::FitIntoWeights(const std::vector<Dimension>& current, const WeightOptions& options) {
@@ -176,27 +121,22 @@ std::size_t FinalizeOp::Distance(const std::vector<Dimension>& current, const Sh
 
     // Then, experimentally finalize.
     std::size_t minimumComplexity = ShapeComplexity::Infinity;
-    int newStrideDist = strideDist;
     std::vector<Size> newCurrent = mustBeInput;
-    auto recursion = [&](const auto& self, std::size_t trialIndex) {
-        if (newStrideDist > options.remainingUnfolds) {
-            return;
-        }
+    auto recursion = [&](const auto& self, std::size_t trialIndex) -> void {
         auto trial = ShapeComplexity::Compute(desired, newCurrent, {
             .ctx = options.ctx,
             .remainingMerges = options.remainingMerges,
             .remainingSplits = options.remainingSplits,
-            .remainingUnfolds = options.remainingUnfolds - newStrideDist,
+            .remainingUnfolds = options.remainingUnfolds - strideDist,
+            .remainingExpands = options.remainingExpands,
             .overflow = std::min(minimumComplexity, options.overflow), // In either cases, we do not need to further compute.
         });
         minimumComplexity = std::min(minimumComplexity, trial);
         if (trialIndex < canBeWeight.size()) {
             self(self, trialIndex + 1);
-            newStrideDist += 1;
             newCurrent.emplace_back(canBeWeight[trialIndex]);
             self(self, trialIndex + 1);
             newCurrent.pop_back();
-            newStrideDist -= 1;
         }
     };
     recursion(recursion, 0);
@@ -348,7 +288,7 @@ struct CollectedTensorFragments {
         mappings.emplace_back(index);
         used[index] = true;
     }
-    std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> toTensorAndWeightDims(const Dimensions& interface) const {
+    std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> toTensorAndWeightDims(const std::vector<Dimension>& interface) const {
         std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> result;
         auto& [tensor, weight] = result;
         tensor.reserve(mappings.size());
@@ -422,8 +362,11 @@ struct TopKFinalizations {
 
 } // namespace
 
-std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const Graph& graph, const GenerateOptions& options) {
+std::vector<FinalizeOp> FinalizeOp::Generate(const GraphHandle& dimensionsAndExpansions, const Graph& graph, const GenerateOptions& options) {
     ++CountGenerateInvocations;
+
+    const std::vector<Dimension>& interface = dimensionsAndExpansions.getDimensions();
+    const std::vector<const Expand *>& expansions = dimensionsAndExpansions.getExpansions();
 
     // First we perform a basic check. If any Dimension is data-discarding, then it is not a legal kernel.
     if (std::ranges::any_of(interface, [](const Dimension& dim) { return dim.getColor().isDataDiscarding(); })) {
@@ -431,10 +374,16 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const 
         return {};
     }
 
-    // Compute connected components for early reduction analysis.
-    auto components = graph.computeConnectedComponents();
-
     TopKFinalizations result { options.ctx, options.maximumFinalizations };
+    auto addToResults = [&result, &expansions](std::vector<std::vector<Dimension>>&& tensors) {
+        // Currently, we only allow expansions to be added to the input tensor.
+        std::vector<Topmost> realTensors;
+        realTensors.emplace_back(std::move(tensors.at(0)), expansions);
+        for (auto&& tensor: tensors | std::views::drop(1)) {
+            realTensors.emplace_back(std::move(tensor), std::vector<const Expand *>{});
+        }
+        result.emplace(std::move(realTensors));
+    };
     const auto& desired = options.desired;
 
     auto buildBesideInputTensor = [&](const CollectedTensorFragments& inputCandidate) {
@@ -461,17 +410,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const Dimensions& interface, const 
                 }
             }
             tensors.insert(tensors.begin(), std::move(inputTensor));
-            if (!Color::CheckFinalization(tensors)) {
-                // We really should avoid this!
-                KAS_WARNING("Finalization with conflicting colors generated!");
-                ++CountConflictingColors;
-                return;
-            }
-            if (Prune(components, tensors)) {
-                ++CountPrunedFinalizations;
-                return;
-            }
-            result.emplace(std::move(tensors));
+            addToResults(std::move(tensors));
         }
     };
 

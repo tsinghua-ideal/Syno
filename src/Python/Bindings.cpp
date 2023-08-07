@@ -24,7 +24,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<SampleOptions>(m, "SampleOptions")
         .def(
-            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maximumVariablesInSize, std::size_t maximumVariablesPowersInSize, bool requiresExactDivision, bool requiresOddKernelSizeInUnfold, std::string expressionOneTensor, std::string expressionTwoTensors, std::string expressionThreeTensors, std::string expressionFourTensors, std::size_t maximumFinalizations, bool allowWeightPermutation, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float minimumMergeRatio, bool disallowDiscontinuousView, bool canonicalizeUnfoldOrder, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
+            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maximumVariablesInSize, std::size_t maximumVariablesPowersInSize, bool requiresExactDivision, bool requiresOddKernelSizeInUnfold, std::string expressionOneTensor, std::string expressionTwoTensors, std::string expressionThreeTensors, std::string expressionFourTensors, std::size_t maximumFinalizations, bool allowWeightPermutation, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float minimumMergeRatio, bool disallowMergeInputAndWeight, bool disallowTile, bool disallowDiscontinuousView, bool canonicalizeUnfoldOrder, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumExpands, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
                 return SampleOptions {
                     .seed = seed,
                     .depth = depth,
@@ -47,6 +47,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
                     .maxUnfoldKernelSize = maxUnfoldKernelSize,
                     .minimumUnfoldRatio = minimumUnfoldRatio,
                     .minimumMergeRatio = minimumMergeRatio,
+                    .disallowMergeInputAndWeight = disallowMergeInputAndWeight,
+                    .disallowTile = disallowTile,
                     .disallowDiscontinuousView = disallowDiscontinuousView,
                     .canonicalizeUnfoldOrder = canonicalizeUnfoldOrder,
                     .disallowSplitRAboveUnfold = disallowSplitRAboveUnfold,
@@ -59,6 +61,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
                     .disallowStrideAboveMergeR = disallowStrideAboveMergeR,
                     .disallowUnfoldLAboveShift = disallowUnfoldLAboveShift,
                     .disallowShiftAboveUnfold = disallowShiftAboveUnfold,
+                    .maximumExpands = maximumExpands,
                     .maximumMerges = maximumMerges,
                     .maximumSplits = maximumSplits,
                     .maximumShifts = maximumShifts,
@@ -88,6 +91,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("max_unfold_kernel_size") = DefaultSampleOptions.maxUnfoldKernelSize,
             pybind11::arg("minimum_unfold_ratio") = DefaultSampleOptions.minimumUnfoldRatio,
             pybind11::arg("minimum_merge_ratio") = DefaultSampleOptions.minimumMergeRatio,
+            pybind11::arg("disallow_merge_input_and_weight") = DefaultSampleOptions.disallowMergeInputAndWeight,
+            pybind11::arg("disallow_tile") = DefaultSampleOptions.disallowTile,
             pybind11::arg("disallow_discontinuous_view") = DefaultSampleOptions.disallowDiscontinuousView,
             pybind11::arg("canonicalize_unfold_order") = DefaultSampleOptions.canonicalizeUnfoldOrder,
             pybind11::arg("disallow_split_r_above_unfold") = DefaultSampleOptions.disallowSplitRAboveUnfold,
@@ -100,6 +105,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("disallow_stride_above_merge_r") = DefaultSampleOptions.disallowStrideAboveMergeR,
             pybind11::arg("disallow_unfold_l_above_shift") = DefaultSampleOptions.disallowUnfoldLAboveShift,
             pybind11::arg("disallow_shift_above_unfold") = DefaultSampleOptions.disallowShiftAboveUnfold,
+            pybind11::arg("maximum_expands") = DefaultSampleOptions.maximumExpands,
             pybind11::arg("maximum_merges") = DefaultSampleOptions.maximumMerges,
             pybind11::arg("maximum_splits") = DefaultSampleOptions.maximumSplits,
             pybind11::arg("maximum_shifts") = DefaultSampleOptions.maximumShifts,
@@ -287,6 +293,13 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             },
             pybind11::arg("sizes")
         )
+        .def(
+            "create_expand",
+            [](Forward::Factory& self, const Size& size) {
+                return Forward::ExpandOp::Create(self, size);
+            },
+            pybind11::arg("size")
+        )
         .def_static("create_merge", &Forward::MergeOp::Create)
         .def_static("create_share", &Forward::ShareOp::Create)
         .def_static("create_shift", &Forward::ShiftOp::Create)
@@ -296,7 +309,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def(
             "convert_assembled_to_path", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const Sampler& sampler) -> std::vector<Next> {
                 auto backTensors = Forward::Factory::ForwardDimsToBackwardDims(tensors);
-                return sampler.convertTensorsToPath(backTensors);
+                sampler.convertTensorsToSearchableForm(backTensors);
+                return Sampler::ConvertSearchableTensorsToPath(backTensors);
             }
         )
         .def(

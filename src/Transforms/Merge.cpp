@@ -7,7 +7,7 @@
 
 namespace kas {
 
-const Size& MergeOp::Input::size() const noexcept {
+const Size& MergeOp::Input::size() const {
     switch (order) {
     case Order::Left:
         return getDerivedOp<MergeOp>()->majorSize;
@@ -63,7 +63,7 @@ MergeOp::Values MergeOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for MergeOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs, inputRhs, output);
 }
 
-std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Dimensions& interface, const GenerateOptions& options) {
+std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // Canonicalization. Manually handle SplitOp, StrideOp(s<B) and UnfoldOp(k<B).
@@ -106,7 +106,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Di
         ++CountSuccessfulGenerations;
         res.emplace_back(store.get<MergeOp>(dim, std::move(block)));
     };
-    CountGenerateAttempts += interface.size();
+    CountGenerateAttempts += interface.getDimensions().size();
     std::size_t countPlausible = 0;
     for (auto&& dim: plausible) {
         ++countPlausible;
@@ -114,7 +114,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Di
             checkThenAdd(dim, std::move(sizeR));
         }
     }
-    CountDisallowedAttempts += interface.size() - countPlausible;
+    CountDisallowedAttempts += interface.getDimensions().size() - countPlausible;
     return res;
 }
 
