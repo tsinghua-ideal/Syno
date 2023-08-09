@@ -13,6 +13,16 @@ from .avg_meter import AverageMeter
 PseudoTreeNext = Union[Next.Type, int]
 PseudoArc = Union[Next.Type, Arc]
 
+dimensions_type = [
+    "MapReduce",
+    "Expand",
+    "Shift",
+    "Stride",
+    "Split",
+    "Unfold",
+    "Merge",
+    "Share",
+]
 
 class TreePath(Path):
     """
@@ -35,22 +45,11 @@ class TreePath(Path):
 
     @staticmethod
     def decode_next_type(repr_: str):
-        if repr_ == "MapReduce":
-            return "0"
-        elif repr_ == "Shift":
-            return "1"
-        elif repr_ == "Stride":
-            return "2"
-        elif repr_ == "Split":
-            return "3"
-        elif repr_ == "Unfold":
-            return "4"
-        elif repr_ == "Merge":
-            return "5"
-        elif repr_ == "Share":
-            return "6"
-        elif repr_ == "Finalize":
-            return "7"
+        try:
+            pos = dimensions_type.index(repr_)
+        except ValueError:
+            raise Exception(f"Unexpected type {repr_}! ")
+        return str(pos)
 
     @staticmethod
     def decode_str(str_repr: str) -> "TreePath":
