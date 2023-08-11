@@ -35,11 +35,29 @@ def test_mcts():
         autoscheduler=CodeGenOptions.Li2018,
     )
     mcts = MCTSTree(sampler, virtual_loss_constant=1)
-    for idx in range(100):
+    for idx in range(30):
         receipt, trials = mcts.do_rollout()
         path = receipt
         node = trials[0]
         print(f"Iteration {idx}. Sampled {node} for {path}")
+        mcts.back_propagate(receipt, 0.5, node[0])
+
+    receipts = []
+    for idx in range(3):
+        receipt, trials = mcts.do_rollout()
+        path = receipt
+        node = trials[0]
+        print(f"Iteration {idx}. Sampled {node} for {path}")
+        receipts.append((node, receipt))
+
+    json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
+    mcts_serialize = json.load(open("test_mcts.json", "r"))
+    mcts_recover = MCTSTree.deserialize(mcts_serialize, sampler, keep_virtual_loss=True)
+    assert (
+        mcts.virtual_loss_count == mcts_recover.virtual_loss_count
+    ), f"virtual_loss_count mismatch! {mcts.virtual_loss_count} vs {mcts_recover.virtual_loss_count}"
+
+    for node, receipt in receipts:
         mcts.back_propagate(receipt, 0.5, node[0])
 
     for k, v in mcts.virtual_loss_count.items():

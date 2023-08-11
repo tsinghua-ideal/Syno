@@ -166,6 +166,13 @@ def test_mcts():
     for k, v in mcts.virtual_loss_count.items():
         assert v > 0, f"Virtual loss count for {k} is {v}"
 
+    json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
+    mcts_serialize = json.load(open("test_mcts.json", "r"))
+    mcts_recover = MCTSTree.deserialize(mcts_serialize, sampler, keep_virtual_loss=True)
+    assert (
+        mcts.virtual_loss_count == mcts_recover.virtual_loss_count
+    ), f"virtual_loss_count mismatch! {mcts.virtual_loss_count} vs {mcts_recover.virtual_loss_count}"
+
     mcts.back_propagate(receipts[0], 0.6, trialss[0][0][0])
     mcts.back_propagate(receipts[1], 0.6, trialss[1][0][0])
 

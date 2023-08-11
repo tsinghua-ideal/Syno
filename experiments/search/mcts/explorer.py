@@ -3,7 +3,7 @@ import os
 import math
 from tqdm import tqdm
 from time import time
-from typing import List
+from typing import List, Callable
 from KAS.Bindings import Next
 from KAS.Node import Node
 from KAS.Utils import NextSerializer
@@ -23,6 +23,22 @@ class MCTSExplorer:
         self.on_tree = False
         self.show_zero = False
         self.node_hierarchy = [(TreePath([]), self._mcts.tree_root)]
+
+    @property
+    def ucb_score(self) -> Callable:
+        _, current_node = self.node_hierarchy[-1]
+        log_N_vertex = math.log(current_node.N)
+
+        def ucb1_tuned(key) -> float:
+            _, child, edge = key
+            if edge.N == 0:
+                return 1e9
+            return edge.mean + self._mcts._exploration_weight * math.sqrt(
+                (log_N_vertex / edge.N)
+                * min(0.25, edge.std * edge.std + math.sqrt(2 * log_N_vertex / edge.N))
+            )
+
+        return ucb1_tuned
 
     def handle_one_command(self, command: str) -> None:
         path, current_node = self.node_hierarchy[-1]
@@ -163,6 +179,9 @@ class MCTSExplorer:
                     print(f"Take {retry_count} times to find a final node.")
             except Exception as e:
                 print(f"Invalid command. {e}")
+        elif command.startswith("rollout"):
+            path, trials = self._mcts.do_rollout()
+            print(f"Rollout find {path}")
         elif command == "graphviz":
             if current_node._is_mid:
                 print("Warning: graphviz is intended to run on non-mid nodes.")
@@ -207,6 +226,23 @@ class MCTSExplorer:
                 assert isinstance(nxt, Next.Type)
                 print(
                     f"The best child is {nxt}:\t{child_node.children_count(self._mcts._treenode_store, on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})"
+                )
+        elif command == "best_select":
+            children = current_node.get_children(
+                self._mcts._treenode_store, auto_initialize=True, on_tree=self.on_tree
+            )
+
+            best_children = max(children, key=self.ucb_score)
+            nxt, child_node, edge_state = best_children
+            if current_node._is_mid:
+                child = Next(current_node._type, nxt)
+                print(
+                    f"The best child in selection is {child}:\t{current_node._node.get_child_description(child)}, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std}), score={self.ucb_score(best_children)}"
+                )
+            else:
+                assert isinstance(nxt, Next.Type)
+                print(
+                    f"The best child is {nxt}:\t{child_node.children_count(self._mcts._treenode_store, on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std}), score={self.ucb_score(best_children)}"
                 )
         elif command in ["b", "back"]:
             # go back to parent node

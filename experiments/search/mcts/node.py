@@ -24,6 +24,7 @@ dimensions_type = [
     "Share",
 ]
 
+
 class TreePath(Path):
     """
     A path that decouples the type and content of a node.
@@ -137,7 +138,7 @@ class TreeNode:
             self.reward: float = -1
             self.filtered: bool = False
         if self._is_mid:
-            self.edge_states: Dict[int, AverageMeter] = defaultdict(
+            self.edge_states: DefaultDict[int, AverageMeter] = defaultdict(
                 partial(AverageMeter, support_std=True)
             )
         else:
@@ -145,6 +146,32 @@ class TreeNode:
             primitives = self._node.collect_operations()
             for child in primitives.keys():
                 self.children.append(TreeNode(node, is_mid=True, type=child))
+
+    def eq_verb(self, __value: "TreeNode"):
+        eq_flag = (
+            self._node.__eq__(__value._node)
+            and self._is_mid == __value._is_mid
+            and self._type == __value._type
+            and self.state_dict == __value.state_dict
+            and self.l_rave == __value.l_rave
+        )
+        print(self._node.__eq__(__value._node))
+        print(self._is_mid == __value._is_mid)
+        print(self._type == __value._type)
+        print(self.state_dict == __value.state_dict)
+        print(self.l_rave == __value.l_rave)
+        if self._node.is_final():
+            eq_flag = (
+                eq_flag
+                and self.filtered == __value.filtered
+                and self.reward == __value.reward
+            )
+            print(self.filtered == __value.filtered)
+            print(self.reward == __value.reward)
+        if self._is_mid:
+            eq_flag = eq_flag and self.edge_states == __value.edge_states
+            print(self.edge_states == __value.edge_states)
+        return eq_flag
 
     def __eq__(self, __value: "TreeNode") -> bool:
         eq_flag = (
@@ -227,6 +254,18 @@ class TreeNode:
     def update_lrave(self, reward: float, arc: PseudoArc) -> None:
         assert not self.is_final()
         self.l_rave[arc].update(reward)
+
+    # Cleansing
+    def clear_lrave(self) -> None:
+        for k, rave_score in list(self.l_rave.items()):
+            if rave_score.empty():
+                self.l_rave.pop(k)
+
+    def clear_edge(self) -> None:
+        if self._is_mid:
+            for k, edge in list(self.edge_states.items()):
+                if edge.empty():
+                    self.edge_states.pop(k)
 
     def flush_T(
         self,

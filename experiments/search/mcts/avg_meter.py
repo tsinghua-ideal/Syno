@@ -54,9 +54,14 @@ class AverageMeter:
         if self.empty() or self.N < state[-1]:
             self.support_std = std_flag
             if std_flag:
-                self.sum, self.sumsq, self.N = state
+                _sum, _sumsq, _N = state
+                self.sum = float(_sum)
+                self.sumsq = float(_sumsq)
+                self.N = int(_N)
             else:
-                self.sum, self.N = state
+                _sum, _N = state
+                self.sum = float(_sum)
+                self.N = int(_N)
         # else:
         #     assert self.support_std == std_flag, f"g_rave inconsistency found! {std_flag} v.s. {self.support_std}"
         #     if std_flag:
@@ -66,9 +71,9 @@ class AverageMeter:
 
     def empty(self) -> bool:
         if self.support_std:
-            return self.sum == 0 and self.sumsq == 0 and self.N == 0
+            return self.sum == 0.0 and self.sumsq == 0.0 and self.N == 0
         else:
-            return self.sum == 0 and self.N == 0
+            return self.sum == 0.0 and self.N == 0
 
     def __repr__(self) -> str:
         if self.support_std:
