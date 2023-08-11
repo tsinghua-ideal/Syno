@@ -21,6 +21,7 @@ class MCTSExplorer:
         self._mcts = mcts
         self._serializer = NextSerializer()
         self.on_tree = False
+        self.show_zero = False
         self.node_hierarchy = [(TreePath([]), self._mcts.tree_root)]
 
     def handle_one_command(self, command: str) -> None:
@@ -49,7 +50,7 @@ class MCTSExplorer:
                 self._mcts._treenode_store, auto_initialize=True, on_tree=self.on_tree
             )
             for nxt, child_node, edge_state in children:
-                if edge_state.N == 0:
+                if self.show_zero and edge_state.N == 0:
                     continue
                 if current_node._is_mid:
                     child = Next(current_node._type, nxt)
@@ -217,6 +218,10 @@ class MCTSExplorer:
             self.on_tree = False
         elif command == "explore_tree":
             self.on_tree = True
+        elif command == "show_zero":
+            self.show_zero = True
+        elif command == "hide_zero":
+            self.show_zero = False
         elif command == "exit":
             # exit interactive mode
             exit(0)
