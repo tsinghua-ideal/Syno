@@ -117,8 +117,10 @@ void NormalStage::guardGeneratedChildren() {
             }
             if (options.maximumExpands == -1 || options.maximumExpands > existingOp<ExpandOp>()) {
                 add(ExpandOp::Generate(store, interface, {
+                    .ctx = ctx,
                     .disallowMergeInputAndWeight = options.disallowMergeInputAndWeight,
                     .disallowTile = options.disallowTile,
+                    .maxExpansionMultiplier = options.maxExpansionMultiplier,
                 }));
             }
         }

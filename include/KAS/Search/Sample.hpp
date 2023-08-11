@@ -61,6 +61,7 @@ struct SampleOptions {
     // ExpandOp related.
     bool disallowMergeInputAndWeight = false;
     bool disallowTile = true;
+    std::size_t maxExpansionMultiplier = 10;
 
     // Below are canonicalization options.
 

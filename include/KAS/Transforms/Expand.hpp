@@ -44,8 +44,10 @@ public:
     }
 
     struct GenerateOptions {
+        const BindingContext& ctx;
         bool disallowMergeInputAndWeight;
         bool disallowTile;
+        std::size_t maxExpansionMultiplier;
     };
     KAS_STATISTICS_DEF(
         GenerateInvocations,
