@@ -34,18 +34,44 @@ if __name__ == '__main__':
             with open(meta_path, 'r') as f:
                 meta = json.load(f)
 
-            kernels.append((meta['time'], meta['accuracy']))
+            kernels.append((meta['time'], meta['accuracy'], meta['flops'], meta['params']))
         kernels = sorted(kernels, key=lambda x: x[0])
         if not args.time:
-            kernels = list([(i, kernels[i][1]) for i in range(len(kernels))])
+            kernels = list([(i, *kernels[i][1:]) for i in range(len(kernels))])
         all_kernels.append((dir, kernels))
 
+    fig_id = 0
+
+    # Accuracy vs FLOPs/param distirbution
+    for i, (name, kernels) in enumerate(all_kernels):
+        # FLOPs
+        fig_id += 1
+        plt.figure(fig_id, figsize=(10, 6), dpi=300)
+        x, y, flops, params = zip(*filter(lambda x: x[1] > 0.5, kernels))
+        plt.scatter(flops, y, label=name, s=3)
+        plt.xlabel('FLOPs')
+        plt.ylabel('Accuracy')
+        plt.legend()
+        plt.savefig(f'{args.output}-acc-vs-flops-{i}.png')
+
+        # Params
+        fig_id += 1
+        plt.figure(fig_id, figsize=(10, 6), dpi=300)
+        x, y, flops, params = zip(*filter(lambda x: x[1] > 0.5, kernels))
+        plt.scatter(params, y, label=name, s=3)
+        plt.xlabel('Params')
+        plt.ylabel('Accuracy')
+        plt.legend()
+        plt.savefig(f'{args.output}-acc-vs-params-{i}.png')
+
+
     # Trend figure
-    plt.figure(1, figsize=(25, 6), dpi=300)
+    fig_id += 1
+    plt.figure(fig_id, figsize=(25, 6), dpi=300)
     markers = ['o', 'v', '^', '<', '>', 's', 'p', '*', 'h', 'H', 'D', 'd']
     colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
     for name, kernels in all_kernels:
-        x, y = zip(*kernels)
+        x, y, _, _ = zip(*kernels)
         y_sum, y_avg = 0, []
         for i in range(len(y)):
             y_sum += y[i]
@@ -59,12 +85,13 @@ if __name__ == '__main__':
     plt.xlabel('Time' if args.time else 'Samples')
     plt.ylabel('Accuracy (avg)')
     plt.legend()
-    plt.savefig(f'{args.output}-avg.png')
+    plt.savefig(f'{args.output}-avg-acc-vs-sample.png')
 
     # Max figure
-    plt.figure(2, figsize=(25, 6), dpi=300)
+    fig_id += 1
+    plt.figure(fig_id, figsize=(25, 6), dpi=300)
     for name, kernels in all_kernels:
-        x, y = zip(*kernels)
+        x, y, _, _ = zip(*kernels)
         y_max = []
         for i in range(len(y)):
             y_max.append(y[i] if i == 0 else max(y_max[-1], y[i]))
@@ -78,12 +105,13 @@ if __name__ == '__main__':
     plt.xlabel('Time' if args.time else 'Samples')
     plt.ylabel('Accuracy (max, negative log2 scale)')
     plt.legend()
-    plt.savefig(f'{args.output}-max.png')
+    plt.savefig(f'{args.output}-max-acc-vs-sample.png')
 
     # Histogram figure
-    plt.figure(3, figsize=(10, 6), dpi=300)
+    fig_id += 1
+    plt.figure(fig_id, figsize=(10, 6), dpi=300)
     for name, kernels in all_kernels:
-        x, y = zip(*kernels)
+        x, y, _, _ = zip(*kernels)
         m, c = markers.pop(0), colors.pop(0)
         markers.append(m)
         colors.append(c)
@@ -93,4 +121,4 @@ if __name__ == '__main__':
     plt.xlabel('Accuracy')
     plt.ylabel('Density')
     plt.legend()
-    plt.savefig(f'{args.output}-hist.png')
+    plt.savefig(f'{args.output}-acc-hist.png')
