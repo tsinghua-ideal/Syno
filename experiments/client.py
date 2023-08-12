@@ -77,9 +77,7 @@ if __name__ == '__main__':
             logging.debug(f"Loaded model has {flops} FLOPs per batch and {params} parameters in total. ")
             
             logging.info('Evaluating on real dataset ...')
-            _, val_errors = trainer.train(model, train_dataloader, val_dataloader, args)
-            accuracy = 1 - min(val_errors)
-            
+            accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))            
             client.reward(path, accuracy, flops, params)
     except KeyboardInterrupt:
         logging.info('Interrupted by user, exiting ...')

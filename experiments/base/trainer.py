@@ -10,7 +10,7 @@ from .sche import get_schedule
 from .models import KASModel
 
 
-def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], List[float]]:
+def train_impl(model, train_dataloader, val_dataloader, args) -> List[float]:
     assert isinstance(model, KASModel)
     torch.backends.cudnn.benchmark = True
     torch.set_float32_matmul_precision('high')
@@ -23,8 +23,7 @@ def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], L
     optimizer = get_optimizer(model, args)
     scheduler, sched_epochs = get_schedule(optimizer, args)
 
-    train_errors = []
-    val_errors = []
+    val_accuracy = []
     num_updates = 0
     for epoch in range(sched_epochs):
         # Train
@@ -73,7 +72,7 @@ def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], L
                 # Statistic
                 pred = torch.argmax(logits, 1)
                 correct += torch.sum(pred == label).item()
-            val_errors.append(1 - correct / total)
+            val_accuracy.append(correct / total)
         elapsed_valid_time = time.time() - start_time
         logging.info(f'Epoch [{epoch + 1}/{sched_epochs}], train loss: {loss_meter.avg}, test accuracy: {correct / total}, training time: {elapsed_train_time}, validation time: {elapsed_valid_time}')
         if epoch > 0 and args.kas_inference_time_limit and elapsed_train_time > args.kas_inference_time_limit:
@@ -82,9 +81,20 @@ def train(model, train_dataloader, val_dataloader, args) -> Tuple[List[float], L
 
         # Temporary hack
         # TODO: make a pruning file
-        if epoch == 9 and 1 - min(val_errors) < 0.6:
+        if epoch == 9 and max(val_accuracy) < 0.6:
             logging.info(f'Accuracy too low, pruning ...')
             break
 
-    logging.info(f'Training completed, accuracy: {1 - min(val_errors)}')
-    return train_errors, val_errors
+    logging.info(f'Training completed, accuracy: {max(val_accuracy)}')
+    return val_accuracy
+
+
+def train(model, train_dataloader, val_dataloader, args) -> List[float]:
+    if args.kas_ignore_train_errors:
+        try:
+            return train_impl(model, train_dataloader, val_dataloader, args)
+        except Exception as e:
+            logging.error(f'Error occurred during training: {e}')
+            return [-1, ]
+    else:
+        return train_impl(model, train_dataloader, val_dataloader, args)
