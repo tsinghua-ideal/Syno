@@ -10,7 +10,7 @@ from .sche import get_schedule
 from .models import KASModel
 
 
-def train_impl(model, train_dataloader, val_dataloader, args) -> List[float]:
+def train(model, train_dataloader, val_dataloader, args) -> List[float]:
     assert isinstance(model, KASModel)
     torch.backends.cudnn.benchmark = True
     torch.set_float32_matmul_precision('high')
@@ -87,14 +87,3 @@ def train_impl(model, train_dataloader, val_dataloader, args) -> List[float]:
 
     logging.info(f'Training completed, accuracy: {max(val_accuracy)}')
     return val_accuracy
-
-
-def train(model, train_dataloader, val_dataloader, args) -> List[float]:
-    if args.kas_ignore_train_errors:
-        try:
-            return train_impl(model, train_dataloader, val_dataloader, args)
-        except Exception as e:
-            logging.error(f'Error occurred during training: {e}')
-            return [-1, ]
-    else:
-        return train_impl(model, train_dataloader, val_dataloader, args)

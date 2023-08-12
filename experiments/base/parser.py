@@ -49,7 +49,6 @@ def arg_parse():
     parser.add_argument('--decay-milestones', type=int, default=[35, 65], nargs='+', metavar='RATE', help='LR decay milestones')
     
     # KAS preferences
-    parser.add_argument('--kas-ignore-train-errors', default=False, action='store_true')
     parser.add_argument('--kas-replace-placeholder', type=str, default=None)
     parser.add_argument('--kas-depth', default=8,
                         type=int, help='KAS sampler depth')
