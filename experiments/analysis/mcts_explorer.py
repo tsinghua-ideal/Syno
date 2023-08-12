@@ -7,7 +7,7 @@ from base import log, models, parser, parser
 from search import MCTSTree, MCTSExplorer, MCTSAlgorithm
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     log.setup()
 
     # Arguments
@@ -18,17 +18,21 @@ if __name__ == '__main__':
 
     # Explorer
     if args.kas_mcts_explorer_path:
-        with open(args.kas_mcts_explorer_path, 'r') as file:
-            mcts = MCTSTree.deserialize(json.load(file), sampler)
+        with open(args.kas_mcts_explorer_path, "r") as file:
+            mcts = MCTSTree.deserialize(
+                json.load(file), sampler, keep_virtual_loss=True
+            )
     else:
         mcts = MCTSAlgorithm(sampler, args).mcts
     explorer = MCTSExplorer(mcts)
-    
+
     prefix = []
     if args.kas_mcts_explorer_script:
-        assert os.path.exists(args.kas_mcts_explorer_script), f"{args.kas_mcts_explorer_script} is not a file"
+        assert os.path.exists(
+            args.kas_mcts_explorer_script
+        ), f"{args.kas_mcts_explorer_script} is not a file"
         with open(args.kas_mcts_explorer_script) as f:
             for command in f:
-                if not command.startswith('#'):
-                    prefix.append(command.rstrip('\n'))
+                if not command.startswith("#"):
+                    prefix.append(command.rstrip("\n"))
     explorer.interactive(prefix=prefix)

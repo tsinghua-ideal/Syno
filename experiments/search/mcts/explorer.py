@@ -33,9 +33,17 @@ class MCTSExplorer:
             _, child, edge = key
             if edge.N == 0:
                 return 1e9
-            return edge.mean + self._mcts._exploration_weight * math.sqrt(
-                (log_N_vertex / edge.N)
-                * min(0.25, edge.std * edge.std + math.sqrt(2 * log_N_vertex / edge.N))
+            return (
+                edge.mean
+                + self._mcts._exploration_weight
+                * math.sqrt(
+                    (log_N_vertex / edge.N)
+                    * min(
+                        0.25, edge.std * edge.std + math.sqrt(2 * log_N_vertex / edge.N)
+                    )
+                )
+                - self._mcts.virtual_loss_constant
+                * self._mcts.virtual_loss_count[child]
             )
 
         return ucb1_tuned
@@ -84,29 +92,13 @@ class MCTSExplorer:
             children = current_node.get_children(
                 self._mcts._treenode_store, auto_initialize=False, on_tree=self.on_tree
             )
-            log_N_vertex = math.log(current_node.N)
 
-            def ucb1_tuned(key) -> float:
-                """
-                Upper confidence bound.
-                UCB1-tuned.
-                """
-                _, child, edge = key
-                if edge.N == 0:
-                    return 1e9
-                return edge.mean + self._mcts._exploration_weight * math.sqrt(
-                    (log_N_vertex / edge.N)
-                    * min(
-                        0.25, edge.std * edge.std + math.sqrt(2 * log_N_vertex / edge.N)
-                    )
-                )
-
-            ucb_score = [ucb1_tuned(c) for c in children]
+            ucb_score = [self.ucb_score(c) for c in children]
             for (nxt, child_node, edge_state), score in zip(children, ucb_score):
                 if current_node._is_mid:
                     child = Next(current_node._type, nxt)
                     print(
-                        f"\t{child}:\t{current_node._node.get_child_description(child)}, score={score}"
+                        f"\t{child}:\t{current_node._node.get_child_description(child)}, score={score}, virtual_loss={self._mcts.virtual_loss_count[child_node]}"
                     )
                 else:
                     assert isinstance(nxt, Next.Type)
