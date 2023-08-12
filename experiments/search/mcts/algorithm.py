@@ -12,7 +12,7 @@ class MCTSAlgorithm:
     leaf_parallelization_number = 1
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
-    time_limits = [(10, True), (30, False), (120, False)]
+    time_limits = [(3, True), (10, False), (30, False)]
     b = 0.4
     c_l = 40.0
 
@@ -27,10 +27,14 @@ class MCTSAlgorithm:
             time_limits=self.time_limits,
             kas_mcts_workers=args.kas_mcts_workers,
         )
+        self.sampler = sampler
         self.path_to_meta_data = dict()
 
     def serialize(self):
         return self.mcts.serialize()
+
+    def deserialize(self, serialized_dict):
+        self.mcts.deserialize(serialized_dict, self.sampler)
 
     def update(self, path: Path, reward):
         serialized_path = path.serialize()

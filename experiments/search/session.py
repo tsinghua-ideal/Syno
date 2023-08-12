@@ -46,6 +46,9 @@ class Session:
             self.algo, "serialize"
         ), f"Algorithm {algo} does not implement `serialize`"
         assert hasattr(
+            self.algo, "deserialize"
+        ), f"Algorithm {algo} does not implement `deserialize`"
+        assert hasattr(
             self.algo, "update"
         ), f"Algorithm {algo} does not implement `update`"
         assert hasattr(
@@ -80,6 +83,14 @@ class Session:
         with open(os.path.join(self.save_dir, "args.json"), "w") as f:
             json.dump(vars(self.args), f, indent=2)
 
+    def load(self):
+        if not os.path.exists(self.save_dir):
+            return
+
+        # load state
+        state = json.load(open(os.path.join(self.save_dir, "state.json")))
+        self.algo.deserialize(state)
+
     def update(self, path, accuracy, flops, params):
         # No receiving timeout kernels
         if path in self.timeout_samples:
@@ -102,6 +113,8 @@ class Session:
                 if accuracy >= 0
                 else "ERROR"
             )
+            if acc_str == "ERROR":
+                logging.debug(f"{path} encounter error: accuracy {accuracy}")
             hash_str = f"{ctypes.c_size_t(hash(path)).value}"
             kernel_save_dir = os.path.join(self.save_dir, "_".join([acc_str, hash_str]))
             os.makedirs(kernel_save_dir, exist_ok=True)
@@ -139,7 +152,7 @@ class Session:
                 reward = (max(accuracy, self.reward_trunc) - self.reward_trunc) / (
                     1 - self.reward_trunc
                 )
-            reward = reward ** self.reward_power
+            reward = reward**self.reward_power
         else:
             reward = -1
 
@@ -202,6 +215,7 @@ class Session:
         )
         self.timeout_samples = self.timeout_samples | timeout_samples
         for sample in timeout_samples:
-            self.algo.update(sample, -1)
+            path = Path.deserialize(sample)
+            self.algo.update(path, -1)
             self.waiting.remove(sample)
             self.time_buffer.pop(sample)

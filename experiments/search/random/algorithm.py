@@ -10,7 +10,10 @@ class RandomAlgorithm:
         self.sampled_paths = set()
 
     def serialize(self):
-        return {'sampled': list(self.sampled_paths)}
+        return {"sampled": list(self.sampled_paths)}
+
+    def deserialize(self, serialized_dict):
+        self.sampled_paths = set(serialized_dict["sampled"])
 
     def update(self, path, reward):
         pass
@@ -26,7 +29,7 @@ class RandomAlgorithm:
                 if node.is_final():
                     break
             if node is None or not node.is_final():
-                return 'end'
+                return "end"
 
             assert isinstance(node, VisitedNode)
             path = node.path.serialize()
@@ -36,4 +39,4 @@ class RandomAlgorithm:
 
             # To many tries, the search space may be exhausted
             if n_iterations > self.max_iterations:
-                return 'end'
+                return "end"

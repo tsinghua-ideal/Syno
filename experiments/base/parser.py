@@ -183,6 +183,12 @@ def arg_parse():
         "--kas-mock-evaluate", action="store_true", default=False, help="Mock evaluate"
     )
     parser.add_argument(
+        "--kas-resume",
+        action="store_true",
+        default=False,
+        help="Resume previous training",
+    )
+    parser.add_argument(
         "--kas-retry-interval",
         default=10,
         type=float,

@@ -932,7 +932,7 @@ class MCTSTree:
             if rave_score.empty():
                 self.g_rave.pop(k)
 
-        for node, tree_node in self._treenode_store.items():
+        for node, tree_node in list(self._treenode_store.items()):
             tree_node.clear_lrave()
             for child in tree_node.children:
                 child.clear_lrave()

@@ -27,13 +27,22 @@ class BeamAlgorithm:
 
         # Push root
         self.push_heap(self.sampler.root().path)
-        
+
     def serialize(self):
-        return {'heap': self.heap, 'score': self.score, 'cached': self.cached}
-    
+        return {"heap": self.heap, "score": self.score, "cached": self.cached}
+
+    def deserialize(self, serialized_dict):
+        self.heap = serialized_dict["heap"]
+        self.score = serialized_dict["score"]
+        self.cached = serialized_dict["cached"]
+
     def sort_heap(self):
         # With noise
-        self.heap = sorted(self.heap, key=lambda x: self.score[x][0] * (1 - self.noise_weight) + random.random() * self.noise_weight)
+        self.heap = sorted(
+            self.heap,
+            key=lambda x: self.score[x][0] * (1 - self.noise_weight)
+            + random.random() * self.noise_weight,
+        )
 
     def push_heap(self, path: Path):
         if path is None:
@@ -43,13 +52,15 @@ class BeamAlgorithm:
         serialized_path = path.serialize()
         if serialized_path in self.score:
             return
-        
+
         # Not visited
         node = self.sampler.visit(path)
         node.expand_async(self.expand_async_layers)
         num_est = self.max_depth - len(path) + 2
         assert num_est > 0
-        logging.info(f'Pushing path({serialized_path}, depth: {len(path)}, est: {num_est}) to heap with async expand ...')
+        logging.info(
+            f"Pushing path({serialized_path}, depth: {len(path)}, est: {num_est}) to heap with async expand ..."
+        )
         self.score[serialized_path] = (0, num_est)
         self.heap.append(serialized_path)
         self.sort_heap()
@@ -64,7 +75,7 @@ class BeamAlgorithm:
 
         # Update the estimate
         self.cached[path] = reward
-        assert path in self.ancestors, f'Path({path}) not in ancestors'
+        assert path in self.ancestors, f"Path({path}) not in ancestors"
         for ancestor_path in self.ancestors[path]:
             assert ancestor_path in self.score
             max_reward, issued_ests = self.score[ancestor_path]
@@ -86,14 +97,19 @@ class BeamAlgorithm:
         else:
             sample_times = self.score[serialized_path][1] * self.max_final_iterations
             assert sample_times > 0
-            logging.info(f'Getting estimates for path({serialized_path}) with {sample_times} samples ...')
+            logging.info(
+                f"Getting estimates for path({serialized_path}) with {sample_times} samples ..."
+            )
             estimates = self.sampler.random_final_nodes_with_prefix(path, sample_times)
             estimates = list(set([est.path.serialize() for est in estimates]))
             random.shuffle(estimates)
-            estimates = set(estimates[:min(len(estimates), self.score[serialized_path][1])])
-            logging.info(f'Got {len(estimates)} estimates ({sample_times} samples) for path({serialized_path})')
+            estimates = set(
+                estimates[: min(len(estimates), self.score[serialized_path][1])]
+            )
+            logging.info(
+                f"Got {len(estimates)} estimates ({sample_times} samples) for path({serialized_path})"
+            )
         return estimates
-
 
     def sample_non_cached(self):
         while len(self.heap) > 0:
@@ -101,7 +117,7 @@ class BeamAlgorithm:
             for path in reversed(self.heap):
                 if self.score[path][1] > 0:
                     # Get estimates
-                    logging.info(f'Need more to issue: Path({path})')
+                    logging.info(f"Need more to issue: Path({path})")
                     estimates = self.get_all_ests_to_issue(path)
                     self.score[path] = (self.score[path][0], 0)
 
@@ -112,17 +128,17 @@ class BeamAlgorithm:
                         self.ancestors[est].add(path)
                     if len(estimates) == 0:
                         continue
-                    logging.info(f'Got estimates: {estimates}')
+                    logging.info(f"Got estimates: {estimates}")
                     return estimates
-                
+
             # No need to issue, just expand the top
-            logging.info(f'No need to issue, expand the top ...')
+            logging.info(f"No need to issue, expand the top ...")
             path = self.heap.pop(-1)
             node = self.sampler.visit(Path.deserialize(path))
             if node is None or node.is_dead_end():
-                logging.info(f'Top path({path}) is dead end, skipping ...')
+                logging.info(f"Top path({path}) is dead end, skipping ...")
                 continue
-            
+
             for handle in node.get_children_handles():
                 if node.is_dead_end():
                     break
@@ -132,28 +148,28 @@ class BeamAlgorithm:
                     continue
 
                 self.push_heap(child.path)
-        
+
         # Exhausted
         return None
-    
+
     def sample(self):
         while True:
             # Sample
             samples = self.sample_non_cached()
-            
+
             if samples is None:
-                return 'end'
-            
+                return "end"
+
             # Update cached estimates
             to_issue = []
             for sample in samples:
                 if sample in self.cached:
-                    logging.info(f'Cached sample: {sample}')
+                    logging.info(f"Cached sample: {sample}")
                     self.update(sample, self.cached[sample])
                 elif sample not in self.issued:
                     self.issued.add(sample)
                     to_issue.append(sample)
-            
+
             # Return if not empty
             if len(to_issue) > 0:
                 return to_issue
