@@ -14,7 +14,9 @@ from .fc_net import FCNet
 
 
 def get_model_input_size(args):
-    assert hasattr(sys.modules[__name__], args.model), f'Could not find model {args.model}'
+    assert hasattr(
+        sys.modules[__name__], args.model
+    ), f"Could not find model {args.model}"
     model_cls = getattr(sys.modules[__name__], args.model)
     return model_cls.sample_input_shape()
 
@@ -23,62 +25,82 @@ def get_sampler(args, model) -> Sampler:
     # Build sampler
     model_params = model.sampler_parameters()
     params = {
-        'input_shape': model_params['input_shape'],
-        'output_shape': model_params['output_shape'],
-        'primary_specs': model_params['primary_specs'],
-        'coefficient_specs': model_params['coefficient_specs'],
-        'fixed_io_pairs': model_params['fixed_io_pairs'],
-        'seed': random.SystemRandom().randint(0, 0x7fffffff) if args.seed is None else args.seed,
-        'depth': args.kas_depth,
-        'dim_lower': args.kas_min_dim,
-        'dim_upper': args.kas_max_dim,
-        'maximum_tensors': args.kas_max_tensors,
-        'maximum_reductions': args.kas_max_reductions,
-        'max_flops': args.kas_max_flops * args.batch_size,
-        'save_path': args.kas_scheduler_cache_dir,
-        'cuda': True,
-        'autoscheduler': CodeGenOptions.AutoScheduler.Anderson2021,
-        'num_worker_threads': args.kas_sampler_workers,
-        'requires_exact_division': True,
-        'requires_odd_kernel_size_in_unfold': True,
-        'extra_options': {
-            'beam_size': '32',
-            'num_passes': '1',
-            'parallelism': '82',
-            'shared_memory_limit_kb': '48',
-            'shared_memory_sm_limit_kb': '100',
-            'active_block_limit': '512',
-            'active_warp_limit': '1024',
-            'search_space_options': '1000'
-        }
+        "input_shape": model_params["input_shape"],
+        "output_shape": model_params["output_shape"],
+        "primary_specs": model_params["primary_specs"],
+        "coefficient_specs": model_params["coefficient_specs"],
+        "fixed_io_pairs": model_params["fixed_io_pairs"],
+        "seed": random.SystemRandom().randint(0, 0x7FFFFFFF)
+        if args.seed is None
+        else args.seed,
+        "depth": args.kas_depth,
+        "dim_lower": args.kas_min_dim,
+        "dim_upper": args.kas_max_dim,
+        "maximum_tensors": args.kas_max_tensors,
+        "maximum_reductions": args.kas_max_reductions,
+        "max_flops": args.kas_max_flops * args.batch_size,
+        "save_path": args.kas_scheduler_cache_dir,
+        "cuda": True,
+        "autoscheduler": CodeGenOptions.AutoScheduler.Anderson2021,
+        "num_worker_threads": args.kas_sampler_workers,
+        "requires_exact_division": True,
+        "requires_odd_kernel_size_in_unfold": True,
+        "extra_options": {
+            "beam_size": "32",
+            "num_passes": "1",
+            "parallelism": "82",
+            "shared_memory_limit_kb": "48",
+            "shared_memory_sm_limit_kb": "100",
+            "active_block_limit": "512",
+            "active_warp_limit": "1024",
+            "search_space_options": "1000",
+        },
     }
     sampler = Sampler(net=model, **params)
     sampler._bind_debug_context()
     return sampler
 
 
-def get_model(args, return_sampler=False) -> Union[Tuple[KASModel, Optional[Sampler]], KASModel]:
+def get_model(
+    args, return_sampler=False
+) -> Union[Tuple[KASModel, Optional[Sampler]], KASModel]:
     # Create model instance
-    assert hasattr(sys.modules[__name__], args.model), f'Could not find model {args.model}'
+    assert hasattr(
+        sys.modules[__name__], args.model
+    ), f"Could not find model {args.model}"
     model_cls = getattr(sys.modules[__name__], args.model)
     model = model_cls().cuda()
-    flops, params = model.profile()    
-    logging.info(f'Base model {args.model} has {flops / 1e9:.5f}G FLOPs and {params / 1e6:.2f}M parameters')
+    flops, params = model.profile()
+    logging.info(
+        f"Base model {args.model} has {flops / 1e9:.5f}G FLOPs and {params / 1e6:.2f}M parameters"
+    )
 
     # Build mapping for usages
-    sample_input = torch.randn((args.batch_size, *model_cls.sample_input_shape())).cuda()
+    sample_input = torch.randn(
+        (args.batch_size, *model_cls.sample_input_shape())
+    ).cuda()
     build_placeholder_mappings(model, sample_input)
 
     # Build sampler
-    sampler = get_sampler(args, model) if (args.kas_replace_placeholder or return_sampler) else None
+    sampler = (
+        get_sampler(args, model)
+        if (args.kas_replace_placeholder or return_sampler)
+        else None
+    )
 
     # Replace kernel
     if args.kas_replace_placeholder is not None:
-        logging.info(f'Replacing kernel with {args.kas_replace_placeholder} ...')
-        cls_name = args.kas_replace_placeholder.capitalize() + 'Placeholder'
+        logging.info(f"Replacing kernel with {args.kas_replace_placeholder} ...")
+        cls_name = args.kas_replace_placeholder.capitalize() + "Placeholder"
         assembled = getattr(placeholder, cls_name).impl(sampler.create_assembler())
-        logging.debug(f'Assembled path: {assembled.convert_to_path(sampler)}')
-        model.load_kernel(sampler, assembled, args.kas_replace_placeholder, compile=args.compile, batch_size=args.batch_size)
+        logging.debug(f"Assembled path: {assembled.convert_to_path(sampler)}")
+        model.load_kernel(
+            sampler,
+            assembled,
+            args.kas_replace_placeholder,
+            compile=args.compile,
+            batch_size=args.batch_size,
+        )
 
     if return_sampler:
         assert sampler
