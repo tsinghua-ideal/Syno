@@ -1,7 +1,7 @@
 [build-system]
 requires = [
     "setuptools>=42",
-    "scikit_build_core",
+    "scikit_build_core==0.4.7",
     "pybind11",
     "ninja",
 ]

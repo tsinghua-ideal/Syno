@@ -66,3 +66,7 @@ To run `tests/Semantics/test_semantics_*.py`, you need to first run `ctest` to g
 ### When configuring with CMake, CUDA runtime complains "unsupported GNU version! gcc versions later than 11 are not supported!"
 
 Since this project strictly requires full support of C++20, you need to use GCC 12. However, for the time being, nvcc does not support GCC 12. Fortunately, we are not using nvcc to compile the kernels, and we only need to bypass this restriction by modifying `host_config.h` (which is usually located at `/usr/include/crt/host_config.h`) of CUDA runtime, removing the check that prevents us from using GCC 12.
+
+### How to debug
+
+Uncomment the line `set(CMAKE_BUILD_TYPE Debug)` in `CMakeLists.txt`, and rebuild.
