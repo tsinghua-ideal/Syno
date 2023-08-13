@@ -74,13 +74,16 @@ if __name__ == '__main__':
             try:
                 model.load_kernel(sampler, node, compile=args.compile, batch_size=args.batch_size)
                 flops, params = model.profile(args.batch_size)
-                logging.debug(f"Loaded model has {flops} FLOPs per batch and {params} parameters in total. ")
-                
+                logging.debug(f"Loaded model has {flops} FLOPs per batch and {params} parameters in total.")
+
                 logging.info('Evaluating on real dataset ...')
                 accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
             except Exception as e:
+                if not "out of memory" in str(e):
+                    raise e
+                logging.warning(f"OOM when evaluating {path}, skipping ...")
+                model.remove_thop_hooks()
                 flops, params, accuracy = 0, 0, -1
-                logging.error(f'Error occurred during evaluation: {e}')
             client.reward(path, accuracy, flops, params)
     except KeyboardInterrupt:
         logging.info('Interrupted by user, exiting ...')

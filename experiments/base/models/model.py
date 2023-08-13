@@ -1,7 +1,7 @@
 import KAS
 import torch
 import thop
-import logging
+from collections import OrderedDict
 from torch import nn
 from typing import List, Tuple
 from KAS.Placeholder import Placeholder
@@ -35,11 +35,22 @@ class KASModel(nn.Module):
             placeholder.reload(kernel_pack, compile)
             placeholder.refered_layer = None
 
+    def remove_thop_hooks(self):
+        for m in self.modules():
+            if hasattr(m, "_forward_hooks"):
+                m._forward_hooks = OrderedDict()
+            if hasattr(m, "_backward_hooks"):
+                m._backward_hooks = OrderedDict()
+            if hasattr(m, "_buffers"):
+                for key in ["total_ops", "total_params"]:
+                    if key in m._buffers:
+                        m._buffers.pop(key)
+
     def profile(self, batch_size=1, force_update=False) -> Tuple[int, int]:
         if not (self.flops == 0 and self.params == 0) and not force_update:
             return self.flops, self.params
         
-        # Get statistics (count with batch size = 1)    
+        # Get statistics (count with batch size = 1)
         def count_placeholder(m: Placeholder, x, y):
             if m.kernel:
                 m.total_ops += torch.DoubleTensor([m.flops])
