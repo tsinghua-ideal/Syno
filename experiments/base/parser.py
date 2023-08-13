@@ -109,35 +109,6 @@ def arg_parse():
     )
 
     # KAS preferences
-<<<<<<< HEAD
-    parser.add_argument('--kas-replace-placeholder', type=str, default=None)
-    parser.add_argument('--kas-depth', default=8,
-                        type=int, help='KAS sampler depth')
-    parser.add_argument('--kas-max-tensors', default=3,
-                        type=int, help='KAS sampler maximum tensors')
-    parser.add_argument('--kas-max-reductions', default=4,
-                        type=int, help='KAS sampler maximum reductions')
-    parser.add_argument('--kas-min-dim', default=1,
-                        type=int, help='KAS sampler minimum dimensions')
-    parser.add_argument('--kas-max-dim', default=12,
-                        type=int, help='KAS sampler maximum dimensions')
-    parser.add_argument('--kas-scheduler-cache-dir', default='.scheduler-cache',
-                        help='KAS sampler saving directory')
-    parser.add_argument('--kas-server-save-interval', default=600, type=int, help='KAS server saving interval (in seconds)')
-    parser.add_argument('--kas-server-save-dir', default=None, type=str, help='KAS server saving directory')
-    parser.add_argument('--kas-max-flops', default=1e15, type=float,
-                        help='Maximum FLOPs for searched kernels (only for search)')
-    parser.add_argument('--kas-min-accuracy', default=0, type=float,
-                        help='Minimum accuracy for network')
-    parser.add_argument('--kas-target', default='accuracy', type=str,
-                        help='Target metric of KAS')
-    parser.add_argument('--kas-flops-trunc', default=1e15, type=float,
-                        help='Maximum FLOPs to be counted as reward. ')
-    parser.add_argument('--kas-reward-trunc', default=0, type=float, help='Reward lower bound')
-    parser.add_argument('--kas-reward-power', default=2, type=float, help='Reward power')
-    
-=======
-    parser.add_argument("--kas-ignore-train-errors", default=False, action="store_true")
     parser.add_argument("--kas-replace-placeholder", type=str, default=None)
     parser.add_argument("--kas-depth", default=8, type=int, help="KAS sampler depth")
     parser.add_argument(
@@ -197,7 +168,6 @@ def arg_parse():
         "--kas-reward-power", default=2, type=float, help="Reward power"
     )
 
->>>>>>> 586a2244696708232273ee8d7651e4c3132f5fcc
     # Search preferences
     parser.add_argument(
         "--kas-search-algo", default="MCTS", type=str, help="Search algorithm"
