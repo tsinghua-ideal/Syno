@@ -139,7 +139,7 @@ class Session:
                 reward = (max(accuracy, self.reward_trunc) - self.reward_trunc) / (
                     1 - self.reward_trunc
                 )
-            reward = reward**self.reward_power
+            reward = reward ** self.reward_power
         else:
             reward = -1
 
