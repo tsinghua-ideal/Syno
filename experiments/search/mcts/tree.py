@@ -132,6 +132,9 @@ class MCTSTree:
         assert delta > 0
         tree_node = self.tree_root
         self.virtual_loss_count[tree_node] -= delta
+        if self.virtual_loss_count[tree_node] < 0:
+            self.virtual_loss_count[tree_node] = 0
+            logging.debug("Error: Virtual loss go below 0! ")
         for next in path:
             tree_node = tree_node.get_child(
                 next.type, self._treenode_store, on_tree=True
@@ -141,10 +144,9 @@ class MCTSTree:
                 break
             tree_node, _ = tree_node
             self.virtual_loss_count[tree_node] -= delta
-            assert self.virtual_loss_count[tree_node] >= 0, (
-                self.virtual_loss_count[tree_node],
-                tree_node,
-            )
+            if self.virtual_loss_count[tree_node] < 0:
+                self.virtual_loss_count[tree_node] = 0
+                logging.debug("Error: Virtual loss go below 0! ")
             if next.key == 0:
                 break
             tree_node = tree_node.get_child(
@@ -155,10 +157,9 @@ class MCTSTree:
                 break
             tree_node, _ = tree_node
             self.virtual_loss_count[tree_node] -= delta
-            assert self.virtual_loss_count[tree_node] >= 0, (
-                self.virtual_loss_count[tree_node],
-                tree_node,
-            )
+            if self.virtual_loss_count[tree_node] < 0:
+                self.virtual_loss_count[tree_node] = 0
+                logging.debug("Error: Virtual loss go below 0! ")
 
     def visit(self, path: TreePath) -> Optional[TreeNode]:
         tree_node = self.tree_root
@@ -666,6 +667,7 @@ class MCTSTree:
         "Remove the receipt and set this trial to be dead."
         assert isinstance(trial, TreeNode), type(trial)
         assert trial.is_final(), "The removed trial should be a final node!"
+        logging.debug("Removing start")
 
         path = receipt
         self._decrement_virtual_loss(path)

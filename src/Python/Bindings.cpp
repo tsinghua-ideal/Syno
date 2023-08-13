@@ -142,6 +142,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
     pybind11::class_<Next> next(m, "Next");
     pybind11::enum_<Next::Type>(next, "Type")
         .value("MapReduce", Next::Type::MapReduce)
+        .value("Expand", Next::Type::Expand)
         .value("Shift", Next::Type::Shift)
         .value("Stride", Next::Type::Stride)
         .value("Split", Next::Type::Split)

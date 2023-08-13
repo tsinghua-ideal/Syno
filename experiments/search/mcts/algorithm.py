@@ -10,7 +10,7 @@ class MCTSAlgorithm:
     # TODO: may move to program arguments
     virtual_loss_constant = 0.3
     leaf_parallelization_number = 1
-    exploration_weight = 4 * math.sqrt(2)
+    exploration_weight = 2 * math.sqrt(2)
     max_iterations = 3000
     time_limits = [(3, True), (10, False), (30, False)]
     b = 0.4

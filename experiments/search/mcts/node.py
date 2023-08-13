@@ -22,6 +22,7 @@ dimensions_type = [
     "Unfold",
     "Merge",
     "Share",
+    "Finalize",
 ]
 
 
