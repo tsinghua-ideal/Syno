@@ -61,6 +61,7 @@ class MCTSExplorer:
                 print(f"\t\t filtered: {current_node.filtered}")
             print(f"\t is_dead_end: {current_node._is_dead}")
             print(f"\t is_exhausted: {current_node._exhausted}")
+            print(f"\t is_in_tree: {current_node._isin_tree}")
             print(f"\t states:")
             print(f"\t\t N={current_node.state.N}")
             print(f"\t\t mean={current_node.state.mean}")
@@ -74,7 +75,7 @@ class MCTSExplorer:
                 self._mcts._treenode_store, auto_initialize=True, on_tree=self.on_tree
             )
             for nxt, child_node, edge_state in children:
-                if self.show_zero and edge_state.N == 0:
+                if not self.show_zero and edge_state.N == 0:
                     continue
                 if current_node._is_mid:
                     child = Next(current_node._type, nxt)
@@ -236,6 +237,18 @@ class MCTSExplorer:
                 print(
                     f"The best child is {nxt}:\t{child_node.children_count(self._mcts._treenode_store, on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std}), score={self.ucb_score(best_children)}"
                 )
+        elif command == "flush":
+            print(
+                f"fully_in_tree={current_node.is_fully_in_tree(self._mcts._treenode_store)}"
+            )
+            print(f"Flushing with N={current_node.N}, b={self._mcts._b}")
+            current_node.flush_T(
+                current_node.N,
+                self._mcts._treenode_store,
+                self._mcts.g_rave,
+                self._mcts._c_l,
+                self._mcts._b,
+            )
         elif command in ["b", "back"]:
             # go back to parent node
             if len(self.node_hierarchy) == 1:

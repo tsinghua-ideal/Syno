@@ -285,6 +285,7 @@ class TreeNode:
             reveal_new_children -> get_unrevealed_children -> get_children -> get_child -> is_dead_end -> is_final
         """
         Tp = math.floor(T**b)
+        # print(f"Got Tp={Tp}, child_count={self.children_count(factory, on_tree=True, filter_exhausted=filter_exhausted)}, i {'am' if self.is_fully_in_tree(factory) else 'am not'} fully in tree")
         while Tp > self.children_count(
             factory, on_tree=True, filter_exhausted=filter_exhausted
         ):
@@ -318,28 +319,22 @@ class TreeNode:
                 if on_tree and child in factory and not factory[child]._isin_tree:
                     continue
                 if filter_exhausted:
-                    if child not in factory or not factory[child].is_exhausted(factory):
+                    if child in factory and not factory[child].is_exhausted(factory):
                         count += 1
                 else:
-                    if child not in factory or not factory[child].is_dead_end(factory):
+                    if child in factory and not factory[child].is_dead_end(factory):
                         count += 1
             return count
         else:
             if filter_exhausted:
                 return len(self.children) - sum(
-                    [
-                        child.is_exhausted(factory)
-                        or (on_tree and not child._isin_tree)
-                        for child in self.children
-                    ]
+                    (child.is_exhausted(factory) or (on_tree and not child._isin_tree))
+                    for child in self.children
                 )
             else:
-                return sum(
-                    [
-                        not child.is_dead_end(factory)
-                        and not (on_tree and not child._isin_tree)
-                        for child in self.children
-                    ]
+                return len(self.children) - sum(
+                    (child.is_dead_end(factory) or (on_tree and not child._isin_tree))
+                    for child in self.children
                 )
 
     def reveal_new_children(

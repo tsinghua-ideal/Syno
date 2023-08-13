@@ -9,8 +9,8 @@ from KAS import CodeGenOptions, Sampler, Placeholder
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
-from mcts.tree import MCTSTree
-from mcts.explorer import MCTSExplorer
+from search.mcts.tree import MCTSTree
+from search.mcts.explorer import MCTSExplorer
 
 
 class Model(nn.Module):

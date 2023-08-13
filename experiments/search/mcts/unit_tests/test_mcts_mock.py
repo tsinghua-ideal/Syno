@@ -8,7 +8,7 @@ from kas_cpp_bindings import Next
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
-from mcts.tree import MCTSTree
+from search.mcts.tree import MCTSTree
 
 
 def test_remove():
@@ -110,6 +110,31 @@ def test_exhausted():
 
     assert mcts.do_rollout() is None
     print("[PASSED] test_exhausted")
+
+
+def test_reveal(length=10):
+    vertices = [
+        "root",
+        *[{"name": f"final{i+1}", "is_final": True} for i in range(length)],
+    ]
+    edges = [("root", [(f"Finalize({i+1})", f"final{i+1}") for i in range(length)])]
+    sampler = MockSampler(vertices, edges)
+    mcts = MCTSTree(sampler, virtual_loss_constant=1)
+    root = mcts.tree_root.get_children(mcts._treenode_store, auto_initialize=True)[0][1]
+    root.get_children(mcts._treenode_store, auto_initialize=True)
+    assert root.children_count(mcts._treenode_store, True) == 0, root.children_count(
+        mcts._treenode_store, True
+    )
+    assert (
+        root.children_count(mcts._treenode_store, False) == length
+    ), root.children_count(mcts._treenode_store, False)
+
+    for iter in range(length):
+        root.reveal_new_children(mcts._treenode_store, mcts.g_rave, mcts._c_l)
+        assert (
+            root.children_count(mcts._treenode_store, True) == iter + 1
+        ), f"children_count={root.children_count(mcts._treenode_store, True)}"
+    print("[PASSED] test_reveal")
 
 
 def test_mcts():
@@ -416,6 +441,7 @@ if __name__ == "__main__":
     test_remove()
     test_virtual_loss()
     test_exhausted()
+    test_reveal()
     test_mcts()
     test_grave()
     test_lrave()

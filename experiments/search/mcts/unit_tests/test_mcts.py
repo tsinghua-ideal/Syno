@@ -9,7 +9,7 @@ from KAS import CodeGenOptions, Sampler, Placeholder
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
-from mcts.tree import MCTSTree
+from search.mcts.tree import MCTSTree
 
 
 class Model(nn.Module):
@@ -43,7 +43,7 @@ def test_mcts():
         mcts.back_propagate(receipt, 0.5, node[0])
 
     receipts = []
-    for idx in range(3):
+    for idx in range(30):
         receipt, trials = mcts.do_rollout()
         path = receipt
         node = trials[0]
