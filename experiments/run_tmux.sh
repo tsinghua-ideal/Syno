@@ -2,6 +2,10 @@
 
 # Usage: ./run_tmux.sh $(NUM_GPUS) $(ENV_NAME) $(ARGS)
 
+# Delete cache
+echo 'Deleting cache...'
+rm -rf .scheduler-cache
+
 # Check power.
 if ! (( $1 > 0 && ($1 & ($1 - 1)) == 0 )); then
   echo 'Process number should be a power of 2'
