@@ -144,7 +144,7 @@ class MCTSExplorer:
                     lambda x: (ty is None or x[0]._type == ty),
                     list(current_node.l_rave.items()),
                 ),
-                key=lambda x: x[1].N,
+                key=lambda x: x[1].mean,
                 reverse=True,
             )
             sorted_lrave_hasvalue = [lrave for lrave in sorted_lrave if lrave[1].N > 0]

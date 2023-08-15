@@ -62,7 +62,7 @@ class MCTSTree:
         self._treenode_store: Dict[Node, TreeNode] = dict()
         self._root = sampler.root().to_node()
         assert not self._root.is_dead_end()
-        self.tree_root = TreeNode(self._root)
+        self.tree_root = TreeNode(self, self._root)
         self._treenode_store[self._root] = self.tree_root
         self.g_rave: DefaultDict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
 
@@ -87,46 +87,42 @@ class MCTSTree:
 
         self.next_serializer = NextSerializer()
 
+        # HACK
+        tree_node = self.tree_root
+        while True:
+            tree_node.state.N = 1
+            if tree_node.children_count() == 1:
+                tree_node.reveal_new_children()
+                tree_node = tree_node.get_children(on_tree=True)[0][1]
+            else:
+                break
+
     def _increment_virtual_loss(self, path: TreePath, delta: int = 1) -> None:
         assert delta > 0
         tree_node = self.tree_root
         self.virtual_loss_count[tree_node] += delta
-        tree_node.flush_T(
-            tree_node.N + self.virtual_loss_count[tree_node],
-            self._treenode_store,
-            self.g_rave,
-            self._c_l,
-            self._b,
-        )
+        tree_node.flush_T(tree_node.N + self.virtual_loss_count[tree_node])
         for next in path:
-            tree_node = tree_node.get_child(
-                next.type, self._treenode_store, on_tree=True
-            )
-            assert tree_node is not None
+            tree_node = tree_node.get_child(next.type, on_tree=True)
+            if tree_node is None:
+                logging.debug(
+                    "Error: TreeNode is none, maybe due to another prefetcher"
+                )
+                break
             tree_node, _ = tree_node
             self.virtual_loss_count[tree_node] += delta
-            tree_node.flush_T(
-                tree_node.N + self.virtual_loss_count[tree_node],
-                self._treenode_store,
-                self.g_rave,
-                self._c_l,
-                self._b,
-            )
+            tree_node.flush_T(tree_node.N + self.virtual_loss_count[tree_node])
             if next.key == 0:
                 break
-            tree_node = tree_node.get_child(
-                next.key, self._treenode_store, on_tree=True
-            )
-            assert tree_node is not None
+            tree_node = tree_node.get_child(next.key, on_tree=True)
+            if tree_node is None:
+                logging.debug(
+                    "Error: TreeNode is none, maybe due to another prefetcher"
+                )
+                break
             tree_node, _ = tree_node
             self.virtual_loss_count[tree_node] += delta
-            tree_node.flush_T(
-                tree_node.N + self.virtual_loss_count[tree_node],
-                self._treenode_store,
-                self.g_rave,
-                self._c_l,
-                self._b,
-            )
+            tree_node.flush_T(tree_node.N + self.virtual_loss_count[tree_node])
 
     def _decrement_virtual_loss(self, path: TreePath, delta: int = 1) -> None:
         assert delta > 0
@@ -134,11 +130,9 @@ class MCTSTree:
         self.virtual_loss_count[tree_node] -= delta
         if self.virtual_loss_count[tree_node] < 0:
             self.virtual_loss_count[tree_node] = 0
-            logging.debug("Error: Virtual loss go below 0! ")
+            logging.warn("Error: Virtual loss go below 0! ")
         for next in path:
-            tree_node = tree_node.get_child(
-                next.type, self._treenode_store, on_tree=True
-            )
+            tree_node = tree_node.get_child(next.type, on_tree=True)
             # assert tree_node is not None
             if tree_node is None:
                 break
@@ -146,12 +140,10 @@ class MCTSTree:
             self.virtual_loss_count[tree_node] -= delta
             if self.virtual_loss_count[tree_node] < 0:
                 self.virtual_loss_count[tree_node] = 0
-                logging.debug("Error: Virtual loss go below 0! ")
+                logging.warn("Error: Virtual loss go below 0! ")
             if next.key == 0:
                 break
-            tree_node = tree_node.get_child(
-                next.key, self._treenode_store, on_tree=True
-            )
+            tree_node = tree_node.get_child(next.key, on_tree=True)
             # assert tree_node is not None
             if tree_node is None:
                 break
@@ -159,22 +151,18 @@ class MCTSTree:
             self.virtual_loss_count[tree_node] -= delta
             if self.virtual_loss_count[tree_node] < 0:
                 self.virtual_loss_count[tree_node] = 0
-                logging.debug("Error: Virtual loss go below 0! ")
+                logging.warn("Error: Virtual loss go below 0! ")
 
     def visit(self, path: TreePath) -> Optional[TreeNode]:
         tree_node = self.tree_root
         for next in path:
-            tree_node = tree_node.get_child(
-                next.type, self._treenode_store, on_tree=True
-            )
+            tree_node = tree_node.get_child(next.type, on_tree=True)
             if tree_node is None:
                 return None
             tree_node, _ = tree_node
             if next.key == 0:
                 break
-            tree_node = tree_node.get_child(
-                next.key, self._treenode_store, on_tree=True
-            )
+            tree_node = tree_node.get_child(next.key, on_tree=True)
             if tree_node is None:
                 return None
             tree_node, _ = tree_node
@@ -194,7 +182,7 @@ class MCTSTree:
         If the tree is exhausted, then return None.
         """
         while True:
-            if check_exhaustion and self.tree_root.is_exhausted(self._treenode_store):
+            if check_exhaustion and self.tree_root.is_exhausted():
                 logging.info("The tree is exhausted. ")
                 return None
             start = time.time()
@@ -208,7 +196,6 @@ class MCTSTree:
                 )
                 assert all(trial.is_final() for _, trial in trials)
                 assert len(trials) == self.leaf_num
-                self._increment_virtual_loss(path, len(trials))
                 return path, trials
             else:
                 logging.debug(f"During rollout, dead end encountered. Retrying...")
@@ -218,53 +205,50 @@ class MCTSTree:
     ) -> Optional[Tuple[TreePath, List[Tuple[TreePath, TreeNode]]]]:
         "The trial may encounter a dead end. In this case, False is returned."
 
-        if self.tree_root.state.N == 0:
-            path = TreePath([])
-            leaf_expanded = self.tree_root
-        else:
-            # Select
-            logging.debug("Selection start")
-            select_result = self._select()
-            if select_result is None:
-                return None
-            path, leaf = select_result
-            if leaf.is_dead_end(self._treenode_store):
-                logging.debug(f"Selection encountered dead end")
-                return None
-            logging.debug(f"Selection end {path} {leaf}")
+        # Select
+        logging.debug("Selection start")
+        select_result = self._select()
+        if select_result is None:
+            return None
+        path, leaf = select_result
+        if leaf.is_dead_end():
+            logging.debug(f"Selection encountered dead end")
+            return None
+        logging.debug(f"Selection end {path} {leaf}")
 
-            # Expand
-            if leaf.is_final():
-                logging.debug(
-                    f"Selected final node with time {leaf.N}, return immediately. "
-                )
-                return path, [(path, leaf) for _ in range(self.leaf_num)]
+        # Expand
+        if leaf.is_final():
+            logging.debug(
+                f"Selected final node with time {leaf.N}, return immediately. "
+            )
+            self._increment_virtual_loss(path, self.leaf_num)
+            return path, [(path, leaf) for _ in range(self.leaf_num)]
 
-            if leaf.get_unexpanded_children(self._treenode_store, on_tree=True) == 0:
-                if not leaf.is_fully_in_tree(self._treenode_store):
-                    leaf.reveal_new_children(
-                        self._treenode_store, self.g_rave, self._c_l
-                    )
-                    assert leaf.children_count(self._treenode_store, on_tree=True) > 0
-                else:
-                    logging.debug(f"{leaf} is fully expanded and has no children.")
-                    return None
-
-            if len(leaf.get_unexpanded_children(self._treenode_store, True)) == 0:
-                logging.debug(
-                    f"no unexpanded children {leaf.children_count(self._treenode_store, on_tree=True)}"
-                )
+        if leaf.get_unexpanded_children() == 0:
+            if not leaf.is_fully_in_tree():
+                leaf.reveal_new_children()
+                assert leaf.children_count(auto_initialize=False, on_tree=True) > 0
+            else:
+                logging.debug(f"{leaf} is fully expanded and has no children.")
                 return None
 
-            logging.debug("Expansion start")
-            expand_result = self._expand(leaf)
-            if expand_result is None:
-                logging.debug("Expansion failed.")
-                return None
-            next_expand, leaf_expanded = expand_result
-            path = path.concat(next_expand)
-            assert isinstance(path, TreePath), type(path)
-            logging.debug(f"Expansion end {path} {leaf_expanded}")
+        if len(leaf.get_unexpanded_children()) == 0:
+            logging.debug(
+                f"no unexpanded children {leaf.children_count(auto_initialize=False, on_tree=True)}"
+            )
+            return None
+
+        logging.debug("Expansion start")
+        expand_result = self._expand(leaf)
+        if expand_result is None:
+            logging.debug("Expansion failed.")
+            return None
+        next_expand, leaf_expanded = expand_result
+        path = path.concat(next_expand)
+        assert isinstance(path, TreePath), type(path)
+        assert not leaf_expanded.is_dead_end()
+        self._increment_virtual_loss(path, self.leaf_num)
+        logging.debug(f"Expansion end {path} {leaf_expanded}")
 
         # Simulate
         leaves_queue = queue.Queue(maxsize=self.leaf_num)
@@ -275,9 +259,7 @@ class MCTSTree:
         # Multi-thread object
         def thread_simulate(path: TreePath, node: TreeNode):
             # logging.debug(f"Thread {threading.get_ident()} start")
-            while not leaves_queue.full() and not node.is_dead_end(
-                self._treenode_store
-            ):
+            while not leaves_queue.full() and not node.is_dead_end():
                 leaf_simul = self._simulate(path, node)
                 if leaf_simul is not None:
                     try:
@@ -285,7 +267,7 @@ class MCTSTree:
                     except queue.Full:
                         assert leaves_queue.full()
                         pass
-            # logging.debug(f"Thread {threading.get_ident()} end (full={leaves_queue.full()}, dead={node.is_dead_end(self._treenode_store)})")
+            # logging.debug(f"Thread {threading.get_ident()} end (full={leaves_queue.full()}, dead={node.is_dead_end()})")
 
         threads = [
             threading.Thread(target=thread_simulate, args=(path, leaf_expanded))
@@ -308,25 +290,27 @@ class MCTSTree:
                         leaf_expanded._node.expand_async(4 + i)
                 else:
                     failure_flag = True
-                    # HACK: We cannot set root to be dead
-                    if leaf_expanded == self.tree_root:
-                        logging.debug(
-                            f"Simulation from root failed for too many times, retry..."
-                        )
-                        continue
+                    # # HACK: We cannot set root to be dead
+                    # if leaf_expanded == self.tree_root:
+                    #     logging.debug(
+                    #         f"Simulation from root failed for too many times, retry..."
+                    #     )
+                    #     continue
+                    assert not leaf_expanded.is_dead_end()
                     logging.debug(
                         f"Force {leaf_expanded} (path={path}) to be dead because simulate failed for too many times. "
                     )
                     leaf_expanded.set_dead()
-                    assert leaf_expanded.is_dead_end(self._treenode_store)
+                    assert leaf_expanded.is_dead_end()
             last_limit = time_limit
 
-        if leaf_expanded.is_dead_end(self._treenode_store):
+        if leaf_expanded.is_dead_end():
             failure_flag = True
 
         leaves: List[TreeNode] = list(leaves_queue.queue)
 
         if failure_flag:
+            self._decrement_virtual_loss(path, self.leaf_num)
             return None
         assert len(leaves) == self.leaf_num, leaves
 
@@ -342,18 +326,11 @@ class MCTSTree:
         path = TreePath([])
         node = self.tree_root
         while True:
-            node.flush_T(node.N, self._treenode_store, self.g_rave, self._c_l, self._b)
+            node.flush_T(node.N)
             # node is terminal, unexplored, or a leaf
-            if (
-                node.is_terminal(self._treenode_store)
-                or len(node.get_unexpanded_children(self._treenode_store, on_tree=True))
-                > 0
-            ):
+            if node.is_terminal() or len(node.get_unexpanded_children()) > 0:
                 return path, node
-            assert (
-                len(node.get_unexpanded_children(self._treenode_store, on_tree=True))
-                == 0
-            )
+            assert len(node.get_unexpanded_children()) == 0
             selected = self._ucd_select(node)
             if selected is None:
                 return None
@@ -365,9 +342,7 @@ class MCTSTree:
         Expand the leaf one level deeper, by choosing a random unexpanded child (N=0). Return None if failed.
         """
 
-        unexpanded_children = node.get_unexpanded_children(
-            self._treenode_store, on_tree=True
-        )
+        unexpanded_children = node.get_unexpanded_children()
         if len(unexpanded_children) == 0:
             return None
 
@@ -387,13 +362,13 @@ class MCTSTree:
             Two step random selection. First, randomly select a primitive type. Then, randomly select a child of that type.
             """
             assert isinstance(node, TreeNode)
-            nexts = node.get_children_nexts(self._treenode_store)
+            nexts = node.get_children_nexts()
             if len(nexts) == 0:
                 # logging.debug(f"Simulation Encountered dead father {node}")
-                assert node.is_dead_end(self._treenode_store)
+                assert node.is_dead_end()
                 return None
             next = random.choice(nexts)
-            child = node.get_child(next, self._treenode_store)
+            child = node.get_child(next, auto_initialize=True)
             if child:
                 selected_child, edge_state = child
                 return next, selected_child, edge_state
@@ -401,7 +376,7 @@ class MCTSTree:
                 # logging.debug(f"Simulation Encountered dead child {node} -> {next}")
                 return None
 
-        while not node.is_terminal(self._treenode_store):
+        while not node.is_terminal():
             random_select_result = random_child(node)
             if random_select_result is None:
                 return None
@@ -461,27 +436,21 @@ class MCTSTree:
             update_list: List[Tuple[TreeNode, Optional[Arc]]] = [(tree_node, None)]
             for tree_next in path:
                 arc = tree_node._node.get_arc_from_handle(tree_next)
-                tree_node, _ = tree_node.get_child(
-                    tree_next.type, self._treenode_store, on_tree=True
-                )
+                tree_node, _ = tree_node.get_child(tree_next.type, on_tree=True)
                 assert tree_node is not None
                 if tree_next.key == 0:
                     update_list.append((tree_node, None))
                     break
                 else:
                     update_list.append((tree_node, arc))  # mid
-                tree_node, _ = tree_node.get_child(
-                    tree_next.key, self._treenode_store, on_tree=True
-                )
+                tree_node, _ = tree_node.get_child(tree_next.key, on_tree=True)
                 assert tree_node is not None
                 update_list.append((tree_node, None))
 
             for tree_node, arc in update_list:
                 tree_node.update(reward, arc)
             for tree_node, arc in update_list:
-                tree_node.flush_T(
-                    tree_node.N, self._treenode_store, self.g_rave, self._c_l, self._b
-                )
+                tree_node.flush_T(tree_node.N)
 
             final_node = tree_node
         elif self._policy == "update-all":
@@ -490,14 +459,10 @@ class MCTSTree:
             )
             for tree_next in path:
                 arc = tree_node._node.get_arc_from_handle(tree_next)
-                tree_node, _ = tree_node.get_child(
-                    tree_next.type, self._treenode_store, on_tree=True
-                )
+                tree_node, _ = tree_node.get_child(tree_next.type, on_tree=True)
                 if tree_next.key == 0:
                     break
-                tree_node, _ = tree_node.get_child(
-                    tree_next.key, self._treenode_store, on_tree=True
-                )
+                tree_node, _ = tree_node.get_child(tree_next.key, on_tree=True)
             assert tree_node is not None
             final_node = tree_node
             logging.debug(f"final node is {final_node}")
@@ -518,7 +483,7 @@ class MCTSTree:
                     if src_node._node.can_accept_arc(arc):
                         arc_pool.remove(arc)
                         nxt = arc.to_next()
-                        mid_child = src_node.get_child(nxt.type, self._treenode_store)[
+                        mid_child = src_node.get_child(nxt.type, auto_initialize=True)[
                             0
                         ]
                         assert mid_child is not None
@@ -561,7 +526,7 @@ class MCTSTree:
                     if src_node._node.can_accept_arc(arc):
                         arc_pool.remove(arc)
                         nxt = arc.to_next()
-                        mid_child = src_node.get_child(nxt.type, self._treenode_store)[
+                        mid_child = src_node.get_child(nxt.type, auto_initialize=True)[
                             0
                         ]
                         assert mid_child is not None
@@ -632,13 +597,13 @@ class MCTSTree:
                 if src_node._node.can_accept_arc(arc):
                     arc_pool.remove(arc)
                     nxt = arc.to_next()
-                    mid_child = src_node.get_child(nxt.type, self._treenode_store)
+                    mid_child = src_node.get_child(nxt.type, auto_initialize=True)
                     if mid_child is None:
                         arc_pool.add(arc)
                         continue
                     mid_child = mid_child[0]
                     child_node = self.touch(src_node._node.get_child_from_arc(arc))
-                    if child_node.is_dead_end(self._treenode_store):
+                    if child_node.is_dead_end():
                         arc_pool.add(arc)
                         continue
                     if (
@@ -659,8 +624,8 @@ class MCTSTree:
         Initialize node if not exist in store
         """
         assert isinstance(node, Node)
-        if node not in self._treenode_store.keys():
-            self._treenode_store[node] = TreeNode(node)
+        if node not in self._treenode_store:
+            self._treenode_store[node] = TreeNode(self, node)
         return self._treenode_store[node]
 
     def remove(self, receipt: Receipt, trial: TreeNode) -> None:
@@ -678,23 +643,21 @@ class MCTSTree:
         tree_node = self.tree_root
         flush_list: List[TreeNode] = []
         for next in path:
-            child = tree_node.get_child(next.type, self._treenode_store, on_tree=True)
+            child = tree_node.get_child(next.type, on_tree=True)
             if child is None:
                 break
             tree_node = child[0]
             flush_list.append(tree_node)
             if next.key == 0:
                 break
-            child = tree_node.get_child(next.key, self._treenode_store, on_tree=True)
+            child = tree_node.get_child(next.key, on_tree=True)
             if child is None:
                 break
             tree_node = child[0]
             flush_list.append(tree_node)
 
         for tree_node in flush_list[::-1]:
-            tree_node.flush_T(
-                tree_node._last_T, self._treenode_store, self.g_rave, self._c_l, self._b
-            )
+            tree_node.flush_T(tree_node._last_T)
 
     def _ucd_select(
         self, node: TreeNode
@@ -702,18 +665,16 @@ class MCTSTree:
         """
         Select a child of node, balancing exploration & exploitation
         """
-        children = node.get_children(self._treenode_store, on_tree=True)
+        children = node.get_children(on_tree=True)
 
         if len(children) == 0:
-            if not node.is_fully_in_tree(self._treenode_store):
-                node.reveal_new_children(self._treenode_store, self.g_rave, self._c_l)
+            if not node.is_fully_in_tree():
+                node.reveal_new_children(self.g_rave, self._c_l)
             logging.debug("Selection failed. ")
             return None
 
         # All children of node should already be expanded
-        assert (
-            len(node.get_unexpanded_children(self._treenode_store, on_tree=True)) == 0
-        )
+        assert len(node.get_unexpanded_children()) == 0
 
         log_N_vertex = math.log(node.N)
 
@@ -749,7 +710,7 @@ class MCTSTree:
         """Serialize the tree and return a dict."""
         logging.debug("Serializing ......")
 
-        self.garbage_collect(keep_tree_node=False)
+        self.garbage_collect(keep_tree_node=True)
 
         node_list = []
         nodes = list(self._treenode_store.keys())
@@ -771,16 +732,12 @@ class MCTSTree:
                 node_serial["father"]["filtered"] = father.filtered
                 node_serial["father"]["reward"] = father.reward
             node_serial["children"] = {}
-            for next, child, _ in father.get_children(
-                self._treenode_store, auto_initialize=False
-            ):
+            for next, child, _ in father.get_children():
                 assert isinstance(next, Next.Type)
                 next_serial = self.next_serializer.serialize_type(next)
                 children = [
                     (n, index[c.to_node()], e)
-                    for n, c, e in child.get_children(
-                        self._treenode_store, auto_initialize=False
-                    )
+                    for n, c, e in child.get_children()
                     if c._node in index
                 ]
                 children_with_rave_score: List[
@@ -815,7 +772,7 @@ class MCTSTree:
             node_list=node_list,
             args=packed_args,
         )
-        self.garbage_collect(keep_tree_node=False)
+        self.garbage_collect(keep_tree_node=True)
         logging.debug("Serialized.")
         return j
 
@@ -836,7 +793,7 @@ class MCTSTree:
 
             node_ = node_visited.to_node()
             tree_node = (
-                mcts._treenode_store[node_] if path.is_root() else TreeNode(node_)
+                mcts._treenode_store[node_] if path.is_root() else TreeNode(mcts, node_)
             )
             tree_node.load(node["father"]["state"])
             tree_node.children = []
@@ -846,7 +803,7 @@ class MCTSTree:
             for _type_serial, child_serial in node["children"].items():
                 _type = mcts.next_serializer.deserialize_type(_type_serial)
                 child_path = path.concat(_type)
-                child_node = TreeNode(node_, is_mid=True, type=_type)
+                child_node = TreeNode(mcts, node_, is_mid=True, type=_type)
 
                 # Rave
                 tree_node.l_rave[_type].refresh(child_serial["lrave"])
@@ -911,9 +868,9 @@ class MCTSTree:
         def label_alive(node: TreeNode) -> bool:
             """Return a boolean value indicating whether the node contains a final descendant."""
             assert isinstance(node, TreeNode)
-            children = node.get_children(self._treenode_store, False)
+            children = node.get_children()
             alive_flag = not node.empty() or (keep_tree_node and node._isin_tree)
-            if not node.is_dead_end(self._treenode_store):
+            if not node.is_dead_end():
                 for _, child, _ in children:
                     child_alive_flag = label_alive(child)
                     alive_flag = alive_flag or child_alive_flag

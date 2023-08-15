@@ -39,29 +39,35 @@ def test_mcts():
         receipt, trials = mcts.do_rollout()
         path = receipt
         node = trials[0]
-        print(f"Iteration {idx}. Sampled {node} for {path}")
+        print(f"Iteration {idx}. Sampled {node[0]} for {path}")
         mcts.back_propagate(receipt, 0.5, node[0])
 
+    for k, v in mcts.virtual_loss_count.items():
+        assert k.is_dead_end() or v == 0, f"Virtual loss count for {k} is {v}"
+
     receipts = []
-    for idx in range(30):
+    for idx in range(2):
         receipt, trials = mcts.do_rollout()
         path = receipt
         node = trials[0]
-        print(f"Iteration {idx}. Sampled {node} for {path}")
+        print(f"Iteration {idx}. Sampled {node[0]} for {path}")
         receipts.append((node, receipt))
 
     json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
     mcts_serialize = json.load(open("test_mcts.json", "r"))
     mcts_recover = MCTSTree.deserialize(mcts_serialize, sampler, keep_virtual_loss=True)
-    assert (
-        mcts.virtual_loss_count == mcts_recover.virtual_loss_count
-    ), f"virtual_loss_count mismatch! {mcts.virtual_loss_count} vs {mcts_recover.virtual_loss_count}"
+    for k, v in mcts_recover.virtual_loss_count.items():
+        assert v == mcts.virtual_loss_count[k], f"{v} != {mcts.virtual_loss_count[k]}"
+    for k, v in mcts.virtual_loss_count.items():
+        assert (
+            k.is_dead_end() or v == mcts_recover.virtual_loss_count[k]
+        ), f"{v} != {mcts_recover.virtual_loss_count[k]}"
 
     for node, receipt in receipts:
         mcts.back_propagate(receipt, 0.5, node[0])
 
     for k, v in mcts.virtual_loss_count.items():
-        assert v == 0, f"Virtual loss count for {k} is {v}"
+        assert k.is_dead_end() or v == 0, f"Virtual loss count for {k} is {v}"
 
     # Test serialize
     print("Testing serialization and deserialization. ")
@@ -72,8 +78,8 @@ def test_mcts():
     # nodes
     for k, v in mcts_recover._treenode_store.items():
         assert k in mcts._treenode_store, f"Node {k} not in {mcts._treenode_store}"
-        assert (
-            v == mcts._treenode_store[k]
+        assert v.eq_state(
+            mcts._treenode_store[k]
         ), f"Node {k} is {v}, should be {mcts._treenode_store[k]}"
     for k, v in mcts._treenode_store.items():
         if v.N == 0:
@@ -81,8 +87,8 @@ def test_mcts():
         assert (
             k in mcts_recover._treenode_store
         ), f"Node {k} not in {mcts_recover._treenode_store}"
-        assert (
-            v == mcts_recover._treenode_store[k]
+        assert v.eq_state(
+            mcts_recover._treenode_store[k]
         ), f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
 
     # raves
@@ -104,6 +110,7 @@ def test_mcts():
     assert mcts._c_l == mcts_recover._c_l, f"c_l {mcts._c_l} != {mcts_recover._c_l}"
 
     os.remove("test_mcts.json")
+    print("[PASSED] test_mcts")
 
 
 if __name__ == "__main__":

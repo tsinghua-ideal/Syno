@@ -99,7 +99,7 @@ class TreeNode:
     """
 
     def __init__(
-        self, node: Node, is_mid: bool = False, type: Next.Type = None
+        self, tree, node: Node, is_mid: bool = False, type: Next.Type = None
     ) -> None:
         """
         node: the underlying Node of this node or of its father (if it is a mid node).
@@ -121,6 +121,7 @@ class TreeNode:
         """
         # identifications
         assert isinstance(node, Node)
+        self._tree = tree
         self._node: Node = node
         self._is_mid: bool = is_mid
         self._type: Next.Type = type
@@ -146,7 +147,9 @@ class TreeNode:
             self.children: List["TreeNode"] = []
             primitives = self._node.collect_operations()
             for child in primitives.keys():
-                self.children.append(TreeNode(node, is_mid=True, type=child))
+                self.children.append(
+                    TreeNode(self._tree, node, is_mid=True, type=child)
+                )
 
     def eq_verb(self, __value: "TreeNode"):
         eq_flag = (
@@ -174,7 +177,7 @@ class TreeNode:
             print(self.edge_states == __value.edge_states)
         return eq_flag
 
-    def __eq__(self, __value: "TreeNode") -> bool:
+    def eq_state(self, __value: "TreeNode"):
         eq_flag = (
             self._node.__eq__(__value._node)
             and self._is_mid == __value._is_mid
@@ -192,8 +195,15 @@ class TreeNode:
             eq_flag = eq_flag and self.edge_states == __value.edge_states
         return eq_flag
 
+    def __eq__(self, __value: "TreeNode") -> bool:
+        return (
+            self._node == __value._node
+            and self._is_mid == __value._is_mid
+            and self._type == __value._type
+        )
+
     def __hash__(self) -> int:
-        return hash((self.to_node(), self._is_mid, self._type))
+        return hash((self._node, self._is_mid, self._type))
 
     @property
     def mean(self) -> float:
@@ -271,10 +281,6 @@ class TreeNode:
     def flush_T(
         self,
         T: int,
-        factory: Dict[Node, "TreeNode"],
-        g_rave: Dict[Arc, AverageMeter],
-        c_l: float,
-        b: float,
         filter_exhausted: bool = False,
     ) -> None:
         """
@@ -284,20 +290,17 @@ class TreeNode:
             is_fully_in_tree -> is_dead_end -> is_final
             reveal_new_children -> get_unrevealed_children -> get_children -> get_child -> is_dead_end -> is_final
         """
-        Tp = math.floor(T**b)
-        # print(f"Got Tp={Tp}, child_count={self.children_count(factory, on_tree=True, filter_exhausted=filter_exhausted)}, i {'am' if self.is_fully_in_tree(factory) else 'am not'} fully in tree")
-        while Tp > self.children_count(
-            factory, on_tree=True, filter_exhausted=filter_exhausted
-        ):
-            if self.is_fully_in_tree(factory):
+        Tp = math.floor(T**self._tree._b)
+        # print(f"Got Tp={Tp}, child_count={self.children_count(on_tree=True, filter_exhausted=filter_exhausted)}, i {'am' if self.is_fully_in_tree() else 'am not'} fully in tree")
+        while Tp > self.children_count(on_tree=True, filter_exhausted=filter_exhausted):
+            if self.is_fully_in_tree():
                 break
             else:
-                self.reveal_new_children(factory, g_rave, c_l)
+                self.reveal_new_children()
         self._last_T = T
 
     def children_count(
         self,
-        factory: Dict[Node, "TreeNode"],
         on_tree: bool = False,
         filter_exhausted: bool = False,
     ) -> int:
@@ -316,33 +319,38 @@ class TreeNode:
                 child = self._node.get_child(Next(self._type, next))
                 if child is None:
                     continue
-                if on_tree and child in factory and not factory[child]._isin_tree:
+                if (
+                    on_tree
+                    and child in self._tree._treenode_store
+                    and not self._tree._treenode_store[child]._isin_tree
+                ):
                     continue
                 if filter_exhausted:
-                    if child in factory and not factory[child].is_exhausted(factory):
+                    if (
+                        child in self._tree._treenode_store
+                        and not self._tree._treenode_store[child].is_exhausted()
+                    ):
                         count += 1
                 else:
-                    if child in factory and not factory[child].is_dead_end(factory):
+                    if (
+                        child in self._tree._treenode_store
+                        and not self._tree._treenode_store[child].is_dead_end()
+                    ):
                         count += 1
             return count
         else:
             if filter_exhausted:
                 return len(self.children) - sum(
-                    (child.is_exhausted(factory) or (on_tree and not child._isin_tree))
+                    (child.is_exhausted() or (on_tree and not child._isin_tree))
                     for child in self.children
                 )
             else:
                 return len(self.children) - sum(
-                    (child.is_dead_end(factory) or (on_tree and not child._isin_tree))
+                    (child.is_dead_end() or (on_tree and not child._isin_tree))
                     for child in self.children
                 )
 
-    def reveal_new_children(
-        self,
-        factory: Dict[Node, "TreeNode"],
-        g_rave: Dict[Arc, AverageMeter],
-        c_l: float,
-    ) -> bool:
+    def reveal_new_children(self) -> bool:
         """
         Reveal a new children to its parent.
         Return success or not.
@@ -363,14 +371,16 @@ class TreeNode:
             else:
                 assert isinstance(next, Next.Type)
                 arc = next
-            beta = c_l / (c_l + self.l_rave[arc].N)
-            return (1 - beta) * self.l_rave[arc].mean + beta * g_rave[arc].mean
+            beta = self._tree._c_l / (self._tree._c_l + self.l_rave[arc].N)
+            return (1 - beta) * self.l_rave[arc].mean + beta * self._tree.g_rave[
+                arc
+            ].mean
 
-        unrevealed_children = self.get_unrevealed_children(factory)
+        unrevealed_children = self.get_unrevealed_children()
         if len(unrevealed_children) == 0:
             # logging.debug("No new children to be added")
-            assert self.is_fully_in_tree(
-                factory
+            assert (
+                self.is_fully_in_tree()
             ), f"{self} is not fully expanded but no children can be revealed"
             return False
         key = max(unrevealed_children, key=rave)
@@ -382,30 +392,28 @@ class TreeNode:
         return True
 
     def get_unrevealed_children(
-        self, factory: Dict[Node, "TreeNode"]
+        self,
     ) -> List[Tuple[PseudoTreeNext, "TreeNode", AverageMeter]]:
         """
         Get all unrevealed children of a node with nexts and edge states.
         Dependencies: get_children -> get_child -> is_dead_end -> is_final -> None
         """
-        children = self.get_children(factory)
+        children = self.get_children(auto_initialize=True)
         unrevealed_children = [child for child in children if not child[1]._isin_tree]
         return unrevealed_children
 
     def get_unexpanded_children(
-        self, factory: Dict[Node, "TreeNode"], on_tree: bool = False
+        self,
     ) -> List[Tuple[PseudoTreeNext, "TreeNode", AverageMeter]]:
         """
         Get all unexpanded children of a node with nexts and edge states.
         Dependencies: get_children -> get_child -> is_dead_end -> is_final -> None
         """
-        children = self.get_children(factory, on_tree=on_tree)
+        children = self.get_children(on_tree=True)
         unexpanded_children = [child for child in children if child[1].N == 0]
         return unexpanded_children
 
-    def get_children_nexts(
-        self, factory: Dict[Node, "TreeNode"]
-    ) -> List[PseudoTreeNext]:
+    def get_children_nexts(self) -> List[PseudoTreeNext]:
         """
         Get nexts to all alive children without initialize them.
         Dependencies: get_child -> is_dead_end -> is_final -> None
@@ -421,27 +429,26 @@ class TreeNode:
                 nxt
                 for nxt, ch in zip(nexts, children)
                 if ch is not None
-                and (not ch in factory or not factory[ch].is_dead_end(factory))
+                and not (
+                    (ch in self._tree._treenode_store)
+                    and (self._tree._treenode_store[ch].is_dead_end())
+                )
             ]
         else:
-            nexts = [
-                child._type for child in self.children if not child.is_dead_end(factory)
-            ]
+            nexts = [child._type for child in self.children if not child.is_dead_end()]
 
         return nexts
 
     def get_children(
         self,
-        factory: Dict[Node, "TreeNode"],
-        auto_initialize: bool = True,
+        auto_initialize: bool = False,
         on_tree: bool = False,
     ) -> List[Tuple[PseudoTreeNext, "TreeNode", AverageMeter]]:
         """
         Get all alive children of a node with nexts and edge states.
         Dependencies: get_child -> is_dead_end -> is_final -> None
         """
-        if on_tree:
-            auto_initialize = False
+        assert not (on_tree and auto_initialize)
 
         if self._is_mid:
             nexts = [
@@ -449,7 +456,10 @@ class TreeNode:
                 for handle in self._node.get_children_handles()
                 if handle.type == self._type
             ]
-            children = [self.get_child(nxt, factory, auto_initialize) for nxt in nexts]
+            children = [
+                self.get_child(nxt, auto_initialize=auto_initialize, on_tree=on_tree)
+                for nxt in nexts
+            ]
 
             # Remove filtered and dead children.
             filtered = [
@@ -460,7 +470,7 @@ class TreeNode:
             edge_states = [edge for _, _, edge in filtered]
         else:
             children = self.children
-            children = [child for child in children if not child.is_dead_end(factory)]
+            children = [child for child in children if not child.is_dead_end()]
             nexts = [child._type for child in children]
             edge_states = [child.state for child in children]
             self.children = children
@@ -474,31 +484,35 @@ class TreeNode:
     def get_child(
         self,
         next: PseudoTreeNext,
-        factory: Dict[Node, "TreeNode"] = None,
-        auto_initialize: bool = True,
+        auto_initialize: bool = False,
         on_tree: bool = False,
     ) -> Optional[Tuple["TreeNode", AverageMeter]]:
         """
         Get the child node of a node with a Next. When the node is dead, return None.
         Dependencies: is_dead_end -> is_final -> None
         """
-        if on_tree:
-            auto_initialize = False
+        assert not (on_tree and auto_initialize)
         if self._is_mid:
             assert isinstance(next, int)
             child = self._node.get_child(Next(self._type, next))
             if child is None:
                 return None
-            if on_tree and (child not in factory or not factory[child]._isin_tree):
+            if on_tree and (
+                child not in self._tree._treenode_store
+                or not self._tree._treenode_store[child]._isin_tree
+            ):
                 return None
-            if child in factory and factory[child].is_dead_end(factory):
+            if (
+                child in self._tree._treenode_store
+                and self._tree._treenode_store[child].is_dead_end()
+            ):
                 return None
-            if child not in factory:
+            if child not in self._tree._treenode_store:
                 if auto_initialize:
-                    factory[child] = TreeNode(child)
+                    self._tree._treenode_store[child] = TreeNode(self._tree, child)
                 else:
                     return None
-            return factory[child], self.edge_states[next]
+            return self._tree._treenode_store[child], self.edge_states[next]
         else:
             assert isinstance(next, Next.Type)
             for child in self.children:
@@ -506,12 +520,12 @@ class TreeNode:
                     return (
                         child,
                         child.state
-                        if child._isin_tree and not child.is_dead_end(factory)
+                        if child._isin_tree and not child.is_dead_end()
                         else None,
                     )
             return None
 
-    def is_fully_expanded(self, factory: Dict[Node, "TreeNode"]) -> bool:
+    def is_fully_expanded(self) -> bool:
         """
         Check whether all visible children have been expanded.
         Dependencies: is_dead_end -> is_final -> None
@@ -528,18 +542,16 @@ class TreeNode:
                 if child is None:
                     continue
                 if (
-                    child in factory
-                    and factory[child]._isin_tree
-                    and factory[child].N == 0
+                    child in self._tree._treenode_store
+                    and self._tree._treenode_store[child]._isin_tree
+                    and self._tree._treenode_store[child].N == 0
                 ):
                     return False
             return True
         else:
-            return all(
-                [child.N > 0 or child.is_dead_end(factory) for child in self.children]
-            )
+            return all([child.N > 0 or child.is_dead_end() for child in self.children])
 
-    def is_fully_in_tree(self, factory: Dict[Node, "TreeNode"]) -> bool:
+    def is_fully_in_tree(self) -> bool:
         """
         Check whether all children have been revealed.
         Dependencies: is_dead_end -> is_final -> None
@@ -555,48 +567,50 @@ class TreeNode:
                 child = self._node.get_child(Next(self._type, next))
                 if child is None:
                     continue
-                if child not in factory or not (
-                    factory[child]._isin_tree or factory[child].is_dead_end(factory)
+                if child not in self._tree._treenode_store or not (
+                    self._tree._treenode_store[child]._isin_tree
+                    or self._tree._treenode_store[child].is_dead_end()
                 ):
                     return False
             return True
         else:
             return all(
-                [
-                    child._isin_tree or child.is_dead_end(factory)
-                    for child in self.children
-                ]
+                [child._isin_tree or child.is_dead_end() for child in self.children]
             )
 
-    def is_terminal(self, factory: Dict[Node, "TreeNode"]) -> bool:
+    def is_terminal(self) -> bool:
         """
         Check if a node is a terminal (final / dead end).
         Dependencies: is_dead_end -> is_final -> None
         """
-        return self.is_final() or self.is_dead_end(factory)
+        return self.is_final() or self.is_dead_end()
 
     def set_dead(self) -> None:
         self._is_dead = True
 
-    def is_dead_end(self, factory: Dict[Node, "TreeNode"]) -> bool:
+    def is_dead_end(self) -> bool:
         """
         Check if a node is dead end (will recursively check all expanded children).
         Dependencies: is_final -> None
         """
         if self._is_dead:
             return True
-        if self.is_final() and not self.filtered:
-            return False
-        if self._node.is_dead_end() or self.is_final():
-            self._is_dead = True
-        if self._is_dead:
-            return True
+        if self.is_final():
+            if self.filtered or self._node.is_dead_end():
+                self._is_dead = True
+                return True
+            else:
+                return False
 
         if self._is_mid:
             for handle in self._node.get_children_handles():
                 if handle.type == self._type:
                     child = self._node.get_child(Next(self._type, handle.key))
-                    if child and (child not in factory or not factory[child]._is_dead):
+                    # print("child", child, self._tree._treenode_store, (child in self._tree._treenode_store))
+                    if child and not (
+                        child in self._tree._treenode_store
+                        and self._tree._treenode_store[child]._is_dead
+                    ):
                         return False
             self._is_dead = True
         else:
@@ -607,7 +621,7 @@ class TreeNode:
 
         return self._is_dead
 
-    def is_exhausted(self, factory: Dict[Node, "TreeNode"]) -> bool:
+    def is_exhausted(self) -> bool:
         """
         Check if a subtree start from a node is exhausted.
         Dependencies: is_dead_end() -> is_final() -> None
@@ -616,9 +630,9 @@ class TreeNode:
             return True
         if self.is_final() and (self.reward > 0 or self.filtered):
             self._exhausted = True
-        if not self.is_fully_in_tree(factory):
+        if not self.is_fully_in_tree():
             return False
-        if self.is_dead_end(factory):
+        if self.is_dead_end():
             logging.debug(
                 f"exhaust, dead end (internal node state: {self._node.is_dead_end()})"
             )
@@ -636,13 +650,16 @@ class TreeNode:
                 child = self._node.get_child(Next(self._type, next))
                 if child is None:
                     continue
-                if child not in factory or not factory[child].is_exhausted(factory):
+                if (
+                    child not in self._tree._treenode_store
+                    or not self._tree._treenode_store[child].is_exhausted()
+                ):
                     return False
             # logging.debug("exhaust, recursive")
             self._exhausted = True
         else:
             non_exhausted_children = [
-                child for child in self.children if not child.is_exhausted(factory)
+                child for child in self.children if not child.is_exhausted()
             ]
             if len(non_exhausted_children) == 0:
                 self._exhausted = True
