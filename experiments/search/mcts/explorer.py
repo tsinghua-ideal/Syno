@@ -52,9 +52,7 @@ class MCTSExplorer:
         path, current_node = self.node_hierarchy[-1]
         if command in ["i", "info"]:
             print(f"Node: {current_node.to_node()}")
-            print(
-                f"\t is_terminal: {current_node.is_terminal(self._mcts._treenode_store)}"
-            )
+            print(f"\t is_terminal: {current_node.is_terminal()}")
             print(f"\t is_final: {current_node.is_final()}")
             if current_node.is_final():
                 print(f"\t\t reward: {current_node.reward}")
@@ -72,7 +70,7 @@ class MCTSExplorer:
             print("Children:")
             # assert self.on_tree == False
             children = current_node.get_children(
-                self._mcts._treenode_store, auto_initialize=True, on_tree=self.on_tree
+                auto_initialize=not self.on_tree, on_tree=self.on_tree
             )
             for nxt, child_node, edge_state in children:
                 if not self.show_zero and edge_state.N == 0:
@@ -85,13 +83,13 @@ class MCTSExplorer:
                 else:
                     assert isinstance(nxt, Next.Type)
                     print(
-                        f"\t{nxt}:\t{child_node.children_count(self._mcts._treenode_store, on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})"
+                        f"\t{nxt}:\t{child_node.children_count(on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})"
                     )
         elif command.startswith("sel"):
             # list all children
             print("UCD:")
             children = current_node.get_children(
-                self._mcts._treenode_store, auto_initialize=False, on_tree=self.on_tree
+                auto_initialize=False, on_tree=self.on_tree
             )
 
             ucb_score = [self.ucb_score(c) for c in children]
@@ -104,7 +102,7 @@ class MCTSExplorer:
                 else:
                     assert isinstance(nxt, Next.Type)
                     print(
-                        f"\t{nxt}:\t{child_node.children_count(self._mcts._treenode_store, on_tree=self.on_tree)} children, score={score}"
+                        f"\t{nxt}:\t{child_node.children_count(on_tree=self.on_tree)} children, score={score}"
                     )
         elif command in ["g", "grave"]:
             ty = None
@@ -162,7 +160,7 @@ class MCTSExplorer:
                 print("Invalid command.")
         elif command.startswith("simul"):
             try:
-                if current_node.is_dead_end(self._mcts._treenode_store):
+                if current_node.is_dead_end():
                     print("Dead end, no need to simulate. ")
                 else:
                     for retry_count in tqdm(itertools.count()):
@@ -193,7 +191,6 @@ class MCTSExplorer:
                     tree_next = self._serializer.deserialize_type(tree_next)
                 child_node, _ = current_node.get_child(
                     tree_next,
-                    self._mcts._treenode_store,
                     auto_initialize=True,
                     on_tree=self.on_tree,
                 )
@@ -206,7 +203,7 @@ class MCTSExplorer:
                 print("Invalid command.")
         elif command == "best":
             children = current_node.get_children(
-                self._mcts._treenode_store, auto_initialize=True, on_tree=self.on_tree
+                auto_initialize=not self.on_tree, on_tree=self.on_tree
             )
             best_children = max(children, key=lambda x: x[2].mean)
             nxt, child_node, edge_state = best_children
@@ -218,11 +215,11 @@ class MCTSExplorer:
             else:
                 assert isinstance(nxt, Next.Type)
                 print(
-                    f"The best child is {nxt}:\t{child_node.children_count(self._mcts._treenode_store, on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})"
+                    f"The best child is {nxt}:\t{child_node.children_count(on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})"
                 )
         elif command == "best_select":
             children = current_node.get_children(
-                self._mcts._treenode_store, auto_initialize=True, on_tree=self.on_tree
+                auto_initialize=not self.on_tree, on_tree=self.on_tree
             )
 
             best_children = max(children, key=self.ucb_score)
@@ -235,20 +232,12 @@ class MCTSExplorer:
             else:
                 assert isinstance(nxt, Next.Type)
                 print(
-                    f"The best child is {nxt}:\t{child_node.children_count(self._mcts._treenode_store, on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std}), score={self.ucb_score(best_children)}"
+                    f"The best child is {nxt}:\t{child_node.children_count(on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std}), score={self.ucb_score(best_children)}"
                 )
         elif command == "flush":
-            print(
-                f"fully_in_tree={current_node.is_fully_in_tree(self._mcts._treenode_store)}"
-            )
+            print(f"fully_in_tree={current_node.is_fully_in_tree()}")
             print(f"Flushing with N={current_node.N}, b={self._mcts._b}")
-            current_node.flush_T(
-                current_node.N,
-                self._mcts._treenode_store,
-                self._mcts.g_rave,
-                self._mcts._c_l,
-                self._mcts._b,
-            )
+            current_node.flush_T(current_node.N)
         elif command in ["b", "back"]:
             # go back to parent node
             if len(self.node_hierarchy) == 1:

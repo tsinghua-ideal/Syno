@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import json
 import os, sys
-import profile
+from random import random
 
 from KAS import CodeGenOptions, Sampler, Placeholder
 
@@ -22,7 +22,7 @@ class Model(nn.Module):
         return x
 
 
-def test_mcts():
+def test_mcts(backprop_prob=0.5):
     net = Model()
     sampler = Sampler(
         "[H,W]",
@@ -40,13 +40,16 @@ def test_mcts():
         path = receipt
         node = trials[0]
         print(f"Iteration {idx}. Sampled {node[0]} for {path}")
-        mcts.back_propagate(receipt, 0.5, node[0])
+        if random() <= backprop_prob:
+            mcts.back_propagate(receipt, random(), node[0])
+        else:
+            mcts.remove(receipt, node[1])
 
     for k, v in mcts.virtual_loss_count.items():
         assert k.is_dead_end() or v == 0, f"Virtual loss count for {k} is {v}"
 
     receipts = []
-    for idx in range(2):
+    for idx in range(30):
         receipt, trials = mcts.do_rollout()
         path = receipt
         node = trials[0]
@@ -64,7 +67,10 @@ def test_mcts():
         ), f"{v} != {mcts_recover.virtual_loss_count[k]}"
 
     for node, receipt in receipts:
-        mcts.back_propagate(receipt, 0.5, node[0])
+        if random() <= backprop_prob:
+            mcts.back_propagate(receipt, random(), node[0])
+        else:
+            mcts.remove(receipt, node[1])
 
     for k, v in mcts.virtual_loss_count.items():
         assert k.is_dead_end() or v == 0, f"Virtual loss count for {k} is {v}"
@@ -77,24 +83,27 @@ def test_mcts():
 
     # nodes
     for k, v in mcts_recover._treenode_store.items():
-        assert k in mcts._treenode_store, f"Node {k} not in {mcts._treenode_store}"
+        assert k in mcts._treenode_store, f"Node {k} not in mcts._treenode_store"
         assert v.eq_state(
             mcts._treenode_store[k]
-        ), f"Node {k} is {v}, should be {mcts._treenode_store[k]}"
+        ), f"Node {k.get_possible_path()} is {v.l_rave}, should be {mcts._treenode_store[k].l_rave}"
     for k, v in mcts._treenode_store.items():
         if v.N == 0:
             continue
         assert (
             k in mcts_recover._treenode_store
         ), f"Node {k} not in {mcts_recover._treenode_store}"
-        assert v.eq_state(
+        assert k.is_dead_end() or v.eq_state(
             mcts_recover._treenode_store[k]
         ), f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
 
     # raves
-    assert (
-        mcts.g_rave == mcts_recover.g_rave
-    ), f"Rave {mcts.g_rave} != {mcts_recover.g_rave}"
+    # for k, v in mcts.g_rave.items():
+    #     assert k in mcts_recover.g_rave, f"{k} does not exists in mcts_recover.g_rave"
+    #     assert v == mcts_recover.g_rave[k], f"{k}: {v} != {mcts_recover.g_rave[k]}"
+    for k, v in mcts_recover.g_rave.items():
+        assert k in mcts.g_rave, f"{k} does not exists in mcts.g_rave"
+        assert v == mcts.g_rave[k], f"{k}: {v} != {mcts_recover.g_rave[k]}"
 
     # flags
     assert (

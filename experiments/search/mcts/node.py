@@ -301,6 +301,7 @@ class TreeNode:
 
     def children_count(
         self,
+        include_uninitialize: bool = False,
         on_tree: bool = False,
         filter_exhausted: bool = False,
     ) -> int:
@@ -308,6 +309,7 @@ class TreeNode:
         Get the number of all children of a node.
         Dependencies: is_exhausted -> is_dead_end -> is_final -> None
         """
+        assert not (include_uninitialize and on_tree)
         if self._is_mid:
             nexts = [
                 handle.key
@@ -318,6 +320,9 @@ class TreeNode:
             for next in nexts:
                 child = self._node.get_child(Next(self._type, next))
                 if child is None:
+                    continue
+                if include_uninitialize and child not in self._tree._treenode_store:
+                    count += 1
                     continue
                 if (
                     on_tree
@@ -520,7 +525,7 @@ class TreeNode:
                     return (
                         child,
                         child.state
-                        if child._isin_tree and not child.is_dead_end()
+                        if (not on_tree or child._isin_tree) and not child.is_dead_end()
                         else None,
                     )
             return None

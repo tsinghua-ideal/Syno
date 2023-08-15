@@ -96,6 +96,7 @@ class Session:
     def update(self, path, accuracy, flops, params):
         # No receiving timeout kernels
         if path in self.timeout_samples:
+            logging.debug(f"{path} is removed due to timeout...")
             return
 
         # Not more waiting

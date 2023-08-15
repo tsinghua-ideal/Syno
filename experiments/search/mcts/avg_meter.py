@@ -71,9 +71,9 @@ class AverageMeter:
 
     def empty(self) -> bool:
         if self.support_std:
-            return self.sum == 0.0 and self.sumsq == 0.0 and self.N == 0
+            return self.sum == 0 and self.sumsq == 0 and self.N == 0
         else:
-            return self.sum == 0.0 and self.N == 0
+            return self.sum == 0 and self.N == 0
 
     def __repr__(self) -> str:
         if self.support_std:
