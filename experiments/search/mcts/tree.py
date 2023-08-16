@@ -742,7 +742,7 @@ class MCTSTree:
                 for n, _, e in mid_child.get_children():
                     arc = underlying_node.get_arc_from_handle(Next(next, n))
                     assert arc is not None
-                    print(f"{mid_child}: {arc} -> {self.g_rave[arc]}")
+                    # print(f"{mid_child}: {arc} -> {self.g_rave[arc]}")
                     rave_score = {
                         "lrave": mid_child.l_rave[arc].serialize(),
                         "grave": self.g_rave[arc].serialize(),
@@ -851,21 +851,20 @@ class MCTSTree:
             """Return a boolean value indicating whether the node contains a final descendant."""
             assert isinstance(node, TreeNode)
             children = node.get_children()
+            assert all(not c.is_dead_end() for _, c, _ in children)
             alive_flag = not node.empty() or (keep_tree_node and node._isin_tree)
-            if not node.is_dead_end():
-                for _, child, _ in children:
-                    child_alive_flag = label_alive(child)
-                    alive_flag = alive_flag or child_alive_flag
+            for _, child, _ in children:
+                child_alive_flag = label_alive(child)
+                alive_flag = alive_flag or child_alive_flag
             if alive_flag:
-                alive_nodes.add(node.to_node())
+                alive_nodes.add(node._node)
             return alive_flag
 
         assert label_alive(self.tree_root)
 
         # Remove dead nodes
-        key_list = list(self._treenode_store.keys())
-        for node in key_list:
-            if node not in alive_nodes and not node.is_final():
+        for node, tree_node in list(self._treenode_store.items()):
+            if node not in alive_nodes and not tree_node.is_final() and tree_node.empty():
                 self._treenode_store.pop(node)
 
         # Clean RAVE dict
