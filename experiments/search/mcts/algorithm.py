@@ -10,11 +10,12 @@ class MCTSAlgorithm:
     # TODO: may move to program arguments
     virtual_loss_constant = 0.3
     leaf_parallelization_number = 1
-    exploration_weight = 2 * math.sqrt(2)
+    exploration_weight = 3 * math.sqrt(2)
     max_iterations = 3000
-    time_limits = [(3, True), (10, False), (30, False)]
+    time_limits = [(3, True), (10, False)]
     b = 0.4
-    c_l = 40.0
+    c_l = 20.0
+    flush_virtual_loss_period = 10  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency)
 
     def __init__(self, sampler, args):
         self.mcts = MCTSTree(
@@ -29,6 +30,8 @@ class MCTSAlgorithm:
         )
         self.sampler = sampler
         self.path_to_meta_data = dict()
+
+        self.sample_num = 0
 
     def serialize(self):
         return self.mcts.serialize()
@@ -106,5 +109,12 @@ class MCTSAlgorithm:
                     self.path_to_meta_data[path] = ([], trial_node, trial_path)
                     results.append(path)
                 self.path_to_meta_data[path][0].append(leaf_tree_path)
+
+        self.sample_num += 1
+        if self.sample_num % self.flush_virtual_loss_period == 0:
+            logging.debug("Resetting virtual losses... ")
+            for k in list(self.mcts.virtual_loss_count.keys()):
+                self.mcts.virtual_loss_count[k] = 0
+            logging.debug("Virtual losses cleared. ")
 
         return results
