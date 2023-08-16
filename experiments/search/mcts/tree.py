@@ -792,9 +792,11 @@ class MCTSTree:
         tree = MCTSTree(sampler, **params)
 
         for node_serial in node_list:
-            underlying_node = tree._sampler.visit(
-                Path.deserialize(node_serial["path"])
-            ).to_node()
+            underlying_node = tree._sampler.visit(Path.deserialize(node_serial["path"]))
+            # assert underlying_node is not None, Path.deserialize(node_serial["path"])
+            if underlying_node is None:
+                continue
+            underlying_node = underlying_node.to_node()
             assert underlying_node.__repr__() == node_serial["node_verbose"]
             father = tree.touch(underlying_node)
 

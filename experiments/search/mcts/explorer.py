@@ -72,18 +72,18 @@ class MCTSExplorer:
             children = current_node.get_children(
                 auto_initialize=not self.on_tree, on_tree=self.on_tree
             )
-            for nxt, child_node, edge_state in children:
+            for i, (nxt, child_node, edge_state) in enumerate(children):
                 if not self.show_zero and edge_state.N == 0:
                     continue
                 if current_node._is_mid:
                     child = Next(current_node._type, nxt)
                     print(
-                        f"\t{child}:\t{current_node._node.get_child_description(child)}, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})"
+                        f"{i}.\t{child}:\t{current_node._node.get_child_description(child)}, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})"
                     )
                 else:
                     assert isinstance(nxt, Next.Type)
                     print(
-                        f"\t{nxt}:\t{child_node.children_count(on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})"
+                        f"{i}.\t{nxt}:\t{child_node.children_count(on_tree=self.on_tree)} children, edge(N={edge_state.N}, mean={edge_state.mean}, std={edge_state.std})"
                     )
         elif command.startswith("sel"):
             # list all children
