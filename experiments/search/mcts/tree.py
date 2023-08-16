@@ -864,7 +864,11 @@ class MCTSTree:
 
         # Remove dead nodes
         for node, tree_node in list(self._treenode_store.items()):
-            if node not in alive_nodes and not tree_node.is_final() and tree_node.empty():
+            if (
+                node not in alive_nodes
+                and not tree_node.is_final()
+                and tree_node.empty()
+            ):
                 self._treenode_store.pop(node)
 
         # Clean RAVE dict
