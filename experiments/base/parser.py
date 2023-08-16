@@ -110,7 +110,7 @@ def arg_parse():
 
     # KAS preferences
     parser.add_argument("--kas-replace-placeholder", type=str, default=None)
-    parser.add_argument("--kas-depth", default=8, type=int, help="KAS sampler depth")
+    parser.add_argument("--kas-depth", default=12, type=int, help="KAS sampler depth")
     parser.add_argument(
         "--kas-max-tensors", default=3, type=int, help="KAS sampler maximum tensors"
     )
