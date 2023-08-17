@@ -57,8 +57,8 @@ struct PrimitiveOpEqual {
   bool operator()(const PrimitiveOp *const &lhs,
                   const PrimitiveOp *const &rhs) const noexcept {
     switch (lhs->getType()) {
-    case DimensionType::MapReduce:
-      return TypedPrimitiveOpEqual<MapReduceOp>(lhs, rhs);
+    case DimensionType::Reduce:
+      return TypedPrimitiveOpEqual<ReduceOp>(lhs, rhs);
     case DimensionType::Expand:
       return TypedPrimitiveOpEqual<ExpandOp>(lhs, rhs);
     case DimensionType::Shift:
@@ -81,7 +81,7 @@ struct PrimitiveOpEqual {
 
 class PrimitiveOpStore {
   // Remember to register the Ops!
-  detail::OpStores<MapReduceOp, ExpandOp, ShiftOp, StrideOp, SplitOp, UnfoldOp,
+  detail::OpStores<ReduceOp, ExpandOp, ShiftOp, StrideOp, SplitOp, UnfoldOp,
                    MergeOp, ShareOp>
       stores;
 

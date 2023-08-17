@@ -1,35 +1,35 @@
 #pragma once
 
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 
 
 namespace kas {
 
-class MapReduceOp final: public MapReduce, public PrimitiveOp {
+class ReduceOp final: public Reduce, public PrimitiveOp {
 public:
-    static constexpr DimensionType Type = DimensionType::MapReduce;
+    static constexpr DimensionType Type = DimensionType::Reduce;
 
-    MapReduceOp(std::size_t priority, const Size& domain, MapType mapType, ReduceType reduceType):
-        MapReduce { priority, domain, mapType, reduceType },
+    ReduceOp(std::size_t priority, const Size& domain, MapType mapType, ReduceType reduceType):
+        Reduce { priority, domain, mapType, reduceType },
         PrimitiveOp { Color::None }
     {}
-    MapReduceOp(const MapReduce&) = delete;
-    MapReduceOp(MapReduce&&) = delete;
+    ReduceOp(const Reduce&) = delete;
+    ReduceOp(Reduce&&) = delete;
 
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override { return hash(); }
     std::size_t opHash() const noexcept override { return initialHash(); }
-    using MapReduce::accept;
+    using Reduce::accept;
     void accept(OpVisitor& visitor) const override { visitor.visit(*this); }
 
-    const MapReduce *getRaw() const { return this; }
+    const Reduce *getRaw() const { return this; }
     Dimension getInput() const { return this; }
 
     bool canApplyToInterface(const GraphHandle& interface) const override;
     GraphHandle applyToInterface(const GraphHandle& interface) const override;
 
-    bool operator==(const MapReduceOp& other) const noexcept {
+    bool operator==(const ReduceOp& other) const noexcept {
         return getMap() == other.getMap() && getReduce() == other.getReduce() && getPriority() == other.getPriority() && size() == other.size();
     }
 
@@ -43,9 +43,9 @@ public:
         std::size_t maxFLOPs;
         std::size_t maximumReductions;
     };
-    static std::vector<const MapReduceOp *> Generate(PrimitiveOpStore& store, const std::vector<const MapReduceOp *>& current, const GenerateOptions& options);
+    static std::vector<const ReduceOp *> Generate(PrimitiveOpStore& store, const std::vector<const ReduceOp *>& current, const GenerateOptions& options);
 };
 
-static_assert(PrimitiveOpImpl<MapReduceOp>);
+static_assert(PrimitiveOpImpl<ReduceOp>);
 
 } // namespace kas

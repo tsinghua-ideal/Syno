@@ -14,7 +14,7 @@
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/Lower.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Size.hpp"
 #include "KAS/Core/TensorView.hpp"
@@ -149,7 +149,7 @@ ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const Concr
 
 std::size_t TensorView::getFLOPs(const ConcreteConsts& consts) const {
     std::size_t outerLoopsIterations = getInterfaceShape().totalSize().eval<std::size_t>(consts);
-    std::size_t innerLoopsIterations = getManipulations().size() > 0 ? Size::Product(getManipulations() | std::views::transform([](const MapReduce *op) -> const Size& { return op->size(); })).eval<std::size_t>(consts) : 1;
+    std::size_t innerLoopsIterations = getManipulations().size() > 0 ? Size::Product(getManipulations() | std::views::transform([](const Reduce *op) -> const Size& { return op->size(); })).eval<std::size_t>(consts) : 1;
     auto fma = std::max<std::size_t>(getUnderlyingTensors().size() - 1, 1);
     bool hasDivBy = forwardAccess.divBy.has_value();
     // FMA + Division
@@ -237,7 +237,7 @@ TensorView::TensorView(const std::vector<Topmost>& canonicalTensors, TensorExpre
     const Graph graph =
         Graph::Builder().addTopmosts(canonicalTensors).build();
     const auto& outputIterators = graph.getOutputIterators();
-    const auto& mapReduceIterators = graph.getMapReduceIterators();
+    const auto& reduceIterators = graph.getReduceIterators();
 
     auto tensors = canonicalTensors;
     LocalityOptimizer optim { graph };
@@ -253,7 +253,7 @@ TensorView::TensorView(const std::vector<Topmost>& canonicalTensors, TensorExpre
 
     auto forwardEval = DimensionEvaluator(graph, this->tensors, blending);
     forwardEval.makeVars(interfaceDimensions);
-    for (auto r: mapReduceIterators) {
+    for (auto r: reduceIterators) {
         forwardEval.reduceAt(r);
     }
     forwardEval.adjustReductionOrder();
@@ -269,7 +269,7 @@ TensorView::TensorView(const std::vector<Topmost>& canonicalTensors, TensorExpre
     }
 
     interface = outputIterators;
-    manipulations = mapReduceIterators;
+    manipulations = reduceIterators;
 
     auto subgraphsBuilder = Tensor::Builder(graph);
     subgraphs = subgraphsBuilder.build(tensors);

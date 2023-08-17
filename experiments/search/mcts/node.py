@@ -15,7 +15,7 @@ PseudoTreeNext = Union[Next.Type, int]
 PseudoArc = Union[Next.Type, Arc]
 
 dimensions_type = [
-    "MapReduce",
+    "Reduce",
     "Expand",
     "Shift",
     "Stride",

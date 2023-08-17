@@ -3,9 +3,9 @@
 
 namespace kas {
 
-TEST_F(transforms_tests, map_reduce) {
-    MapReduceOp mapReduce { 0, sizeH * sizeW, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
-    auto tensorView = TensorView({{{&mapReduce, dimH, dimW, dimCH}, {}}}, TensorExpression::ProductOfTensors(1));
+TEST_F(transforms_tests, reduce) {
+    ReduceOp reduce { 0, sizeH * sizeW, Reduce::MapType::Identity, Reduce::ReduceType::Sum };
+    auto tensorView = TensorView({{{&reduce, dimH, dimW, dimCH}, {}}}, TensorExpression::ProductOfTensors(1));
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H, W, c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H*W, H, W, c*H]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),
@@ -24,7 +24,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
 
     auto [_0, _1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
         {{"H", 4}, {"W", 4}, {"c", 2}},
-        "map_reduce", false, false,
+        "reduce", false, false,
         [](auto&& buf, int i, int j, int k) {
             buf(i, j, k) = 32 * i + 8 * j + k;
         },

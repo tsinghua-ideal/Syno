@@ -3,10 +3,6 @@ import logging
 import torch
 from torch import nn
 from typing import Any, List, Dict, Optional, Tuple, Union
-from KAS import Bindings
-from KAS.Assembler import Assembled
-
-from KAS.Node import Node, PseudoPath, VisitedNode
 
 from . import Bindings
 from .Assembler import Assembled, Assembler
@@ -87,7 +83,7 @@ class Sampler:
         maximum_tensors : int, optional
             Maximum number of tensors that this kernel accepts. That is, the maximum number of weights plus 1.
         maximum_reductions : int, optional
-            Maximum number of MapReduceOp's.
+            Maximum number of ReduceOp's.
         max_flops : float, optional
             Maximum number of floating point operations allowed in a kernel. This is a soft constraint, because we do not know the exact number of floating point operations in a kernel until we finalize it.
         maximum_variables_in_size : int, optional

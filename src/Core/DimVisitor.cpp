@@ -6,7 +6,7 @@ namespace kas {
 void Iterator::accept(DimVisitor& visitor) const {
     visitor.visit(*this);
 }
-void MapReduce::accept(DimVisitor& visitor) const {
+void Reduce::accept(DimVisitor& visitor) const {
     visitor.visit(*this);
 }
 void RepeatLikeOp::Input::accept(DimVisitor& visitor) const {
@@ -20,7 +20,7 @@ void MergeLikeOp::Input::accept(DimVisitor& visitor) const {
 }
 
 void DimVisitor::visit(const Iterator& dim) {}
-void DimVisitor::visit(const MapReduce& dim) {}
+void DimVisitor::visit(const Reduce& dim) {}
 void DimVisitor::visit(const RepeatLikeOp::Input& dim) {
     dim.getOp()->output.accept(*this);
 }

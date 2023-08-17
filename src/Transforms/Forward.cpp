@@ -27,17 +27,17 @@ void Dimension::output(std::size_t index) {
     getFactory().storeIterator(std::move(it));
 }
 
-void Dimension::reduce(std::size_t priority, MapReduce::MapType mapType, MapReduce::ReduceType reduceType) {
-    auto op = std::make_unique<MapReduceOp>(priority, getSize(), mapType, reduceType);
+void Dimension::reduce(std::size_t priority, Reduce::MapType mapType, Reduce::ReduceType reduceType) {
+    auto op = std::make_unique<ReduceOp>(priority, getSize(), mapType, reduceType);
     set(op.get());
-    getFactory().storeMapReduce(std::move(op));
+    getFactory().storeReduce(std::move(op));
 }
 
 void Factory::storeIterator(std::unique_ptr<Iterator> iterator) {
     iterators.emplace_back(std::move(iterator));
 }
-void Factory::storeMapReduce(std::unique_ptr<MapReduceOp> mapReduce) {
-    mapReduces.emplace_back(std::move(mapReduce));
+void Factory::storeReduce(std::unique_ptr<ReduceOp> reduce) {
+    reduces.emplace_back(std::move(reduce));
 }
 
 std::vector<Topmost> Factory::ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors) {

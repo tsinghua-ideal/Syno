@@ -4,7 +4,7 @@
 
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Iterator.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Utils/Common.hpp"
@@ -78,14 +78,14 @@ public:
     BackwardDimension get() const { return inner->get(); }
     operator BackwardDimension() const { return get(); }
     void output(std::size_t index);
-    void reduce(std::size_t priority, MapReduce::MapType mapType, MapReduce::ReduceType reduceType);
+    void reduce(std::size_t priority, Reduce::MapType mapType, Reduce::ReduceType reduceType);
 };
 
 class Factory {
     const BindingContext& ctx;
     PrimitiveOpStore store;
     std::vector<std::unique_ptr<Iterator>> iterators;
-    std::vector<std::unique_ptr<MapReduceOp>> mapReduces;
+    std::vector<std::unique_ptr<ReduceOp>> reduces;
     std::unique_ptr<TensorView> result;
 
 public:
@@ -125,7 +125,7 @@ public:
     const BindingContext& getBindingContext() const { return ctx; }
     PrimitiveOpStore& getStore() { return store; }
     void storeIterator(std::unique_ptr<Iterator> iterator);
-    void storeMapReduce(std::unique_ptr<MapReduceOp> mapReduce);
+    void storeReduce(std::unique_ptr<ReduceOp> reduce);
 
     static std::vector<Topmost> ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors);
     TensorView& buildTensorView(const std::vector<std::vector<Dimension>>& tensors, TensorExpression blending);

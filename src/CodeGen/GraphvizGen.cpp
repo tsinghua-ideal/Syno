@@ -8,7 +8,7 @@
 #include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/Core/DimVisitor.hpp"
 #include "KAS/Core/Graph.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Transforms/Transforms.hpp"
 
@@ -53,7 +53,7 @@ struct OpCanvas: public OpVisitor {
     void visit(const ExpandOp& op) override {
         fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", Name(op), op.getType());
     }
-    void visit(const MapReduceOp& op) override {
+    void visit(const ReduceOp& op) override {
         // The is left for other procedures to draw.
     }
     void visit(const MergeOp& op) override { visits(op); }
@@ -80,7 +80,7 @@ struct OpCanvas: public OpVisitor {
         }
 
         // Draw the reductions.
-        for (const MapReduce *reduction: graph.getMapReduceIterators()) {
+        for (const Reduce *reduction: graph.getReduceIterators()) {
             fmt::format_to(SSIt(), "reduce_{} [label=\"{}\", shape=box];\n", reduction->getPriority(), reduction->whatReduce());
         }
 
@@ -94,7 +94,7 @@ struct OpCanvas: public OpVisitor {
 
         // Align the reductions and outputs.
         ss << "{ rank = same;\n";
-        for (const MapReduce *reduction: graph.getMapReduceIterators()) {
+        for (const Reduce *reduction: graph.getReduceIterators()) {
             fmt::format_to(SSIt(), "reduce_{};\n", reduction->getPriority());
         }
         for (const Iterator *output: graph.getOutputIterators()) {
@@ -118,7 +118,7 @@ struct DimCanvas: public DimVisitor {
     void visit(const Iterator& dim) override {
         fmt::format_to(SSIt(), "{} -> out_{} [label=\"{}\"];\n", from, dim.getIndex(), opCanvas.attributedLabelForDim(&dim));
     }
-    void visit(const MapReduce& dim) override {
+    void visit(const Reduce& dim) override {
         fmt::format_to(SSIt(), "{} -> reduce_{} [label=\"{}\"];\n", from, dim.getPriority(), opCanvas.attributedLabelForDim(&dim));
     }
     void visit(const RepeatLikeOp::Input& dim) override {

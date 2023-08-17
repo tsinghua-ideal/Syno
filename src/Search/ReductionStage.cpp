@@ -1,4 +1,4 @@
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/NormalStage.hpp"
 #include "KAS/Search/ReductionStage.hpp"
@@ -25,8 +25,8 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
 
     // Check if there is need to generate new stages.
     if (
-        existingOp<MapReduceOp>() >= options.maximumReductions
-        || existingOp<MapReduceOp>() >= options.depth
+        existingOp<ReduceOp>() >= options.maximumReductions
+        || existingOp<ReduceOp>() >= options.depth
     ) {
         if (fin != Finalizability::Maybe) {
             // This stage is determined.
@@ -37,14 +37,14 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
     }
 
     // Then attempt to generate new reductions.
-    std::vector<const MapReduceOp *> reductions;
-    std::ranges::move(getInterface().getDimensions() | std::views::transform([](const Dimension& dim) { return dynamic_cast<const MapReduceOp *>(dim.tryAs<MapReduce>()); }) | std::views::filter([](auto ptr) { return ptr != nullptr; }), std::back_inserter(reductions));
-    KAS_ASSERT(reductions.size() == existingOp<MapReduceOp>());
-    std::ranges::sort(reductions, std::less<>{}, &MapReduceOp::getPriority);
+    std::vector<const ReduceOp *> reductions;
+    std::ranges::move(getInterface().getDimensions() | std::views::transform([](const Dimension& dim) { return dynamic_cast<const ReduceOp *>(dim.tryAs<Reduce>()); }) | std::views::filter([](auto ptr) { return ptr != nullptr; }), std::back_inserter(reductions));
+    KAS_ASSERT(reductions.size() == existingOp<ReduceOp>());
+    std::ranges::sort(reductions, std::less<>{}, &ReduceOp::getPriority);
 
     std::vector<NextStageSlot> nextReductions;
     std::map<AbstractStage *, Finalizability> childrenFinalizabilities;
-    for (auto op: MapReduceOp::Generate(sampler.getOpStore(), reductions, {
+    for (auto op: ReduceOp::Generate(sampler.getOpStore(), reductions, {
         .ctx = sampler.getBindingContext(),
         .dimUpperBound = options.dimUpperBound,
         .outputSize = sampler.getTotalOutputSize(),
@@ -58,7 +58,7 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
             f = stage->getFinalizability(lock);
         }
         if (f != Finalizability::No) {
-            nextReductions.emplace_back(Next{Next::Type::MapReduce, NextStageSlot::GetKey(op)}, op, stage);
+            nextReductions.emplace_back(Next{Next::Type::Reduce, NextStageSlot::GetKey(op)}, op, stage);
             childrenFinalizabilities.emplace(stage, f);
         }
     }
@@ -123,7 +123,7 @@ std::vector<Arc> ReductionStage::getChildrenArcsImpl() {
 
 std::optional<Arc> ReductionStage::getArcFromHandleImpl(Next next) {
     KAS_ASSERT(expanded);
-    if (next.type == Next::Type::MapReduce) {
+    if (next.type == Next::Type::Reduce) {
         return Base::getArcFromHandleImpl(next);
     } else {
         return nStage->getArcFromHandle(next);
@@ -132,7 +132,7 @@ std::optional<Arc> ReductionStage::getArcFromHandleImpl(Next next) {
 
 std::optional<Node> ReductionStage::getChildImpl(Next next) {
     KAS_ASSERT(expanded);
-    if (next.type == Next::Type::MapReduce) {
+    if (next.type == Next::Type::Reduce) {
         return Base::getChildImpl(next);
     } else {
         return nStage->getChild(next);
@@ -143,7 +143,7 @@ bool ReductionStage::canAcceptArcImpl(Arc arc) {
     KAS_ASSERT(expanded);
     return arc.match<bool>(
         [&](const PrimitiveOp *op) -> bool {
-            if (op->getType() == DimensionType::MapReduce) {
+            if (op->getType() == DimensionType::Reduce) {
                 // We have to manually find if this is in the search space.
                 auto newInterface = op->applyToInterface(getInterface());
                 Lock lock = Lock { sampler.getMutex(depth + 1, newInterface)};
@@ -162,7 +162,7 @@ Node ReductionStage::getChildImpl(Arc arc) {
     KAS_ASSERT(expanded);
     return arc.match<Node>(
         [&](auto op) -> Node {
-            if (op->getType() == DimensionType::MapReduce) {
+            if (op->getType() == DimensionType::Reduce) {
                 return { &sampler, getNextOpWithoutLock(op) };
             } else {
                 return nStage->getChildImpl(arc);

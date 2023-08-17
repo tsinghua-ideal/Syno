@@ -22,7 +22,7 @@ class Node;
 struct Next {
     enum class Type: std::uint8_t {
         // Root -> Growing
-        MapReduce,
+        Reduce,
         // Growing -> Growing, i.e., PrimitiveOp's
         Expand,
         Shift,
@@ -68,7 +68,7 @@ struct Next {
 
     template<PrimitiveOpImpl Op>
     static constexpr Type TypeOf() {
-        if constexpr (std::same_as<Op, MapReduceOp>) { return Type::MapReduce; }
+        if constexpr (std::same_as<Op, ReduceOp>) { return Type::Reduce; }
         else if constexpr (std::same_as<Op, ExpandOp>) { return Type::Expand; }
         else if constexpr (std::same_as<Op, ShiftOp>) { return Type::Shift; }
         else if constexpr (std::same_as<Op, StrideOp>) { return Type::Stride; }
@@ -80,7 +80,7 @@ struct Next {
     }
     static constexpr Type TypeOf(DimensionType t) {
         switch (t) {
-        case DimensionType::MapReduce: return Type::MapReduce;
+        case DimensionType::Reduce: return Type::Reduce;
         case DimensionType::Expand: return Type::Expand;
         case DimensionType::Shift: return Type::Shift;
         case DimensionType::Stride: return Type::Stride;
@@ -317,7 +317,7 @@ class Node {
     // A node has 3 types.
     enum class Type: std::uint8_t {
         Reducing = 0, // Generating reductions.
-        Growing = 1, // Now we have generated MapReduce's, repeatedly add PrimitiveOp's.
+        Growing = 1, // Now we have generated Reduce's, repeatedly add PrimitiveOp's.
         Final = 2, // Finalization performed.
     };
     // This corresponds to the three types.
@@ -418,7 +418,8 @@ struct fmt::formatter<kas::Next::Type>: formatter<string_view> {
         string_view name = "Unknown";
         switch (t) {
         using namespace std::string_view_literals;
-        case kas::Next::Type::MapReduce: name = "MapReduce"sv; break;
+        case kas::Next::Type::Reduce: name = "Reduce"sv; break;
+        case kas::Next::Type::Expand: name = "Expand"sv; break;
         case kas::Next::Type::Shift: name = "Shift"sv; break;
         case kas::Next::Type::Stride: name = "Stride"sv; break;
         case kas::Next::Type::Split: name = "Split"sv; break;

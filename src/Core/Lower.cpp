@@ -149,11 +149,11 @@ DimensionEvaluator::DimensionEvaluator(const Graph& graph, const std::vector<Pur
     expression { std::move(blending) }
 {
     // Collect expression info from graph.
-    auto avg = graph.getMapReduceIterators()
-        | std::views::filter([](const MapReduce *op) {
-            return op->getReduce() == MapReduce::ReduceType::Mean;
+    auto avg = graph.getReduceIterators()
+        | std::views::filter([](const Reduce *op) {
+            return op->getReduce() == Reduce::ReduceType::Mean;
         })
-        | std::views::transform(&MapReduce::size);
+        | std::views::transform(&Reduce::size);
     divBy = FoldLeftFirst(avg, std::multiplies<Size>{});
 
     // Initialize the unknown and free set.

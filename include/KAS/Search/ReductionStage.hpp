@@ -1,7 +1,7 @@
 #pragma once
 
 #include "KAS/Search/AbstractStage.hpp"
-#include "KAS/Transforms/MapReduce.hpp"
+#include "KAS/Transforms/Reduce.hpp"
 #include "KAS/Utils/Threads.hpp"
 
 

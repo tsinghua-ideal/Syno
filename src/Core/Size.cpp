@@ -663,7 +663,7 @@ Allowance::Allowance(const Size& shape, const BindingContext& ctx):
     auto coefficient = shape.getCoefficient();
     const std::size_t primaryCount = ctx.getPrimaryCount(), coefficientCount = ctx.getCoefficientCount();
     for (std::size_t i = 0; i < primaryCount; ++i) {
-        // Observe that in the sampling process, the primary variables are generated only by Share and MapReduce. So we can limit it with maximumOccurrence.
+        // Observe that in the sampling process, the primary variables are generated only by Share and Reduce. So we can limit it with maximumOccurrence.
         Size::PowerType maximumOccurrence = primaryMeta[i].maximumOccurrence;
         this->primary[i] = maximumOccurrence - std::min(maximumOccurrence, primary[i]);
     }

@@ -2,7 +2,7 @@
 
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Dimension.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
@@ -219,7 +219,7 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     auto interface = GraphHandle(std::move(rootDimensions), std::vector<const Expand *>{});
     std::unique_ptr<ReductionStage> rootStage;
     std::unique_lock<std::recursive_mutex> lock;
-    // Generate MapReduce's. This recursively calls MapReduceOp::Generate().
+    // Generate Reduce's. This recursively calls ReduceOp::Generate().
     std::tie(rootStage, lock) = ReductionStage::Create(*this, std::move(interface), std::unique_lock<std::recursive_mutex>{});
     this->rootStage = dynamic_cast<ReductionStage *>(stageStore.insert(0, std::move(rootStage), lock));
     lock.unlock();
@@ -404,8 +404,8 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
 
     // First, ReductionStage.
     {
-        for (const MapReduce *op: graph.getMapReduceIterators()) {
-            result.emplace_back(Next::Type::MapReduce, op->hash());
+        for (const Reduce *op: graph.getReduceIterators()) {
+            result.emplace_back(Next::Type::Reduce, op->hash());
         }
     }
 

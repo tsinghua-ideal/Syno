@@ -1,14 +1,14 @@
 #include <string>
 
 #include "KAS/Core/BindingContext.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Size.hpp"
 
 
 namespace kas {
 
-std::string MapReduce::what(MapType type) {
+std::string Reduce::what(MapType type) {
     switch (type) {
         case MapType::Absolute: return "Absolute";
         case MapType::ArcTan:   return "ArcTan";
@@ -25,7 +25,7 @@ std::string MapReduce::what(MapType type) {
     KAS_UNREACHABLE();
 }
 
-std::string MapReduce::what(ReduceType type) {
+std::string Reduce::what(ReduceType type) {
     switch (type) {
         case ReduceType::Sum:     return "Sum";
         case ReduceType::Max:     return "Max";
@@ -37,30 +37,30 @@ std::string MapReduce::what(ReduceType type) {
     KAS_UNREACHABLE();
 }
 
-MapReduce::MapReduce(std::size_t priority, const Size& domain, MapType mapType, ReduceType reduceType):
+Reduce::Reduce(std::size_t priority, const Size& domain, MapType mapType, ReduceType reduceType):
     priority { priority },
     domain { domain },
     mapType { mapType },
     reduceType { reduceType }
 {}
 
-std::size_t MapReduce::hash() const noexcept {
+std::size_t Reduce::hash() const noexcept {
     using namespace std::string_view_literals;
     constexpr int SizeTypeWidth = std::numeric_limits<std::size_t>::digits;
-    constexpr int ExpectedMaximumMapReduces = 8;
-    std::size_t h = DimensionTypeHash(DimensionType::MapReduce);
+    constexpr int ExpectedMaximumReduces = 8;
+    std::size_t h = DimensionTypeHash(DimensionType::Reduce);
     HashCombine(h, mapType);
     HashCombine(h, reduceType);
-    static const auto mapReducePriorityHash = std::hash<std::string_view>{}("MapReduceIndex"sv);
-    HashCombine(h, std::rotl(mapReducePriorityHash, SizeTypeWidth / ExpectedMaximumMapReduces * priority));
+    static const auto reducePriorityHash = std::hash<std::string_view>{}("ReduceIndex"sv);
+    HashCombine(h, std::rotl(reducePriorityHash, SizeTypeWidth / ExpectedMaximumReduces * priority));
     HashCombine(h, domain);
     return h;
 }
 
-std::string MapReduce::whatMap() const {
+std::string Reduce::whatMap() const {
     return what(mapType);
 }
-std::string MapReduce::whatReduce() const {
+std::string Reduce::whatReduce() const {
     return what(reduceType);
 }
 

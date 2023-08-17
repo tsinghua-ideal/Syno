@@ -12,7 +12,7 @@
 #include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Iterator.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/TensorView.hpp"
 #include "KAS/Utils/Algorithm.hpp"
 #include "KAS/Utils/Common.hpp"

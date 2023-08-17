@@ -24,7 +24,7 @@ Dimension::Origin Dimension::deduceOrigin() const {
         switch (type()) {
         case DimensionType::Iterator:
             return Origin::BothPossible;
-        case DimensionType::MapReduce:
+        case DimensionType::Reduce:
         case DimensionType::Shift:
         case DimensionType::Stride:
         case DimensionType::Split:
@@ -52,7 +52,7 @@ std::string Dimension::descendantsDescription(const BindingContext& ctx) const {
         void visit(const Iterator& dim) override {
             result = std::to_string(dim.getIndex());
         }
-        void visit(const MapReduce& dim) override {
+        void visit(const Reduce& dim) override {
             result = std::to_string(dim.getPriority());
         }
         void visit(const RepeatLikeOp::Input& dim) override {

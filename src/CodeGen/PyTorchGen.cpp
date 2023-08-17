@@ -32,7 +32,7 @@ std::vector<Dimension> PyTorchGen::SubgraphGen::performContraction(std::string_v
         tensor.inputs().size() == 1 && // We only have one input tensor so we do not need to perform Share
         std::ranges::none_of(inputTensor.output(), [&](const Dimension& dim) {
             return
-                dim.type() == DimensionType::MapReduce || // there is no reduction.
+                dim.type() == DimensionType::Reduce || // there is no reduction.
                 isToBeShared(dim); // and there is no Share to be performed.
         })
     ) {
@@ -67,10 +67,10 @@ std::vector<Dimension> PyTorchGen::SubgraphGen::performContraction(std::string_v
         }
     }
 
-    // Perform reduction. By removing all MapReduce in realInput.
+    // Perform reduction. By removing all Reduce in realInput.
     // This only works for products. TODO: make this work for addition.
     auto [removeBegin, removeEnd] = std::ranges::remove_if(realInput, [](const std::pair<Dimension, std::size_t>& pair) {
-        return pair.first.type() == DimensionType::MapReduce;
+        return pair.first.type() == DimensionType::Reduce;
     });
     realInput.erase(removeBegin, removeEnd);
 
@@ -94,8 +94,8 @@ PyTorchGen::SubgraphGen::OpLower::OpLower(const BindingContext& ctx, const Graph
 {
     for (std::size_t index = 0; const auto& outputDim: this->tensor.output()) {
         outputSet.emplace(outputDim, index);
-        // It is possible that there are MapReduce's in output.
-        // KAS_ASSERT(outputDim.type() != DimensionType::MapReduce);
+        // It is possible that there are Reduce's in output.
+        // KAS_ASSERT(outputDim.type() != DimensionType::Reduce);
         ++index;
     }
 }

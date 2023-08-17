@@ -26,8 +26,8 @@ TEST_F(search_tests, forward) {
     dimN.output(0);
     dimH_over_K.output(1);
     dimW_over_K.output(2);
-    dimK2_shared.reduce(0, MapReduce::MapType::Identity, MapReduce::ReduceType::Mean);
-    dimK1_shared.reduce(1, MapReduce::MapType::Identity, MapReduce::ReduceType::Mean);
+    dimK2_shared.reduce(0, Reduce::MapType::Identity, Reduce::ReduceType::Mean);
+    dimK1_shared.reduce(1, Reduce::MapType::Identity, Reduce::ReduceType::Mean);
     // [N, H, W], the output.
 
     auto input = Topmost({ dimN, dimH, dimW }, {});

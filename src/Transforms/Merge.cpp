@@ -1,5 +1,5 @@
 #include "KAS/Core/Dimension.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Transforms/Merge.hpp"
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Utils/Common.hpp"
@@ -79,7 +79,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Gr
                 return; // This is pointless!
             }
         }
-        if (auto r = dim.tryAs<MapReduce>(); r) {
+        if (auto r = dim.tryAs<Reduce>(); r) {
             ++CountUselessImmediateReductions;
             return; // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
         }
