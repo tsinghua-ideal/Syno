@@ -205,7 +205,7 @@ def arg_parse():
     )
     parser.add_argument(
         "--kas-evaluate-time-limit",
-        default=1800,
+        default=3600,
         type=float,
         help="Inference time limit (in seconds)",
     )

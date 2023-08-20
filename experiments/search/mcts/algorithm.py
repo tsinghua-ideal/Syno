@@ -12,10 +12,10 @@ class MCTSAlgorithm:
     leaf_parallelization_number = 1
     exploration_weight = 3 * math.sqrt(2)
     max_iterations = 3000
-    time_limits = [(3, True), (10, False)]
+    time_limits = [(3, True), (15, False)]
     b = 0.4
     c_l = 20.0
-    flush_virtual_loss_period = 10  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency)
+    flush_virtual_loss_period = 0  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
     def __init__(self, sampler, args):
         self.mcts = MCTSTree(
@@ -111,7 +111,10 @@ class MCTSAlgorithm:
                 self.path_to_meta_data[path][0].append(leaf_tree_path)
 
         self.sample_num += 1
-        if self.sample_num % self.flush_virtual_loss_period == 0:
+        if (
+            self.flush_virtual_loss_period > 0
+            and self.sample_num % self.flush_virtual_loss_period == 0
+        ):
             logging.debug("Resetting virtual losses... ")
             for k in list(self.mcts.virtual_loss_count.keys()):
                 self.mcts.virtual_loss_count[k] = 0

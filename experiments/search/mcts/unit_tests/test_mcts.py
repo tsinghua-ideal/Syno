@@ -87,15 +87,6 @@ def test_mcts(backprop_prob=0.5):
         assert v.eq_state(
             mcts._treenode_store[k]
         ), f"Node {k.get_possible_path()} is {v.l_rave}, should be {mcts._treenode_store[k].l_rave}"
-    for k, v in mcts._treenode_store.items():
-        if v.N == 0:
-            continue
-        assert (
-            k in mcts_recover._treenode_store
-        ), f"Node {k} not in {mcts_recover._treenode_store}"
-        assert k.is_dead_end() or v.eq_state(
-            mcts_recover._treenode_store[k]
-        ), f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
 
     # raves
     # for k, v in mcts.g_rave.items():

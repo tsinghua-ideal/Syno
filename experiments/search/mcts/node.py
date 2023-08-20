@@ -92,6 +92,12 @@ class TreePath(Path):
             full_path
         ), suffix if suffix != "" else sampler.path_to_strs(full_path)
 
+    def __repr__(self) -> str:
+        if len(self.abs_path) > 0 and self.abs_path[-1].key == 0:
+            return f'[{", ".join(str(next) for next in self.abs_path[:-1])}]->{str(self.abs_path[-1].type)[5:]}'
+        else:
+            return super().__repr__()
+
 
 class TreeNode:
     """
@@ -130,6 +136,7 @@ class TreeNode:
         self.state = AverageMeter(support_std=True)
         self._last_T: int = 0
         self._is_dead: bool = False
+        self._not_dead: bool = False
         self._exhausted: bool = False
         self._isin_tree: bool = False
 
@@ -223,6 +230,7 @@ class TreeNode:
             "state": self.state.serialize(),
             "_last_T": self._last_T,
             "_is_dead": self._is_dead,
+            "_is_not_dead": self._not_dead,
             "_exhausted": self._exhausted,
             "_isin_tree": self._isin_tree,
         }
@@ -235,6 +243,7 @@ class TreeNode:
             self.state.empty()
             and all([lrave.empty() for lrave in self.l_rave.values()])
             and not self._is_dead
+            and not self._not_dead
             and self.N == 0
             and not self.is_final()
         )
@@ -248,6 +257,7 @@ class TreeNode:
         self.state.refresh(state_dict["state"])
         self._last_T = state_dict["_last_T"]
         self._is_dead = state_dict["_is_dead"]
+        self._not_dead = state_dict["_is_not_dead"]
         self._exhausted = state_dict["_exhausted"]
         self._isin_tree = state_dict["_isin_tree"]
 
@@ -592,6 +602,12 @@ class TreeNode:
 
     def set_dead(self) -> None:
         self._is_dead = True
+
+    def set_alive(self) -> None:
+        self._not_dead = True
+
+    def is_alive(self) -> None:
+        return self._not_dead
 
     def is_dead_end(self) -> bool:
         """
