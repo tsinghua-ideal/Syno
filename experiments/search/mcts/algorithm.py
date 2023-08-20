@@ -37,7 +37,7 @@ class MCTSAlgorithm:
         return self.mcts.serialize()
 
     def deserialize(self, serialized_dict):
-        self.mcts.deserialize(serialized_dict, self.sampler)
+        self.mcts.deserialize(serialized_dict, self.sampler, keep_dead_state=True)
 
     def update(self, path: Path, reward):
         serialized_path = path.serialize()

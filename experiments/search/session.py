@@ -169,9 +169,10 @@ class Session:
                     sample = self.algo.sample()
                 except Exception as e:
                     logging.info(
-                        f"Sample encountered error {e}. {traceback.format_exc()}"
+                        f"Prefetcher encounters error {e}. {traceback.format_exc()}"
                     )
-                self.prefetched.put(self.algo.sample())
+                    continue
+                self.prefetched.put(sample)
         except KeyboardInterrupt:
             logging.info("Prefetcher stopped by keyboard interrupt")
             return

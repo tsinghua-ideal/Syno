@@ -779,7 +779,10 @@ class MCTSTree:
 
     @staticmethod
     def deserialize(
-        serialized: dict, sampler: Sampler, keep_virtual_loss: bool = False
+        serialized: dict,
+        sampler: Sampler,
+        keep_virtual_loss: bool = False,
+        keep_dead_state: bool = False,
     ) -> "MCTSTree":
         """Deserialize a serialized tree and return a Tree object"""
         logging.debug("Deserializing ......")
@@ -790,6 +793,12 @@ class MCTSTree:
 
         for node_serial in tqdm(node_list):
             if node_serial["father"]["state"]["_is_dead"]:
+                if keep_dead_state:
+                    underlying_node = tree._sampler.visit(
+                        Path.deserialize(node_serial["path"])
+                    )
+                    father = tree.touch(underlying_node)
+                    father.set_dead()
                 continue
             underlying_node = tree._sampler.visit(Path.deserialize(node_serial["path"]))
             # assert underlying_node is not None, Path.deserialize(node_serial["path"])
@@ -800,7 +809,8 @@ class MCTSTree:
             father = tree.touch(underlying_node)
 
             father.load(node_serial["father"]["state"])
-            tree.virtual_loss_count[father] = node_serial["father"]["virtual_loss"]
+            if keep_virtual_loss:
+                tree.virtual_loss_count[father] = node_serial["father"]["virtual_loss"]
             if father.is_final():
                 father.filtered = node_serial["father"]["filtered"]
                 father.reward = node_serial["father"]["reward"]
@@ -809,9 +819,10 @@ class MCTSTree:
                 next = tree.next_serializer.deserialize_type(next_serial)
                 mid_child = father.get_child(next, auto_initialize=True)[0]
                 mid_child.load(node_serial["children"][next_serial]["state"])
-                tree.virtual_loss_count[mid_child] = node_serial["children"][
-                    next_serial
-                ]["virtual_loss"]
+                if keep_virtual_loss:
+                    tree.virtual_loss_count[mid_child] = node_serial["children"][
+                        next_serial
+                    ]["virtual_loss"]
                 children_states = node_serial["children"][next_serial]["children"]
 
                 for n_sel, (e_sel, rave_score) in children_states.items():

@@ -20,7 +20,7 @@ if __name__ == "__main__":
     if args.kas_mcts_explorer_path:
         with open(args.kas_mcts_explorer_path, "r") as file:
             mcts = MCTSTree.deserialize(
-                json.load(file), sampler, keep_virtual_loss=True
+                json.load(file), sampler, keep_virtual_loss=True, keep_dead_state=False
             )
     else:
         mcts = MCTSAlgorithm(sampler, args).mcts
