@@ -94,19 +94,19 @@ struct Subgraphs {
 
 // Basically a subgraph in Kernel Graph.
 // This processes the input tensor in 2 stages.
-// 1. Share. The dimensions in `inputs` are shared. That is, `i, i -> i`. In some cases, the output can be reduced, with `MapReduce` originating from `inputs` or ShareOp::output, so we can have something like `ij, i ->`.
+// 1. Share. The dimensions in `inputs` are shared. That is, `i, i -> i`. In some cases, the output can be reduced, with `Reduce` originating from `inputs` or ShareOp::output, so we can have something like `ij, i ->`.
 // 2. Transform. Apply some views to the tensor.
 // Any view that is later reduced, is left to the next Tensor.
 class TensorImpl {
     friend class Tensor;
 protected:
-    // The inputs need to be contracted. Note that `output` may contain `ShareOp::Input` and `MapReduce`.
+    // The inputs need to be contracted. Note that `output` may contain `ShareOp::Input` and `Reduce`.
     // CodeGen needs to figure out how to contract the inputs.
     // An input tensor has no input.
     std::vector<Tensor> inputs;
 
     // The output. This is the representation of this Tensor, from which we can read the shape.
-    // this can contain `MapReduce`, and is the "anchor" of the graph. CodeGen cannot freely mutate the anchors.
+    // this can contain `Reduce`, and is the "anchor" of the graph. CodeGen cannot freely mutate the anchors.
     std::vector<Dimension> output;
 
     // Input tensor.

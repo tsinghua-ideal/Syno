@@ -68,13 +68,9 @@ VisitedVertex MergeLikeVertex::visitAdjacent(MergeLikeOp::Branch branch) const {
 void Graph::Builder::visit(const Iterator& dim) {
     outputIterators.insert(&dim);
 }
-void Graph::Builder::visit(const MapReduce& dim) {
-    mapReduceIterators.insert(&dim);
-    if (auto op = dynamic_cast<const PrimitiveOp *>(&dim)) {
-        ops.emplace(op);
-    } else {
-        KAS_CRITICAL("Found naked MapReduce (not wrapped in a MapReduceOp) when building the graph!");
-    }
+void Graph::Builder::visit(const Reduce& dim) {
+    reduceIterators.insert(&dim);
+    // Do not put ReduceOp is ops.
 }
 void Graph::Builder::visit(const RepeatLikeOp::Input& dim) {
     auto op = dim.getOp();
@@ -133,19 +129,19 @@ Graph::Builder& Graph::Builder::addTopmost(const Topmost& interface) {
 
 Graph Graph::Builder::build() {
     auto outputIterators = std::vector<const Iterator *>(this->outputIterators.begin(), this->outputIterators.end());
-    auto mapReduceIterators = std::vector<const MapReduce *>(this->mapReduceIterators.begin(), this->mapReduceIterators.end());
+    auto reduceIterators = std::vector<const Reduce *>(this->reduceIterators.begin(), this->reduceIterators.end());
     std::ranges::sort(outputIterators, [](const Iterator *lhs, const Iterator *rhs) {
         return lhs->getIndex() < rhs->getIndex();
     });
-    std::ranges::sort(mapReduceIterators, [](const MapReduce *lhs, const MapReduce *rhs) {
-        return lhs->getPriority() < rhs->getPriority();
+    std::ranges::sort(reduceIterators, [](const Reduce *lhs, const Reduce *rhs) {
+        return Reduce::LexicographicalLEQ(*lhs, *rhs);
     });
     topmost.sort();
     return {
         std::move(topmost),
         std::move(dimMeta),
         std::move(outputIterators),
-        std::move(mapReduceIterators),
+        std::move(reduceIterators),
         std::move(ops),
     };
 }

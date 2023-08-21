@@ -67,7 +67,7 @@ void NormalStage::guardGeneratedChildren() {
                 fin = stage->getFinalizability(lock);
             }
             if (fin != Finalizability::No) {
-                children.emplace_back(Next{Next::TypeOf<Op>(), NextStageSlot::GetKey(op)}, op, stage);
+                children.emplace_back(Next::FromOp(op), op, stage);
                 childrenFinalizabilities.emplace(stage, fin);
             }
         }
@@ -115,6 +115,7 @@ void NormalStage::guardGeneratedChildren() {
                     .disallowUnfoldLAboveMergeR = options.disallowUnfoldLAboveMergeR,
                 }));
             }
+            // Expand^{-1}
             if (options.maximumExpands == -1 || options.maximumExpands > existingOp<ExpandOp>()) {
                 add(ExpandOp::Generate(store, interface, {
                     .ctx = ctx,
@@ -292,7 +293,7 @@ std::optional<Node> NormalStage::getChildImpl(Next next) {
 }
 
 bool NormalStage::canAcceptArcImpl(Arc arc) {
-    if (auto ptr = arc.tryAs<PrimitiveOp>(); ptr && ptr->getType() == DimensionType::MapReduce) {
+    if (auto ptr = arc.tryAs<PrimitiveOp>(); ptr && ptr->getType() == DimensionType::Reduce) {
         // We have left ReductionStage.
         return false;
     }

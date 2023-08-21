@@ -8,7 +8,7 @@
 #include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/Core/DimVisitor.hpp"
 #include "KAS/Core/Graph.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Transforms/Transforms.hpp"
 
@@ -36,6 +36,9 @@ struct OpCanvas: public OpVisitor {
     static std::string Name(const PrimitiveOp& op) {
         return fmt::format("op_{}", fmt::ptr(&op));
     }
+    static std::string Name(const Reduce& op) {
+        return fmt::format("reduce_{}", fmt::ptr(&op));
+    }
 
     void visits(const RepeatLikeOp& op) {
         fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", Name(op), op.getType());
@@ -53,7 +56,7 @@ struct OpCanvas: public OpVisitor {
     void visit(const ExpandOp& op) override {
         fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", Name(op), op.getType());
     }
-    void visit(const MapReduceOp& op) override {
+    void visit(const ReduceOp& op) override {
         // The is left for other procedures to draw.
     }
     void visit(const MergeOp& op) override { visits(op); }
@@ -80,8 +83,8 @@ struct OpCanvas: public OpVisitor {
         }
 
         // Draw the reductions.
-        for (const MapReduce *reduction: graph.getMapReduceIterators()) {
-            fmt::format_to(SSIt(), "reduce_{} [label=\"{}\", shape=box];\n", reduction->getPriority(), reduction->whatReduce());
+        for (const Reduce *reduction: graph.getReduceIterators()) {
+            fmt::format_to(SSIt(), "{} [label=\"{}\", shape=box];\n", Name(*reduction), reduction->whatReduce());
         }
 
         // Draw the outputs.
@@ -94,8 +97,8 @@ struct OpCanvas: public OpVisitor {
 
         // Align the reductions and outputs.
         ss << "{ rank = same;\n";
-        for (const MapReduce *reduction: graph.getMapReduceIterators()) {
-            fmt::format_to(SSIt(), "reduce_{};\n", reduction->getPriority());
+        for (const Reduce *reduction: graph.getReduceIterators()) {
+            fmt::format_to(SSIt(), "{};\n", Name(*reduction));
         }
         for (const Iterator *output: graph.getOutputIterators()) {
             fmt::format_to(SSIt(), "out_{};\n", output->getIndex());
@@ -118,8 +121,8 @@ struct DimCanvas: public DimVisitor {
     void visit(const Iterator& dim) override {
         fmt::format_to(SSIt(), "{} -> out_{} [label=\"{}\"];\n", from, dim.getIndex(), opCanvas.attributedLabelForDim(&dim));
     }
-    void visit(const MapReduce& dim) override {
-        fmt::format_to(SSIt(), "{} -> reduce_{} [label=\"{}\"];\n", from, dim.getPriority(), opCanvas.attributedLabelForDim(&dim));
+    void visit(const Reduce& dim) override {
+        fmt::format_to(SSIt(), "{} -> {} [label=\"{}\"];\n", from, OpCanvas::Name(dim), opCanvas.attributedLabelForDim(&dim));
     }
     void visit(const RepeatLikeOp::Input& dim) override {
         auto op = dim.getOp();
