@@ -40,6 +40,7 @@ class Session:
         # Algorithm
         # Required to implement:
         # - serialize
+        # - deserialize
         # - update
         # - sample
         self.algo = algo

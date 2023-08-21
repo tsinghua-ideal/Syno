@@ -142,7 +142,7 @@ class TreeNode:
         self._isin_tree: bool = False
 
         # temporal buffer
-        self._simulate_attempt_time: float = time()
+        self._simulate_attempt_time: float = 0
 
         self.l_rave: DefaultDict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
 

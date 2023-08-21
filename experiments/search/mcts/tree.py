@@ -178,8 +178,12 @@ class MCTSTree:
                 self.virtual_loss_count[tree_node] = 0
                 logging.warn("Error: Virtual loss go below 0! ")
 
-    def visit(self, path: TreePath, on_tree: bool = True) -> Optional[TreeNode]:
+    def visit(
+        self, path: TreePath, on_tree: bool = True, put_in_tree: bool = False
+    ) -> Optional[TreeNode]:
         tree_node = self.tree_root
+        if put_in_tree:
+            tree_node._isin_tree = True
         for next in path:
             tree_node = tree_node.get_child(
                 next.type, auto_initialize=not on_tree, on_tree=on_tree
@@ -187,6 +191,8 @@ class MCTSTree:
             if tree_node is None:
                 return None
             tree_node, _ = tree_node
+            if put_in_tree:
+                tree_node._isin_tree = True
             if next.key == 0:
                 break
             tree_node = tree_node.get_child(
@@ -195,6 +201,8 @@ class MCTSTree:
             if tree_node is None:
                 return None
             tree_node, _ = tree_node
+            if put_in_tree:
+                tree_node._isin_tree = True
         return tree_node
 
     # The receipt which is used for back propagation, which is the root node and the path.
@@ -358,6 +366,7 @@ class MCTSTree:
     def par_simulate(
         self, path: TreePath, leaf_expanded: TreeNode
     ) -> Optional[Tuple[TreePath, TreeNode]]:
+        assert not leaf_expanded.failed_recently
         leaves_queue = queue.Queue(maxsize=self.leaf_num)
         logging.debug(f"Simulation start")
         leaf_expanded._node.expand(3)
@@ -402,7 +411,7 @@ class MCTSTree:
                 else:
                     failure_flag = True
                     logging.debug(
-                        f"Force {path} to be dead because simulate failed for too many times. "
+                        f"Simulation from {path} failed for too many times, will retry sometimes later. "
                     )
                     leaf_expanded.flush_failure_time()
                     # assert leaf_expanded.is_dead_end()
