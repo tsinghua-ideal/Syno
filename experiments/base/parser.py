@@ -233,6 +233,12 @@ def arg_parse():
         type=int,
         help="Number of virtual evaluators (for prefetching)",
     )
+    parser.add_argument(
+        "--kas-test-path",
+        default="",
+        type=str,
+        help="Path to test",
+    )
 
     args = parser.parse_args()
 
