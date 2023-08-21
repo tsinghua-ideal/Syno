@@ -2,7 +2,7 @@ import logging
 import math
 from collections import defaultdict
 from functools import partial
-from typing import List, Union, Optional, Dict, Tuple, DefaultDict
+from typing import List, Union, Optional, Dict, Tuple, DefaultDict, Generator
 from time import time
 
 from KAS.Node import Path, Node, AbsolutePath
@@ -82,6 +82,18 @@ class TreePath(Path):
 
     def is_root(self):
         return self.abs_path == []
+
+    @property
+    def hierarchy(self) -> Generator['TreePath']:
+        path = TreePath([])
+        yield path
+        for next in self.abs_path:
+            path = path.concat(next.type)
+            yield path
+            if next.key == 0:
+                return
+            path = path.concat(next.key)
+            yield path
 
     def path_to_strs(self, sampler: Sampler):
         full_path = self.abs_path

@@ -14,8 +14,8 @@ class MCTSAlgorithm:
     leaf_parallelization_number = 1
     exploration_weight = 3 * math.sqrt(2)
     max_iterations = 3000
-    time_limits = [(3, False), (15, False)]
-    simulate_retry_period = 7200
+    time_limits = [(3, False), (10, False)]
+    simulate_retry_period = 18000
     b = 0.4
     c_l = 20.0
     flush_virtual_loss_period = 0  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
@@ -79,11 +79,12 @@ class MCTSAlgorithm:
                 trial_path,
                 trial_node,
             ) in self.init_samples:
-                results[Path(trial_path).serialize()] = (
-                    trial_path,
-                    trial_node,
-                    trial_path,
-                )
+                for path in trial_path.hierarchy:
+                    results[Path(path).serialize()] = (
+                        path,
+                        trial_node,
+                        trial_path,
+                    )
             self.init_samples = None
             return results
 
