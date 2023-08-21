@@ -3,6 +3,7 @@ import math
 from collections import defaultdict
 from functools import partial
 from typing import List, Union, Optional, Dict, Tuple, DefaultDict
+from time import time
 
 from KAS.Node import Path, Node, AbsolutePath
 from KAS.Sampler import Sampler
@@ -139,6 +140,9 @@ class TreeNode:
         self._not_dead: bool = False
         self._exhausted: bool = False
         self._isin_tree: bool = False
+
+        # temporal buffer
+        self._simulate_attempt_time: float = time()
 
         self.l_rave: DefaultDict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
 
@@ -302,7 +306,11 @@ class TreeNode:
         """
         Tp = math.floor(T**self._tree._b)
         # print(f"Got Tp={Tp}, child_count={self.children_count(on_tree=True, filter_exhausted=filter_exhausted)}, i {'am' if self.is_fully_in_tree() else 'am not'} fully in tree")
-        while Tp > self.children_count(on_tree=True, filter_exhausted=filter_exhausted):
+        while Tp > self.children_count(
+            on_tree=True,
+            filter_exhausted=filter_exhausted,
+            filter_simulate_failure=True,
+        ):
             if self.is_fully_in_tree():
                 break
             else:
@@ -314,6 +322,7 @@ class TreeNode:
         include_uninitialize: bool = False,
         on_tree: bool = False,
         filter_exhausted: bool = False,
+        filter_simulate_failure: bool = False,
     ) -> int:
         """
         Get the number of all children of a node.
@@ -340,6 +349,12 @@ class TreeNode:
                     and not self._tree._treenode_store[child]._isin_tree
                 ):
                     continue
+                if (
+                    filter_simulate_failure
+                    and child in self._tree._treenode_store
+                    and self._tree._treenode_store[child].failed_recently
+                ):
+                    continue
                 if filter_exhausted:
                     if (
                         child in self._tree._treenode_store
@@ -356,12 +371,20 @@ class TreeNode:
         else:
             if filter_exhausted:
                 return len(self.children) - sum(
-                    (child.is_exhausted() or (on_tree and not child._isin_tree))
+                    (
+                        child.is_exhausted()
+                        or (on_tree and not child._isin_tree)
+                        or (filter_simulate_failure and child.failed_recently)
+                    )
                     for child in self.children
                 )
             else:
                 return len(self.children) - sum(
-                    (child.is_dead_end() or (on_tree and not child._isin_tree))
+                    (
+                        child.is_dead_end()
+                        or (on_tree and not child._isin_tree)
+                        or (filter_simulate_failure and child.failed_recently)
+                    )
                     for child in self.children
                 )
 
@@ -424,7 +447,7 @@ class TreeNode:
         Get all unexpanded children of a node with nexts and edge states.
         Dependencies: get_children -> get_child -> is_dead_end -> is_final -> None
         """
-        children = self.get_children(on_tree=True)
+        children = self.get_children(on_tree=True, filter_simulate_failure=True)
         unexpanded_children = [child for child in children if child[1].N == 0]
         return unexpanded_children
 
@@ -458,6 +481,7 @@ class TreeNode:
         self,
         auto_initialize: bool = False,
         on_tree: bool = False,
+        filter_simulate_failure: bool = False,
     ) -> List[Tuple[PseudoTreeNext, "TreeNode", AverageMeter]]:
         """
         Get all alive children of a node with nexts and edge states.
@@ -494,6 +518,8 @@ class TreeNode:
         ret_list = list(zip(nexts, children, edge_states))
         if on_tree:
             ret_list = [(nxt, c, e) for nxt, c, e in ret_list if c._isin_tree]
+        if filter_simulate_failure:
+            ret_list = [(nxt, c, e) for nxt, c, e in ret_list if not c.failed_recently]
         return ret_list
 
     def get_child(
@@ -701,6 +727,14 @@ class TreeNode:
         Dependencies: None
         """
         return self._node.to_node()
+
+    # Temporally functions
+    @property
+    def failed_recently(self) -> bool:
+        return time() - self._simulate_attempt_time < self._tree._simulate_retry_period
+
+    def flush_failure_time(self) -> None:
+        self._simulate_attempt_time = time()
 
     def __repr__(self) -> str:
         if self._is_mid:

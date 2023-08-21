@@ -12,7 +12,8 @@ class MCTSAlgorithm:
     leaf_parallelization_number = 1
     exploration_weight = 3 * math.sqrt(2)
     max_iterations = 3000
-    time_limits = [(3, True), (15, False)]
+    time_limits = [(3, False), (10, False), (30, False)]
+    simulate_retry_period = 300
     b = 0.4
     c_l = 20.0
     flush_virtual_loss_period = 0  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
