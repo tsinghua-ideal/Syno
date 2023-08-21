@@ -84,7 +84,7 @@ class TreePath(Path):
         return self.abs_path == []
 
     @property
-    def hierarchy(self) -> Generator['TreePath']:
+    def hierarchy(self) -> Generator["TreePath", None, None]:
         path = TreePath([])
         yield path
         for next in self.abs_path:
