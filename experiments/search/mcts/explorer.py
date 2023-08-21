@@ -58,6 +58,7 @@ class MCTSExplorer:
                 print(f"\t\t reward: {current_node.reward}")
                 print(f"\t\t filtered: {current_node.filtered}")
             print(f"\t is_dead_end: {current_node._is_dead}")
+            print(f"\t is_alive: {current_node._not_dead}")
             print(f"\t is_exhausted: {current_node._exhausted}")
             print(f"\t is_in_tree: {current_node._isin_tree}")
             print(f"\t states:")
@@ -164,7 +165,7 @@ class MCTSExplorer:
                     print("Dead end, no need to simulate. ")
                 else:
                     for retry_count in tqdm(itertools.count()):
-                        result = self._mcts._simulate(path, current_node)
+                        result = self._mcts.par_simulate(path, current_node)
                         if result:
                             break
                     print(f"Take {retry_count} times to find a final node.")
