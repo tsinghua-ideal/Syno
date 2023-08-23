@@ -74,6 +74,7 @@ def get_model(
     build_placeholder_mappings(model, sample_input)
 
     # Build sampler
+    logging.info("Building sampler ...")
     sampler = (
         get_sampler(args, model)
         if (args.kas_replace_placeholder or return_sampler)
