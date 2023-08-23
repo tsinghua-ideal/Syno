@@ -8,7 +8,7 @@
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Expand.hpp"
 #include "KAS/Core/Iterator.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/Tensor.hpp"
 
@@ -79,9 +79,9 @@ protected:
     std::vector<const Iterator *> interface;
     // Define the corresponding shape view for interface.
     using IteratorShapeView = AbstractShape<const std::vector<const Iterator *>&, [](const Iterator * const& ptr) -> const Size& { return ptr->size(); }>;
-    // The map-reduce iterators.
-    std::vector<const MapReduce *> manipulations;
-    using ReduceIteratorShapeView = AbstractShape<const std::vector<const MapReduce *>&, [](const MapReduce * const& ptr) -> const Size& { return ptr->size(); }>;
+    // The reduce iterators.
+    std::vector<const Reduce *> manipulations;
+    using ReduceIteratorShapeView = AbstractShape<const std::vector<const Reduce *>&, [](const Reduce * const& ptr) -> const Size& { return ptr->size(); }>;
 
     std::vector<PureTensor> tensors;
     AbstractAccess forwardAccess; // Iterators evaluated for the forward pipeline.
@@ -120,8 +120,8 @@ public:
     // Returns the interface of the view.
     const std::vector<const Iterator *>& getInterfaceIterators() const { return interface; }
 
-    // Returns the map-reduce manipulations.
-    const std::vector<const MapReduce *>& getManipulations() const { return manipulations; }
+    // Returns the reduce manipulations.
+    const std::vector<const Reduce *>& getManipulations() const { return manipulations; }
 
     // Note that sometimes we need padding to make things work. Here we need to guarantee that all dimensions in the Graph are valid, so instead of padding tensors, we pad variables.
     ConcreteConsts computePadding(const BindingContext& ctx, const ConcreteConsts& consts) const;

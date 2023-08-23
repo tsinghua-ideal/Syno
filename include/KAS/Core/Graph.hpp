@@ -226,13 +226,13 @@ public:
         Topmost topmost;
         std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
         std::set<const Iterator *> outputIterators;
-        std::set<const MapReduce *> mapReduceIterators;
+        std::set<const Reduce *> reduceIterators;
         std::set<const PrimitiveOp *> ops;
 
         OpAbove parent;
         CompactIndices ancestor = CompactIndices::None();
         void visit(const Iterator& dim) override;
-        void visit(const MapReduce& dim) override;
+        void visit(const Reduce& dim) override;
         void visit(const RepeatLikeOp::Input& dim) override;
         void visit(const SplitLikeOp::Input& dim) override;
         void visit(const MergeLikeOp::Input& dim) override;
@@ -276,14 +276,14 @@ private:
     std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
     // And the output/reduce iterators as well.
     std::vector<const Iterator *> outputIterators;
-    std::vector<const MapReduce *> mapReduceIterators;
+    std::vector<const Reduce *> reduceIterators;
     std::set<const PrimitiveOp *> ops;
 
-    Graph(auto&& topmost, auto&& dimMeta, auto&& outputIterators, auto&& mapReduceIterators, auto&& ops):
+    Graph(auto&& topmost, auto&& dimMeta, auto&& outputIterators, auto&& reduceIterators, auto&& ops):
         topmost { std::forward<decltype(topmost)>(topmost) },
         dimMeta { std::forward<decltype(dimMeta)>(dimMeta) },
         outputIterators { std::forward<decltype(outputIterators)>(outputIterators) },
-        mapReduceIterators { std::forward<decltype(mapReduceIterators)>(mapReduceIterators) },
+        reduceIterators { std::forward<decltype(reduceIterators)>(reduceIterators) },
         ops { std::forward<decltype(ops)>(ops) }
     {}
 
@@ -324,8 +324,8 @@ public:
     }
     std::vector<const Iterator *>& getOutputIterators() { return outputIterators; }
     const std::vector<const Iterator *>& getOutputIterators() const { return outputIterators; }
-    std::vector<const MapReduce *>& getMapReduceIterators() { return mapReduceIterators; }
-    const std::vector<const MapReduce *>& getMapReduceIterators() const { return mapReduceIterators; }
+    std::vector<const Reduce *>& getReduceIterators() { return reduceIterators; }
+    const std::vector<const Reduce *>& getReduceIterators() const { return reduceIterators; }
 
     const PrimitiveOp *getOpAbove(const Dimension& dim) const;
     const std::set<const PrimitiveOp *> getOps() const { return ops; }

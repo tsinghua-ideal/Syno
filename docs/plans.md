@@ -47,7 +47,7 @@
 - [ ] What is a MergeOp by the way?
 - [ ] To support Attention, what can we do?
 - [ ] Make FinalizeOp a PrimitiveOp.
-- [ ] Remove `priority` from `MapReduce`.
+- [x] Remove `priority` from `MapReduce`.
 - [x] Add ExpandOp.
 
 ## Search
@@ -61,7 +61,7 @@
 
 - [x] Before generating an Op, test sizes of new dimensions to make it legal.
 - [x] Redesign generation algorithm for each Op.
-- [x] Accept FLOPs constraints in Sampler, and generate MapReduceOp's accordingly.
+- [x] Accept FLOPs constraints in Sampler, and generate ReduceOp's accordingly.
 - [ ] If ShapeComplexity finds the stage is in critical state, do not generate unnecessary Op's.
 - [ ] Make `Allowance` depend on global invariant.
 
@@ -76,6 +76,7 @@
 - [ ] Unfolding some dimensions to output iterators seems to be not a good idea.
 - [x] Make dead ends propagate. (By storing parent nodes.)
 - [x] Canonicalization for reshape.
+- [ ] Canonicalize Reduce's: do not introduce $n!$ duplication!
 
 ### Bindings
 

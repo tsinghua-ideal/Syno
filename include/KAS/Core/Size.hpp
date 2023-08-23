@@ -171,7 +171,10 @@ public:
     static Generator<Size> EnumerateSizes(const BindingContext& ctx, Size lowerBound, Size upperBound);
 
     bool operator==(const Size& other) const;
-    static bool LexicographicalLEQ(const Size& lhs, const Size& rhs);
+    static std::strong_ordering LexicographicalCompare(const Size& lhs, const Size& rhs);
+    static bool LexicographicalLEQ(const Size& lhs, const Size& rhs) {
+        return LexicographicalCompare(lhs, rhs) != std::strong_ordering::greater;
+    }
 
     std::string toString(const BindingContext& ctx) const;
 

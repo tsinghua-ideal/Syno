@@ -35,8 +35,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps(response).encode())
-        except BrokenPipeError as e:
-            logging.debug(f"Encountered {e} while processing {response['path']}")
+        except BrokenPipeError:
+            logging.debug(
+                f"Encountered BrokenPipeError while processing {response['path']}"
+            )
             self.session.update(response["path"], -1.0, int(1e9), int(1e9))
 
     def reward(self):

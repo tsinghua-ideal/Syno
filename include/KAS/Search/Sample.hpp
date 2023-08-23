@@ -19,7 +19,7 @@
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Iterator.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/TensorView.hpp"

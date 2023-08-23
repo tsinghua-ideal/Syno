@@ -5,6 +5,7 @@ import os
 import time
 import threading
 import queue
+import traceback
 from KAS.Node import Path, Node
 
 
@@ -39,6 +40,7 @@ class Session:
         # Algorithm
         # Required to implement:
         # - serialize
+        # - deserialize
         # - update
         # - sample
         self.algo = algo
@@ -164,7 +166,14 @@ class Session:
         try:
             while True:
                 logging.info(f"Prefetcher calls the next sample ...")
-                self.prefetched.put(self.algo.sample())
+                try:
+                    sample = self.algo.sample()
+                except Exception as e:
+                    logging.info(
+                        f"Prefetcher encounters error {e}. {traceback.format_exc()}"
+                    )
+                    continue
+                self.prefetched.put(sample)
         except KeyboardInterrupt:
             logging.info("Prefetcher stopped by keyboard interrupt")
             return

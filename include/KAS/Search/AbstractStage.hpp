@@ -122,7 +122,7 @@ protected:
 public:
     KAS_STATISTICS_DEF(
         Creations,
-        ChildrenMapReduce,
+        ChildrenReduce,
         ChildrenExpand,
         ChildrenShift,
         ChildrenStride,
@@ -175,7 +175,7 @@ public:
             Next::Type deltaOp = *optionalDeltaOp;
             existingOps[deltaOp] += 1;
             switch (deltaOp) {
-            case Next::Type::MapReduce: ++CountChildrenMapReduce; break;
+            case Next::Type::Reduce: ++CountChildrenReduce; break;
             case Next::Type::Expand: ++CountChildrenExpand; break;
             case Next::Type::Shift: ++CountChildrenShift; break;
             case Next::Type::Stride: ++CountChildrenStride; break;
@@ -216,6 +216,11 @@ public:
 
     // The state.
     Finalizability getFinalizability() const {
+        if (isFinalizabilityDetermined()) {
+            // Fast path. Here we do not need to acquire the lock.
+            // This is because once the state is determined, it will never change.
+            return state;
+        }
         Lock lock = acquireLock();
         return state;
     }

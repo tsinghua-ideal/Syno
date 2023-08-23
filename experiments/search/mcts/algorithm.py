@@ -1,9 +1,11 @@
 import time
 import math
 import logging
+from typing import Dict, List, Tuple, Optional
 from KAS.Node import Path, Node
 
 from .tree import MCTSTree
+from .node import TreePath, TreeNode
 
 
 class MCTSAlgorithm:
@@ -12,10 +14,15 @@ class MCTSAlgorithm:
     leaf_parallelization_number = 1
     exploration_weight = 3 * math.sqrt(2)
     max_iterations = 3000
-    time_limits = [(3, True), (10, False)]
+    time_limits = [(3, False), (10, False)]
+    simulate_retry_period = 18000
     b = 0.4
     c_l = 20.0
-    flush_virtual_loss_period = 10  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency)
+    flush_virtual_loss_period = 0  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
+
+    init_paths = [
+        "[MapReduce(17319207939285488028), MapReduce(12146852025244755418), MapReduce(4118768776902510081), Share(186651579210353525), Share(5399593111227186875), Share(15367891637277253328), Unfold(8760035789627503913), Unfold(9555756922762145101), Finalize(2442214348117812245)]"
+    ]
 
     def __init__(self, sampler, args):
         self.mcts = MCTSTree(
@@ -26,6 +33,7 @@ class MCTSAlgorithm:
             self.b,
             self.c_l,
             time_limits=self.time_limits,
+            simulate_retry_period=self.simulate_retry_period,
             kas_mcts_workers=args.kas_mcts_workers,
         )
         self.sampler = sampler
@@ -33,11 +41,18 @@ class MCTSAlgorithm:
 
         self.sample_num = 0
 
+        self.init_samples: List[Tuple[TreePath, TreeNode]] = []
+        for path_sel in self.init_paths:
+            path = TreePath.decode_str(path_sel)
+            trial_node = self.mcts.visit(path, on_tree=False, put_in_tree=True)
+            assert trial_node is not None
+            self.init_samples.append((path, trial_node))
+
     def serialize(self):
         return self.mcts.serialize()
 
     def deserialize(self, serialized_dict):
-        self.mcts.deserialize(serialized_dict, self.sampler)
+        self.mcts.deserialize(serialized_dict, self.sampler, keep_dead_state=True)
 
     def update(self, path: Path, reward):
         serialized_path = path.serialize()
@@ -56,7 +71,23 @@ class MCTSAlgorithm:
                     receipt=leaf_tree_path, reward=reward, path_to_trial=tree_path
                 )
 
-    def launch_new_iteration(self):
+    def launch_new_iteration(self) -> Dict[str, Tuple[TreePath, TreeNode, TreePath]]:
+        if self.init_samples is not None:
+            logging.info("Injecting bootstrapping path ...")
+            results = dict()
+            for (
+                trial_path,
+                trial_node,
+            ) in self.init_samples:
+                for path in trial_path.hierarchy:
+                    results[Path(path).serialize()] = (
+                        path,
+                        trial_node,
+                        trial_path,
+                    )
+            self.init_samples = None
+            return results
+
         logging.info("Launching new iteration ...")
         start_time = time.time()
 
@@ -111,7 +142,10 @@ class MCTSAlgorithm:
                 self.path_to_meta_data[path][0].append(leaf_tree_path)
 
         self.sample_num += 1
-        if self.sample_num % self.flush_virtual_loss_period == 0:
+        if (
+            self.flush_virtual_loss_period > 0
+            and self.sample_num % self.flush_virtual_loss_period == 0
+        ):
             logging.debug("Resetting virtual losses... ")
             for k in list(self.mcts.virtual_loss_count.keys()):
                 self.mcts.virtual_loss_count[k] = 0

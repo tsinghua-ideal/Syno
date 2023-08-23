@@ -132,7 +132,7 @@ public:
             std::array<std::size_t, 4> reshapeToNCHW(std::size_t heightIndexInInterface, std::size_t heightSize);
 
             void visit(const ExpandOp& op) override { KAS_CRITICAL("Cannot lower Expand to PyTorch as an Op."); }
-            void visit(const MapReduceOp& op) override { KAS_CRITICAL("Cannot lower MapReduce to PyTorch as an Op."); }
+            void visit(const ReduceOp& op) override { KAS_CRITICAL("Cannot lower Reduce to PyTorch as an Op."); }
             void visit(const MergeOp& op) override;
             void visit(const ShareOp& op) override;
             void visit(const ShiftOp& op) override;

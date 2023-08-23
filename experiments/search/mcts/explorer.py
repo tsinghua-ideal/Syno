@@ -27,7 +27,7 @@ class MCTSExplorer:
     @property
     def ucb_score(self) -> Callable:
         _, current_node = self.node_hierarchy[-1]
-        log_N_vertex = math.log(current_node.N)
+        log_N_vertex = math.log(current_node.N) if current_node.N >= 2 else 0
 
         def ucb1_tuned(key) -> float:
             _, child, edge = key
@@ -58,6 +58,7 @@ class MCTSExplorer:
                 print(f"\t\t reward: {current_node.reward}")
                 print(f"\t\t filtered: {current_node.filtered}")
             print(f"\t is_dead_end: {current_node._is_dead}")
+            print(f"\t is_alive: {current_node._not_dead}")
             print(f"\t is_exhausted: {current_node._exhausted}")
             print(f"\t is_in_tree: {current_node._isin_tree}")
             print(f"\t states:")
@@ -102,7 +103,7 @@ class MCTSExplorer:
                 else:
                     assert isinstance(nxt, Next.Type)
                     print(
-                        f"\t{nxt}:\t{child_node.children_count(on_tree=self.on_tree)} children, score={score}"
+                        f"\t{nxt}:\t{child_node.children_count(on_tree=self.on_tree)} children, score={score}, virtual_loss={self._mcts.virtual_loss_count[child_node]}"
                     )
         elif command in ["g", "grave"]:
             ty = None
@@ -164,7 +165,7 @@ class MCTSExplorer:
                     print("Dead end, no need to simulate. ")
                 else:
                     for retry_count in tqdm(itertools.count()):
-                        result = self._mcts._simulate(path, current_node)
+                        result = self._mcts.par_simulate(path, current_node)
                         if result:
                             break
                     print(f"Take {retry_count} times to find a final node.")
@@ -191,7 +192,7 @@ class MCTSExplorer:
                     tree_next = self._serializer.deserialize_type(tree_next)
                 child_node, _ = current_node.get_child(
                     tree_next,
-                    auto_initialize=True,
+                    auto_initialize=not self.on_tree,
                     on_tree=self.on_tree,
                 )
                 if child_node is None:

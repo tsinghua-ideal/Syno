@@ -1,5 +1,5 @@
 #include "KAS/Core/Graph.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Transforms/Merge.hpp"
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Transforms/Split.hpp"
@@ -30,7 +30,7 @@ auto ReshapeCanonicalizer::transform(const Iterator&) const -> Adjacent {
     return {};
 }
 
-auto ReshapeCanonicalizer::transform(const MapReduce&) const -> Adjacent {
+auto ReshapeCanonicalizer::transform(const Reduce&) const -> Adjacent {
     return {};
 }
 
@@ -132,8 +132,8 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Gr
             ++CountCounteractedMerges;
             return;
         }
-        if (auto l = dimL.tryAs<MapReduce>(); l) {
-            if (auto r = dimR.tryAs<MapReduce>(); r) {
+        if (auto l = dimL.tryAs<Reduce>(); l) {
+            if (auto r = dimR.tryAs<Reduce>(); r) {
                 // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
                 ++CountUselessImmediateReductions;
                 return;

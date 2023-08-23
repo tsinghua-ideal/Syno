@@ -172,7 +172,7 @@ Tensor TensorImpl::CreateTensorView(Tensor::Builder& builder, const std::vector<
     // Although we have contracted the tensors, we actually need to do the reductions.
     std::size_t beforeReduction = interface.size();
     auto [removeBegin, removeEnd] = std::ranges::remove_if(interface, [](const Dimension& dim) {
-        return dim.type() == DimensionType::MapReduce;
+        return dim.type() == DimensionType::Reduce;
     });
     interface.erase(removeBegin, removeEnd);
     anyProgressAtAll |= beforeReduction > interface.size();

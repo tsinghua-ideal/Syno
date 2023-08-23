@@ -1,7 +1,7 @@
 #pragma once
 
 #include "KAS/Core/Iterator.hpp"
-#include "KAS/Core/MapReduce.hpp"
+#include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 
 namespace kas {
@@ -9,7 +9,7 @@ namespace kas {
 class DimVisitor {
 public:
     virtual void visit(const Iterator& dim);
-    virtual void visit(const MapReduce& dim);
+    virtual void visit(const Reduce& dim);
     virtual void visit(const RepeatLikeOp::Input& dim);
     virtual void visit(const SplitLikeOp::Input& dim);
     virtual void visit(const MergeLikeOp::Input& dim);
@@ -21,13 +21,13 @@ concept BottomTopDimPropagator =
     requires(
         Visitor v,
         const Iterator& iterator,
-        const MapReduce& mapReduce,
+        const Reduce& reduce,
         const RepeatLikeOp::Input& repeatLike,
         const SplitLikeOp::Input& splitLike,
         const MergeLikeOp::Input& mergeLike
     ) {
         { v.transform(iterator) } -> std::same_as<AttributeType>;
-        { v.transform(mapReduce) } -> std::same_as<AttributeType>;
+        { v.transform(reduce) } -> std::same_as<AttributeType>;
         { v.transform(repeatLike) } -> std::same_as<AttributeType>;
         { v.transform(splitLike) } -> std::same_as<AttributeType>;
         { v.transform(mergeLike) } -> std::same_as<std::pair<AttributeType, AttributeType>>;
@@ -55,7 +55,7 @@ public:
         auto [_, isNewElem] = attributes.try_emplace(Dimension(&dim), derived().transform(dim));
         KAS_ASSERT(isNewElem);
     }
-    void visit(const MapReduce& dim) final {
+    void visit(const Reduce& dim) final {
         auto [_, isNewElem] = attributes.try_emplace(Dimension(&dim), derived().transform(dim));
         KAS_ASSERT(isNewElem);
     }

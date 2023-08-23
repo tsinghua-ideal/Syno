@@ -24,7 +24,7 @@ struct ReshapeBlockNeighbors {
 struct ReshapeCanonicalizer: public BottomTopDimVisitor<ReshapeCanonicalizer, ReshapeBlockNeighbors> {
     using Adjacent = ReshapeBlockNeighbors;
     auto transform(const Iterator&) const -> Adjacent;
-    auto transform(const MapReduce&) const -> Adjacent;
+    auto transform(const Reduce&) const -> Adjacent;
     auto transform(const RepeatLikeOp::Input&) const -> Adjacent;
     auto transform(const SplitLikeOp::Input& dim) const -> Adjacent;
     auto transform(const MergeLikeOp::Input& dim) const -> std::pair<Adjacent, Adjacent>;

@@ -18,8 +18,8 @@ TEST(core_tensor_tests, tensor) {
     auto sizeC1 = ctx.getSingleCoefficientVariableSize(1);
     ASSERT_EQ(sizeC1.toString(ctx), "c_1");
     Iterator i_0 { 0, sizeX0 }, i_1 { 1, sizeX1 }, i_2 { 2, sizeC0 };
-    MapReduceOp i_3 { 0, sizeC1, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
-    auto tensorView = TensorView({{{&i_0, &i_1, &i_2, &i_3}, {}}}, TensorExpression::ProductOfTensors(1));
+    ReduceOp i_3 { sizeC1, Reduce::ReduceType::Sum };
+    auto tensorView = TensorView({{{&i_0, &i_1, &i_2, i_3.getInput(0)}, {}}}, TensorExpression::ProductOfTensors(1));
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[x_0, x_1, c_0]");
     ASSERT_EQ(tensorView.getForwardAccess().outerLoopsIteratorsToString(), "[i_0, i_1, i_2]");
     ASSERT_EQ(tensorView.getForwardAccess().innerLoopsIteratorsToString(), "[ri_0]");
@@ -61,8 +61,8 @@ TEST(core_tensor_tests, subgraph_diagonal) {
     BindingContext::DebugPublicCtx = &ctx;
     auto [x_0, x_1] = ctx.getSizes("x_0", "x_1");
     Iterator i_0 { 0, x_0 };
-    MapReduceOp i_1 { 0, x_1, MapReduce::MapType::Identity, MapReduce::ReduceType::Sum };
-    ShareOp shareOp { &i_1 };
+    ReduceOp i_1 { x_1, Reduce::ReduceType::Sum };
+    ShareOp shareOp { i_1.getInput(0) };
     GraphHandle interface = {{&i_0, shareOp.getInputL(), shareOp.getInputR()}, {}};
 
     Graph graph = interface.buildGraph();
