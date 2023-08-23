@@ -62,7 +62,7 @@
 - [x] Before generating an Op, test sizes of new dimensions to make it legal.
 - [x] Redesign generation algorithm for each Op.
 - [x] Accept FLOPs constraints in Sampler, and generate ReduceOp's accordingly.
-- [ ] If ShapeComplexity finds the stage is in critical state, do not generate unnecessary Op's.
+- [x] If ShapeComplexity finds the stage is in critical state, do not generate unnecessary Op's.
 - [ ] Make `Allowance` depend on global invariant.
 
 ### Pruning
