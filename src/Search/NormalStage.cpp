@@ -76,13 +76,13 @@ void NormalStage::guardGeneratedChildren() {
     if (remainingDepth() > 0) {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}
-        if (options.maximumShifts == -1 || options.maximumShifts > existingOp<ShiftOp>()) {
+        if (!inCriticalState && (options.maximumShifts == -1 || options.maximumShifts > existingOp<ShiftOp>())) {
             add(ShiftOp::Generate(store, interface, {
                 .disallowShiftAboveUnfold = options.disallowShiftAboveUnfold,
             }));
         }
         // Stride^{-1}
-        if (options.maximumStrides == -1 || options.maximumStrides > existingOp<StrideOp>()) {
+        if (!inCriticalState && (options.maximumStrides == -1 || options.maximumStrides > existingOp<StrideOp>())) {
             add(StrideOp::Generate(store, interface, {
                 .ctx = ctx,
                 .maxStridedDimSize = options.maxStridedDimSize,
@@ -138,7 +138,7 @@ void NormalStage::guardGeneratedChildren() {
                 }));
             }
             // Share^{-1}
-            if (options.maximumShares == -1 || options.maximumShares > existingOp<ShareOp>()) {
+            if (!inCriticalState && (options.maximumShares == -1 || options.maximumShares > existingOp<ShareOp>())) {
                 add(ShareOp::Generate(store, interface, {
                     .ctx = ctx,
                     .maximumTensors = options.maximumTensors,
@@ -211,6 +211,9 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     if (distance > remainingDepth()) {
         ++CountShapeDeviatesTooMuch;
         return false;
+    } else if (distance == remainingDepth()) {
+        // Save this information.
+        inCriticalState = true;
     }
 
     return true;

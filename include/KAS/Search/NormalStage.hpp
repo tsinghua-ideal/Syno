@@ -23,6 +23,9 @@ class NormalStage final: public AbstractStageBase<NormalStage> {
 
     std::shared_ptr<TensorView> getFinalize(const FinalizeOp *op) const;
 
+    // If the required steps computed by possibleToFinalizeByExperimenting() is exactly the remaining depth, then we are in critical state.
+    // In critical state, do not generate useless Ops.
+    mutable bool inCriticalState = false;
     // This is for pruning. We experimentally finalize this stage, and conservatively exclude the stage if it is not possible to finalize.
     bool possibleToFinalizeByExperimenting() const;
 
