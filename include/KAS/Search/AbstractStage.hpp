@@ -216,6 +216,11 @@ public:
 
     // The state.
     Finalizability getFinalizability() const {
+        if (isFinalizabilityDetermined()) {
+            // Fast path. Here we do not need to acquire the lock.
+            // This is because once the state is determined, it will never change.
+            return state;
+        }
         Lock lock = acquireLock();
         return state;
     }
