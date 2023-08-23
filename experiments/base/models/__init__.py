@@ -11,14 +11,7 @@ from . import placeholder
 from .model import KASModel
 from .conv_net import ConvNet, SpeedyResNet
 from .fc_net import FCNet
-
-
-def get_model_input_size(args):
-    assert hasattr(
-        sys.modules[__name__], args.model
-    ), f"Could not find model {args.model}"
-    model_cls = getattr(sys.modules[__name__], args.model)
-    return model_cls.sample_input_shape()
+from .common import get_common_model
 
 
 def get_sampler(args, model) -> Sampler:
@@ -65,20 +58,19 @@ def get_model(
     args, return_sampler=False
 ) -> Union[Tuple[KASModel, Optional[Sampler]], KASModel]:
     # Create model instance
-    assert hasattr(
-        sys.modules[__name__], args.model
-    ), f"Could not find model {args.model}"
-    model_cls = getattr(sys.modules[__name__], args.model)
-    model = model_cls().cuda()
+    if args.model.startswith("torchvision/"):
+        model = get_common_model(args).cuda()
+    else:
+        assert hasattr(sys.modules[__name__], args.model), f"Could not find model {args.model}"
+        model_cls = getattr(sys.modules[__name__], args.model)
+        model = model_cls().cuda()
     flops, params = model.profile()
     logging.info(
         f"Base model {args.model} has {flops / 1e9:.5f}G FLOPs and {params / 1e6:.2f}M parameters"
     )
 
     # Build mapping for usages
-    sample_input = torch.randn(
-        (args.batch_size, *model_cls.sample_input_shape())
-    ).cuda()
+    sample_input = torch.randn((args.batch_size, *model.sample_input_shape())).cuda()
     build_placeholder_mappings(model, sample_input)
 
     # Build sampler

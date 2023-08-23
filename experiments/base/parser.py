@@ -2,14 +2,13 @@ import argparse
 import logging
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
-from .models import get_model_input_size
-
 
 def arg_parse():
     parser = argparse.ArgumentParser(description="KAS trainer/searcher")
 
     # Model
     parser.add_argument("--model", type=str, default="FCNet")
+    parser.add_argument("--num-classes", type=int, default=10)
     parser.add_argument(
         "--compile", action="store_true", default=False, help="Compile kernel"
     )
@@ -235,9 +234,6 @@ def arg_parse():
     )
 
     args = parser.parse_args()
-
-    # Extra arguments
-    setattr(args, "input_size", get_model_input_size(args))
 
     # Print
     args_str = "\n  > ".join([f"{k}: {v}" for k, v in vars(args).items()])
