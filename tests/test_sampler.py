@@ -53,8 +53,8 @@ def manually_design(assembler: Assembler) -> Assembled:
     main_H.output(0) # Mark the H as output.
     in_W.output(1)
     # shifted_W.output(1) # Mark the W as output.
-    shared_s_2.mean(0) # Mark the s_2 as sum reduction.
-    expanded_s_1.mean(1) # Mark the s_1 as sum reduction.
+    shared_s_2.mean() # Mark the s_2 as sum reduction.
+    expanded_s_1.mean() # Mark the s_1 as sum reduction.
 
     # Specify the input tensors.
     return assembler.assemble("simple_primitives_test", "in_0 * in_1", [in_H, in_W, expanded_s_1], [w_s_2])

@@ -22,22 +22,26 @@ std::string Dimension::sizeToString() const {
 }
 
 void Dimension::output(std::size_t index) {
-    auto it = std::make_unique<Iterator>(index, getSize());
-    set(it.get());
-    getFactory().storeIterator(std::move(it));
+    set(getFactory().createIterator(getSize(), index));
 }
 
-void Dimension::reduce(std::size_t priority, Reduce::MapType mapType, Reduce::ReduceType reduceType) {
-    auto op = std::make_unique<ReduceOp>(priority, getSize(), mapType, reduceType);
-    set(op.get());
-    getFactory().storeReduce(std::move(op));
+void Dimension::reduce(Reduce::ReduceType reduceType) {
+    set(getFactory().createReduce(getSize(), reduceType));
 }
 
-void Factory::storeIterator(std::unique_ptr<Iterator> iterator) {
-    iterators.emplace_back(std::move(iterator));
+const Iterator *Factory::createIterator(const Size& domain, std::size_t index) {
+    auto it = std::make_unique<Iterator>(index, domain);
+    auto ptr = it.get();
+    iterators.emplace_back(std::move(it));
+    bottommost.emplace_back(ptr);
+    return ptr;
 }
-void Factory::storeReduce(std::unique_ptr<ReduceOp> reduce) {
-    reduces.emplace_back(std::move(reduce));
+const Reduce *Factory::createReduce(const Size& domain, Reduce::ReduceType reduceType) {
+    auto op = store.get<::kas::ReduceOp>(domain, reduceType);
+    auto multiplicity = op->getMultiplicity(bottommost);
+    auto backDim = op->getInput(multiplicity);
+    bottommost.emplace_back(backDim);
+    return dynamic_cast<const Reduce *>(backDim.getInnerPointer());
 }
 
 std::vector<Topmost> Factory::ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors) {

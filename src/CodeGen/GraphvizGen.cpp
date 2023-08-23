@@ -36,6 +36,9 @@ struct OpCanvas: public OpVisitor {
     static std::string Name(const PrimitiveOp& op) {
         return fmt::format("op_{}", fmt::ptr(&op));
     }
+    static std::string Name(const Reduce& op) {
+        return fmt::format("reduce_{}", fmt::ptr(&op));
+    }
 
     void visits(const RepeatLikeOp& op) {
         fmt::format_to(SSIt(), "{} [label=\"{}\"];\n", Name(op), op.getType());
@@ -81,7 +84,7 @@ struct OpCanvas: public OpVisitor {
 
         // Draw the reductions.
         for (const Reduce *reduction: graph.getReduceIterators()) {
-            fmt::format_to(SSIt(), "reduce_{} [label=\"{}\", shape=box];\n", reduction->getPriority(), reduction->whatReduce());
+            fmt::format_to(SSIt(), "{} [label=\"{}\", shape=box];\n", Name(*reduction), reduction->whatReduce());
         }
 
         // Draw the outputs.
@@ -95,7 +98,7 @@ struct OpCanvas: public OpVisitor {
         // Align the reductions and outputs.
         ss << "{ rank = same;\n";
         for (const Reduce *reduction: graph.getReduceIterators()) {
-            fmt::format_to(SSIt(), "reduce_{};\n", reduction->getPriority());
+            fmt::format_to(SSIt(), "{};\n", Name(*reduction));
         }
         for (const Iterator *output: graph.getOutputIterators()) {
             fmt::format_to(SSIt(), "out_{};\n", output->getIndex());
@@ -119,7 +122,7 @@ struct DimCanvas: public DimVisitor {
         fmt::format_to(SSIt(), "{} -> out_{} [label=\"{}\"];\n", from, dim.getIndex(), opCanvas.attributedLabelForDim(&dim));
     }
     void visit(const Reduce& dim) override {
-        fmt::format_to(SSIt(), "{} -> reduce_{} [label=\"{}\"];\n", from, dim.getPriority(), opCanvas.attributedLabelForDim(&dim));
+        fmt::format_to(SSIt(), "{} -> {} [label=\"{}\"];\n", from, OpCanvas::Name(dim), opCanvas.attributedLabelForDim(&dim));
     }
     void visit(const RepeatLikeOp::Input& dim) override {
         auto op = dim.getOp();

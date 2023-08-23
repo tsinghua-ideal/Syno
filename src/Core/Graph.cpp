@@ -70,11 +70,7 @@ void Graph::Builder::visit(const Iterator& dim) {
 }
 void Graph::Builder::visit(const Reduce& dim) {
     reduceIterators.insert(&dim);
-    if (auto op = dynamic_cast<const PrimitiveOp *>(&dim)) {
-        ops.emplace(op);
-    } else {
-        KAS_CRITICAL("Found naked Reduce (not wrapped in a ReduceOp) when building the graph!");
-    }
+    // Do not put ReduceOp is ops.
 }
 void Graph::Builder::visit(const RepeatLikeOp::Input& dim) {
     auto op = dim.getOp();
@@ -138,7 +134,7 @@ Graph Graph::Builder::build() {
         return lhs->getIndex() < rhs->getIndex();
     });
     std::ranges::sort(reduceIterators, [](const Reduce *lhs, const Reduce *rhs) {
-        return lhs->getPriority() < rhs->getPriority();
+        return Reduce::LexicographicalLEQ(*lhs, *rhs);
     });
     topmost.sort();
     return {

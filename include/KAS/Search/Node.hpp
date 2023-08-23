@@ -48,6 +48,12 @@ struct Next {
     // This can be hash, or any arbitrary fixed number, as long as this is invariant between runs.
     std::size_t key;
 
+    // Constructor.
+    template<PrimitiveOpImpl Op>
+    static Next FromOp(const Op *op) {
+        return { TypeOf<Op>(), op->opHash() };
+    }
+
     // For Python.
     bool operator==(const Next& rhs) const noexcept = default;
     std::weak_ordering operator<=>(const Next& rhs) const noexcept = default;

@@ -375,20 +375,20 @@ bool Size::operator==(const Size& other) const {
     return std::ranges::equal(primary, other.primary) && std::ranges::equal(coefficient, other.coefficient);
 }
 
-bool Size::LexicographicalLEQ(const Size& lhs, const Size& rhs) {
+std::strong_ordering Size::LexicographicalCompare(const Size& lhs, const Size& rhs) {
     for (std::size_t i = 0; i < lhs.primaryCount; ++i) {
         auto res = lhs.primary[i] <=> rhs.primary[i];
-        if (res != 0) {
-            return res < 0;
+        if (res != std::strong_ordering::equal) {
+            return res;
         }
     }
     for (std::size_t i = 0; i < lhs.coefficientCount; ++i) {
         auto res = lhs.coefficient[i] <=> rhs.coefficient[i];
-        if (res != 0) {
-            return res < 0;
+        if (res != std::strong_ordering::equal) {
+            return res;
         }
     }
-    return true;
+    return std::strong_ordering::equal;
 }
 
 std::string Size::toString(const BindingContext& ctx) const {

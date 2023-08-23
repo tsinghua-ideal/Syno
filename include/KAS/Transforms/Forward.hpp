@@ -78,14 +78,14 @@ public:
     BackwardDimension get() const { return inner->get(); }
     operator BackwardDimension() const { return get(); }
     void output(std::size_t index);
-    void reduce(std::size_t priority, Reduce::MapType mapType, Reduce::ReduceType reduceType);
+    void reduce(Reduce::ReduceType reduceType);
 };
 
 class Factory {
     const BindingContext& ctx;
     PrimitiveOpStore store;
     std::vector<std::unique_ptr<Iterator>> iterators;
-    std::vector<std::unique_ptr<ReduceOp>> reduces;
+    std::vector<BackwardDimension> bottommost;
     std::unique_ptr<TensorView> result;
 
 public:
@@ -124,8 +124,8 @@ public:
 
     const BindingContext& getBindingContext() const { return ctx; }
     PrimitiveOpStore& getStore() { return store; }
-    void storeIterator(std::unique_ptr<Iterator> iterator);
-    void storeReduce(std::unique_ptr<ReduceOp> reduce);
+    const Iterator *createIterator(const Size& domain, std::size_t index);
+    const Reduce *createReduce(const Size& domain, Reduce::ReduceType reduceType);
 
     static std::vector<Topmost> ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors);
     TensorView& buildTensorView(const std::vector<std::vector<Dimension>>& tensors, TensorExpression blending);

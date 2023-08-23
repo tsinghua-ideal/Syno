@@ -405,7 +405,7 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
     // First, ReductionStage.
     {
         for (const Reduce *op: graph.getReduceIterators()) {
-            result.emplace_back(Next::Type::Reduce, op->hash());
+            result.emplace_back(Next::Type::Reduce, op->getBase().pureHash());
         }
     }
 

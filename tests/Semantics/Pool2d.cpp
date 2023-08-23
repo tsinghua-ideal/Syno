@@ -29,7 +29,7 @@ TEST_F(semantics_tests, pool2d) {
     auto dimH_dot_K_and_dimW_dot_K = Forward::MergeOp::Create(dimH_dot_K, dimW_dot_K);
     // [N, C, H/K, W/K, K^2], where the two K from H and W are merged into K^2.
 
-    dimH_dot_K_and_dimW_dot_K.reduce(0, Reduce::MapType::Identity, Reduce::ReduceType::Mean);
+    dimH_dot_K_and_dimW_dot_K.reduce(Reduce::ReduceType::Mean);
     // [N, C, H/K, W/K], where the K^2 is reduced.
 
     dimN.output(0);

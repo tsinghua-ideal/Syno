@@ -7,22 +7,11 @@
 
 namespace kas {
 
-class Reduce: public DimensionImpl {
+class ReduceBase {
 public:
-    enum class MapType {
-        Absolute,
-        ArcTan,
-        Exp,
-        Log,
-        Identity,
-        Inverse,
-        Negative,
-        ReLU,
-        Sigmoid,
-        Sign,
-        MapTypeCount,
-    };
-    static std::string what(MapType);
+    static constexpr DimensionType Type = DimensionType::Reduce;
+    static constexpr std::size_t ExpectedMaximumReduces = 6;
+
     enum class ReduceType {
         Sum,
         Max,
@@ -34,28 +23,77 @@ public:
     static std::string what(ReduceType);
 
 protected:
-    // This decides the order in which Reduce is applied.
-    std::size_t priority;
+    // Do not allow Map's, and assume that all reductions are commutative and associative.
+    // Then we do not need to assign a priority for this reduction.
+    // This aids search.
+    // std::size_t priority;
     Size domain;
 
-    MapType mapType;
     ReduceType reduceType;
 
+    ReduceBase(const Size& domain, ReduceType reduceType):
+        domain { domain },
+        reduceType { reduceType }
+    {}
+
 public:
-    Reduce(std::size_t priority, const Size& domain, MapType mapType, ReduceType reduceType);
-    const Size& size() const final override { return domain; }
-    std::size_t hash() const noexcept final override;
-    constexpr DimensionType type() const noexcept final override { return DimensionType::Reduce; }
-    void accept(DimVisitor& visitor) const final override;
-    const Color& getColor() const final override { return Color::None; }
-
-    MapType getMap() const { return mapType; }
+    const Size& getDomain() const { return domain; }
     ReduceType getReduce() const { return reduceType; }
-
-    std::size_t getPriority() const { return priority; }
-
-    std::string whatMap() const;
     std::string whatReduce() const;
+
+    bool operator==(const ReduceBase& other) const noexcept = default;
+    // Excludes multiplicity.
+    std::size_t pureHash() const noexcept;
+
+    virtual ~ReduceBase() = default;
+};
+
+class Reduce final: public DimensionImpl {
+    friend class ReduceOp;
+
+    const ReduceBase& base;
+
+    // But still we need to identify each reduction, even they have the same domains.
+    // So we need to somehow number them.
+    // If this is the first reduce of this domain, multiplicity == 0. If this is the second reduce of this domain, multiplicity == 1, and so on.
+    std::size_t multiplicity;
+
+    Reduce(const ReduceBase& base, std::size_t multiplicity):
+        base { base },
+        multiplicity { multiplicity }
+    {}
+
+public:
+    static constexpr std::size_t ExpectedMaximumReduces = ReduceBase::ExpectedMaximumReduces;
+    using ReduceType = ReduceBase::ReduceType;
+
+    const Size& size() const override { return base.getDomain(); }
+    bool operator==(const Reduce& other) const noexcept {
+        return base == other.base && multiplicity == other.multiplicity;
+    }
+    // Includes multiplicity.
+    std::size_t hash() const noexcept override;
+    constexpr DimensionType type() const noexcept override { return ReduceBase::Type; }
+    void accept(DimVisitor& visitor) const override;
+    const Color& getColor() const override { return Color::None; }
+
+    const ReduceBase& getBase() const { return base; }
+    ReduceType getReduce() const { return base.getReduce(); }
+    std::string whatReduce() const { return base.whatReduce(); }
+
+    // Dictionary order: reduceType, domain, multiplicity.
+    static std::strong_ordering LexicographicalCompare(const Reduce& a, const Reduce& b) noexcept {
+        auto reduceType = a.getReduce() <=> b.getReduce();
+        if (reduceType != 0) return reduceType;
+        auto domain = Size::LexicographicalCompare(a.size(), b.size());
+        if (domain != 0) return domain;
+        return a.getMultiplicity() <=> b.getMultiplicity();
+    }
+    static bool LexicographicalLEQ(const Reduce& a, const Reduce& b) noexcept {
+        return LexicographicalCompare(a, b) != std::strong_ordering::greater;
+    }
+
+    std::size_t getMultiplicity() const { return multiplicity; }
 };
 
 } // namespace kas

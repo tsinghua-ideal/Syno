@@ -268,16 +268,14 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("index")
         )
         .def(
-            "sum", [](Forward::Dimension& self, std::size_t priority) {
-                self.reduce(priority, Reduce::MapType::Identity, Reduce::ReduceType::Sum);
-            },
-            pybind11::arg("priority")
+            "sum", [](Forward::Dimension& self) {
+                self.reduce(Reduce::ReduceType::Sum);
+            }
         )
         .def(
-            "mean", [](Forward::Dimension& self, std::size_t priority) {
-                self.reduce(priority, Reduce::MapType::Identity, Reduce::ReduceType::Mean);
-            },
-            pybind11::arg("priority")
+            "mean", [](Forward::Dimension& self) {
+                self.reduce(Reduce::ReduceType::Mean);
+            }
         )
         .def("size", &Forward::Dimension::sizeToString);
 

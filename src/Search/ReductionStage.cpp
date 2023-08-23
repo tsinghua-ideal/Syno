@@ -37,10 +37,12 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
     }
 
     // Then attempt to generate new reductions.
-    std::vector<const ReduceOp *> reductions;
-    std::ranges::move(getInterface().getDimensions() | std::views::transform([](const Dimension& dim) { return dynamic_cast<const ReduceOp *>(dim.tryAs<Reduce>()); }) | std::views::filter([](auto ptr) { return ptr != nullptr; }), std::back_inserter(reductions));
+    std::vector<const Reduce *> reductions;
+    std::ranges::move(getInterface().getDimensions() | std::views::transform([](const Dimension& dim) { return dim.tryAs<Reduce>(); }) | std::views::filter([](auto ptr) { return ptr != nullptr; }), std::back_inserter(reductions));
     KAS_ASSERT(reductions.size() == existingOp<ReduceOp>());
-    std::ranges::sort(reductions, std::less<>{}, &ReduceOp::getPriority);
+    std::ranges::sort(reductions, [](const Reduce *lhs, const Reduce *rhs) {
+        return Reduce::LexicographicalLEQ(*lhs, *rhs);
+    });
 
     std::vector<NextStageSlot> nextReductions;
     std::map<AbstractStage *, Finalizability> childrenFinalizabilities;
@@ -58,7 +60,7 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
             f = stage->getFinalizability(lock);
         }
         if (f != Finalizability::No) {
-            nextReductions.emplace_back(Next{Next::Type::Reduce, NextStageSlot::GetKey(op)}, op, stage);
+            nextReductions.emplace_back(Next::FromOp(op), op, stage);
             childrenFinalizabilities.emplace(stage, f);
         }
     }
@@ -146,7 +148,7 @@ bool ReductionStage::canAcceptArcImpl(Arc arc) {
             if (op->getType() == DimensionType::Reduce) {
                 // We have to manually find if this is in the search space.
                 auto newInterface = op->applyToInterface(getInterface());
-                Lock lock = Lock { sampler.getMutex(depth + 1, newInterface)};
+                Lock lock = Lock { sampler.getMutex(depth + 1, newInterface) };
                 return sampler.getStageStore().find(depth + 1, newInterface, lock) != nullptr;
             } else {
                 return nStage->canAcceptArc(arc);

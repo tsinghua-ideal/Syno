@@ -8,24 +8,7 @@
 
 namespace kas {
 
-std::string Reduce::what(MapType type) {
-    switch (type) {
-        case MapType::Absolute: return "Absolute";
-        case MapType::ArcTan:   return "ArcTan";
-        case MapType::Exp:      return "Exp";
-        case MapType::Log:      return "Log";
-        case MapType::Identity: return "Identity";
-        case MapType::Inverse:  return "Inverse";
-        case MapType::Negative: return "Negative";
-        case MapType::ReLU:     return "ReLU";
-        case MapType::Sigmoid:  return "Sigmoid";
-        case MapType::Sign:     return "Sign";
-        case MapType::MapTypeCount: break;
-    }
-    KAS_UNREACHABLE();
-}
-
-std::string Reduce::what(ReduceType type) {
+std::string ReduceBase::what(ReduceType type) {
     switch (type) {
         case ReduceType::Sum:     return "Sum";
         case ReduceType::Max:     return "Max";
@@ -37,31 +20,27 @@ std::string Reduce::what(ReduceType type) {
     KAS_UNREACHABLE();
 }
 
-Reduce::Reduce(std::size_t priority, const Size& domain, MapType mapType, ReduceType reduceType):
-    priority { priority },
-    domain { domain },
-    mapType { mapType },
-    reduceType { reduceType }
-{}
+std::string ReduceBase::whatReduce() const {
+    return what(reduceType);
+}
 
-std::size_t Reduce::hash() const noexcept {
+std::size_t ReduceBase::pureHash() const noexcept {
     using namespace std::string_view_literals;
-    constexpr int SizeTypeWidth = std::numeric_limits<std::size_t>::digits;
-    constexpr int ExpectedMaximumReduces = 8;
     std::size_t h = DimensionTypeHash(DimensionType::Reduce);
-    HashCombine(h, mapType);
     HashCombine(h, reduceType);
-    static const auto reducePriorityHash = std::hash<std::string_view>{}("ReduceIndex"sv);
-    HashCombine(h, std::rotl(reducePriorityHash, SizeTypeWidth / ExpectedMaximumReduces * priority));
+    static const auto reduceDomainHash = std::hash<std::string_view>{}("ReduceDomain"sv);
+    HashCombineRaw(h, reduceDomainHash);
     HashCombine(h, domain);
     return h;
 }
 
-std::string Reduce::whatMap() const {
-    return what(mapType);
-}
-std::string Reduce::whatReduce() const {
-    return what(reduceType);
+std::size_t Reduce::hash() const noexcept {
+    using namespace std::string_view_literals;
+    constexpr int SizeTypeWidth = std::numeric_limits<std::size_t>::digits;
+    std::size_t h = getBase().pureHash();
+    static const auto reduceMultiplicityHash = std::hash<std::string_view>{}("ReduceIndex"sv);
+    HashCombine(h, std::rotl(reduceMultiplicityHash, SizeTypeWidth / static_cast<int>(ExpectedMaximumReduces) * multiplicity));
+    return h;
 }
 
 } // namespace kas

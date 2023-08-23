@@ -47,7 +47,7 @@
 - [ ] What is a MergeOp by the way?
 - [ ] To support Attention, what can we do?
 - [ ] Make FinalizeOp a PrimitiveOp.
-- [ ] Remove `priority` from `MapReduce`.
+- [x] Remove `priority` from `MapReduce`.
 - [x] Add ExpandOp.
 
 ## Search
@@ -76,6 +76,7 @@
 - [ ] Unfolding some dimensions to output iterators seems to be not a good idea.
 - [x] Make dead ends propagate. (By storing parent nodes.)
 - [x] Canonicalization for reshape.
+- [ ] Canonicalize Reduce's: do not introduce $n!$ duplication!
 
 ### Bindings
 

@@ -53,7 +53,7 @@ std::string Dimension::descendantsDescription(const BindingContext& ctx) const {
             result = std::to_string(dim.getIndex());
         }
         void visit(const Reduce& dim) override {
-            result = std::to_string(dim.getPriority());
+            result = "";
         }
         void visit(const RepeatLikeOp::Input& dim) override {
             result = dim.getOp()->output.descendantsDescription(ctx);

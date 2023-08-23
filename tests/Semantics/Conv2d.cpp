@@ -41,9 +41,9 @@ TEST_F(semantics_tests, conv2d) {
     dimCout.output(1);
     dimH_over_K.output(2);
     dimW_over_K.output(3);
-    dimK2_shared.reduce(0, Reduce::MapType::Identity, Reduce::ReduceType::Sum);
-    dimK1_shared.reduce(1, Reduce::MapType::Identity, Reduce::ReduceType::Sum);
-    dimCin_shared.reduce(2, Reduce::MapType::Identity, Reduce::ReduceType::Sum);
+    dimK2_shared.reduce(Reduce::ReduceType::Sum);
+    dimK1_shared.reduce(Reduce::ReduceType::Sum);
+    dimCin_shared.reduce( Reduce::ReduceType::Sum);
     // [N, C_out, H, W], the output.
 
     // TODO: Add bias.
