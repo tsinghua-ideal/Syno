@@ -164,11 +164,8 @@ class MCTSExplorer:
                 if current_node.is_dead_end():
                     print("Dead end, no need to simulate. ")
                 else:
-                    for retry_count in tqdm(itertools.count()):
-                        result = self._mcts.par_simulate(path, current_node)
-                        if result:
-                            break
-                    print(f"Take {retry_count} times to find a final node.")
+                    result = self._mcts.par_simulate(path, current_node)
+                    print(f"Results={result}.")
             except Exception as e:
                 print(f"Invalid command. {e}")
         elif command.startswith("rollout"):

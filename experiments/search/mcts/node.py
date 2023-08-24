@@ -1,5 +1,6 @@
 import logging
 import math
+import random
 from collections import defaultdict
 from functools import partial
 from typing import List, Union, Optional, Dict, Tuple, DefaultDict, Generator
@@ -426,9 +427,9 @@ class TreeNode:
                 arc
             ].mean
 
-        unrevealed_children = self.get_unrevealed_children()
+        unrevealed_children = random.shuffle(self.get_unrevealed_children())
         if len(unrevealed_children) == 0:
-            # logging.debug("No new children to be added")
+            logging.debug("No new children to be added")
             assert (
                 self.is_fully_in_tree()
             ), f"{self} is not fully expanded but no children can be revealed"

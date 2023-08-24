@@ -75,15 +75,18 @@ class Session:
         logging.info(f"Saving search session into {self.save_dir}")
         os.makedirs(self.save_dir, exist_ok=True)
 
-        # Save state
-        state = self.algo.serialize()
-        if state:
-            with open(os.path.join(self.save_dir, "state.json"), "w") as f:
-                json.dump(state, f, indent=2)
+        try:
+            # Save state
+            state = self.algo.serialize()
+            if state:
+                with open(os.path.join(self.save_dir, "state.json"), "w") as f:
+                    json.dump(state, f, indent=2)
 
-        # Save arguments
-        with open(os.path.join(self.save_dir, "args.json"), "w") as f:
-            json.dump(vars(self.args), f, indent=2)
+            # Save arguments
+            with open(os.path.join(self.save_dir, "args.json"), "w") as f:
+                json.dump(vars(self.args), f, indent=2)
+        except:
+            logging.info(f"Saving failed. ")
 
     def load(self):
         if not os.path.exists(self.save_dir):

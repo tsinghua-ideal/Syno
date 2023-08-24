@@ -305,6 +305,8 @@ class MCTSTree:
             # node is terminal, unexplored, or a leaf
             if node.is_terminal() or len(node.get_unexpanded_children()) > 0:
                 return path, node
+            if node.children_count() == 0:
+                logging.debug(f"{path} has no children")
             assert len(node.get_unexpanded_children()) == 0
             selected = self._ucd_select(node)
             if selected is None:
@@ -685,8 +687,7 @@ class MCTSTree:
         children = node.get_children(on_tree=True, filter_simulate_failure=True)
 
         if len(children) == 0:
-            if not node.is_fully_in_tree():
-                node.reveal_new_children(self.g_rave, self._c_l)
+            node.reveal_new_children(self.g_rave, self._c_l)
             logging.debug("Selection failed. ")
             return None
 
