@@ -11,7 +11,6 @@ from KAS.Node import Path, Node
 
 class Session:
     # TODO: add interface for deserializing from file
-    # TODO: add timeout handling
 
     def __init__(self, sampler, algo, args):
         # Parameters
@@ -21,7 +20,8 @@ class Session:
         self.reward_trunc: float = args.kas_reward_trunc
         self.target: str = args.kas_target
         self.min_accuracy: float = args.kas_min_accuracy
-        self.flops_trunc: int = int(args.kas_flops_trunc)
+        self.original_flops: int = args.original_flops
+        self.max_flops_ratio: float = args.kas_max_flops_ratio
         self.evaluate_time_limit = args.kas_evaluate_time_limit
 
         # Configs
@@ -151,14 +151,11 @@ class Session:
         # Update with reward
         if accuracy > 0:
             if self.target == "flops" and accuracy >= self.min_accuracy:
-                reward = self.min_accuracy + max(0, 1.0 - flops / self.flops_trunc) * (
-                    1 - self.min_accuracy
-                )
+                reward = self.min_accuracy + \
+                    max(0, 1.0 - (flops / self.original_flops) / self.max_flops_ratio) * (1 - self.min_accuracy)
             else:
-                reward = (max(accuracy, self.reward_trunc) - self.reward_trunc) / (
-                    1 - self.reward_trunc
-                )
-            reward = reward**self.reward_power
+                reward = (max(accuracy, self.reward_trunc) - self.reward_trunc) / (1 - self.reward_trunc)
+            reward = reward ** self.reward_power
         else:
             reward = -1
 

@@ -46,17 +46,21 @@ class KASModel(nn.Module):
                     if key in m._buffers:
                         m._buffers.pop(key)
 
-    def profile(self, batch_size=1, force_update=False) -> Tuple[int, int]:
+    def profile(self, batch_size=1, force_update=False, not_count_placeholder=False) -> Tuple[int, int]:
         if not (self.flops == 0 and self.params == 0) and not force_update:
             return self.flops, self.params
         
         # Get statistics (count with batch size = 1)
-        def count_placeholder(m: Placeholder, x, y):
+        def count_placeholder_non_zero(m: Placeholder, x, y):
             if m.kernel:
                 m.total_ops += torch.DoubleTensor([m.flops])
             else:
                 m.total_ops += m.refered_layer.total_ops
-
+        
+        def count_placeholder_zero(m: Placeholder, x, y):
+            pass
+        
+        count_placeholder = count_placeholder_zero if not_count_placeholder else count_placeholder_non_zero
         sample_input = torch.randn((batch_size, *self.sample_input_shape())).cuda()
         flops, params = thop.profile(self, inputs=(sample_input, ), verbose=False, report_missing=False, custom_ops={
             Placeholder: count_placeholder,

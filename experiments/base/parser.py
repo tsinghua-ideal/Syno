@@ -143,22 +143,21 @@ def arg_parse():
         help="KAS server saving directory",
     )
     parser.add_argument(
-        "--kas-max-flops",
-        default=1e15,
-        type=float,
-        help="Maximum FLOPs for searched kernels (only for search)",
-    )
-    parser.add_argument(
         "--kas-min-accuracy", default=0, type=float, help="Minimum accuracy for network"
     )
     parser.add_argument(
         "--kas-target", default="accuracy", type=str, help="Target metric of KAS"
     )
     parser.add_argument(
-        "--kas-flops-trunc",
-        default=1e15,
+        "--kas-soft-flops-limit",
+        default=False,
+        action="store_true",
+    )
+    parser.add_argument(
+        "--kas-max-flops-ratio",
+        default=0.5,
         type=float,
-        help="Maximum FLOPs to be counted as reward. ",
+        help="Maximum FLOPs ratio to be counted as reward",
     )
     parser.add_argument(
         "--kas-reward-trunc", default=0, type=float, help="Reward lower bound"

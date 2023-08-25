@@ -9,7 +9,7 @@ class BeamAlgorithm:
     max_queue_size = 500000
     max_final_iterations = 1000
     expand_async_layers = 2
-    noise_weight = 0.55
+    noise_weight = 0.6
 
     def __init__(self, sampler: Sampler, args):
         self.sampler = sampler

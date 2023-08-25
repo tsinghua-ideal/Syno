@@ -15,7 +15,22 @@ from .common import get_common_model
 
 
 def get_sampler(args, model) -> Sampler:
-    # Build sampler
+    # FLOPs ratio
+    raw_flops, _ = model.profile(not_count_placeholder=True)
+    flops, _ = model.profile()
+    max_flops = args.kas_max_flops_ratio * flops
+    assert max_flops > raw_flops, f"Maximum FLOPs {max_flops} is smaller than raw FLOPs {raw_flops}"
+    max_placeholder_flops = max_flops - raw_flops
+    logging.info(f"Raw FLOPs per batch: {raw_flops / 1e9:.5f}G")
+    logging.info(f"Maximum total placeholder FLOPs per batch: {max_placeholder_flops / 1e9:.5f}G")
+    logging.info(f"Enable soft FLOPs limit: {args.kas_soft_flops_limit}")
+    setattr(args, "original_flops", flops)
+
+    if args.kas_soft_flops_limit:
+        # TODO: maybe change to zero
+        max_placeholder_flops = 1e12
+
+    # Build sampler09
     model_params = model.sampler_parameters()
     params = {
         "input_shape": model_params["input_shape"],
@@ -31,7 +46,7 @@ def get_sampler(args, model) -> Sampler:
         "dim_upper": args.kas_max_dim,
         "maximum_tensors": args.kas_max_tensors,
         "maximum_reductions": args.kas_max_reductions,
-        "max_flops": args.kas_max_flops * args.batch_size,
+        "max_flops": max_placeholder_flops * args.batch_size,
         "save_path": args.kas_scheduler_cache_dir,
         "cuda": True,
         "autoscheduler": CodeGenOptions.AutoScheduler.Anderson2021,
@@ -66,7 +81,7 @@ def get_model(
         model = model_cls().cuda()
     flops, params = model.profile()
     logging.info(
-        f"Base model {args.model} has {flops / 1e9:.5f}G FLOPs and {params / 1e6:.2f}M parameters"
+        f"Base model {args.model} has {flops / 1e9:.5f}GFLOPs (per batch) and {params / 1e6:.2f}M parameters"
     )
 
     # Build mapping for usages
@@ -94,6 +109,8 @@ def get_model(
             compile=args.compile,
             batch_size=args.batch_size,
         )
+        flops, params = model.profile()
+        logging.info(f"Replaced model {args.model} has {flops / 1e9:.5f}G FLOPs and {params / 1e6:.2f}M parameters")
 
     if return_sampler:
         assert sampler
