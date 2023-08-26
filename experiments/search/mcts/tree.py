@@ -6,10 +6,6 @@ from collections import defaultdict
 from typing import List, Tuple, Optional, DefaultDict, Set, Union, Dict
 from tqdm import tqdm
 
-# Multi-thread support
-import threading
-import queue
-
 from KAS.Node import Node, Path
 from KAS.Sampler import Sampler
 from KAS.Bindings import Next, Arc
@@ -22,30 +18,6 @@ from .avg_meter import AverageMeter
 MockArc = Union[Next, Arc]
 
 
-def join_all(threads, timeout) -> bool:
-    """
-    Reference: https://stackoverflow.com/questions/24065808/python-join-multiple-threads-with-timeout
-    Args:
-        threads: a list of thread objects to join
-        timeout: the maximum time to wait for the threads to finish
-    Return:
-        Whether all threads are finished.
-    """
-    start = cur_time = time.time()
-    while cur_time <= (start + timeout):
-        for thread in threads:
-            if thread.is_alive():
-                thread.join(timeout=0)
-        if all(not t.is_alive() for t in threads):
-            return True
-        time.sleep(0.1)
-        cur_time = time.time()
-    else:
-        still_running = [t for t in threads if t.is_alive()]
-        num = len(still_running)
-        return num == 0
-
-
 class MCTSTree:
     def __init__(
         self,
@@ -56,8 +28,8 @@ class MCTSTree:
         b: float = 0.5,
         c_l: float = 20,
         policy: str = "update-descent",
-        time_limits: List[Tuple[int, bool]] = [(30, False)],
-        simulate_retry_period: float = 0.0,
+        max_final_iterations: int = 1000,
+        simulate_retry_period: float = 60,
         kas_mcts_workers: int = 4,
     ) -> None:
         self._treenode_store: Dict[Node, TreeNode] = dict()
@@ -72,7 +44,7 @@ class MCTSTree:
         self._c_l = c_l
         self._b = b
         self._policy = policy
-        self._time_limits = time_limits
+        self._max_final_iterations = max_final_iterations
         self._simulate_retry_period = simulate_retry_period
         self._kas_mcts_workers = kas_mcts_workers
         assert policy in ["update-all", "update-descent"]
@@ -112,9 +84,6 @@ class MCTSTree:
         for next in path:
             tree_node = tree_node.get_child(next.type, on_tree=True)
             if tree_node is None:
-                logging.debug(
-                    "Error: TreeNode is none, maybe due to another prefetcher"
-                )
                 logging.debug(f"stopped at {next.type}")
                 break
             tree_node, _ = tree_node
@@ -126,9 +95,6 @@ class MCTSTree:
                 break
             tree_node = tree_node.get_child(next.key, on_tree=True)
             if tree_node is None:
-                logging.debug(
-                    "Error: TreeNode is none, maybe due to another prefetcher"
-                )
                 logging.debug(f"stopped at {next.key}")
                 break
             tree_node, _ = tree_node
@@ -244,7 +210,7 @@ class MCTSTree:
 
         # Select
         logging.debug("Selection start")
-        select_result = self._select()
+        select_result = self.select()
         if select_result is None:
             return None
         path, leaf = select_result
@@ -270,7 +236,7 @@ class MCTSTree:
                 return None
 
         logging.debug("Expansion start")
-        expand_result = self._expand(leaf)
+        expand_result = self.expand(leaf)
         if expand_result is None:
             logging.debug("Expansion failed.")
             return None
@@ -282,7 +248,7 @@ class MCTSTree:
         logging.debug(f"Expansion end {path}")
 
         # Simulate
-        leaves = self.par_simulate(path, leaf_expanded)
+        leaves = self.simulate(path, leaf_expanded)
 
         if leaves is not None:
             assert len(leaves) == self.leaf_num, leaves
@@ -296,7 +262,7 @@ class MCTSTree:
     #   Functional support
     #########################
 
-    def _select(self) -> Optional[Tuple[TreePath, TreeNode]]:
+    def select(self) -> Optional[Tuple[TreePath, TreeNode]]:
         "Find an unexplored descendent of root"
         path = TreePath([])
         node = self.tree_root
@@ -314,7 +280,7 @@ class MCTSTree:
             next, node, _ = selected
             path = path.concat(next)
 
-    def _expand(self, node: TreeNode) -> Optional[Tuple[PseudoTreeNext, TreeNode]]:
+    def expand(self, node: TreeNode) -> Optional[Tuple[PseudoTreeNext, TreeNode]]:
         """
         Expand the leaf one level deeper, by choosing a random unexpanded child (N=0). Return None if failed.
         """
@@ -326,108 +292,42 @@ class MCTSTree:
         next, leaf, _ = random.choice(unexpanded_children)
         return next, leaf
 
-    def _simulate(
-        self, path: TreePath, node: TreeNode
-    ) -> Optional[Tuple[TreePath, TreeNode]]:
-        "Returns a random simulation (to completion) of `node`"
-
-        def random_child(
-            node: TreeNode,
-        ) -> Optional[Tuple[TreePath, TreeNode, AverageMeter]]:
-            """
-            Two step random selection. First, randomly select a primitive type. Then, randomly select a child of that type.
-            """
-            assert isinstance(node, TreeNode)
-            nexts = node.get_children_nexts()
-            if len(nexts) == 0:
-                # logging.debug(f"Simulation Encountered dead father {node}")
-                assert node.is_dead_end()
-                return None
-            next = random.choice(nexts)
-            child = node.get_child(next, auto_initialize=True)
-            if child:
-                selected_child, edge_state = child
-                return next, selected_child, edge_state
-            else:
-                # logging.debug(f"Simulation Encountered dead child {node} -> {next}")
-                return None
-
-        while not node.is_terminal():
-            random_select_result = random_child(node)
-            if random_select_result is None:
-                return None
-            next, node, edge_state = random_select_result
-            path = path.concat(next)
-
-        if node.is_final():
-            return path, node
-        else:
-            # logging.debug(f"Simulation Encountered dead end {node}")
-            return None
-
-    def par_simulate(
-        self, path: TreePath, leaf_expanded: TreeNode
+    def simulate(
+        self, tree_path: TreePath, leaf_expanded: TreeNode
     ) -> Optional[Tuple[TreePath, TreeNode]]:
         assert not leaf_expanded.failed_recently
-        leaves_queue = queue.Queue(maxsize=self.leaf_num)
-        logging.debug(f"Simulation start")
+        if leaf_expanded.is_final():
+            return [(tree_path, leaf_expanded) for _ in range(self.leaf_num)]
+        
         leaf_expanded._node.expand(3)
-        logging.debug(f"Expanded 3 layers")
 
-        # Multi-thread object
-        def thread_simulate(path: TreePath, node: TreeNode):
-            # logging.debug(f"Thread {threading.get_ident()} start")
-            while not leaves_queue.full() and not node.is_dead_end():
-                leaf_simul = self._simulate(path, node)
-                if leaf_simul is not None:
-                    try:
-                        leaves_queue.put_nowait(leaf_simul)
-                    except queue.Full:
-                        assert leaves_queue.full()
-                        pass
-
-        threads = [
-            threading.Thread(target=thread_simulate, args=(path, leaf_expanded))
-            for _ in range(self._kas_mcts_workers)
-        ]
-        for thread in threads:
-            thread.start()
-
-        last_limit = 0
-        failure_flag = False
-        for i, (time_limit, blocking) in enumerate(self._time_limits):
-            if not join_all(threads, timeout=time_limit - last_limit):
-                logging.debug(f"Timeout for {i+1} times. ")
-                if i < len(self._time_limits) - 1:
-                    if blocking:
-                        leaf_expanded._node.expand(4 + i)
-                    else:
-                        leaf_expanded._node.expand_async(4 + i)
-                elif leaf_expanded.is_alive():
-                    # There are successful attempts before. We cannot set it to dead now
-                    failure_flag = True
-                    leaf_expanded._node.expand_async(4 + i)
-                    logging.debug(
-                        f"Simulation from {path} failed, not setting dead because of previous successful attempts. "
-                    )
-                else:
-                    failure_flag = True
-                    logging.debug(
-                        f"Simulation from {path} failed for too many times, will retry sometimes later. "
-                    )
-                    leaf_expanded.flush_failure_time()
-                    # assert leaf_expanded.is_dead_end()
-                last_limit = time_limit
-            else:
-                break
-
-        if leaf_expanded.is_dead_end():
-            failure_flag = True
-
-        if failure_flag:
+        sample_times = self.leaf_num * self._max_final_iterations
+        assert sample_times > 0
+        logging.info(
+            f"Getting estimates for path({tree_path}) with {sample_times} samples ..."
+        )
+        path, dangling_type = tree_path.to_path()
+        final_nodes = self._sampler.random_final_nodes_with_prefix(path, sample_times, type=dangling_type, steps=2)
+        final_nodes = list(set([(est.path, est.to_node()) for est in final_nodes]))
+        logging.info(
+            f"Got {len(final_nodes)} final nodes ({sample_times} samples) for path({tree_path})"
+        )
+        
+        if len(final_nodes) < self.leaf_num or leaf_expanded.is_dead_end():
+            logging.info(f"Simulation from {tree_path} failed, flushing failure time. ")
+            leaf_expanded.flush_failure_time()
             return None
-        else:
-            return list(leaves_queue.queue)
+
+        final_nodes = [
+            (TreePath(path), self.touch(node))
+            for path, node in random.choices(
+                list(filter(
+                    lambda x: not (x[1] in self._treenode_store and self._treenode_store[x[1]].filtered),
+                    final_nodes,
+                )), k=self.leaf_num)
+        ]
+
+        return final_nodes
 
     def back_propagate(
         self, receipt: Receipt, reward: float, path_to_trial: TreePath
@@ -687,12 +587,12 @@ class MCTSTree:
         children = node.get_children(on_tree=True, filter_simulate_failure=True)
 
         if len(children) == 0:
-            node.reveal_new_children(self.g_rave, self._c_l)
+            node.reveal_new_children()
             logging.debug("Selection failed. ")
             return None
 
         # All children of node should already be expanded
-        assert len(node.get_unexpanded_children()) == 0
+        assert len(node.get_unexpanded_children()) == 0, node.get_unexpanded_children()
 
         log_N_vertex = math.log(node.N)
 

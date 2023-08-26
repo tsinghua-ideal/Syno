@@ -40,6 +40,15 @@ class TreePath(Path):
             return Next(tup, 0)
         return super().to_next(tup)
 
+    def to_path(self) -> Tuple[Path, Optional[Next.Type]]:
+        if len(self.abs_path) >= 1 and self.abs_path[-1].key == 0:
+            return (
+                Path([self.to_next(n) for n in self.abs_path[:-1]]),
+                self.abs_path[-1].type,
+            )
+        else:
+            return Path(self.abs_path), None
+
     @staticmethod
     def deserialize(serialized: str) -> "TreePath":
         deserialized_list = serialized.split("_")
@@ -427,7 +436,8 @@ class TreeNode:
                 arc
             ].mean
 
-        unrevealed_children = random.shuffle(self.get_unrevealed_children())
+        unrevealed_children = self.get_unrevealed_children()
+        random.shuffle(unrevealed_children)
         if len(unrevealed_children) == 0:
             logging.debug("No new children to be added")
             assert (

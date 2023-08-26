@@ -40,7 +40,8 @@ def test_remove():
     mcts._increment_virtual_loss(path_to_final)
     mcts.remove(path_to_final, mcts.visit(path_to_final, on_tree=False))
 
-    assert mcts.do_rollout()[1][0][1]._node._node._name == "final2"
+    result = mcts.do_rollout()
+    assert result[1][0][1]._node._node._name == "final2", result[1][0][1]._node._node._name
 
     print("[PASSED] test_remove")
 
@@ -340,7 +341,8 @@ def test_converge(num_iter=1000, leaf_num=3, eps=0.03):
     sampler = MockSampler(vertices, edges)
     mcts = MCTSTree(sampler, virtual_loss_constant=1, leaf_num=leaf_num)
 
-    for _ in range(num_iter):
+    from tqdm import trange
+    for _ in trange(num_iter):
         receipt, trials = mcts.do_rollout(check_exhaustion=False)
         for path, node in trials:
             mcts.back_propagate(receipt, node._node.mock_get("reward"), path)

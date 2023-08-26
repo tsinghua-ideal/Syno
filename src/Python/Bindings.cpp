@@ -335,7 +335,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         )
         .def(
             "random_final_nodes_with_prefix", &Sampler::randomFinalNodesWithPrefix,
-            pybind11::arg("prefix"), pybind11::arg("count")
+            pybind11::arg("prefix"), pybind11::arg("count"), pybind11::arg("type"), pybind11::arg("steps")
         )
         .def(
             "create_assembler", [](Sampler& self) {
@@ -347,7 +347,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
                 BindingContext::DebugPublicCtx = &self.getBindingContext();
             }
         );
-    
+
     pybind11::class_<StatisticsCollector>(m, "StatisticsCollector")
         .def_static(
             "PrintSummary", []() -> std::string {

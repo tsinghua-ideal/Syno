@@ -164,7 +164,7 @@ class MCTSExplorer:
                 if current_node.is_dead_end():
                     print("Dead end, no need to simulate. ")
                 else:
-                    result = self._mcts.par_simulate(path, current_node)
+                    result = self._mcts.simulate(path, current_node)
                     print(f"Results={result}.")
             except Exception as e:
                 print(f"Invalid command. {e}")

@@ -3,6 +3,7 @@ import logging
 import torch
 from torch import nn
 from typing import Any, List, Dict, Optional, Tuple, Union
+import random
 
 from . import Bindings
 from .Assembler import Assembled, Assembler
@@ -29,13 +30,14 @@ class Sampler:
     def _extract_placeholders(net: nn.Module) -> List[Placeholder]:
         """Find all placeholders in the network."""
         placeholders: List[Placeholder] = [
-            node for node in net.modules() if isinstance(node, Placeholder)]
+            node for node in net.modules() if isinstance(node, Placeholder)
+        ]
         return placeholders
 
     @staticmethod
     def _get_all_mappings(placeholders: List[Placeholder]) -> List[Dict[str, int]]:
         if len(placeholders) == 0:
-            logging.warning('No placeholders found in the network.')
+            logging.warning("No placeholders found in the network.")
         return [placeholder.mappings for placeholder in placeholders]
 
     @staticmethod
@@ -49,7 +51,56 @@ class Sampler:
         for placeholder, kernel_pack in zip(placeholders, kernel_packs):
             placeholder.reload(kernel_pack)
 
-    def __init__(self, input_shape: str, output_shape: str, primary_specs: List[str], coefficient_specs: List[str], net: nn.Module = None, fixed_io_pairs: List[Tuple[int, int]] = [], seed: int = 42, depth: int = 4, dim_lower: int = 2, dim_upper: int = 8, maximum_tensors: int = 2, maximum_reductions: int = 2, max_flops = 1e15, maximum_variables_in_size: int = 16, maximum_variables_powers_in_size: int = 16, requires_exact_division: bool = True, requires_odd_kernel_size_in_unfold: bool = True, expression_one_tensor: str = "in_0", expression_two_tensors: str = "in_0 * in_1", expression_three_tensors: str = "in_0 * in_1 * in_2", expression_four_tensors: str = "in_0 * in_1 * in_2 * in_3", maximum_finalizations: int = 5, allow_weight_permutation: bool = False, max_strided_dim_size: int = 30, max_unfold_kernel_size: int = 30, minimum_unfold_ratio: float = 2.0, minimum_merge_ratio: float = 2.0, disallow_merge_input_and_weight: bool = False, disallow_tile: bool = True, max_expansion_multiplier: int = 10, disallow_discontinuous_view: bool = False, canonicalize_unfold_order: bool = True, maximum_expands: int = -1, maximum_merges: int = -1, maximum_splits: int = -1, maximum_shifts: int = -1, maximum_strides: int = -1, maximum_unfolds: int = -1, maximum_shares: int = -1, num_worker_threads: int = 12, save_path: str = './samples', halide: bool = False, cuda: bool = False, autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot, extra_options: Dict[str, str] = {}, rfactor_threshold: int = 32, in_bounds_likely_threshold: float = 0.3):
+    def __init__(
+        self,
+        input_shape: str,
+        output_shape: str,
+        primary_specs: List[str],
+        coefficient_specs: List[str],
+        net: nn.Module = None,
+        fixed_io_pairs: List[Tuple[int, int]] = [],
+        seed: int = 42,
+        depth: int = 4,
+        dim_lower: int = 2,
+        dim_upper: int = 8,
+        maximum_tensors: int = 2,
+        maximum_reductions: int = 2,
+        max_flops=1e15,
+        maximum_variables_in_size: int = 16,
+        maximum_variables_powers_in_size: int = 16,
+        requires_exact_division: bool = True,
+        requires_odd_kernel_size_in_unfold: bool = True,
+        expression_one_tensor: str = "in_0",
+        expression_two_tensors: str = "in_0 * in_1",
+        expression_three_tensors: str = "in_0 * in_1 * in_2",
+        expression_four_tensors: str = "in_0 * in_1 * in_2 * in_3",
+        maximum_finalizations: int = 5,
+        allow_weight_permutation: bool = False,
+        max_strided_dim_size: int = 30,
+        max_unfold_kernel_size: int = 30,
+        minimum_unfold_ratio: float = 2.0,
+        minimum_merge_ratio: float = 2.0,
+        disallow_merge_input_and_weight: bool = False,
+        disallow_tile: bool = True,
+        max_expansion_multiplier: int = 10,
+        disallow_discontinuous_view: bool = False,
+        canonicalize_unfold_order: bool = True,
+        maximum_expands: int = -1,
+        maximum_merges: int = -1,
+        maximum_splits: int = -1,
+        maximum_shifts: int = -1,
+        maximum_strides: int = -1,
+        maximum_unfolds: int = -1,
+        maximum_shares: int = -1,
+        num_worker_threads: int = 12,
+        save_path: str = "./samples",
+        halide: bool = False,
+        cuda: bool = False,
+        autoscheduler: CodeGenOptions.AutoScheduler = CodeGenOptions.AutoScheduler.ComputeRoot,
+        extra_options: Dict[str, str] = {},
+        rfactor_threshold: int = 32,
+        in_bounds_likely_threshold: float = 0.3,
+    ):
         """
         Parameters
         ----------
@@ -212,7 +263,15 @@ class Sampler:
             all_mappings = Sampler._extract_all_mappings(net)
 
         self._sampler = Bindings.Sampler(
-            input_shape, output_shape, primary_specs, coefficient_specs, all_mappings, fixed_io_pairs, options, num_worker_threads)
+            input_shape,
+            output_shape,
+            primary_specs,
+            coefficient_specs,
+            all_mappings,
+            fixed_io_pairs,
+            options,
+            num_worker_threads,
+        )
         self._codegen_options = Bindings.CodeGenOptions(
             halide=halide,
             use_gpu=cuda,
@@ -221,7 +280,7 @@ class Sampler:
             rfactor_threshold=rfactor_threshold,
             in_bounds_likely_threshold=in_bounds_likely_threshold,
         )
-        self._device = torch.device('cuda' if cuda else 'cpu')
+        self._device = torch.device("cuda" if cuda else "cpu")
 
     def root(self) -> VisitedNode:
         """Get the root node."""
@@ -244,10 +303,14 @@ class Sampler:
         path, node = visited_node
         return VisitedNode(Path(path), node)
 
-    def random_final_nodes_with_prefix(self, prefix: PseudoPath, count: int) -> List[VisitedNode]:
+    def random_final_nodes_with_prefix(
+        self, prefix: PseudoPath, count: int, type: Optional[Next.Type] = None, steps: int = 1
+    ) -> List[VisitedNode]:
         """Find final nodes with specified prefix. Note that the returned list may not contain as many nodes as required, and even an empty list can be returned."""
         prefix = Path(prefix)
-        visited_nodes = self._sampler.random_final_nodes_with_prefix(prefix.abs_path, count)
+        visited_nodes = self._sampler.random_final_nodes_with_prefix(
+            prefix.abs_path, count, type, steps
+        )
         return [VisitedNode(Path(path), node) for path, node in visited_nodes]
 
     def path_to_strs(self, path: PseudoPath) -> List[str]:
@@ -258,19 +321,40 @@ class Sampler:
             node = node.get_child(next)
         return strs
 
-    def _realize(self, node: Union[Node, Assembled], all_mappings: List[Dict[str, int]], name: str) -> Bindings.Kernel:
+    def _realize(
+        self,
+        node: Union[Node, Assembled],
+        all_mappings: List[Dict[str, int]],
+        name: str,
+    ) -> Bindings.Kernel:
         if isinstance(node, Assembled):
             dir_name = f"kernel_manual_{node._name}" if name is None else name
             kernel_name = "kernel_manual"
-            return node._realize(all_mappings, self._codegen_options, os.path.join(self._save_path, dir_name), kernel_name)
+            return node._realize(
+                all_mappings,
+                self._codegen_options,
+                os.path.join(self._save_path, dir_name),
+                kernel_name,
+            )
         else:
-            dir_name = f"kernel_generated_{abs(hash(node.to_node()))}" if name is None else name
+            dir_name = (
+                f"kernel_generated_{abs(hash(node.to_node()))}"
+                if name is None
+                else name
+            )
             kernel_name = "kernel_generated"
-            return node._realize_as_final(all_mappings, self._codegen_options, os.path.join(self._save_path, dir_name), kernel_name)
+            return node._realize_as_final(
+                all_mappings,
+                self._codegen_options,
+                os.path.join(self._save_path, dir_name),
+                kernel_name,
+            )
 
     # Note: we need the name to be unique, because it is used for identifying a kernel.
     # If we use the same name for different kernels, the later kernels will not be compiled.
-    def realize(self, net: nn.Module, node: Union[Node, Assembled], name: str = None) -> KernelLoader:
+    def realize(
+        self, net: nn.Module, node: Union[Node, Assembled], name: str = None
+    ) -> KernelLoader:
         placeholders = Sampler._extract_placeholders(net)
         all_mappings = Sampler._get_all_mappings(placeholders)
         return KernelLoader(self._realize(node, all_mappings, name))
@@ -292,7 +376,7 @@ class MockSampler(Sampler):
         self,
         vertices: List[Union[Dict[str, Any], str]],
         edges: List[Tuple[VertexIndex, List[Tuple[PseudoNext, VertexIndex]]]],
-        seed: int=0xdeadbeaf
+        seed: int = 0xDEADBEAF,
     ) -> None:
         """Initialize a MockSampler.
         The first vertex is the root.
@@ -308,7 +392,9 @@ class MockSampler(Sampler):
         ```
         """
         self._mock_nodes = [
-            MockNodeMetadata(self, id, **(v if isinstance(v, dict) else {"name": str(v)}))
+            MockNodeMetadata(
+                self, id, **(v if isinstance(v, dict) else {"name": str(v)})
+            )
             for id, v in enumerate(vertices)
         ]
         self._mock_name_to_id = {
@@ -358,16 +444,52 @@ class MockSampler(Sampler):
             children = self._mock_edges[node.mock_get_id()]
             if next not in children:
                 return None
-            node = self._mock_edges[node.mock_get_id()][next]
+            node = children[next]
         return MockVisitedNode(path, node)
 
     def random_node_with_prefix(self, prefix: PseudoPath) -> Optional[VisitedNode]:
         raise NotImplementedError()
 
-    def _realize(self, node: Union[Node, Assembled], all_mappings: List[Dict[str, int]]) -> Bindings.Kernel:
+    def random_final_nodes_with_prefix(
+        self, prefix: PseudoPath, count: int, type: Optional[Next.Type] = None, steps: int = 1
+    ) -> List[VisitedNode]:
+        node = self.visit(prefix)
+        if node is None:
+            return []
+        if node.is_final():
+            return [node]
+        
+        def random_child(node: MockVisitedNode, type: Optional[Next.Type]=None) -> Optional[MockVisitedNode]:
+            # print(f"Random from {node}")
+            if node.is_final():
+                return node
+            
+            children = self._mock_edges[node.mock_get_id()]
+            if type is not None:
+                children = {next: child for next, child in children.items() if next.type == type}
+            if len(children) == 0:
+                return None
+            next = random.choice(list(children.keys()))
+            node = MockVisitedNode(node.mock_get_path().concat(next), children[next])
+            return random_child(node)
+        
+        res = []
+        for _ in range(count):
+            final_node = random_child(node, type=type)
+            if final_node is None:
+                break
+            res.append(final_node)
+        
+        return res
+
+    def _realize(
+        self, node: Union[Node, Assembled], all_mappings: List[Dict[str, int]]
+    ) -> Bindings.Kernel:
         raise NotImplementedError()
 
-    def realize(self, net: nn.Module, node: Union[Node, Assembled], identifier_prefix: str) -> Tuple[List[KernelPack], int]:
+    def realize(
+        self, net: nn.Module, node: Union[Node, Assembled], identifier_prefix: str
+    ) -> Tuple[List[KernelPack], int]:
         raise NotImplementedError()
 
     def create_assembler(self):
