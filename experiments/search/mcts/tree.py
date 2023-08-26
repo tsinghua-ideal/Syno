@@ -29,8 +29,7 @@ class MCTSTree:
         c_l: float = 20,
         policy: str = "update-descent",
         max_final_iterations: int = 1000,
-        simulate_retry_period: float = 60,
-        kas_mcts_workers: int = 4,
+        simulate_retry_period: float = 60
     ) -> None:
         self._treenode_store: Dict[Node, TreeNode] = dict()
         self._root = sampler.root().to_node()
@@ -46,7 +45,6 @@ class MCTSTree:
         self._policy = policy
         self._max_final_iterations = max_final_iterations
         self._simulate_retry_period = simulate_retry_period
-        self._kas_mcts_workers = kas_mcts_workers
         assert policy in ["update-all", "update-descent"]
         random.seed(sampler._seed)
 

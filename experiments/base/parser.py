@@ -220,12 +220,6 @@ def arg_parse():
         help="Number of workers for the sampler",
     )
     parser.add_argument(
-        "--kas-mcts-workers",
-        default=32,
-        type=int,
-        help="Number of workers for MCTS to simulate",
-    )
-    parser.add_argument(
         "--kas-num-virtual-evaluator",
         default=4,
         type=int,

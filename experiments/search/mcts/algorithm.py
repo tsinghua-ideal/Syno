@@ -34,8 +34,7 @@ class MCTSAlgorithm:
             self.b,
             self.c_l,
             max_final_iterations=self.max_final_iterations,
-            simulate_retry_period=self.simulate_retry_period,
-            kas_mcts_workers=args.kas_mcts_workers,
+            simulate_retry_period=self.simulate_retry_period
         )
         self.sampler = sampler
         self.path_to_meta_data = dict()
