@@ -573,7 +573,7 @@ class TreeNode:
                 return None
             if child not in self._tree._treenode_store:
                 if auto_initialize:
-                    self._tree._treenode_store[child] = TreeNode(self._tree, child)
+                    self._tree.touch(child, path=self._tree._path_store[self._node].concat(Next(self._type, next)))
                 else:
                     return None
             return self._tree._treenode_store[child], self.edge_states[next]

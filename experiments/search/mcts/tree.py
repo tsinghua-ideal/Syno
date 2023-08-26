@@ -32,10 +32,10 @@ class MCTSTree:
         simulate_retry_period: float = 60
     ) -> None:
         self._treenode_store: Dict[Node, TreeNode] = dict()
+        self._path_store: Dict[Node, Path] = dict()
         self._root = sampler.root().to_node()
         assert not self._root.is_dead_end()
-        self.tree_root = TreeNode(self, self._root)
-        self._treenode_store[self._root] = self.tree_root
+        self.tree_root = self.touch(self._root, path=Path([]))
         self.g_rave: DefaultDict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
 
         self._sampler = sampler
@@ -311,18 +311,19 @@ class MCTSTree:
             f"Got {len(final_nodes)} final nodes ({sample_times} samples) for path({tree_path})"
         )
         
+        final_nodes = list(filter(
+            lambda x: not (x[1] in self._treenode_store and self._treenode_store[x[1]].filtered),
+            final_nodes,
+        ))
+        
         if len(final_nodes) < self.leaf_num or leaf_expanded.is_dead_end():
             logging.info(f"Simulation from {tree_path} failed, flushing failure time. ")
             leaf_expanded.flush_failure_time()
             return None
 
         final_nodes = [
-            (TreePath(path), self.touch(node))
-            for path, node in random.choices(
-                list(filter(
-                    lambda x: not (x[1] in self._treenode_store and self._treenode_store[x[1]].filtered),
-                    final_nodes,
-                )), k=self.leaf_num)
+            (TreePath(path), self.touch(node, path=path))
+            for path, node in random.choices(final_nodes, k=self.leaf_num)
         ]
 
         return final_nodes
@@ -360,7 +361,7 @@ class MCTSTree:
 
         # update rave scores
         update_types = set([next.type for next in path_to_trial])
-        trial_node_on_tree = self.touch(trial_node.to_node())
+        trial_node_on_tree = self.touch(trial_node.to_node(), path=path_to_trial)
 
         self.update_grave(arcs, update_types, reward)
         self.update_lrave(trial_node_on_tree, arcs, reward)
@@ -423,7 +424,7 @@ class MCTSTree:
                             0
                         ]
                         assert mid_child is not None
-                        child_node = self.touch(src_node._node.get_child_from_arc(arc))
+                        child_node = self.touch(src_node._node.get_child_from_arc(arc), path=self._path_store[src_node._node].concat(nxt))
                         if (
                             mark_ancestors(child_node, tgt_node, arc_pool)
                             and not updated_flag
@@ -466,7 +467,7 @@ class MCTSTree:
                             0
                         ]
                         assert mid_child is not None
-                        child_node = self.touch(src_node._node.get_child_from_arc(arc))
+                        child_node = self.touch(src_node._node.get_child_from_arc(arc), path=self._path_store[src_node._node].concat(nxt))
                         if child_node in ancestors and not updated_flag:
                             potential_children[mid_child].add(child_node)
                             edge_buffer[mid_child].add(nxt.key)
@@ -538,7 +539,8 @@ class MCTSTree:
                         arc_pool.add(arc)
                         continue
                     mid_child = mid_child[0]
-                    child_node = self.touch(src_node._node.get_child_from_arc(arc))
+                    assert src_node._node in self._path_store, src_node._node
+                    child_node = self.touch(src_node._node.get_child_from_arc(arc), path=self._path_store[src_node._node].concat(nxt))
                     if child_node.is_dead_end():
                         arc_pool.add(arc)
                         continue
@@ -553,13 +555,16 @@ class MCTSTree:
 
         attempt_to_node(self.tree_root, final_node, set(arcs))
 
-    def touch(self, node: Node) -> TreeNode:
+    def touch(self, node: Node, path: Path=None) -> TreeNode:
         """
         Initialize node if not exist in store
         """
         assert isinstance(node, Node)
+        assert path is not None
         if node not in self._treenode_store:
             self._treenode_store[node] = TreeNode(self, node)
+        if path is not None:
+            self._path_store[node] = path
         return self._treenode_store[node]
 
     def remove(self, receipt: Receipt, trial: TreeNode) -> None:
@@ -585,7 +590,10 @@ class MCTSTree:
         children = node.get_children(on_tree=True, filter_simulate_failure=True)
 
         if len(children) == 0:
-            node.reveal_new_children()
+            if node.is_fully_in_tree():
+                node.flush_failure_time()
+            else:
+                assert node.reveal_new_children()
             logging.debug("Selection failed. ")
             return None
 
@@ -640,7 +648,9 @@ class MCTSTree:
             node_serial = {}
             node_serial["index"] = i
             node_serial["node_verbose"] = underlying_node.__repr__()
-            node_serial["path"] = underlying_node.get_possible_path().serialize()
+            assert underlying_node in self._path_store, underlying_node
+            # assert underlying_node.is_dead_end() or self._sampler.visit(self._path_store[underlying_node]).to_node() == underlying_node
+            node_serial["path"] = self._path_store[underlying_node].serialize()
             node_serial["father"] = {}
             node_serial["father"]["state"] = father.state_dict
             node_serial["father"]["virtual_loss"] = self.virtual_loss_count[father]
@@ -710,19 +720,19 @@ class MCTSTree:
         for node_serial in tqdm(node_list):
             if node_serial["father"]["state"]["_is_dead"]:
                 if keep_dead_state:
-                    underlying_node = tree._sampler.visit(
-                        Path.deserialize(node_serial["path"])
-                    )
-                    father = tree.touch(underlying_node)
+                    path = Path.deserialize(node_serial["path"])
+                    underlying_node = tree._sampler.visit(path)
+                    father = tree.touch(underlying_node, path=path)
                     father.set_dead()
                 continue
-            underlying_node = tree._sampler.visit(Path.deserialize(node_serial["path"]))
+            path = Path.deserialize(node_serial["path"])
+            underlying_node = tree._sampler.visit(path)
             # assert underlying_node is not None, Path.deserialize(node_serial["path"])
             if underlying_node is None:
                 continue
             underlying_node = underlying_node.to_node()
             assert underlying_node.__repr__() == node_serial["node_verbose"]
-            father = tree.touch(underlying_node)
+            father = tree.touch(underlying_node, path=path)
 
             father.load(node_serial["father"]["state"])
             if keep_virtual_loss:

@@ -85,8 +85,8 @@ class Session:
             # Save arguments
             with open(os.path.join(self.save_dir, "args.json"), "w") as f:
                 json.dump(vars(self.args), f, indent=2)
-        except:
-            logging.info(f"Saving failed. ")
+        except Exception as e:
+            logging.info(f"Saving failed. {e} {traceback.format_exc()}")
 
     def load(self):
         if not os.path.exists(self.save_dir):
