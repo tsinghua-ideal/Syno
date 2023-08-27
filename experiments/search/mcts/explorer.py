@@ -1,5 +1,6 @@
 import itertools
 import os
+import json
 import math
 from tqdm import tqdm
 from time import time
@@ -242,6 +243,13 @@ class MCTSExplorer:
                 print("Already at the root, can't go back further")
                 return
             self.node_hierarchy = self.node_hierarchy[:-1]
+        elif command == "serialize":
+            start = time()
+            serial = self._mcts.serialize()
+            print(f"Serialization: {time() - start} seconds")
+            start = time()
+            json.dump(serial, fp=open("./mcts.json", "w"), indent=4)
+            print(f"Dump: {time() - start} seconds")
         elif command == "explore_all":
             self.on_tree = False
         elif command == "explore_tree":

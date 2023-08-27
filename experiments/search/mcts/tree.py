@@ -2,6 +2,7 @@ import random
 import math
 import logging
 import time
+import threading, queue
 from collections import defaultdict
 from typing import List, Tuple, Optional, DefaultDict, Set, Union, Dict
 from tqdm import tqdm
@@ -629,19 +630,19 @@ class MCTSTree:
     ##########################
     #      I/O support
     ##########################
-
+    
     def serialize(self) -> Dict:
         """Serialize the tree and return a dict."""
         logging.debug("Serializing ......")
 
-        self.garbage_collect(keep_tree_node=True)
+        # self.garbage_collect(keep_tree_node=True)
 
         node_list = []
         nodes = list(self._treenode_store.keys())
 
         # dump father"s n, q
         # dump children"s n, q, filtered
-        for i, n in enumerate(nodes):
+        for i, n in enumerate(tqdm(nodes)):
             father = self._treenode_store[n]
             underlying_node = father._node
 
@@ -689,6 +690,94 @@ class MCTSTree:
             for ty in self.g_rave.keys()
             if isinstance(ty, Next.Type)
         }
+
+        packed_args = dict(
+            virtual_loss_constant=self.virtual_loss_constant,
+            leaf_num=self.leaf_num,
+            exploration_weight=self._exploration_weight,
+            b=self._b,
+            c_l=self._c_l,
+            policy=self._policy,
+        )
+        j = dict(node_list=node_list, args=packed_args, grave_type=grave_type)
+        # self.garbage_collect(keep_tree_node=True)
+        logging.debug("Serialized.")
+        return j
+
+    def serialize_par(self) -> Dict:
+        """Serialize the tree and return a dict."""
+        logging.debug("Serializing ......")
+
+        # self.garbage_collect(keep_tree_node=True)
+
+        nodes = list(self._treenode_store.keys())
+        num_nodes = len(nodes)
+        node_list = [None for _ in range(num_nodes)]
+        task_queue = queue.Queue(maxsize=len(nodes))
+        for i in range(num_nodes):
+            task_queue.put(i)
+        
+        def consumer():
+            while True:
+                try:
+                    index = task_queue.get_nowait()
+                    node = nodes[index]
+                    
+                    father = self._treenode_store[node]
+                    underlying_node = father._node
+
+                    node_serial = {}
+                    node_serial["index"] = index
+                    node_serial["node_verbose"] = underlying_node.__repr__()
+                    assert underlying_node in self._path_store, underlying_node
+                    assert underlying_node.is_dead_end() or self._sampler.visit(self._path_store[underlying_node]).to_node() == underlying_node
+                    node_serial["path"] = self._path_store[underlying_node].serialize()
+                    node_serial["father"] = {}
+                    node_serial["father"]["state"] = father.state_dict
+                    node_serial["father"]["virtual_loss"] = self.virtual_loss_count[father]
+                    if father.is_final():
+                        node_serial["father"]["filtered"] = father.filtered
+                        node_serial["father"]["reward"] = father.reward
+                    node_serial["children"] = {}
+                    for next, mid_child, _ in father.get_children():
+                        assert isinstance(next, Next.Type)
+                        next_serial = self.next_serializer.serialize_type(next)
+                        children_states: Dict[PseudoTreeNext, Tuple[List, Dict[str, Dict]]] = {}
+                        for n, _, e in mid_child.get_children():
+                            arc = underlying_node.get_arc_from_handle(Next(next, n))
+                            assert arc is not None
+                            rave_score = {
+                                "lrave": mid_child.l_rave[arc].serialize(),
+                                "grave": self.g_rave[arc].serialize(),
+                            }
+                            children_states[str(n)] = e.serialize(), rave_score
+                        node_serial["children"][next_serial] = {
+                            "state": mid_child.state_dict,
+                            "virtual_loss": self.virtual_loss_count[mid_child],
+                            "children": children_states,
+                        }
+                    # rave score
+                    node_serial["lrave"] = {
+                        self.next_serializer.serialize_type(ty): am.serialize()
+                        for ty, am in father.l_rave.items()
+                    }
+                    node_list[index] = node_serial
+                except queue.Empty:
+                    return
+        
+        threads = [threading.Thread(target=consumer) for _ in range(16)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        grave_type = {
+            self.next_serializer.serialize_type(ty): self.g_rave[ty].serialize()
+            for ty in self.g_rave.keys()
+            if isinstance(ty, Next.Type)
+        }
+        
+        assert all(n is not None for n in node_list)
 
         packed_args = dict(
             virtual_loss_constant=self.virtual_loss_constant,

@@ -71,7 +71,6 @@ class Session:
         if not force and time.time() - self.last_save_time < self.save_interval:
             return
 
-        self.last_save_time = time.time()
         logging.info(f"Saving search session into {self.save_dir}")
         os.makedirs(self.save_dir, exist_ok=True)
 
@@ -87,6 +86,8 @@ class Session:
                 json.dump(vars(self.args), f, indent=2)
         except Exception as e:
             logging.info(f"Saving failed. {e} {traceback.format_exc()}")
+    
+        self.last_save_time = time.time()
 
     def load(self):
         if not os.path.exists(self.save_dir):
