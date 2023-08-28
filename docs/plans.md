@@ -107,7 +107,7 @@
 - [x] Multi-thread support for MCTS. (multi-thread simulation)
 - [x] Two-step primitive selection. 
 - [x] Implement FUSE
-
+- [x] Add dimension constraint function during replacement of placeholder
 ### More Scenarios
 
 - [ ] Find more scenarios

@@ -16,6 +16,7 @@ class Placeholder(nn.Module):
         self.flops = 0
         self.params = 0
         self.build_mapping_mode = False
+        self.filtered_flag = False
 
     def reload(self, kernel: KernelPack, compile=False) -> None:
         self.kernel = torch.compile(kernel, backend='inductor', dynamic=False, fullgraph=False) if compile else kernel
@@ -25,17 +26,31 @@ class Placeholder(nn.Module):
         
     def set_params(self, params: int) -> None:
         self.params = params
+    
+    def exclusion_condition(self, in_size, out_size) -> bool:
+        return False
 
     def forward(self, x) -> torch.Tensor:
         x_size = x.size()
         out = self.refered_layer(x) if self.kernel is None else self.kernel(x)
         
+        self.filtered_flag = self.exclusion_condition(x_size, out.size())
         if self.build_mapping_mode:
             assert self.mapping_func is not None
             self.mappings = self.mapping_func(x_size, out.size())
         
         return out
 
+def remove_unsatisfied_placeholders(net: nn.Module):
+    count = 0
+    for name, child in net.named_children():
+        if isinstance(child, Placeholder):
+            if child.filtered_flag:
+                count += 1
+                setattr(net, name, child.refered_layer)
+        elif len(list(child.named_children())) > 0:
+            count += remove_unsatisfied_placeholders(child)
+    return count
 
 def build_placeholder_mappings(net: nn.Module, sample_input: torch.Tensor):
     def set_mode(v):

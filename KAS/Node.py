@@ -29,6 +29,14 @@ class Path:
         if isinstance(t, str):
             t = getattr(Next, t)
         return Next(t, k)
+    
+    @property
+    def hierarchy(self):
+        path = Path([])
+        yield path
+        for next in self.abs_path:
+            path = path.concat(next)
+            yield path
 
     def serialize(self) -> str:
         serialized = [str(int(n.type)) + str(n.key) for n in self.abs_path]

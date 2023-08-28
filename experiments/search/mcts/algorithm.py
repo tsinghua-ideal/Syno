@@ -15,14 +15,14 @@ class MCTSAlgorithm:
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
     max_final_iterations = 2000
-    simulate_retry_period = 8e5
     b = 0.5
     c_l = 20.0
+    simulate_retry_period = 8e5
     flush_virtual_loss_period = 0  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
     init_paths = [
-        # "[MapReduce(17319207939285488028), MapReduce(12146852025244755418), MapReduce(4118768776902510081), Share(186651579210353525), Share(5399593111227186875), Share(15367891637277253328), Unfold(8760035789627503913), Unfold(9555756922762145101), Finalize(2442214348117812245)]",  # Conv2d
-        # "[MapReduce(9177531086694812714), Share(10635833851031143435), Finalize(12304229529080686119)]",  # Linear
+        "[Reduce(15279624404278704057), Reduce(15279624404278704057), Reduce(5554949874972930775), Share(13407255124661549680), Unfold(1084665757264077127), Share(9989589238219652823), Share(7115518979942117690), Unfold(15903218782717349037), Finalize(6565149261286651715)]",  # Conv2d
+        # "[Reduce(5554949874972930775), Share(9989589238219652823), Finalize(13643907174028270664)]",  # Linear
     ]
 
     def __init__(self, sampler, args):

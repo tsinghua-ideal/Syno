@@ -43,7 +43,7 @@ class ConvPlaceholder(Placeholder):
 
     @staticmethod
     def impl(assembler):
-        N, H, W, k, C_in, C_out = assembler.get_sizes('N', 'H', 'W', 'k', 'C_in', 'C_out')
+        N, H, W, k, C_in, C_out = assembler.get_sizes('N', 'H', 'W', 'k_1', 'C_in', 'C_out')
         in_N, in_H, in_W, in_C, out_C, w_in_C, w_k_1, w_k_2 = \
             assembler.make_dims_of_sizes(N, H, W, C_in, C_out, C_in, k, k)
 
@@ -58,9 +58,9 @@ class ConvPlaceholder(Placeholder):
         out_C.output(1)
         main_H.output(2)
         main_W.output(3)
-        shared_k_1.sum()
-        shared_k_2.sum()
-        shared_C_in.sum()
+        shared_k_1.mean()
+        shared_k_2.mean()
+        shared_C_in.mean()
 
         return assembler.assemble('conv', 'in_0 * in_1', [in_N, in_C, in_H, in_W], [out_C, w_in_C, w_k_1, w_k_2])
     
@@ -71,3 +71,7 @@ class ConvPlaceholder(Placeholder):
         assert n == n2
         return {'N': n, 'C_in': c1, 'C_out': c2, 'H': h, 'W': w}
     
+    def exclusion_condition(self, in_size, out_size) -> bool:
+        n, c1, h, w = in_size
+        n2, c2, h2, w2 = out_size
+        return (h <= 4 and w <= 4)

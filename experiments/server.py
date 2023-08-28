@@ -28,6 +28,7 @@ class Handler(BaseHTTPRequestHandler):
         response = {"path": self.session.sample()}
         logging.info(f'Path sampled: {response["path"]}')
         self.session.save(force=False)
+        self.session.print_stats(force=False)
 
         # Send response
         try:
@@ -54,6 +55,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         self.session.update(path, accuracy, flops, nparams)
         self.session.save(force=False)
+        self.session.print_stats(force=False)
 
         # Send response
         self.send_response(200)
@@ -85,4 +87,5 @@ if __name__ == "__main__":
         server.serve_forever()
     except KeyboardInterrupt:
         session.save()
+        session.print_stats()
         logging.info("Shutting down server ...")

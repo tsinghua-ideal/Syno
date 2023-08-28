@@ -7,6 +7,7 @@ import threading
 import queue
 import traceback
 from KAS.Node import Path, Node
+from KAS.Statistics import Statistics
 
 
 class Session:
@@ -26,8 +27,10 @@ class Session:
 
         # Configs
         self.save_interval = args.kas_server_save_interval
+        self.stats_interval = args.kas_stats_interval
         self.save_dir = args.kas_server_save_dir
         self.last_save_time = time.time()
+        self.last_stats_time = time.time()
         self.start_time = time.time()
 
         # Pending results
@@ -63,6 +66,13 @@ class Session:
             self.prefetched = queue.Queue(maxsize=self.num_prefetch)
             self.prefetcher = threading.Thread(target=self.prefetcher_main)
             self.prefetcher.start()
+    
+    def print_stats(self, force=True):
+        if not force and time.time() - self.last_stats_time < self.stats_interval:
+            return
+
+        Statistics.PrintLog()
+        self.last_stats_time = time.time()
 
     def save(self, force=True):
         if self.save_dir is None:

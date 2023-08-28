@@ -131,6 +131,12 @@ def arg_parse():
         help="KAS sampler saving directory",
     )
     parser.add_argument(
+        "--kas-stats-interval",
+        default=600,
+        type=int,
+        help="KAS server statistic displaying interval (in seconds)",
+    )
+    parser.add_argument(
         "--kas-server-save-interval",
         default=600,
         type=int,
