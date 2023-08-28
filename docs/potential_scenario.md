@@ -5,4 +5,3 @@ FastGRNN (https://github.com/Microsoft/EdgeML)
 
 ### [SwiftFormer](https://github.com/Amshaker/SwiftFormer)
 **CV**: A Transformer-based model for Mobile Devices. 
-A new form of Attention, but 

@@ -1,3 +1,7 @@
+"""
+Not finished test. 
+"""
+
 import torch
 from torch import nn
 
@@ -130,8 +134,8 @@ class Impl:
         in_N, in_H, in_W, in_C, out_C, w_in_C, w_k_1, w_k_2 = \
             self.assembler.make_dims_of_sizes(N, H, W, C_in, C_out, C_in, k, k)
 
-        main_H, windows_H = self.assembler.create_unfold(in_H, k*s)
-        main_W, windows_W = self.assembler.create_unfold(in_W, k*s)
+        main_H, windows_H = self.assembler.create_unfold(in_H, k)
+        main_W, windows_W = self.assembler.create_unfold(in_W, k)
 
         shared_k_1 = self.assembler.create_share(windows_H, w_k_1)
         shared_k_2 = self.assembler.create_share(windows_W, w_k_2)
