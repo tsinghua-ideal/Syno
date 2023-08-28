@@ -14,11 +14,11 @@ class MCTSAlgorithm:
     leaf_parallelization_number = 3
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
-    max_final_iterations = 2000
+    max_final_iterations = 1000
     b = 0.5
-    c_l = 20.0
-    simulate_retry_period = 8e5
-    flush_virtual_loss_period = 0  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
+    c_l = 10.0
+    simulate_retry_period = 8e6
+    flush_virtual_loss_period = 300  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
     init_paths = [
         "[Reduce(15279624404278704057), Reduce(15279624404278704057), Reduce(5554949874972930775), Share(13407255124661549680), Unfold(1084665757264077127), Share(9989589238219652823), Share(7115518979942117690), Unfold(15903218782717349037), Finalize(6565149261286651715)]",  # Conv2d
@@ -40,6 +40,7 @@ class MCTSAlgorithm:
         self.path_to_meta_data = dict()
 
         self.sample_num = 0
+        self.time_stamp = time.time()
 
         self.init_samples: List[Tuple[TreePath, TreeNode]] = []
         for path_sel in self.init_paths:
@@ -120,6 +121,17 @@ class MCTSAlgorithm:
         return results
 
     def sample(self):
+        
+        if (
+            self.flush_virtual_loss_period > 0
+            and time.time() - self.time_stamp > self.flush_virtual_loss_period
+        ):
+            self.time_stamp = time.time()
+            logging.debug("Resetting virtual losses... ")
+            for k in list(self.mcts.virtual_loss_count.keys()):
+                self.mcts.virtual_loss_count[k] = 0
+            logging.debug("Virtual losses cleared. ")
+            
         n_iterations = 0
         results = []
 
@@ -142,13 +154,5 @@ class MCTSAlgorithm:
                 self.path_to_meta_data[path][0].append(leaf_tree_path)
 
         self.sample_num += 1
-        if (
-            self.flush_virtual_loss_period > 0
-            and self.sample_num % self.flush_virtual_loss_period == 0
-        ):
-            logging.debug("Resetting virtual losses... ")
-            for k in list(self.mcts.virtual_loss_count.keys()):
-                self.mcts.virtual_loss_count[k] = 0
-            logging.debug("Virtual losses cleared. ")
 
         return results
