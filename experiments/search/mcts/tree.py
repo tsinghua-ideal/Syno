@@ -112,7 +112,7 @@ class MCTSTree:
         )
         if self.virtual_loss_count[tree_node] < 0:
             self.virtual_loss_count[tree_node] = 0
-            logging.warn("Error: Virtual loss go below 0! ")
+            logging.warn("Virtual loss go below 0! ")
         for next in path:
             tree_node = tree_node.get_child(next.type, on_tree=True)
             # assert tree_node is not None
@@ -243,7 +243,6 @@ class MCTSTree:
         path = path.concat(next_expand)
         assert isinstance(path, TreePath), type(path)
         assert not leaf_expanded.is_dead_end()
-        self._increment_virtual_loss(path, self.leaf_num)
         logging.debug(f"Expansion end {path}")
 
         # Simulate
@@ -252,9 +251,9 @@ class MCTSTree:
         if leaves is not None:
             assert len(leaves) == self.leaf_num, leaves
             leaf_expanded.set_alive()
+            self._increment_virtual_loss(path, self.leaf_num)
             return path, leaves
         else:
-            self._decrement_virtual_loss(path, self.leaf_num)
             return None
 
     #########################
