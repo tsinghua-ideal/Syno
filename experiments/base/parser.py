@@ -8,6 +8,11 @@ def arg_parse():
 
     # Model
     parser.add_argument("--model", type=str, default="FCNet")
+    parser.add_argument(
+        "--kas-use-orig-model",
+        default=False,
+        action="store_true",
+    )
     parser.add_argument("--num-classes", type=int, default=10)
     parser.add_argument(
         "--compile", action="store_true", default=False, help="Compile kernel"

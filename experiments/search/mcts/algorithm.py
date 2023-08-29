@@ -42,12 +42,7 @@ class MCTSAlgorithm:
         self.sample_num = 0
         self.time_stamp = time.time()
 
-        self.init_samples: List[Tuple[TreePath, TreeNode]] = []
-        for path_sel in self.init_paths:
-            path = TreePath.decode_str(path_sel)
-            trial_node = self.mcts.visit(path, on_tree=False, put_in_tree=True)
-            assert trial_node is not None
-            self.init_samples.append((path, trial_node))
+        self.preconditioned = False
 
     def serialize(self):
         return self.mcts.serialize()
@@ -73,22 +68,6 @@ class MCTSAlgorithm:
                 )
 
     def launch_new_iteration(self) -> Dict[str, Tuple[TreePath, TreeNode, TreePath]]:
-        if self.init_samples is not None:
-            logging.info("Injecting bootstrapping path ...")
-            results = dict()
-            for (
-                trial_path,
-                trial_node,
-            ) in self.init_samples:
-                for path in trial_path.hierarchy:
-                    results[Path(path).serialize()] = (
-                        path,
-                        trial_node,
-                        trial_path,
-                    )
-            self.init_samples = None
-            return results
-
         logging.info("Launching new iteration ...")
         start_time = time.time()
 
@@ -134,6 +113,17 @@ class MCTSAlgorithm:
             
         n_iterations = 0
         results = []
+        
+        if not self.preconditioned:
+            for path_sel in self.init_paths:
+                trial_path = TreePath.decode_str(path_sel)
+                logging.info(f"Injecting bootstrapping path {trial_path}...")
+                trial_node = self.mcts.visit(trial_path, on_tree=False, put_in_tree=True)
+                assert trial_node is not None
+                assert trial_path not in self.path_to_meta_data
+                self.path_to_meta_data[trial_path] = (list(trial_path.hierarchy), trial_node, trial_path)
+                results.append(trial_path)
+            self.preconditioned = True
 
         while len(results) == 0:
             n_iterations += 1
