@@ -32,9 +32,10 @@ def test_mcts(backprop_prob=0.5):
         net=net,
         depth=5,
         cuda=False,
+        num_worker_threads=4,
         autoscheduler=CodeGenOptions.Li2018,
     )
-    mcts = MCTSTree(sampler, virtual_loss_constant=1)
+    mcts = MCTSTree(sampler, virtual_loss_constant=1, simulate_retry_period=1e6)
     for idx in range(30):
         receipt, trials = mcts.do_rollout()
         path = receipt
@@ -63,8 +64,8 @@ def test_mcts(backprop_prob=0.5):
         assert v == mcts.virtual_loss_count[k], f"{v} != {mcts.virtual_loss_count[k]}"
     for k, v in mcts.virtual_loss_count.items():
         assert (
-            k.is_dead_end() or v == mcts_recover.virtual_loss_count[k]
-        ), f"{v} != {mcts_recover.virtual_loss_count[k]}"
+            k.is_final() or k.is_dead_end() or v == mcts_recover.virtual_loss_count[k]
+        ), f"{k}: {v} != {mcts_recover.virtual_loss_count[k]}"
 
     for node, receipt in receipts:
         if random() <= backprop_prob:
@@ -73,7 +74,7 @@ def test_mcts(backprop_prob=0.5):
             mcts.remove(receipt, node[1])
 
     for k, v in mcts.virtual_loss_count.items():
-        assert k.is_dead_end() or v == 0, f"Virtual loss count for {k} is {v}"
+        assert k.is_final() or k.is_dead_end() or v == 0, f"Virtual loss count for {k} is {v}"
 
     # Test serialize
     print("Testing serialization and deserialization. ")

@@ -204,7 +204,8 @@ public:
     // The path is intended to visit a TensorView, but it may fail, in which case we rely on the search algorithm to penalize it.
     std::optional<std::pair<std::vector<Next>, Node>> randomNodeWithPrefix(const std::vector<Next>& prefix);
     // Visit multiple final nodes.
-    std::vector<std::pair<std::vector<Next>, Node>> randomFinalNodesWithPrefix(const std::vector<Next>& prefix, std::size_t count);
+    std::vector<std::pair<std::vector<Next>, Node>>
+    randomFinalNodesWithPrefix(const std::vector<Next> &prefix, std::size_t count, std::optional<Next::Type> type = std::nullopt, int steps = 1);
 
     // Remove all the fixed dimensions.
     void removeFixedDimensions(std::vector<Topmost>& tensors) const;

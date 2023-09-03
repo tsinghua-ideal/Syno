@@ -167,7 +167,7 @@ class Explorer:
                 path.pop()
             elif command == "statistics":
                 # print statistics
-                Statistics.Print()
+                Statistics.PrintLog()
             elif command == "exit":
                 # exit interactive mode
                 return current_node

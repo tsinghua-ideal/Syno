@@ -7,6 +7,7 @@ import threading
 import queue
 import traceback
 from KAS.Node import Path, Node
+from KAS.Statistics import Statistics
 
 
 class Session:
@@ -26,8 +27,10 @@ class Session:
 
         # Configs
         self.save_interval = args.kas_server_save_interval
+        self.stats_interval = args.kas_stats_interval
         self.save_dir = args.kas_server_save_dir
         self.last_save_time = time.time()
+        self.last_stats_time = time.time()
         self.start_time = time.time()
 
         # Pending results
@@ -63,6 +66,13 @@ class Session:
             self.prefetched = queue.Queue(maxsize=self.num_prefetch)
             self.prefetcher = threading.Thread(target=self.prefetcher_main)
             self.prefetcher.start()
+    
+    def print_stats(self, force=True):
+        if not force and time.time() - self.last_stats_time < self.stats_interval:
+            return
+
+        Statistics.PrintLog()
+        self.last_stats_time = time.time()
 
     def save(self, force=True):
         if self.save_dir is None:
@@ -71,7 +81,6 @@ class Session:
         if not force and time.time() - self.last_save_time < self.save_interval:
             return
 
-        self.last_save_time = time.time()
         logging.info(f"Saving search session into {self.save_dir}")
         os.makedirs(self.save_dir, exist_ok=True)
 
@@ -85,8 +94,10 @@ class Session:
             # Save arguments
             with open(os.path.join(self.save_dir, "args.json"), "w") as f:
                 json.dump(vars(self.args), f, indent=2)
-        except:
-            logging.info(f"Saving failed. ")
+        except Exception as e:
+            logging.info(f"Saving failed. {e} {traceback.format_exc()}")
+    
+        self.last_save_time = time.time()
 
     def load(self):
         if not os.path.exists(self.save_dir):

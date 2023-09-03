@@ -8,6 +8,11 @@ def arg_parse():
 
     # Model
     parser.add_argument("--model", type=str, default="FCNet")
+    parser.add_argument(
+        "--kas-use-orig-model",
+        default=False,
+        action="store_true",
+    )
     parser.add_argument("--num-classes", type=int, default=10)
     parser.add_argument(
         "--compile", action="store_true", default=False, help="Compile kernel"
@@ -131,6 +136,12 @@ def arg_parse():
         help="KAS sampler saving directory",
     )
     parser.add_argument(
+        "--kas-stats-interval",
+        default=600,
+        type=int,
+        help="KAS server statistic displaying interval (in seconds)",
+    )
+    parser.add_argument(
         "--kas-server-save-interval",
         default=600,
         type=int,
@@ -218,12 +229,6 @@ def arg_parse():
         default=32,
         type=int,
         help="Number of workers for the sampler",
-    )
-    parser.add_argument(
-        "--kas-mcts-workers",
-        default=32,
-        type=int,
-        help="Number of workers for MCTS to simulate",
     )
     parser.add_argument(
         "--kas-num-virtual-evaluator",

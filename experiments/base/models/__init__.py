@@ -3,9 +3,9 @@ import random
 import sys
 import torch
 from typing import Tuple, Optional, Union
-from KAS import Sampler
+from KAS import Sampler, Path
 from KAS.Bindings import CodeGenOptions
-from KAS.Placeholder import build_placeholder_mappings
+from KAS.Placeholder import build_placeholder_mappings, remove_unsatisfied_placeholders
 
 from . import placeholder
 from .model import KASModel
@@ -87,6 +87,8 @@ def get_model(
     # Build mapping for usages
     sample_input = torch.randn((args.batch_size, *model.sample_input_shape())).cuda()
     build_placeholder_mappings(model, sample_input)
+    count = remove_unsatisfied_placeholders(model)
+    logging.info(f"Recovered {count} unsatisfied placeholders")
 
     # Build sampler
     logging.info("Building sampler ...")
@@ -102,6 +104,13 @@ def get_model(
         cls_name = args.kas_replace_placeholder.capitalize() + "Placeholder"
         assembled = getattr(placeholder, cls_name).impl(sampler.create_assembler())
         logging.debug(f"Assembled path: {assembled.convert_to_path(sampler)}")
+        if sampler.visit(assembled.convert_to_path(sampler)) is None:
+            path = Path(assembled.convert_to_path(sampler))
+            logging.warn(f"Path {path} is not valid, testing...")
+            for subpath in path.hierarchy:
+                if sampler.visit(subpath) is None:
+                    logging.warn(f"Subpath {subpath} is not valid")
+                    break
         model.load_kernel(
             sampler,
             assembled,
@@ -109,8 +118,11 @@ def get_model(
             compile=args.compile,
             batch_size=args.batch_size,
         )
-        flops, params = model.profile()
-        logging.info(f"Replaced model {args.model} has {flops / 1e9:.5f}G FLOPs and {params / 1e6:.2f}M parameters")
+        flops_replaced, params_replaced = model.profile(batch_size=args.batch_size, force_update=True)
+        flops_base, params_base = model.profile(batch_size=args.batch_size, force_update=True, not_count_placeholder=True)
+        logging.info(f"Replaced model {args.model} has {flops_replaced / 1e9:.5f}G FLOPs and {params_replaced / 1e6:.2f}M parameters")
+        logging.info(f"Placeholder flops change {flops - flops_base:.2f} -> {flops_replaced - flops_base:.2f}")
+        logging.info(f"Placeholder params change {params - params_base:.2f} -> {params_replaced - params_base:.2f}")
 
     if return_sampler:
         assert sampler

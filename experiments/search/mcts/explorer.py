@@ -1,5 +1,6 @@
 import itertools
 import os
+import json
 import math
 from tqdm import tqdm
 from time import time
@@ -164,7 +165,7 @@ class MCTSExplorer:
                 if current_node.is_dead_end():
                     print("Dead end, no need to simulate. ")
                 else:
-                    result = self._mcts.par_simulate(path, current_node)
+                    result = self._mcts.simulate(path, current_node)
                     print(f"Results={result}.")
             except Exception as e:
                 print(f"Invalid command. {e}")
@@ -242,6 +243,13 @@ class MCTSExplorer:
                 print("Already at the root, can't go back further")
                 return
             self.node_hierarchy = self.node_hierarchy[:-1]
+        elif command == "serialize":
+            start = time()
+            serial = self._mcts.serialize()
+            print(f"Serialization: {time() - start} seconds")
+            start = time()
+            json.dump(serial, fp=open("./mcts.json", "w"), indent=4)
+            print(f"Dump: {time() - start} seconds")
         elif command == "explore_all":
             self.on_tree = False
         elif command == "explore_tree":

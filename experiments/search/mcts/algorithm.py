@@ -9,20 +9,20 @@ from .node import TreePath, TreeNode
 
 
 class MCTSAlgorithm:
-    # TODO: may move to program arguments
+    # TODO: final node has non-consistent virtual loss
     virtual_loss_constant = 0.3
-    leaf_parallelization_number = 1
-    exploration_weight = 3 * math.sqrt(2)
+    leaf_parallelization_number = 3
+    exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
-    time_limits = [(3, True), (10, False)]
+    max_final_iterations = 1000
+    b = 0.5
+    c_l = 10.0
     simulate_retry_period = 8e6
-    b = 0.3
-    c_l = 20.0
-    flush_virtual_loss_period = 0  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
+    flush_virtual_loss_period = 300  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
     init_paths = [
-        "[MapReduce(17319207939285488028), MapReduce(12146852025244755418), MapReduce(4118768776902510081), Share(186651579210353525), Share(5399593111227186875), Share(15367891637277253328), Unfold(8760035789627503913), Unfold(9555756922762145101), Finalize(2442214348117812245)]",  # Conv2d
-        "[MapReduce(9177531086694812714), Share(10635833851031143435), Finalize(12304229529080686119)]",  # Linear
+        "[Reduce(15279624404278704057), Reduce(15279624404278704057), Reduce(5554949874972930775), Share(13407255124661549680), Unfold(1084665757264077127), Share(9989589238219652823), Share(7115518979942117690), Unfold(15903218782717349037), Finalize(6565149261286651715)]",  # Conv2d
+        # "[Reduce(5554949874972930775), Share(9989589238219652823), Finalize(13643907174028270664)]",  # Linear
     ]
 
     def __init__(self, sampler, args):
@@ -33,21 +33,16 @@ class MCTSAlgorithm:
             self.exploration_weight,
             self.b,
             self.c_l,
-            time_limits=self.time_limits,
-            simulate_retry_period=self.simulate_retry_period,
-            kas_mcts_workers=args.kas_mcts_workers,
+            max_final_iterations=self.max_final_iterations,
+            simulate_retry_period=self.simulate_retry_period
         )
         self.sampler = sampler
         self.path_to_meta_data = dict()
 
         self.sample_num = 0
+        self.time_stamp = time.time()
 
-        self.init_samples: List[Tuple[TreePath, TreeNode]] = []
-        for path_sel in self.init_paths:
-            path = TreePath.decode_str(path_sel)
-            trial_node = self.mcts.visit(path, on_tree=False, put_in_tree=True)
-            assert trial_node is not None
-            self.init_samples.append((path, trial_node))
+        self.preconditioned = False
 
     def serialize(self):
         return self.mcts.serialize()
@@ -73,22 +68,6 @@ class MCTSAlgorithm:
                 )
 
     def launch_new_iteration(self) -> Dict[str, Tuple[TreePath, TreeNode, TreePath]]:
-        if self.init_samples is not None:
-            logging.info("Injecting bootstrapping path ...")
-            results = dict()
-            for (
-                trial_path,
-                trial_node,
-            ) in self.init_samples:
-                for path in trial_path.hierarchy:
-                    results[Path(path).serialize()] = (
-                        path,
-                        trial_node,
-                        trial_path,
-                    )
-            self.init_samples = None
-            return results
-
         logging.info("Launching new iteration ...")
         start_time = time.time()
 
@@ -121,8 +100,30 @@ class MCTSAlgorithm:
         return results
 
     def sample(self):
+        
+        if (
+            self.flush_virtual_loss_period > 0
+            and time.time() - self.time_stamp > self.flush_virtual_loss_period
+        ):
+            self.time_stamp = time.time()
+            logging.debug("Resetting virtual losses... ")
+            for k in list(self.mcts.virtual_loss_count.keys()):
+                self.mcts.virtual_loss_count[k] = 0
+            logging.debug("Virtual losses cleared. ")
+            
         n_iterations = 0
         results = []
+        
+        if not self.preconditioned:
+            for path_sel in self.init_paths:
+                trial_path = TreePath.decode_str(path_sel)
+                logging.info(f"Injecting bootstrapping path {trial_path}...")
+                trial_node = self.mcts.visit(trial_path, on_tree=False, put_in_tree=True)
+                assert trial_node is not None
+                assert trial_path not in self.path_to_meta_data
+                self.path_to_meta_data[trial_path] = (list(trial_path.hierarchy), trial_node, trial_path)
+                results.append(trial_path)
+            self.preconditioned = True
 
         while len(results) == 0:
             n_iterations += 1
@@ -143,13 +144,5 @@ class MCTSAlgorithm:
                 self.path_to_meta_data[path][0].append(leaf_tree_path)
 
         self.sample_num += 1
-        if (
-            self.flush_virtual_loss_period > 0
-            and self.sample_num % self.flush_virtual_loss_period == 0
-        ):
-            logging.debug("Resetting virtual losses... ")
-            for k in list(self.mcts.virtual_loss_count.keys()):
-                self.mcts.virtual_loss_count[k] = 0
-            logging.debug("Virtual losses cleared. ")
 
         return results
