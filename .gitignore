@@ -248,5 +248,5 @@ commands.md
 .scheduler-cache
 
 # Results
-experiments/results
+experiments/*results
 experiments/analysis/results

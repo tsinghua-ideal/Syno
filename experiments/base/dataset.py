@@ -27,23 +27,23 @@ def make_random_square_masks(inputs, mask_size):
     return final_mask
 
 
+@torch.no_grad()
 def batch_cutout(inputs, patch_size):
-    with torch.no_grad():
-        cutout_batch_mask = make_random_square_masks(inputs, patch_size)
-        inputs = torch.where(cutout_batch_mask, torch.zeros_like(inputs), inputs)
-        return inputs
+    cutout_batch_mask = make_random_square_masks(inputs, patch_size)
+    inputs = torch.where(cutout_batch_mask, torch.zeros_like(inputs), inputs)
+    return inputs
 
 
+@torch.no_grad()
 def batch_crop(inputs, crop_size):
-    with torch.no_grad():
-        crop_mask_batch = make_random_square_masks(inputs, crop_size)
-        cropped_batch = torch.masked_select(inputs, crop_mask_batch).view(inputs.shape[0], inputs.shape[1], crop_size, crop_size)
-        return cropped_batch
+    crop_mask_batch = make_random_square_masks(inputs, crop_size)
+    cropped_batch = torch.masked_select(inputs, crop_mask_batch).view(inputs.shape[0], inputs.shape[1], crop_size, crop_size)
+    return cropped_batch
 
 
+@torch.no_grad()
 def batch_flip_lr(batch_images, flip_chance=.5):
-    with torch.no_grad():
-        return torch.where(torch.rand_like(batch_images[:, 0, 0, 0].view(-1, 1, 1, 1)) < flip_chance, torch.flip(batch_images, (-1,)), batch_images)
+    return torch.where(torch.rand_like(batch_images[:, 0, 0, 0].view(-1, 1, 1, 1)) < flip_chance, torch.flip(batch_images, (-1,)), batch_images)
 
 
 @torch.no_grad()
