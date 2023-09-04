@@ -44,6 +44,10 @@ class CommonModel(KASModel):
 
         # Replace conv2d
         self.model = getattr(models, name)(num_classes=num_classes)
+        # TODO: a hack to modify torchvision models into CIFAR-10/100
+        if "resnet18" in name:
+            self.model.conv1 = nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+            self.model.maxpool = nn.Identity()
         count = replace_conv2d_to_placeholder(self.model)
         logging.info(f"Replaced {count} Conv2D layers to Placeholder")
 
