@@ -119,10 +119,11 @@ class MCTSAlgorithm:
                 trial_path = TreePath.decode_str(path_sel)
                 logging.info(f"Injecting bootstrapping path {trial_path}...")
                 trial_node = self.mcts.visit(trial_path, on_tree=False, put_in_tree=True)
+                path = Path(trial_path).serialize()
                 assert trial_node is not None
-                assert trial_path not in self.path_to_meta_data
-                self.path_to_meta_data[trial_path] = (list(trial_path.hierarchy), trial_node, trial_path)
-                results.append(trial_path)
+                assert path not in self.path_to_meta_data
+                self.path_to_meta_data[path] = (list(trial_path.hierarchy), trial_node, trial_path)
+                results.append(path)
             self.preconditioned = True
 
         while len(results) == 0:

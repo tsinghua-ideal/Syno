@@ -12,6 +12,8 @@ if __name__ == '__main__':
     parser.add_argument('--dirs', type=str, nargs='+', default=None)
     parser.add_argument('--output', type=str, default='plot')
     parser.add_argument('--time', default=False, action='store_true')
+    parser.add_argument('--min-acc', type=float, default=0.5)
+    parser.add_argument('--reference-hash', type=str, default=None)
     args = parser.parse_args()
     assert args.dirs is not None
     for dir in args.dirs:
@@ -33,8 +35,10 @@ if __name__ == '__main__':
             meta_path = os.path.join(kernel_dir, 'meta.json')
             with open(meta_path, 'r') as f:
                 meta = json.load(f)
+                
+            kernel_hash = kernel_dir.split('_')[1]
 
-            kernels.append((meta['time'], meta['accuracy'], meta['flops'], meta['params']))
+            kernels.append((meta['time'], meta['accuracy'], meta['flops'], meta['params'], kernel_hash))
         kernels = sorted(kernels, key=lambda x: x[0])
         if not args.time:
             kernels = list([(i, *kernels[i][1:]) for i in range(len(kernels))])
@@ -44,11 +48,22 @@ if __name__ == '__main__':
 
     # Accuracy vs FLOPs/param distirbution
     for i, (name, kernels) in enumerate(all_kernels):
+        
+        x, y, flops, params, hash_value = zip(*filter(lambda x: x[1] > args.min_acc, kernels))
+        
+        assert len(x) == len(y) == len(flops) == len(params) == len(hash_value)
+        if args.reference_hash is not None:
+            try:
+                ind = hash_value.index(args.reference_hash)
+            except ValueError as e:
+                print(f"{args.reference_hash} does not exists in {name}, {hash_value}")
+                exit(1)
+                
         # FLOPs
         fig_id += 1
         plt.figure(fig_id, figsize=(10, 6), dpi=300)
-        x, y, flops, params = zip(*filter(lambda x: x[1] > 0.5, kernels))
         plt.scatter(flops, y, label=name, s=3)
+        plt.scatter([flops[ind]], [y[ind]], s=5, c='r', marker='^')
         plt.xlabel('FLOPs')
         plt.ylabel('Accuracy')
         plt.legend()
@@ -57,8 +72,8 @@ if __name__ == '__main__':
         # Params
         fig_id += 1
         plt.figure(fig_id, figsize=(10, 6), dpi=300)
-        x, y, flops, params = zip(*filter(lambda x: x[1] > 0.5, kernels))
         plt.scatter(params, y, label=name, s=3)
+        plt.scatter([params[ind]], [y[ind]], s=5, c='r', marker='^')
         plt.xlabel('Params')
         plt.ylabel('Accuracy')
         plt.legend()
@@ -71,7 +86,7 @@ if __name__ == '__main__':
     markers = ['o', 'v', '^', '<', '>', 's', 'p', '*', 'h', 'H', 'D', 'd']
     colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
     for name, kernels in all_kernels:
-        x, y, _, _ = zip(*kernels)
+        x, y, _, _, _ = zip(*kernels)
         y_sum, y_avg = 0, []
         for i in range(len(y)):
             y_sum += y[i]
@@ -91,7 +106,7 @@ if __name__ == '__main__':
     fig_id += 1
     plt.figure(fig_id, figsize=(25, 6), dpi=300)
     for name, kernels in all_kernels:
-        x, y, _, _ = zip(*kernels)
+        x, y, _, _, _ = zip(*kernels)
         y_max = []
         for i in range(len(y)):
             y_max.append(y[i] if i == 0 else max(y_max[-1], y[i]))
@@ -111,7 +126,7 @@ if __name__ == '__main__':
     fig_id += 1
     plt.figure(fig_id, figsize=(10, 6), dpi=300)
     for name, kernels in all_kernels:
-        x, y, _, _ = zip(*kernels)
+        x, y, _, _, _ = zip(*kernels)
         m, c = markers.pop(0), colors.pop(0)
         markers.append(m)
         colors.append(c)

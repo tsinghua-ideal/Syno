@@ -29,10 +29,11 @@ if __name__ == "__main__":
     else:
         try:
             model, sampler = models.get_model(args, return_sampler=True)
-            node = sampler.visit(Path.deserialize(path)).to_node()
-            model.load_kernel(
-                sampler, node, compile=args.compile, batch_size=args.batch_size
-            )
+            if path:
+                node = sampler.visit(Path.deserialize(path)).to_node()
+                model.load_kernel(
+                    sampler, node, compile=args.compile, batch_size=args.batch_size
+                )
         except Exception as e:
             if not "out of memory" in str(e):
                 raise e
