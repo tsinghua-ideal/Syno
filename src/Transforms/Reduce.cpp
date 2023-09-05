@@ -70,7 +70,7 @@ std::vector<const ReduceOp *> ReduceOp::Generate(PrimitiveOpStore& store, const 
     for (Size size: allowance.enumerateSizes(ctx)) {
         if (withinFLOPs(size)) {
             // For simplicity, we only use Mean. TODO: Add more.
-            res.push_back(store.get<ReduceOp>(std::move(size), ReduceType::Mean));
+            res.push_back(store.get<ReduceOp>(std::move(size), ReduceType::Sum));
         }
     }
 
