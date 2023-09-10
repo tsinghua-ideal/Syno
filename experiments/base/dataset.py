@@ -61,8 +61,9 @@ def get_batches(data_dict, key, batch_size, crop_size):
 
     for idx in range(num_epoch_examples // batch_size):
         if not (idx + 1) * batch_size > num_epoch_examples:
-            yield images.index_select(0, shuffled[idx * batch_size:(idx + 1) * batch_size]), \
-                  labels.index_select(0, shuffled[idx * batch_size:(idx + 1) * batch_size])
+            x, y = images.index_select(0, shuffled[idx * batch_size:(idx + 1) * batch_size]), labels.index_select(0, shuffled[idx * batch_size:(idx + 1) * batch_size])
+            x = F.interpolate(x, size=(224, 224), mode='bilinear')
+            yield x, y
 
 
 class FuncDataloader():
