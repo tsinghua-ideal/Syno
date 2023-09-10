@@ -82,7 +82,7 @@ def train(model, train_dataloader, val_dataloader, args) -> List[float]:
 
         # Temporary hack
         # TODO: make a pruning file
-        if epoch == 9 and max(val_accuracy) < 0.6:
+        if epoch == 9 and max(val_accuracy) < 0.3:
             logging.info(f'Accuracy too low, pruning ...')
             break
 

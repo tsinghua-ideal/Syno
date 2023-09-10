@@ -27,7 +27,8 @@ class Placeholder(nn.Module):
     def set_params(self, params: int) -> None:
         self.params = params
     
-    def exclusion_condition(self, in_size, out_size) -> bool:
+    @staticmethod
+    def exclusion_condition(in_size, out_size) -> bool:
         return False
 
     def forward(self, x) -> torch.Tensor:

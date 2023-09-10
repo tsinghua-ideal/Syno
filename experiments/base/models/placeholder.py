@@ -71,7 +71,8 @@ class ConvPlaceholder(Placeholder):
         assert n == n2
         return {'N': n, 'C_in': c1, 'C_out': c2, 'H': h, 'W': w}
     
-    def exclusion_condition(self, in_size, out_size) -> bool:
+    @staticmethod
+    def exclusion_condition(in_size, out_size) -> bool:
         n, c1, h, w = in_size
         n2, c2, h2, w2 = out_size
-        return (h <= 4 and w <= 4)
+        return (h < 16 or w < 16)
