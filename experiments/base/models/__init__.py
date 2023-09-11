@@ -54,6 +54,7 @@ def get_sampler(args, model) -> Sampler:
         "num_worker_threads": args.kas_sampler_workers,
         "requires_exact_division": True,
         "requires_odd_kernel_size_in_unfold": True,
+        "minimum_unfold_ratio": 1.5,
         "extra_options": {
             "beam_size": "32",
             "num_passes": "1",
@@ -105,6 +106,7 @@ def get_model(
         cls_name = args.kas_replace_placeholder.capitalize() + "Placeholder"
         assembled = getattr(placeholder, cls_name).impl(sampler.create_assembler())
         logging.debug(f"Assembled path: {assembled.convert_to_path(sampler)}")
+        logging.debug(f"Assembled path (serialized): {Path(assembled.convert_to_path(sampler)).serialize()}")
         if sampler.visit(assembled.convert_to_path(sampler)) is None:
             path = Path(assembled.convert_to_path(sampler))
             logging.warn(f"Path {path} is not valid, testing...")

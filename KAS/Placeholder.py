@@ -35,9 +35,9 @@ class Placeholder(nn.Module):
         x_size = x.size()
         out = self.refered_layer(x) if self.kernel is None else self.kernel(x)
         
-        self.filtered_flag = self.exclusion_condition(x_size, out.size())
         if self.build_mapping_mode:
             assert self.mapping_func is not None
+            self.filtered_flag = self.exclusion_condition(x_size, out.size())
             self.mappings = self.mapping_func(x_size, out.size())
         
         return out

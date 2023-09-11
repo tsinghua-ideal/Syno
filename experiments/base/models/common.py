@@ -49,7 +49,7 @@ class CommonModel(KASModel):
 
     @staticmethod
     def sample_input_shape():
-        return (3, 32, 32)
+        return (3, 224, 224)
     
     @staticmethod
     def sampler_parameters():
