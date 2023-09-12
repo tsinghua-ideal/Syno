@@ -131,6 +131,12 @@ def arg_parse():
         help="KAS sampler maximum Shifts",
     )
     parser.add_argument(
+        "--kas-max-finalizations",
+        default=-1,
+        type=int,
+        help="KAS sampler maximum Shifts",
+    )
+    parser.add_argument(
         "--kas-min-dim", default=1, type=int, help="KAS sampler minimum dimensions"
     )
     parser.add_argument(

@@ -47,6 +47,7 @@ def get_sampler(args, model) -> Sampler:
         "maximum_tensors": args.kas_max_tensors,
         "maximum_reductions": args.kas_max_reductions,
         "maximum_shifts": args.kas_max_shifts,
+        "maximum_finalizations": args.kas_max_finalizations,
         "max_flops": max_placeholder_flops * args.batch_size,
         "save_path": args.kas_scheduler_cache_dir,
         "cuda": True,
