@@ -102,9 +102,12 @@ class DimensionEvaluator {
                 auto& newValue = newValues[branch];
                 if (newValue.isRefined(knownValue)) {
                     // DFS.
-                    v.visitAdjacent(static_cast<V::BranchType>(branch)).match(*this, *this, *this);
+                    v.visitAdjacent(static_cast<V::BranchType>(branch)).match(*this);
                 }
             }
+        }
+        void operator()(const ExpandVertex& v, ExpandVertex::BranchType) {
+            // Do nothing.
         }
     };
 

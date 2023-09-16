@@ -26,8 +26,9 @@ public:
         propagateTo(vertex.visitAdjacent(MergeLikeOp::Branch::InputLhs));
         propagateTo(vertex.visitAdjacent(MergeLikeOp::Branch::InputRhs));
     }
+    void operator()(const ExpandVertex&, auto) {}
     void propagateTo(VisitedVertex vertex) {
-        vertex.match(*this, *this, *this);
+        vertex.match(*this);
     }
     ShareBlockDiscoverer(const Graph& graph, Dimension dim, F&& f):
         graph { graph },
@@ -111,10 +112,10 @@ protected:
 
     // Input tensor.
     template<typename O>
-    TensorImpl(O&& output): output { std::forward<O>(output) } {}
+    TensorImpl(O&& output): output(std::forward<O>(output)) {}
     // Tensor view.
     template<typename I, typename O>
-    TensorImpl(I&& inputs, O&& output): inputs { std::forward<I>(inputs) }, output { std::forward<O>(output) } {}
+    TensorImpl(I&& inputs, O&& output): inputs(std::forward<I>(inputs)), output(std::forward<O>(output)) {}
 
 public:
     static Tensor CreateInputTensor(Tensor::Builder& builder, const Topmost& topmost);

@@ -46,6 +46,9 @@ void LocalityOptimizer::permuteWeightDimensions(std::vector<Topmost>& tensors) c
                 }
                 default: KAS_UNREACHABLE();
                 }
+            },
+            [](const ExpandVertex&, auto) {
+                KAS_CRITICAL("ExpandOp is not needed in this context.");
             }
         );
     };
@@ -132,8 +135,8 @@ void DimensionEvaluator::assign(Dimension dim, IteratorValue value) {
     freeCandidates.erase(dim);
     unknownDimensions.erase(dim);
     Propagator p { *this };
-    graph.visitAlong(dim, Direction::Up).match(p, p, p);
-    graph.visitAlong(dim, Direction::Down).match(p, p, p);
+    graph.visitAlong(dim, Direction::Up).match(p);
+    graph.visitAlong(dim, Direction::Down).match(p);
 }
 
 std::vector<IteratorValue> DimensionEvaluator::extractValues(const std::vector<Dimension>& dims) const {
@@ -163,7 +166,7 @@ DimensionEvaluator::DimensionEvaluator(const Graph& graph, const std::vector<Pur
     // Perform initial visit to each Op. This is needed to handle StrideOp, which comes with an initial Orientation.
     Propagator p { *this };
     for (auto&& dim: graph.getDimensions()) {
-        graph.visitAlong(dim, Direction::Down).match(p, p, p);
+        graph.visitAlong(dim, Direction::Down).match(p);
     }
 }
 

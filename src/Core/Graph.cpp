@@ -4,6 +4,10 @@
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Utils/Common.hpp"
 
+// This is highly dangerous!
+// We only want to use the inheritance between Expand and ExpandOp.
+// Do not use any other function!
+#include "KAS/Transforms/Expand.hpp"
 
 namespace kas {
 
@@ -112,9 +116,9 @@ Graph::Builder& Graph::Builder::addDimension(const Dimension& dim) {
 Graph::Builder& Graph::Builder::addExpansion(const Expand *exp) {
     topmost.getExpansions().emplace_back(exp);
     ancestor = CompactIndices::Single(topmost.getDimensions().size() + topmost.getExpansions().size());
-    parent = { std::monostate{} };
-    match(exp->output);
-    if (auto op = dynamic_cast<const PrimitiveOp *>(exp)) {
+    if (auto op = static_cast<const ExpandOp *>(exp)) {
+        parent = { op };
+        match(exp->output);
         ops.emplace(op);
     } else {
         KAS_CRITICAL("Found naked Expand (not wrapped in an ExpandOp) when building the graph!");
@@ -170,6 +174,9 @@ void Graph::WalkUpVisitor::operator()(std::pair<const SplitLikeOp *, Order> opAn
 void Graph::WalkUpVisitor::operator()(const MergeLikeOp *op) {
     result.emplace(std::pair { MergeLikeVertex { graph, *op }, MergeLikeOp::Branch::Output });
 }
+void Graph::WalkUpVisitor::operator()(const ExpandOp *op) {
+    result.emplace(std::pair { ExpandVertex { graph, *op }, std::monostate{} });
+}
 
 VisitedVertex Graph::visitAlong(const Dimension& dim, Direction dir) const {
     switch (dir) {
@@ -199,6 +206,9 @@ const PrimitiveOp *Graph::getOpAbove(const Dimension& dim) const {
             result = opAndOrder.first;
         }
         void operator()(const MergeLikeOp *op) {
+            result = op;
+        }
+        void operator()(const ExpandOp *op) {
             result = op;
         }
     };

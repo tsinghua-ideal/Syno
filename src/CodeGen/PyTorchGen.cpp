@@ -107,7 +107,7 @@ void PyTorchGen::SubgraphGen::OpLower::lower() {
             // Lower an Op.
             if (!outputSet.contains(dim)) {
                 // Try lowering.
-                if (graph.visitAlong(dim, Direction::Down).match(*this, *this, *this)) {
+                if (graph.visitAlong(dim, Direction::Down).match(*this)) {
                     // Only upon successful visit, break and start another iteration.
                     changed = true;
                     break;

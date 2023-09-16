@@ -44,9 +44,9 @@ public:
 
     RepeatLikeVertex(const Graph& graph, const OpType& op):
         graph { graph }, op { op } {}
-    Dimension operator[](OpType::Branch branch) const;
-    Direction outgoingDirection(OpType::Branch branch) const;
-    VisitedVertex visitAdjacent(OpType::Branch branch) const;
+    Dimension operator[](BranchType branch) const;
+    Direction outgoingDirection(BranchType branch) const;
+    VisitedVertex visitAdjacent(BranchType branch) const;
 };
 template<typename CaseRepeatLike>
 concept RepeatLikeCase = std::invocable<CaseRepeatLike, const RepeatLikeVertex&, RepeatLikeOp::Branch>;
@@ -63,9 +63,9 @@ public:
 
     SplitLikeVertex(const Graph& graph, const OpType& op):
         graph { graph }, op { op } {}
-    Dimension operator[](OpType::Branch branch) const;
-    Direction outgoingDirection(OpType::Branch branch) const;
-    VisitedVertex visitAdjacent(OpType::Branch branch) const;
+    Dimension operator[](BranchType branch) const;
+    Direction outgoingDirection(BranchType branch) const;
+    VisitedVertex visitAdjacent(BranchType branch) const;
 };
 template<typename CaseSplitLike>
 concept SplitLikeCase = std::invocable<CaseSplitLike, const SplitLikeVertex&, SplitLikeOp::Branch>;
@@ -82,30 +82,42 @@ public:
 
     MergeLikeVertex(const Graph& graph, const OpType& op):
         graph { graph }, op { op } {}
-    Dimension operator[](OpType::Branch branch) const;
-    Direction outgoingDirection(OpType::Branch branch) const;
-    VisitedVertex visitAdjacent(OpType::Branch branch) const;
+    Dimension operator[](BranchType branch) const;
+    Direction outgoingDirection(BranchType branch) const;
+    VisitedVertex visitAdjacent(BranchType branch) const;
 };
 template<typename CaseMergeLike>
 concept MergeLikeCase = std::invocable<CaseMergeLike, const MergeLikeVertex&, MergeLikeOp::Branch>;
 template<MergeLikeCase CaseMergeLike>
 using MergeLikeCaseResult = std::invoke_result_t<CaseMergeLike, const MergeLikeVertex&, MergeLikeOp::Branch>;
 
-template<auto Val>
-struct EmptyVertexCase {
-    template<typename V, typename B>
-    auto operator()(V&&, B&&) const {
-        return Val;
-    }
+class ExpandVertex {
+    const Graph& graph;
+
+public:
+    using OpType = ExpandOp;
+    using BranchType = std::monostate;
+    const OpType& op;
+
+    ExpandVertex(const Graph& graph, const OpType& op):
+        graph { graph }, op { op } {}
+    Dimension operator[](BranchType branch) const;
+    Direction outgoingDirection(BranchType branch) const;
+    VisitedVertex visitAdjacent(BranchType branch) const;
 };
+template<typename CaseExpand>
+concept ExpandCase = std::invocable<CaseExpand, const ExpandVertex&, std::monostate>;
+template<ExpandCase CaseExpand>
+using ExpandCaseResult = std::invoke_result_t<CaseExpand, const ExpandVertex&, std::monostate>;
 
 class VisitedVertex {
     friend class Graph;
 
     using Inner = std::variant<
-        std::pair<RepeatLikeVertex, RepeatLikeOp::Branch>,
-        std::pair<SplitLikeVertex, SplitLikeOp::Branch>,
-        std::pair<MergeLikeVertex, MergeLikeOp::Branch>
+        std::pair<RepeatLikeVertex, RepeatLikeVertex::BranchType>,
+        std::pair<SplitLikeVertex, SplitLikeVertex::BranchType>,
+        std::pair<MergeLikeVertex, MergeLikeVertex::BranchType>,
+        std::pair<ExpandVertex, ExpandVertex::BranchType>
     >;
     std::optional<Inner> vertexAndSource;
 
@@ -113,32 +125,38 @@ class VisitedVertex {
         vertexAndSource { std::forward<decltype(vertexAndSource)>(vertexAndSource) }
     {}
 
-    template<RepeatLikeCase CaseRepeatLike, SplitLikeCase CaseSplitLike, MergeLikeCase CaseMergeLike>
+    template<RepeatLikeCase CaseRepeatLike, SplitLikeCase CaseSplitLike, MergeLikeCase CaseMergeLike, ExpandCase CaseExpand>
     struct Visitor {
         CaseRepeatLike&& caseRepeatLike;
         CaseSplitLike&& caseSplitLike;
         CaseMergeLike&& caseMergeLike;
-        decltype(auto) operator()(std::pair<RepeatLikeVertex, RepeatLikeOp::Branch>& r) const {
+        CaseExpand&& caseExpand;
+        decltype(auto) operator()(std::pair<RepeatLikeVertex, RepeatLikeVertex::BranchType>& r) const {
             return std::invoke(std::forward<CaseRepeatLike>(caseRepeatLike), r.first, r.second);
         }
-        decltype(auto) operator()(std::pair<SplitLikeVertex, SplitLikeOp::Branch>& s) const {
+        decltype(auto) operator()(std::pair<SplitLikeVertex, SplitLikeVertex::BranchType>& s) const {
             return std::invoke(std::forward<CaseSplitLike>(caseSplitLike), s.first, s.second);
         }
-        decltype(auto) operator()(std::pair<MergeLikeVertex, MergeLikeOp::Branch>& m) const {
+        decltype(auto) operator()(std::pair<MergeLikeVertex, MergeLikeVertex::BranchType>& m) const {
             return std::invoke(std::forward<CaseMergeLike>(caseMergeLike), m.first, m.second);
+        }
+        decltype(auto) operator()(std::pair<ExpandVertex, ExpandVertex::BranchType>& e) const {
+            return std::invoke(std::forward<CaseExpand>(caseExpand), e.first, e.second);
         }
     };
 
 public:
-    template<RepeatLikeCase CaseRepeatLike, SplitLikeCase CaseSplitLike, MergeLikeCase CaseMergeLike, typename Result = RepeatLikeCaseResult<CaseRepeatLike>>
+    template<RepeatLikeCase CaseRepeatLike, SplitLikeCase CaseSplitLike, MergeLikeCase CaseMergeLike, ExpandCase CaseExpand, typename Result = RepeatLikeCaseResult<CaseRepeatLike>>
     requires
         std::same_as<Result, RepeatLikeCaseResult<CaseRepeatLike>> &&
         std::same_as<Result, SplitLikeCaseResult<CaseSplitLike>> &&
-        std::same_as<Result, MergeLikeCaseResult<CaseMergeLike>>
+        std::same_as<Result, MergeLikeCaseResult<CaseMergeLike>> &&
+        std::same_as<Result, ExpandCaseResult<CaseExpand>>
     Result match(
         CaseRepeatLike&& caseRepeatLike,
         CaseSplitLike&& caseSplitLike,
-        CaseMergeLike&& caseMergeLike
+        CaseMergeLike&& caseMergeLike,
+        CaseExpand&& caseExpand
     ) {
         if (!vertexAndSource.has_value()) {
             if constexpr (std::is_void_v<Result>) {
@@ -147,15 +165,16 @@ public:
                 return {};
             }
         }
-        return std::visit(Visitor<CaseRepeatLike, CaseSplitLike, CaseMergeLike> {
+        return std::visit(Visitor<CaseRepeatLike, CaseSplitLike, CaseMergeLike, CaseExpand> {
             std::forward<CaseRepeatLike>(caseRepeatLike),
             std::forward<CaseSplitLike>(caseSplitLike),
-            std::forward<CaseMergeLike>(caseMergeLike)
+            std::forward<CaseMergeLike>(caseMergeLike),
+            std::forward<CaseExpand>(caseExpand)
         }, *vertexAndSource);
     }
     template<typename F>
     decltype(auto) match(F&& f) {
-        return match(std::forward<F>(f), std::forward<F>(f), std::forward<F>(f));
+        return match(std::forward<F>(f), std::forward<F>(f), std::forward<F>(f), std::forward<F>(f));
     }
 };
 
@@ -168,7 +187,7 @@ public:
     // In the original graph, each Dimension serves as an edge. It provides easy access for the Op below it (which has the Dimension as input), but cannot access the Op above it. This is used to store the Op above each Dimension.
     struct OpAbove {
         // std::monostate means the dimension is an input dimension, and has no Op above.
-        std::variant<std::monostate, const RepeatLikeOp *, std::pair<const SplitLikeOp *, Order>, const MergeLikeOp *> op;
+        std::variant<std::monostate, const RepeatLikeOp *, std::pair<const SplitLikeOp *, Order>, const MergeLikeOp *, const ExpandOp *> op;
         template<typename F>
         void visit(F&& f) const {
             std::visit(std::forward<F>(f), op);
@@ -280,11 +299,11 @@ private:
     std::set<const PrimitiveOp *> ops;
 
     Graph(auto&& topmost, auto&& dimMeta, auto&& outputIterators, auto&& reduceIterators, auto&& ops):
-        topmost { std::forward<decltype(topmost)>(topmost) },
-        dimMeta { std::forward<decltype(dimMeta)>(dimMeta) },
-        outputIterators { std::forward<decltype(outputIterators)>(outputIterators) },
-        reduceIterators { std::forward<decltype(reduceIterators)>(reduceIterators) },
-        ops { std::forward<decltype(ops)>(ops) }
+        topmost(std::forward<decltype(topmost)>(topmost)),
+        dimMeta(std::forward<decltype(dimMeta)>(dimMeta)),
+        outputIterators(std::forward<decltype(outputIterators)>(outputIterators)),
+        reduceIterators(std::forward<decltype(reduceIterators)>(reduceIterators)),
+        ops(std::forward<decltype(ops)>(ops))
     {}
 
     // Visitor that walks down along a dimension.
@@ -308,6 +327,7 @@ private:
         void operator()(const RepeatLikeOp *op);
         void operator()(std::pair<const SplitLikeOp *, Order> opAndOrder);
         void operator()(const MergeLikeOp *op);
+        void operator()(const ExpandOp *op);
         WalkUpVisitor(const Graph& graph): graph { graph } {}
     };
 
@@ -327,7 +347,9 @@ public:
     std::vector<const Reduce *>& getReduceIterators() { return reduceIterators; }
     const std::vector<const Reduce *>& getReduceIterators() const { return reduceIterators; }
 
+    // Includes ExpandOp.
     const PrimitiveOp *getOpAbove(const Dimension& dim) const;
+    // Every Op, including ExpandOp, excluding ReduceOp.
     const std::set<const PrimitiveOp *> getOps() const { return ops; }
 
     template<typename Value>

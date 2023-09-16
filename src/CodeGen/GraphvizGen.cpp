@@ -15,6 +15,23 @@
 
 namespace kas {
 
+namespace detail {
+
+void GraphvizCode::generate(const std::filesystem::path& outputPath, std::string_view funcName) const {
+    std::filesystem::create_directories(outputPath.parent_path());
+    std::ofstream file { outputPath };
+    file << "digraph " << funcName << " {\n";
+    file << code;
+    file << "}\n";
+    file.close();
+}
+
+std::string GraphvizCode::print(std::string_view funcName) const {
+    return fmt::format("digraph {} {{\n{}}}\n", funcName, code);
+}
+
+} // namespace detail
+
 namespace {
 
 struct OpCanvas: public OpVisitor {
@@ -140,10 +157,6 @@ struct DimCanvas: public DimVisitor {
         this->from = std::move(from);
         dim.accept(*this);
     }
-    void drawExpand(const Expand *op) {
-        this->from = OpCanvas::Name(dynamic_cast<const ExpandOp&>(*op));
-        op->output.accept(*this);
-    }
     void drawOthers() {
         for (const Dimension& dim: graph.getDimensions()) {
             const PrimitiveOp *opAbove = graph.getOpAbove(dim);
@@ -152,7 +165,7 @@ struct DimCanvas: public DimVisitor {
                 from = OpCanvas::Name(*opAbove);
                 dim.accept(*this);
             } else {
-                // This is input or expand, which will be handled elsewhere.
+                // This is input, which will be handled elsewhere.
             }
         }
     }
@@ -205,10 +218,6 @@ std::string draw(const BindingContext& ctx, R&& tensors) {
         }
         ++j;
     }
-    // Draw the expands.
-    for (const Expand *op: graph.getTopmost().getExpansions()) {
-        dimCanvas.drawExpand(op);
-    }
     dimCanvas.drawOthers();
     return ss.str();
 }
@@ -228,17 +237,8 @@ GraphvizGen::GraphvizGen(const TensorView& tensorView, const BindingContext& ctx
     code = draw(ctx, tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent));
 }
 
-void GraphvizGen::generate(const std::filesystem::path& outputPath, std::string_view funcName) const {
-    std::filesystem::create_directories(outputPath.parent_path());
-    std::ofstream file { outputPath };
-    file << "digraph " << funcName << " {\n";
-    file << code;
-    file << "}\n";
-    file.close();
-}
-
-std::string GraphvizGen::print(std::string_view funcName) const {
-    return fmt::format("digraph {} {{\n{}}}\n", funcName, code);
+GraphvizDFGGen::GraphvizDFGGen(const Subgraphs& subgraphs, const Graph& graph, const BindingContext& ctx) {
+    
 }
 
 } // namespace kas

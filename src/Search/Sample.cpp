@@ -482,6 +482,9 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
                     addedV = true;
                     self(self, v[MergeLikeOp::Branch::Output]);
                     result.emplace_back(Next::TypeOf(v.op.getType()), v.op.opHash());
+                },
+                [](const ExpandVertex& v, auto) {
+                    // Expand is left for later code to handle.
                 }
             );
         };
