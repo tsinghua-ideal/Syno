@@ -1,9 +1,10 @@
 import json
 import logging
 import urllib.parse
+import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from base import log, parser, models
+from base import log, parser, models, mem
 from search import get_session
 
 
@@ -63,12 +64,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
 
-if __name__ == "__main__":
-    # Logging
-    log.setup()
-
-    # Arguments
-    args = parser.arg_parse()
+def main():
 
     # Sampler
     _, sampler = models.get_model(args, return_sampler=True)
@@ -89,3 +85,20 @@ if __name__ == "__main__":
         session.save()
         session.print_stats()
         logging.info("Shutting down server ...")
+
+
+if __name__ == "__main__":
+    # Logging
+    log.setup()
+
+    # Arguments
+    args = parser.arg_parse()
+
+    # Set memory limit
+    mem.memory_limit(args.mem_limit)
+
+    try:
+        main()
+    except MemoryError:
+        sys.stderr.write("\n\nERROR: Memory Exception\n")
+        sys.exit(1)

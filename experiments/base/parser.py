@@ -5,6 +5,9 @@ from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 def arg_parse():
     parser = argparse.ArgumentParser(description="KAS trainer/searcher")
+    
+    # Resource
+    parser.add_argument("--mem-limit", type=float, default=0.05, help="Maximum portion of memory that this program used. ")
 
     # Model
     parser.add_argument("--model", type=str, default="FCNet")
