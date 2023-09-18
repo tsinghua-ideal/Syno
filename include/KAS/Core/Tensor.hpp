@@ -79,6 +79,19 @@ public:
 
     const std::vector<Tensor>& inputs() const;
     const std::vector<Dimension>& output() const;
+    // Reductions are executed as the stage is evaluated. Only non-reduction dimensions are staged.
+    decltype(auto) stagedDims() const {
+        return output() | std::views::filter([this](const Dimension& dim) {
+            // If this tensor is input tensor, all dimensions are staged.
+            return isInputTensor() || !dim.is(DimensionType::Reduce);
+        });
+    }
+    // The reductions.
+    decltype(auto) reducedDims() const {
+        return output() | std::views::filter([this](const Dimension& dim) {
+            return !isInputTensor() && dim.is(DimensionType::Reduce);
+        });
+    }
     bool isInputTensor() const;
 
     std::string toString(const BindingContext& ctx) const;

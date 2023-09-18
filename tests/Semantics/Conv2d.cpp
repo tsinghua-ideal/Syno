@@ -83,6 +83,8 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     auto funcName = "conv2d";
     auto gvGen = GraphvizGen { tensorView, ctx };
     gvGen.generate(fmt::format("./kernel_{0}/{0}.dot", funcName), funcName);
+    auto dfgGen = GraphvizDFGGen { subgraphs, ctx };
+    dfgGen.generate(fmt::format("./kernel_{0}/{0}_dfg.dot", funcName), funcName);
     auto gen = HalideGen { ctx, tensorView, options };
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C_in", c_in}, {"C_out", c_out}, {"K", k}};
     auto pytorchGen = PyTorchGen { ctx, tensorView };

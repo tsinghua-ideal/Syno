@@ -92,23 +92,20 @@ template<MergeLikeCase CaseMergeLike>
 using MergeLikeCaseResult = std::invoke_result_t<CaseMergeLike, const MergeLikeVertex&, MergeLikeOp::Branch>;
 
 class ExpandVertex {
-    const Graph& graph;
-
 public:
     using OpType = ExpandOp;
     using BranchType = std::monostate;
     const OpType& op;
 
-    ExpandVertex(const Graph& graph, const OpType& op):
-        graph { graph }, op { op } {}
-    Dimension operator[](BranchType branch) const;
-    Direction outgoingDirection(BranchType branch) const;
-    VisitedVertex visitAdjacent(BranchType branch) const;
+    ExpandVertex(const OpType& op): op { op } {}
 };
 template<typename CaseExpand>
 concept ExpandCase = std::invocable<CaseExpand, const ExpandVertex&, std::monostate>;
 template<ExpandCase CaseExpand>
 using ExpandCaseResult = std::invoke_result_t<CaseExpand, const ExpandVertex&, std::monostate>;
+
+template<typename V>
+concept GeneralizedVertex = Vertex<V> || std::same_as<std::remove_cvref_t<V>, ExpandVertex>;
 
 class VisitedVertex {
     friend class Graph;
@@ -117,7 +114,7 @@ class VisitedVertex {
         std::pair<RepeatLikeVertex, RepeatLikeVertex::BranchType>,
         std::pair<SplitLikeVertex, SplitLikeVertex::BranchType>,
         std::pair<MergeLikeVertex, MergeLikeVertex::BranchType>,
-        std::pair<ExpandVertex, ExpandVertex::BranchType>
+        ExpandVertex
     >;
     std::optional<Inner> vertexAndSource;
 
@@ -140,8 +137,8 @@ class VisitedVertex {
         decltype(auto) operator()(std::pair<MergeLikeVertex, MergeLikeVertex::BranchType>& m) const {
             return std::invoke(std::forward<CaseMergeLike>(caseMergeLike), m.first, m.second);
         }
-        decltype(auto) operator()(std::pair<ExpandVertex, ExpandVertex::BranchType>& e) const {
-            return std::invoke(std::forward<CaseExpand>(caseExpand), e.first, e.second);
+        decltype(auto) operator()(ExpandVertex& e) const {
+            return std::invoke(std::forward<CaseExpand>(caseExpand), e, std::monostate{});
         }
     };
 
@@ -181,6 +178,7 @@ public:
 static_assert(Vertex<RepeatLikeVertex>);
 static_assert(Vertex<SplitLikeVertex>);
 static_assert(Vertex<MergeLikeVertex>);
+static_assert(GeneralizedVertex<ExpandVertex>);
 
 class Graph {
 public:
@@ -189,8 +187,8 @@ public:
         // std::monostate means the dimension is an input dimension, and has no Op above.
         std::variant<std::monostate, const RepeatLikeOp *, std::pair<const SplitLikeOp *, Order>, const MergeLikeOp *, const ExpandOp *> op;
         template<typename F>
-        void visit(F&& f) const {
-            std::visit(std::forward<F>(f), op);
+        decltype(auto) visit(F&& f) const {
+            return std::visit(std::forward<F>(f), op);
         }
     };
 
@@ -350,7 +348,7 @@ public:
     // Includes ExpandOp.
     const PrimitiveOp *getOpAbove(const Dimension& dim) const;
     // Every Op, including ExpandOp, excluding ReduceOp.
-    const std::set<const PrimitiveOp *> getOps() const { return ops; }
+    const std::set<const PrimitiveOp *>& getOps() const { return ops; }
 
     template<typename Value>
     class AttributeMap {
@@ -391,6 +389,66 @@ public:
             }
         }
     };
+};
+
+class ConstrainedGraph {
+    const Graph& graph;
+    using DimensionSet = std::set<Dimension, Dimension::AddressLessThan>;
+    DimensionSet dimensions;
+    std::set<const PrimitiveOp *> ops;
+    using CutSet = DimensionSet;
+    std::optional<CutSet> top;
+    std::optional<CutSet> bottom;
+    ConstrainedGraph(const Graph& graph, DimensionSet&& dimensions, std::set<const PrimitiveOp *>&& ops, std::optional<CutSet>&& top, std::optional<CutSet>&& bottom):
+        graph { graph }, dimensions(std::move(dimensions)), ops(std::move(ops)), top(std::move(top)), bottom(std::move(bottom)) {}
+
+public:
+    class Builder {
+        const Graph& graph;
+        std::optional<CutSet> top;
+        std::optional<CutSet> bottom;
+        template<DimensionRange R>
+        Builder& set(std::optional<CutSet> Builder::*field, R&& r) {
+            auto& cutSet = this->*field;
+            KAS_ASSERT(!cutSet);
+            using std::begin;
+            using std::end;
+            cutSet = CutSet();
+            cutSet->insert(begin(std::forward<R>(r)), end(std::forward<R>(r)));
+            return *this;
+        }
+    public:
+        Builder(const Graph& graph): graph { graph } {}
+        template<DimensionRange Top>
+        Builder& setTop(Top&& top) {
+            return set(&Builder::top, std::forward<Top>(top));
+        }
+        template<DimensionRange Bottom>
+        Builder& setBottom(Bottom&& bottom) {
+            return set(&Builder::bottom, std::forward<Bottom>(bottom));
+        }
+        ConstrainedGraph build();
+    };
+    enum class BoundaryType: bool {
+        Top,
+        Bottom,
+    };
+    struct VisitedSubgraphVertex {
+        std::variant<VisitedVertex, std::pair<BoundaryType, Dimension>> result;
+        template<typename F>
+        decltype(auto) match(F&& f) {
+            return std::visit([&](auto&& x) -> decltype(auto) {
+                if constexpr (std::is_same_v<std::remove_cvref_t<decltype(x)>, VisitedVertex>) {
+                    return x.match(std::forward<F>(f));
+                } else {
+                    return f(x.first, x.second);
+                }
+            }, result);
+        }
+    };
+    VisitedSubgraphVertex visitAlong(const Dimension& dim, Direction dir) const;
+    const DimensionSet& getDimensions() const { return dimensions; }
+    const std::set<const PrimitiveOp *>& getOps() const { return ops; }
 };
 
 } // namespace kas

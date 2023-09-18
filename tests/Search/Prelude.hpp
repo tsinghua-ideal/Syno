@@ -19,7 +19,7 @@ protected:
     SampleOptions options = []() {
         SampleOptions options;
         options.seed = 42;
-        options.depth = 6;
+        options.depth = 12;
         options.dimLowerBound = 2;
         options.dimUpperBound = 6;
         options.maximumTensors = 4;

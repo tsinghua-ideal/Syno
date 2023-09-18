@@ -108,6 +108,10 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
         GraphvizGen gen { tensorView, ctx };
         gen.generate(dir / "kernel_graph.dot", name);
     }
+    {
+        GraphvizDFGGen gen { tensorView.getSubgraphs(), ctx };
+        gen.generate(dir / "kernel_dfg.dot", name);
+    }
     if (options.halide) {
         std::vector<std::future<std::string>> schedules;
         const auto gen = HalideGen { ctx, tensorView, options };
