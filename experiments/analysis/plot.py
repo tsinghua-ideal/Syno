@@ -6,14 +6,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Get Path
-    parser = argparse.ArgumentParser(description='KAS session plot')
-    parser.add_argument('--dirs', type=str, nargs='+', default=None)
-    parser.add_argument('--output', type=str, default='plot')
-    parser.add_argument('--time', default=False, action='store_true')
-    parser.add_argument('--min-acc', type=float, default=0.5)
-    parser.add_argument('--reference-hash', type=str, default=None)
+    parser = argparse.ArgumentParser(description="KAS session plot")
+    parser.add_argument("--dirs", type=str, nargs="+", default=None)
+    parser.add_argument("--output", type=str, default="plot")
+    parser.add_argument("--time", default=False, action="store_true")
+    parser.add_argument("--min-acc", type=float, default=0.5)
+    parser.add_argument("--reference-hash", type=str, default=None)
     args = parser.parse_args()
     assert args.dirs is not None
     for dir in args.dirs:
@@ -27,18 +27,26 @@ if __name__ == '__main__':
             kernel_dir = os.path.join(dir, kernel_fmt)
             if not os.path.isdir(kernel_dir):
                 continue
-            if 'ERROR' in kernel_dir:
+            if "ERROR" in kernel_dir:
                 continue
             files = list(os.listdir(kernel_dir))
-            assert 'graph.dot' in files and 'loop.txt' in files and 'meta.json' in files
+            assert "graph.dot" in files and "loop.txt" in files and "meta.json" in files
 
-            meta_path = os.path.join(kernel_dir, 'meta.json')
-            with open(meta_path, 'r') as f:
+            meta_path = os.path.join(kernel_dir, "meta.json")
+            with open(meta_path, "r") as f:
                 meta = json.load(f)
-                
-            kernel_hash = kernel_dir.split('_')[1]
 
-            kernels.append((meta['time'], meta['accuracy'], meta['flops'], meta['params'], kernel_hash))
+            kernel_hash = kernel_dir.split("_")[1]
+
+            kernels.append(
+                (
+                    meta["time"],
+                    meta["accuracy"],
+                    meta["flops"],
+                    meta["params"],
+                    kernel_hash,
+                )
+            )
         kernels = sorted(kernels, key=lambda x: x[0])
         if not args.time:
             kernels = list([(i, *kernels[i][1:]) for i in range(len(kernels))])
@@ -48,9 +56,11 @@ if __name__ == '__main__':
 
     # Accuracy vs FLOPs/param distirbution
     for i, (name, kernels) in enumerate(all_kernels):
-        
-        x, y, flops, params, hash_value = zip(*filter(lambda x: x[1] > args.min_acc, kernels))
-        
+
+        x, y, flops, params, hash_value = zip(
+            *filter(lambda x: x[1] > args.min_acc, kernels)
+        )
+
         assert len(x) == len(y) == len(flops) == len(params) == len(hash_value)
         if args.reference_hash is not None:
             try:
@@ -58,35 +68,36 @@ if __name__ == '__main__':
             except ValueError as e:
                 print(f"{args.reference_hash} does not exists in {name}, {hash_value}")
                 exit(1)
-                
+
         # FLOPs
         fig_id += 1
         plt.figure(fig_id, figsize=(10, 6), dpi=300)
         plt.scatter(flops, y, label=name, s=3)
-        plt.scatter([flops[ind]], [y[ind]], s=5, c='r', marker='^')
-        plt.xlabel('FLOPs')
-        plt.ylabel('Accuracy')
+        plt.scatter([flops[ind]], [y[ind]], s=5, c="r", marker="^")
+        plt.xlabel("FLOPs")
+        plt.ylabel("Accuracy")
         plt.legend()
-        plt.savefig(f'{args.output}-acc-vs-flops-{i}.png')
+        plt.savefig(f"{args.output}-acc-vs-flops-{i}.png")
 
         # Params
         fig_id += 1
         plt.figure(fig_id, figsize=(10, 6), dpi=300)
         plt.scatter(params, y, label=name, s=3)
-        plt.scatter([params[ind]], [y[ind]], s=5, c='r', marker='^')
-        plt.xlabel('Params')
-        plt.ylabel('Accuracy')
+        plt.scatter([params[ind]], [y[ind]], s=5, c="r", marker="^")
+        plt.xlabel("Params")
+        plt.ylabel("Accuracy")
         plt.legend()
-        plt.savefig(f'{args.output}-acc-vs-params-{i}.png')
-
+        plt.savefig(f"{args.output}-acc-vs-params-{i}.png")
 
     # Trend figure
     fig_id += 1
     plt.figure(fig_id, figsize=(25, 6), dpi=300)
-    markers = ['o', 'v', '^', '<', '>', 's', 'p', '*', 'h', 'H', 'D', 'd']
-    colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+    markers = ["o", "v", "^", "<", ">", "s", "p", "*", "h", "H", "D", "d"]
+    colors = ["b", "g", "r", "c", "m", "y", "k"]
     for name, kernels in all_kernels:
-        x, y, _, _, _ = zip(*kernels)
+        x, y, _, _, hash_value = zip(
+            *filter(lambda k: k[-1] != args.reference_hash, kernels)
+        )
         y_sum, y_avg = 0, []
         for i in range(len(y)):
             y_sum += y[i]
@@ -94,33 +105,44 @@ if __name__ == '__main__':
         m, c = markers.pop(0), colors.pop(0)
         markers.append(m)
         colors.append(c)
-        plt.plot(x, y_avg, marker=m, color=c, label=name, markersize=3)
+        plt.scatter(x, y, marker=m, color=c, label=name + "_scatter", s=2)
+        plt.plot(x, y_avg, marker=m, color=c, label=name, markersize=1)
 
     # Plot and save into file
-    plt.xlabel('Time' if args.time else 'Samples')
-    plt.ylabel('Accuracy (avg)')
+    plt.xlabel("Time" if args.time else "Samples")
+    plt.ylabel("Accuracy (avg)")
     plt.legend()
-    plt.savefig(f'{args.output}-avg-acc-vs-sample.png')
+    plt.savefig(f"{args.output}-avg-acc-vs-sample.png")
 
     # Max figure
     fig_id += 1
     plt.figure(fig_id, figsize=(25, 6), dpi=300)
     for name, kernels in all_kernels:
-        x, y, _, _, _ = zip(*kernels)
+        x, y, _, _, hash_value = zip(
+            *filter(lambda k: k[-1] != args.reference_hash, kernels)
+        )
         y_max = []
         for i in range(len(y)):
             y_max.append(y[i] if i == 0 else max(y_max[-1], y[i]))
-        y_max_log = [-math.log2(1-y) for y in y_max]
+        y_max_log = [-math.log2(1 - y) for y in y_max]
         m, c = markers.pop(0), colors.pop(0)
         markers.append(m)
         colors.append(c)
-        plt.plot(x, y_max_log, marker=m, color=c, label=name, markersize=3)
+        plt.scatter(
+            x,
+            [-math.log2(1 - yi) for yi in y],
+            marker=m,
+            color=c,
+            label=name + "_scatter",
+            s=2,
+        )
+        plt.plot(x, y_max_log, marker=m, color=c, label=name, markersize=1)
 
     # Plot and save into file
-    plt.xlabel('Time' if args.time else 'Samples')
-    plt.ylabel('Accuracy (max, negative log2 scale)')
+    plt.xlabel("Time" if args.time else "Samples")
+    plt.ylabel("Accuracy (max, negative log2 scale)")
     plt.legend()
-    plt.savefig(f'{args.output}-max-acc-vs-sample.png')
+    plt.savefig(f"{args.output}-max-acc-vs-sample.png")
 
     # Histogram figure
     fig_id += 1
@@ -131,9 +153,9 @@ if __name__ == '__main__':
         markers.append(m)
         colors.append(c)
         sns.kdeplot(y, color=c, label=name, fill=True, bw_adjust=0.2, cut=0)
-    
+
     # Plot and save into file
-    plt.xlabel('Accuracy')
-    plt.ylabel('Density')
+    plt.xlabel("Accuracy")
+    plt.ylabel("Density")
     plt.legend()
-    plt.savefig(f'{args.output}-acc-hist.png')
+    plt.savefig(f"{args.output}-acc-hist.png")
