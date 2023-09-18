@@ -20,4 +20,4 @@ def memory_limit(ratio: float = 1.0) -> None:
     assert 0.0 < ratio <= 1.0, f"ratio {ratio} is not valid! It should be in (0, 1]. "
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
     # Convert KiB to bytes
-    resource.setrlimit(resource.RLIMIT_AS, (get_memory() * 1024 * ratio, hard))
+    resource.setrlimit(resource.RLIMIT_AS, (int(get_memory() * 1024 * ratio), hard))
