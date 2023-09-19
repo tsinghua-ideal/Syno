@@ -124,7 +124,10 @@ class Impl:
 
         shared_G = self.assembler.create_share(in_G, out_G)
         shared_C_in = self.assembler.create_share(in_C_group, w_in_C)
-        final_C_out = self.assembler.create_merge(shared_G, out_C_group)
+        
+        tmp_dim = self.assembler.create_expand(C_out / g)
+        out_C_group_masked = self.assembler.create_share(tmp_dim, out_C_group)
+        final_C_out = self.assembler.create_merge(shared_G, out_C_group_masked)
 
         in_N.output(0)
         final_C_out.output(1)
@@ -256,18 +259,18 @@ def test_semantic_conv2d() -> None:
     #     train_dataloader,
     #     val_dataloader,
     # )
-    # train(
-    #     args,
-    #     "Conv2d_group",
-    #     train_dataloader,
-    #     val_dataloader,
-    # )
     train(
         args,
-        "Conv2d_pool",
+        "Conv2d_group",
         train_dataloader,
         val_dataloader,
     )
+    # train(
+    #     args,
+    #     "Conv2d_pool",
+    #     train_dataloader,
+    #     val_dataloader,
+    # )
 
 
 if __name__ == "__main__":
