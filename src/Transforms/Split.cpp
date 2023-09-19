@@ -99,7 +99,8 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Gr
 
     // Canonicalization requires SplitOp to be chained.
     using T = DimensionTypeWithOrder;
-    std::vector<DimensionTypeWithOrder> disallowsL { T::ShareR, T::Split, T::Unfold };
+    std::vector<DimensionTypeWithOrder> disallowsL { T::ShareR, T::Split };
+    if (options.disallowSplitLAboveUnfold) disallowsL.push_back(T::Unfold);
     std::vector<DimensionTypeWithOrder> disallowsR { T::ShareR };
     if (options.disallowSplitRAboveUnfold) disallowsR.push_back(T::Unfold);
     if (options.disallowSplitRAboveStride) disallowsR.push_back(T::Stride);

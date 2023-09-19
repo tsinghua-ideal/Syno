@@ -98,6 +98,7 @@ void NormalStage::guardGeneratedChildren() {
                 add(SplitOp::Generate(store, interface, {
                     .graph = graph,
                     .disallowDiscontinuousView = options.disallowDiscontinuousView,
+                    .disallowSplitLAboveUnfold = options.disallowSplitLAboveUnfold,
                     .disallowSplitRAboveUnfold = options.disallowSplitRAboveUnfold,
                     .disallowSplitRAboveStride = options.disallowSplitRAboveStride,
                 }));

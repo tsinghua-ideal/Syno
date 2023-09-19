@@ -61,6 +61,7 @@ public:
     struct GenerateOptions {
         const Graph& graph;
         bool disallowDiscontinuousView;
+        bool disallowSplitLAboveUnfold;
         bool disallowSplitRAboveUnfold;
         bool disallowSplitRAboveStride;
     };

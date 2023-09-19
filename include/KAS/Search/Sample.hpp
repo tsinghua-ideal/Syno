@@ -71,6 +71,9 @@ struct SampleOptions {
     // This option requires UnfoldOp chain to be in a specific order.
     bool canonicalizeUnfoldOrder = true;
 
+    // Semantically we should do this, but in practice this prohibits optimizations.
+    bool disallowSplitLAboveUnfold = false;
+
     // Canonicalization rule set 1: at most one is true.
     bool disallowSplitRAboveUnfold = false;
     bool disallowUnfoldLAboveSplit = true;
