@@ -110,10 +110,10 @@ def get_model(
         logging.debug(f"Assembled path (serialized): {Path(assembled.convert_to_path(sampler)).serialize()}")
         if sampler.visit(assembled.convert_to_path(sampler)) is None:
             path = Path(assembled.convert_to_path(sampler))
-            logging.warn(f"Path {path} is not valid, testing...")
+            logging.warning(f"Path {path} is not valid, testing...")
             for subpath in path.hierarchy:
                 if sampler.visit(subpath) is None:
-                    logging.warn(f"Subpath {subpath} is not valid")
+                    logging.warning(f"Subpath {subpath} is not valid")
                     break
         model.load_kernel(
             sampler,

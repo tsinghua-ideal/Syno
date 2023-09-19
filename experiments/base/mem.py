@@ -2,7 +2,7 @@
 Reference: https://stackoverflow.com/questions/41105733/limit-ram-usage-to-python-program
 """
 
-import resource
+import resource, logging
 
 
 def get_memory() -> int:
@@ -20,4 +20,5 @@ def memory_limit(ratio: float = 1.0) -> None:
     assert 0.0 < ratio <= 1.0, f"ratio {ratio} is not valid! It should be in (0, 1]. "
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
     # Convert KiB to bytes
+    logging.info(f"Setting memory limit to {int(get_memory() * ratio) / 1024 / 1024} GiB. ")
     resource.setrlimit(resource.RLIMIT_AS, (int(get_memory() * 1024 * ratio), hard))
