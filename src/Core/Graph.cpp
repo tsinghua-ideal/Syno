@@ -269,9 +269,9 @@ ConstrainedGraph ConstrainedGraph::Builder::build() {
 ConstrainedGraph::VisitedSubgraphVertex ConstrainedGraph::visitAlong(const Dimension& dim, Direction dir) const {
     KAS_ASSERT(dimensions.contains(dim));
     if (dir == Direction::Up && top && top->contains(dim)) {
-        return { std::pair { BoundaryType::Top, dim } };
+        return { std::pair { Direction::Up, dim } };
     } else if (dir == Direction::Down && bottom && bottom->contains(dim)) {
-        return { std::pair { BoundaryType::Bottom, dim } };
+        return { std::pair { Direction::Down, dim } };
     } else {
         return { graph.visitAlong(dim, dir) };
     }

@@ -182,6 +182,9 @@ static_assert(GeneralizedVertex<ExpandVertex>);
 
 class Graph {
 public:
+    using DimensionSet = std::set<Dimension, Dimension::AddressLessThan>;
+    using CutSet = DimensionSet;
+
     // In the original graph, each Dimension serves as an edge. It provides easy access for the Op below it (which has the Dimension as input), but cannot access the Op above it. This is used to store the Op above each Dimension.
     struct OpAbove {
         // std::monostate means the dimension is an input dimension, and has no Op above.
@@ -393,10 +396,10 @@ public:
 
 class ConstrainedGraph {
     const Graph& graph;
-    using DimensionSet = std::set<Dimension, Dimension::AddressLessThan>;
+    using DimensionSet = Graph::DimensionSet;
+    using CutSet = Graph::CutSet;
     DimensionSet dimensions;
     std::set<const PrimitiveOp *> ops;
-    using CutSet = DimensionSet;
     std::optional<CutSet> top;
     std::optional<CutSet> bottom;
     ConstrainedGraph(const Graph& graph, DimensionSet&& dimensions, std::set<const PrimitiveOp *>&& ops, std::optional<CutSet>&& top, std::optional<CutSet>&& bottom):
@@ -429,12 +432,8 @@ public:
         }
         ConstrainedGraph build();
     };
-    enum class BoundaryType: bool {
-        Top,
-        Bottom,
-    };
     struct VisitedSubgraphVertex {
-        std::variant<VisitedVertex, std::pair<BoundaryType, Dimension>> result;
+        std::variant<VisitedVertex, std::pair<Direction, Dimension>> result;
         template<typename F>
         decltype(auto) match(F&& f) {
             return std::visit([&](auto&& x) -> decltype(auto) {

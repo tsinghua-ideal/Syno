@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <compare>
 #include <ranges>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -186,6 +187,15 @@ std::string DimensionArrayToString(R&& interface, const BindingContext& ctx) {
     ", "));
 }
 
+template<DimensionRange R1, DimensionRange R2>
+bool DimensionSetEqual(R1&& lhs, R2&& rhs) {
+    using std::begin;
+    using std::end;
+    auto l = std::set<Dimension, Dimension::AddressLessThan>(begin(std::forward<R1>(lhs)), end(std::forward<R1>(lhs)));
+    auto r = std::set<Dimension, Dimension::AddressLessThan>(begin(std::forward<R2>(rhs)), end(std::forward<R2>(rhs)));
+    return l == r;
+}
+
 template<typename R>
 concept TensorRange =
     std::ranges::input_range<R> &&
@@ -261,6 +271,9 @@ public:
             ", "
         ));
     }
+
+    // FOR DEBUG USAGE ONLY!
+    std::string debugDescription() const;
 };
 
 class GraphHandle: protected Topmost {
@@ -323,6 +336,52 @@ public:
             return std::ranges::any_of(allows, [&](auto allow) { return dim.is(allow); });
         });
     }
+
+    // FOR DEBUG USAGE ONLY!
+    using Topmost::debugDescription;
+};
+
+class Reduce;
+
+class Bottommost {
+protected:
+    std::vector<Dimension> output;
+    std::vector<const Reduce *> reductions;
+
+    // Move reductions to output.
+    void extractReductions();
+
+public:
+    Bottommost() = default;
+    template<
+        std::convertible_to<std::vector<Dimension>> O,
+        std::convertible_to<std::vector<const Reduce *>> R
+    >
+    Bottommost(O&& output, R&& reductions):
+        output(std::forward<O>(output)),
+        reductions(std::forward<R>(reductions))
+    { extractReductions(); }
+    template<std::convertible_to<std::vector<Dimension>> O>
+    Bottommost(O&& output):
+        output(std::forward<O>(output))
+    { extractReductions(); }
+
+    const std::vector<Dimension>& getOutput() const { return output; }
+    std::vector<Dimension>& getOutput() { return output; }
+    const std::vector<const Reduce *>& getReductions() const { return reductions; }
+    std::vector<const Reduce *>& getReductions() { return reductions; }
+    std::vector<Dimension> getAllDimensions() const;
+
+    bool operator==(const Bottommost& other) const = default;
+
+    Bottommost& operator+=(const Bottommost& other);
+    Bottommost operator+(const Bottommost& other) const;
+
+    // E.g., [[H]@Iterator0]{[k]@Reduce1}, where the braces mean reductions.
+    std::string description(const BindingContext& ctx) const;
+
+    // FOR DEBUG USAGE ONLY!
+    std::string debugDescription() const;
 };
 
 } // namespace kas

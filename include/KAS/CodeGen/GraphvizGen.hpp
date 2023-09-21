@@ -91,17 +91,15 @@ class GraphvizDFGGen: public detail::GraphvizCode {
     Graph graph;
     std::map<Tensor, std::size_t> subgraphIndex;
 
-    using BoundaryType = ConstrainedGraph::BoundaryType;
-
     std::ostringstream ss;
     GraphvizCodePrinter printer { ss };
 
-    static std::string InterfaceName(const Dimension& dim, std::size_t subgraphIndex, BoundaryType type);
+    static std::string InterfaceName(const Dimension& dim, std::size_t subgraphIndex, Direction type);
     static std::string Name(const PrimitiveOp& op);
     static std::string Name(const Reduce& op);
     void drawDFGEdge(const Tensor& from, std::size_t to);
     template<DimensionRange R>
-    void drawTensorBox(std::string_view name, std::string_view label, std::size_t subgraphIndex, BoundaryType type, R&& dims) {
+    void drawTensorBox(std::string_view name, std::string_view label, std::size_t subgraphIndex, Direction type, R&& dims) {
         auto _ = printer.scope("subgraph cluster_{}", name);
         printer.writeLn("label = \"{}\";", label);
         for (const Dimension& dim: dims) {

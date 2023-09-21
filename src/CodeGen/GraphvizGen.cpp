@@ -237,8 +237,8 @@ GraphvizGen::GraphvizGen(const TensorView& tensorView, const BindingContext& ctx
     code = draw(ctx, tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent));
 }
 
-std::string GraphvizDFGGen::InterfaceName(const Dimension& dim, std::size_t subgraphIndex, BoundaryType type) {
-    return fmt::format("interface_{}_{}_{}", subgraphIndex, type == BoundaryType::Top ? "in" : "out", fmt::ptr(dim.getInnerPointer()));
+std::string GraphvizDFGGen::InterfaceName(const Dimension& dim, std::size_t subgraphIndex, Direction type) {
+    return fmt::format("interface_{}_{}_{}", subgraphIndex, type == Direction::Up ? "in" : "out", fmt::ptr(dim.getInnerPointer()));
 }
 std::string GraphvizDFGGen::Name(const PrimitiveOp& op) {
     return fmt::format("op_{}", fmt::ptr(&op));
@@ -249,7 +249,7 @@ std::string GraphvizDFGGen::Name(const Reduce& op) {
 
 void GraphvizDFGGen::drawDFGEdge(const Tensor& from, std::size_t to) {
     for (const Dimension& dim: from.stagedDims()) {
-        printer.writeLn("{} -> {};", InterfaceName(dim, subgraphIndex.at(from), BoundaryType::Bottom), InterfaceName(dim, to, BoundaryType::Top));
+        printer.writeLn("{} -> {};", InterfaceName(dim, subgraphIndex.at(from), Direction::Down), InterfaceName(dim, to, Direction::Up));
     }
 }
 
@@ -263,7 +263,7 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
         printer.writeLn("// Input tensor.");
         drawTensorBox(
             fmt::format("subgraph_{}", index), fmt::format("Input {}", index),
-            index, BoundaryType::Bottom, tensor.stagedDims()
+            index, Direction::Down, tensor.stagedDims()
         );
     } else {
         printer.writeLn("// Stage tensor.");
@@ -287,7 +287,7 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
         printer.writeLn("// Output.");
         drawTensorBox(
             fmt::format("subgraph_{}_out", index), "",
-            index, BoundaryType::Bottom, tensor.stagedDims()
+            index, Direction::Down, tensor.stagedDims()
         );
 
         // Align the output with reductions.
@@ -298,7 +298,7 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
                 printer.writeLn("{};", Name(dim.as<Reduce>()));
             }
             for (const Dimension& dim: tensor.stagedDims()) {
-                printer.writeLn("{};", InterfaceName(dim, index, BoundaryType::Bottom));
+                printer.writeLn("{};", InterfaceName(dim, index, Direction::Down));
             }
         }
 
@@ -307,7 +307,7 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
             printer.writeLn("// Input {}.", i);
             drawTensorBox(
                 fmt::format("subgraph_{}_in_{}", index, i), "",
-                index, BoundaryType::Top, input.stagedDims()
+                index, Direction::Up, input.stagedDims()
             );
             ++i;
         }
@@ -317,7 +317,7 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
             printer.writeLn("rank = same;");
             for (const Tensor& input: tensor.inputs()) {
                 for (const Dimension& dim: input.stagedDims()) {
-                    printer.writeLn("{};", InterfaceName(dim, index, BoundaryType::Top));
+                    printer.writeLn("{};", InterfaceName(dim, index, Direction::Up));
                 }
             }
         }
@@ -334,7 +334,7 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
             [](GeneralizedVertex auto&& vertex, auto) {
                 return Name(vertex.op);
             },
-            [index](BoundaryType type, const Dimension& dim) {
+            [index](Direction type, const Dimension& dim) {
                 return InterfaceName(dim, index, type);
             },
         };
@@ -375,14 +375,14 @@ GraphvizDFGGen::GraphvizDFGGen(const Subgraphs& subgraphs, const BindingContext&
         for (const Tensor& input: subgraphs.inputTensors) {
             std::size_t index = subgraphIndex.at(input);
             for (const Dimension& dim: input.output()) {
-                printer.writeLn("{};", InterfaceName(dim, index, BoundaryType::Bottom));
+                printer.writeLn("{};", InterfaceName(dim, index, Direction::Down));
             }
         }
     }
 
     // Draw output box.
     std::size_t outputIndex = subgraphIndex.size();
-    drawTensorBox("subgraph_output", "Output", outputIndex, BoundaryType::Top, subgraphs.outputTensor.output());
+    drawTensorBox("subgraph_output", "Output", outputIndex, Direction::Up, subgraphs.outputTensor.output());
 
     // And link the output box.
     drawDFGEdge(subgraphs.outputTensor, outputIndex);
