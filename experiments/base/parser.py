@@ -7,7 +7,8 @@ def arg_parse():
     parser = argparse.ArgumentParser(description="KAS trainer/searcher")
     
     # Resource
-    parser.add_argument("--mem-limit", type=float, default=0.05, help="Maximum portion of memory that this program used. ")
+    parser.add_argument("--server-mem-limit", type=float, default=0.05, help="Maximum portion of memory that server used. ")
+    parser.add_argument("--client-mem-limit", type=float, default=0.05, help="Maximum portion of memory that client used. ")
 
     # Model
     parser.add_argument("--model", type=str, default="FCNet")

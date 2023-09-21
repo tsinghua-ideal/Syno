@@ -95,7 +95,7 @@ if __name__ == "__main__":
     args = parser.arg_parse()
 
     # Set memory limit
-    mem.memory_limit(args.mem_limit)
+    mem.memory_limit(args.server_mem_limit)
 
     try:
         main()
