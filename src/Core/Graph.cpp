@@ -198,6 +198,10 @@ const PrimitiveOp *Graph::getOpAbove(const Dimension& dim) const {
     });
 }
 
+Graph::CompactIndices Graph::getAncestors(const Dimension& dim) const {
+    return dimMeta.at(dim).ancestors;
+}
+
 ConstrainedGraph ConstrainedGraph::Builder::build() {
     // Here, we need to go bottom-up, because we do not know the expansions.
     DimensionSet dimensions;

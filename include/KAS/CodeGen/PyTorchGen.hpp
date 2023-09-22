@@ -159,7 +159,7 @@ public:
 
     std::vector<std::size_t> concretize(const std::vector<Dimension>& interface, const ConcreteConsts& consts) const;
 
-    PyTorchGen(const BindingContext& ctx, Graph graph, const Subgraphs& subgraphs);
+    PyTorchGen(const BindingContext& ctx, Graph graph, const IR& subgraphs);
     PyTorchGen(const BindingContext& ctx, const TensorView& tensorView):
         PyTorchGen { ctx, tensorView.buildGraph(), tensorView.getSubgraphs() } {}
     void loadWeights(PythonCodePrinter& printer) const;

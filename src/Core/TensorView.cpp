@@ -271,8 +271,7 @@ TensorView::TensorView(const std::vector<Topmost>& canonicalTensors, TensorExpre
     interface = outputIterators;
     manipulations = reduceIterators;
 
-    auto subgraphsBuilder = Tensor::Builder(graph);
-    subgraphs = subgraphsBuilder.build(tensors);
+    subgraphs = IR::Build(tensors, ctx);
 }
 
 } // namespace kas

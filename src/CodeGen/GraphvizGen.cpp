@@ -248,7 +248,7 @@ std::string GraphvizDFGGen::Name(const Reduce& op) {
 }
 
 void GraphvizDFGGen::drawDFGEdge(const Tensor& from, std::size_t to) {
-    for (const Dimension& dim: from.stagedDims()) {
+    for (const Dimension& dim: from.output()) {
         printer.writeLn("{} -> {};", InterfaceName(dim, subgraphIndex.at(from), Direction::Down), InterfaceName(dim, to, Direction::Up));
     }
 }
@@ -263,13 +263,14 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
         printer.writeLn("// Input tensor.");
         drawTensorBox(
             fmt::format("subgraph_{}", index), fmt::format("Input {}", index),
-            index, Direction::Down, tensor.stagedDims()
+            index, Direction::Down, tensor.output()
         );
     } else {
         printer.writeLn("// Stage tensor.");
         auto subgraph = ConstrainedGraph::Builder(graph)
-            .setTop(tensor.inputs() | std::views::transform(&Tensor::output) | std::views::join)
-            .setBottom(tensor.output())
+            .addTop(tensor.inputs() | std::views::transform(&Tensor::output) | std::views::join)
+            .addBottom(tensor.output())
+            .addBottom(tensor.reductions())
             .build();
 
         // TODO: if this tensor needs to be stored, indicate in the label.
@@ -278,26 +279,25 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
 
         // First draw the reductions.
         printer.writeLn("// Reductions.");
-        for (const Dimension& dim: tensor.reducedDims()) {
-            const Reduce& reduction = dim.as<Reduce>();
-            printer.writeLn("{} [label=\"{}\", shape=box];", Name(reduction), reduction.whatReduce());
+        for (const Reduce *reduction: tensor.reductions()) {
+            printer.writeLn("{} [label=\"{}\", shape=box];", Name(*reduction), reduction->whatReduce());
         }
 
         // Then draw the output.
         printer.writeLn("// Output.");
         drawTensorBox(
             fmt::format("subgraph_{}_out", index), "",
-            index, Direction::Down, tensor.stagedDims()
+            index, Direction::Down, tensor.output()
         );
 
         // Align the output with reductions.
         {
             auto _ = printer.scope();
             printer.writeLn("rank = same;");
-            for (const Dimension& dim: tensor.reducedDims()) {
+            for (const Dimension& dim: tensor.output()) {
                 printer.writeLn("{};", Name(dim.as<Reduce>()));
             }
-            for (const Dimension& dim: tensor.stagedDims()) {
+            for (const Dimension& dim: tensor.output()) {
                 printer.writeLn("{};", InterfaceName(dim, index, Direction::Down));
             }
         }
@@ -307,7 +307,7 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
             printer.writeLn("// Input {}.", i);
             drawTensorBox(
                 fmt::format("subgraph_{}_in_{}", index, i), "",
-                index, Direction::Up, input.stagedDims()
+                index, Direction::Up, input.output()
             );
             ++i;
         }
@@ -316,7 +316,7 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
             auto _ = printer.scope();
             printer.writeLn("rank = same;");
             for (const Tensor& input: tensor.inputs()) {
-                for (const Dimension& dim: input.stagedDims()) {
+                for (const Dimension& dim: input.output()) {
                     printer.writeLn("{};", InterfaceName(dim, index, Direction::Up));
                 }
             }
@@ -354,13 +354,9 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
     }
 }
 
-GraphvizDFGGen::GraphvizDFGGen(const Subgraphs& subgraphs, const BindingContext& ctx):
+GraphvizDFGGen::GraphvizDFGGen(const IR& subgraphs, const BindingContext& ctx):
     ctx { ctx },
-    graph { Graph::Builder()
-        .addDimensions(subgraphs.inputTensors | std::views::transform(&Tensor::output) | std::views::join)
-        .addExpansions(subgraphs.expansions | std::views::join)
-        .build()
-    }
+    graph { subgraphs.buildGraph() }
 {
     printer.writeLn("newrank = true;"); // To allow alignment for subgraphs.
     printer.writeLn();

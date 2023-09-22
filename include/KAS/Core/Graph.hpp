@@ -217,9 +217,19 @@ public:
         [[nodiscard]] bool contains(std::size_t index) const {
             return Single(index).content & content;
         }
+        [[nodiscard]] bool contains(CompactIndices other) const {
+            return other.content == (other.content & content);
+        }
+        [[nodiscard]] bool disjoint(CompactIndices other) const {
+            return (other.content & content) == 0;
+        }
+        [[nodiscard]] bool intersects(CompactIndices other) const {
+            return content & other.content;
+        }
         [[nodiscard]] CompactIndices excluded(CompactIndices other) const {
             return { content & ~other.content };
         }
+        friend bool operator==(CompactIndices lhs, CompactIndices rhs) { return lhs.content == rhs.content; }
         CompactIndices& excludes(CompactIndices other) {
             content &= ~other.content;
             return *this;
@@ -353,6 +363,16 @@ public:
     // Every Op, including ExpandOp, excluding ReduceOp.
     const std::set<const PrimitiveOp *>& getOps() const { return ops; }
 
+    CompactIndices getAncestors(const Dimension& dim) const;
+    template<DimensionRange R>
+    CompactIndices getAncestors(R&& dims) const {
+        auto ancestors = CompactIndices::None();
+        for (const Dimension& dim: dims) {
+            ancestors.merges(getAncestors(dim));
+        }
+        return ancestors;
+    }
+
     template<typename Value>
     class AttributeMap {
         std::map<const RepeatLikeVertex::OpType *, Value> rAttr;
@@ -413,22 +433,23 @@ public:
         template<DimensionRange R>
         Builder& set(std::optional<CutSet> Builder::*field, R&& r) {
             auto& cutSet = this->*field;
-            KAS_ASSERT(!cutSet);
+            if (!cutSet) {
+                cutSet = CutSet();
+            }
             using std::begin;
             using std::end;
-            cutSet = CutSet();
             cutSet->insert(begin(std::forward<R>(r)), end(std::forward<R>(r)));
             return *this;
         }
     public:
         Builder(const Graph& graph): graph { graph } {}
         template<DimensionRange Top>
-        Builder& setTop(Top&& top) {
-            return set(&Builder::top, std::forward<Top>(top));
+        Builder& addTop(Top&& top) {
+            return add(&Builder::top, std::forward<Top>(top));
         }
         template<DimensionRange Bottom>
-        Builder& setBottom(Bottom&& bottom) {
-            return set(&Builder::bottom, std::forward<Bottom>(bottom));
+        Builder& addBottom(Bottom&& bottom) {
+            return add(&Builder::bottom, std::forward<Bottom>(bottom));
         }
         ConstrainedGraph build();
     };

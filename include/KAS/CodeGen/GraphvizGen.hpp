@@ -110,7 +110,7 @@ class GraphvizDFGGen: public detail::GraphvizCode {
     void drawTensor(const Tensor& tensor);
 
 public:
-    GraphvizDFGGen(const Subgraphs& subgraphs, const BindingContext& ctx);
+    GraphvizDFGGen(const IR& subgraphs, const BindingContext& ctx);
 };
 
 } // namespace kas

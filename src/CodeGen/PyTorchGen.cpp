@@ -298,7 +298,7 @@ std::vector<std::size_t> PyTorchGen::concretize(const std::vector<Dimension>& in
     return ShapeView(interface).eval<std::size_t>(consts);
 }
 
-PyTorchGen::PyTorchGen(const BindingContext& ctx, Graph graph, const Subgraphs& subgraphs):
+PyTorchGen::PyTorchGen(const BindingContext& ctx, Graph graph, const IR& subgraphs):
     ctx { ctx },
     graph { std::move(graph) },
     expansions(subgraphs.expansions),

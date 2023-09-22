@@ -68,23 +68,23 @@ public:
     const std::vector<Tensor>& inputs() const;
     const std::vector<Dimension>& output() const;
     const std::vector<const Reduce *>& reductions() const;
-    Bottommost toBottommost() const;
 
-    std::vector<Tensor>& getInputs();
-    std::vector<Dimension>& getOutput();
-    std::vector<const Reduce *>& getReductions();
+    std::vector<Tensor>& getInputs() { return const_cast<std::vector<Tensor>&>(inputs()); }
+    std::vector<Dimension>& getOutput() { return const_cast<std::vector<Dimension>&>(output()); }
+    std::vector<const Reduce *>& getReductions() { return const_cast<std::vector<const Reduce *>&>(reductions()); }
+
     void adjustLayout(const std::vector<Dimension> *expectedOutput, const std::vector<const Reduce *> *expectedReductions);
 
     std::size_t getFLOPs(const BindingContext& ctx) const;
 
     // No input tensors. Only when this is the case, output can contain Reduce's.
-    bool isInputTensor() const;
+    bool isInputTensor() const { return inputs().empty(); }
     // >= 2 input tensors.
-    bool hasContraction() const;
+    bool hasContraction() const { return inputs().size() >= 2; }
     // >= 1 reductions.
-    bool hasReduction() const;
+    bool hasReduction() const { return !reductions().empty(); }
     // Exactly one input tensor, and no reductions.
-    bool isView() const;
+    bool isView() const { return inputs().size() == 1 && !hasReduction(); }
 
     std::string toString(const BindingContext& ctx) const;
 
