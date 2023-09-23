@@ -5,7 +5,7 @@ namespace kas {
 
 TEST_F(transforms_tests, expand) {
     ExpandOp expandOp { dimW };
-    auto tensorView = TensorView({{{dimH, dimCH}, {&expandOp}}}, TensorExpression::ProductOfTensors(1));
+    auto tensorView = TensorView({{{dimH, dimCH}, {&expandOp}}}, TensorExpression::ProductOfTensors(1), ctx);
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H, W, c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H, c*H]");
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),

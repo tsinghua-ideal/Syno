@@ -431,7 +431,7 @@ public:
         std::optional<CutSet> top;
         std::optional<CutSet> bottom;
         template<DimensionRange R>
-        Builder& set(std::optional<CutSet> Builder::*field, R&& r) {
+        Builder& add(std::optional<CutSet> Builder::*field, R&& r) {
             auto& cutSet = this->*field;
             if (!cutSet) {
                 cutSet = CutSet();

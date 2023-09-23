@@ -209,6 +209,22 @@ Graph GraphHandle::buildGraph() const {
     return builder.build();
 }
 
+void Bottommost::extractReductions() {
+    decltype(output) newOutput;
+    decltype(reductions) newReductions;
+    for (const Dimension& dim: output) {
+        if (auto reduction = dim.tryAs<Reduce>(); reduction) {
+            newReductions.push_back(reduction);
+        } else {
+            newOutput.push_back(dim);
+        }
+    }
+    if (newReductions.empty()) return;
+    output = std::move(newOutput);
+    std::ranges::move(reductions, std::back_inserter(newReductions));
+    reductions = std::move(newReductions);
+}
+
 Bottommost& Bottommost::operator+=(const Bottommost& other) {
     output.insert(output.end(), other.output.begin(), other.output.end());
     reductions.insert(reductions.end(), other.reductions.begin(), other.reductions.end());

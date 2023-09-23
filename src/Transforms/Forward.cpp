@@ -66,7 +66,7 @@ std::vector<Topmost> Factory::ForwardDimsToBackwardDims(const std::vector<std::v
 
 TensorView& Factory::buildTensorView(const std::vector<std::vector<Dimension>>& tensors, TensorExpression blending) {
     KAS_ASSERT(!this->result, "Factory must not be used twice!");
-    this->result = std::make_unique<TensorView>(ForwardDimsToBackwardDims(tensors), std::move(blending));
+    this->result = std::make_unique<TensorView>(ForwardDimsToBackwardDims(tensors), std::move(blending), ctx);
     return *this->result;
 }
 

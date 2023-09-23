@@ -169,9 +169,9 @@ void NormalStage::guardGeneratedChildren() {
     }
 }
 
-std::shared_ptr<TensorView> NormalStage::getFinalize(const FinalizeOp *op) const {
+std::unique_ptr<TensorView> NormalStage::getFinalize(const FinalizeOp *op) const {
     if (!op) return nullptr;
-    return op->buildTensorView(sampler.getFixedDimensions(), sampler.getExpressionForTensorNum(op->tensors.size()));
+    return op->buildTensorView(sampler.getFixedDimensions(), sampler.getExpressionForTensorNum(op->tensors.size()), sampler.getBindingContext());
 }
 
 bool NormalStage::possibleToFinalizeByExperimenting() const {
@@ -287,9 +287,12 @@ std::optional<Arc> NormalStage::getArcFromHandleImpl(Next next) {
 std::optional<Node> NormalStage::getChildImpl(Next next) {
     return guarded([&next, this] {
         if (next.type == Next::Type::Finalize) {
-            return nextFinalizations.findTransform<Node>(next, [this](const NextFinalizeSlot& slot) -> Node {
-                return { &sampler, getFinalize(&slot.finalization) };
-            });
+            auto slot = nextFinalizations.getSlot(next);
+            if (!slot) return std::optional<Node>();
+            if (!slot->tensorView) {
+                slot->tensorView = getFinalize(&slot->finalization);
+            }
+            return std::optional<Node>(std::in_place, &sampler, slot->tensorView.get());
         }
         return Base::getChildImpl(next);
     });
@@ -309,7 +312,10 @@ Node NormalStage::getChildImpl(Arc arc) {
             return { &sampler, getNextOpWithoutLock(op) };
         },
         [&](auto op) -> Node {
-            return { &sampler, getFinalize(op) };
+            KAS_ASSERT(childrenGenerated);
+            auto key = NextFinalizeSlot::GetKey(op->tensors);
+            auto next = Next { Next::Type::Finalize, key };
+            return getChildImpl(next).value();
         }
     );
 }

@@ -34,7 +34,7 @@ TEST_F(search_tests, forward) {
     auto weight = Topmost({ dimK1, dimK2 }, {});
     std::vector<Topmost> tensors { input, weight };
     sampler.sortAllExpansionsAndWeightDimensions(tensors);
-    auto tensorView = TensorView(tensors, TensorExpression::ProductOfTensors(tensors.size()));
+    auto tensorView = TensorView(tensors, TensorExpression::ProductOfTensors(tensors.size()), ctx);
     auto obtainedTensors = ranges::to<std::vector<Topmost>>(tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent));
     sampler.sortAllExpansionsAndWeightDimensions(obtainedTensors);
     ASSERT_EQ(tensors.size(), obtainedTensors.size());

@@ -138,7 +138,7 @@ class TensorImpl {
 public:
     template<std::convertible_to<std::vector<Dimension>> O>
     static Tensor CreateInput(O&& output) {
-        return Tensor(new TensorImpl(std::forward<O>(output)));
+        return Tensor(std::shared_ptr<TensorImpl>(new TensorImpl(std::forward<O>(output))));
     }
     template<
         std::convertible_to<std::vector<Tensor>> I,
@@ -146,11 +146,11 @@ public:
         std::convertible_to<std::vector<const Reduce *>> R
     >
     static Tensor CreateView(I&& inputs, O&& output, R&& reductions) {
-        return Tensor(new TensorImpl(std::forward<I>(inputs), std::forward<O>(output), std::forward<R>(reductions)));
+        return Tensor(std::shared_ptr<TensorImpl>(new TensorImpl(std::forward<I>(inputs), std::forward<O>(output), std::forward<R>(reductions))));
     }
     template<std::convertible_to<std::vector<Tensor>> I>
     static Tensor CreateView(I&& inputs, const Bottommost& bottommost) {
-        return Tensor(new TensorImpl(std::forward<I>(inputs), bottommost));
+        return Tensor(std::shared_ptr<TensorImpl>(new TensorImpl(std::forward<I>(inputs), bottommost)));
     }
 };
 

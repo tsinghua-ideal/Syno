@@ -14,9 +14,9 @@
 
 namespace kas {
 
-std::shared_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending) const {
+std::unique_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending, const BindingContext& ctx) const {
     if (fixed.empty()) {
-        return std::make_unique<TensorView>(tensors, std::move(blending));
+        return std::make_unique<TensorView>(tensors, std::move(blending), ctx);
     }
     std::vector<Topmost> tensors;
     std::ranges::copy(this->tensors, std::back_inserter(tensors));
@@ -25,7 +25,7 @@ std::shared_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedD
         // Given the fact that fixed is sorted.
         inputTensor.insert(inputTensor.begin() + index, dim);
     }
-    return std::make_unique<TensorView>(tensors, std::move(blending));
+    return std::make_unique<TensorView>(tensors, std::move(blending), ctx);
 }
 
 bool FinalizeOp::operator==(const FinalizeOp& rhs) const noexcept {

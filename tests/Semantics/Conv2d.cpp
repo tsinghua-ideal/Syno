@@ -16,6 +16,7 @@ TEST_F(semantics_tests, conv2d) {
         SizeName { .alias = "C_out", .estimate = c_out },
         SizeName { .alias = "K", .estimate = k },
     } };
+    ctx.applyMappings({{}});
     BindingContext::DebugPublicCtx = &ctx;
     Forward::Factory factory { ctx };
     auto [sizeN, sizeCin, sizeCout, sizeH, sizeW, sizeK] = factory.getSizes("N", "C_in", "C_out", "H", "W", "K");
@@ -50,7 +51,7 @@ TEST_F(semantics_tests, conv2d) {
     auto tensorView = TensorView({
         {{dimN, dimCin_input, dimH, dimW}, {}},
         {{dimCout, dimCin_filter, dimK1, dimK2}, {}}
-    }, Parser("in_0 * in_1").parseTensorExpression());
+    }, Parser("in_0 * in_1").parseTensorExpression(), ctx);
     ASSERT_EQ("[C_out, C_in, K, K]", tensorView.getUnderlyingTensors()[1].shapeToString(ctx));
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),
 R"(for (int i_0 = 0; i_0 < N; i_0++) {
@@ -78,7 +79,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     fmt::print("Gradient for input:\n{}", tensorView.printNestedLoops(ctx, TensorExpression::Input<0>));
     fmt::print("Gradient for weight:\n{}", tensorView.printNestedLoops(ctx, TensorExpression::Input<1>));
     auto subgraphs = tensorView.getSubgraphs();
-    ASSERT_EQ(subgraphs.outputTensor.toString(ctx), "(([N, C_in, H, W] -> [N, C_in, K, H, K, W]), [C_out, C_in, K, K] -> [N, C_out, H, W])");
+    ASSERT_EQ(subgraphs.outputTensor.toString(ctx), "([N, C_in, H, W], [C_out, C_in, K, K] -> [N, C_out, H, W])");
 
     auto funcName = "conv2d";
     auto gvGen = GraphvizGen { tensorView, ctx };

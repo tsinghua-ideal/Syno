@@ -110,7 +110,6 @@ void TensorContractor::performContractions(Graph::CompactIndices targets) {
     }
     while (!allowedShareOps.empty()) {
         const MergeLikeOp *op = *allowedShareOps.begin();
-        allowedShareOps.erase(allowedShareOps.begin());
         include(op->output);
     }
 }
@@ -165,7 +164,8 @@ TensorContractor& TensorContractor::removeReductions() {
 Generator<RFactorSolver::Scheme> RFactorSolver::PlausibleRFactorSchemes(std::vector<const Reduce *> remaining, bool allowEmpty) {
     if (remaining.empty()) {
         KAS_ASSERT(allowEmpty);
-        co_yield Scheme { {} };
+        auto res = Scheme { {} };
+        co_yield std::move(res);
         co_return;
     }
     KAS_ASSERT(remaining.size() <= std::numeric_limits<std::size_t>::digits);
@@ -180,7 +180,8 @@ Generator<RFactorSolver::Scheme> RFactorSolver::PlausibleRFactorSchemes(std::vec
             }
         }
         if (next.empty()) {
-            co_yield Scheme { std::move(current) };
+            auto res = Scheme { std::move(current) };
+            co_yield std::move(res);
         } else {
             for (Scheme scheme: PlausibleRFactorSchemes(std::move(next), false)) {
                 scheme.cons(current);
@@ -188,6 +189,7 @@ Generator<RFactorSolver::Scheme> RFactorSolver::PlausibleRFactorSchemes(std::vec
             }
         }
     }
+    co_return;
 }
 
 Generator<RFactorSolver::Scheme> RFactorSolver::plausibleRFactorSchemes() const {
@@ -407,10 +409,15 @@ IR IRBuilder::initial(const ContractionScheme& scheme) const {
         KAS_ASSERT(!contraction.empty());
 
         // Collect all the required dimensions.
+        contractor.contract(
+            contraction
+            | std::views::transform([&](std::size_t index) -> const std::vector<Dimension>& {
+                return inputs.at(index).output();
+            })
+        );
+        // Also add them to input.
         for (std::size_t index: contraction) {
-            const Tensor& input = inputs.at(index);
-            currentInputs.emplace_back(input);
-            contractor.contract(input.output());
+            currentInputs.emplace_back(inputs[index]);
         }
 
         // And apply reductions.
@@ -500,12 +507,12 @@ Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes() const {
         return origin;
     };
 
-    bool earlyReduction = false;
-    // TODO!!!!! find early reduction.
+    bool earlyReduction = std::ranges::any_of(graph.getReduceIterators(), [&](const Reduce *reduction) {
+        return inputFeatures.contains(graph.getAncestors(reduction));
+    });
 
     std::vector<std::vector<bool>> laterThan(numTensors, std::vector<bool>(numTensors));
     // The first tensor must be the earliest, which is by default the case.
-    // TODO!!!!! fill this out.
     for (const MergeLikeOp *op:
         graph.getOps()
         | std::views::filter([](const PrimitiveOp *op) { return op->getType() == DimensionType::Share; })
@@ -515,7 +522,7 @@ Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes() const {
         const auto lhsFeatures = graph.getAncestors(lhs), rhsFeatures = graph.getAncestors(rhs);
 
         // Required by canonicalization.
-        KAS_ASSERT(lhsFeatures.contains(inputFeatures) && rhsFeatures.disjoint(inputFeatures));
+        KAS_ASSERT(lhsFeatures.intersects(inputFeatures) && rhsFeatures.disjoint(inputFeatures));
 
         // First find the tensor that we are contracting.
         const auto rhsOriginSet = getOrigin(rhs);
@@ -535,7 +542,7 @@ Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes() const {
             ranges::to<std::vector<std::size_t>>(std::views::iota(static_cast<std::size_t>(1), numTensors))
         )
     ) {
-        if (earlyReduction && !scheme.contractions.empty()) {
+        if (!earlyReduction && !scheme.contractions.empty()) {
             auto& c = scheme.contractions.front();
             c.insert(c.begin(), 0);
         } else {

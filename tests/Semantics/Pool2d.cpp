@@ -37,7 +37,7 @@ TEST_F(semantics_tests, pool2d) {
     dimH_over_K.output(2);
     dimW_over_K.output(3);
 
-    auto tensorView = TensorView({{{dimN, dimC, dimH, dimW}, {}}}, Parser("in_0").parseTensorExpression());
+    auto tensorView = TensorView({{{dimN, dimC, dimH, dimW}, {}}}, Parser("in_0").parseTensorExpression(), ctx);
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),
 R"(for (int i_0 = 0; i_0 < N; i_0++) {
     for (int i_1 = 0; i_1 < C; i_1++) {

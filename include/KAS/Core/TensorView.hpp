@@ -92,7 +92,7 @@ protected:
 
 public:
     // Build the tensor from iterator DAG.
-    explicit TensorView(const std::vector<Topmost>& tensors, TensorExpression blending);
+    explicit TensorView(const std::vector<Topmost>& tensors, TensorExpression blending, const BindingContext& ctx);
 
     const IR& getSubgraphs() const { return subgraphs; }
 

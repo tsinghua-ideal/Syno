@@ -294,8 +294,8 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
         {
             auto _ = printer.scope();
             printer.writeLn("rank = same;");
-            for (const Dimension& dim: tensor.output()) {
-                printer.writeLn("{};", Name(dim.as<Reduce>()));
+            for (const Reduce *reduction: tensor.reductions()) {
+                printer.writeLn("{};", Name(*reduction));
             }
             for (const Dimension& dim: tensor.output()) {
                 printer.writeLn("{};", InterfaceName(dim, index, Direction::Down));
@@ -335,6 +335,9 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
                 return Name(vertex.op);
             },
             [index](Direction type, const Dimension& dim) {
+                if (auto reduction = dim.tryAs<Reduce>(); reduction) {
+                    return Name(*reduction);
+                }
                 return InterfaceName(dim, index, type);
             },
         };
