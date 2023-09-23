@@ -3,6 +3,11 @@
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
+// This is highly dangerous!
+// We only want to use the inheritance between Expand and ExpandOp.
+// Do not use any other function!
+#include "KAS/Transforms/Expand.hpp"
+
 
 namespace kas {
 
@@ -17,25 +22,24 @@ void DependentCutSetDiscoverer::excludeUpwards(const Dimension& dimension) {
     // And follow the trace back, to push the cut set downward.
     bool success = graph.visitAlong(dimension, Direction::Up).match(Match {
         [this](const RepeatLikeVertex& r, auto) {
-            excludeUpwards(r.op.getInput());
             excludeHook(&r.op);
+            excludeUpwards(r.op.getInput());
             return true;
         },
         [this](const SplitLikeVertex& s, auto from) {
+            excludeHook(&s.op);
             excludeUpwards(s.op.getInput());
             assertInsert(s[SplitLikeOp::OtherOutputBranch(from)]);
-            excludeHook(&s.op);
             return true;
         },
         [this](const MergeLikeVertex& m, auto) {
+            excludeHook(&m.op);
             excludeUpwards(m.op.getInputL());
             excludeUpwards(m.op.getInputR());
-            excludeHook(&m.op);
             return true;
         },
-        [](const ExpandVertex& e, auto) {
-            // It seems we have not defined ExpandOp.
-            // excludeHook(&e.op);
+        [this](const ExpandVertex& e, auto) {
+            excludeHook(&e.op);
             return true;
         },
     });
@@ -88,6 +92,7 @@ bool TensorContractor::pushDownwards(const Dimension& dimension) {
 
 Graph::CompactIndices TensorContractor::add(const std::vector<Dimension>& tensorOutput) {
     Graph::CompactIndices features = graph.getAncestors(tensorOutput);
+    KAS_ASSERT(collected.disjoint(features));
     const auto inserted = includeUnchecked(tensorOutput);
     KAS_ASSERT(inserted == tensorOutput.size());
     return features;
@@ -103,7 +108,7 @@ void TensorContractor::performContractions(Graph::CompactIndices targets) {
     ) {
         const Dimension& candidate = op->output;
         const auto feature = graph.getAncestors(candidate);
-        if (feature.contains(collected) && feature != collected && result.contains(feature)) {
+        if (feature.excluded(collected) && result.contains(feature)) {
             // This is a contraction.
             allowedShareOps.emplace(op);
         }
@@ -122,7 +127,11 @@ void TensorContractor::excludeHook(const PrimitiveOp *op) {
     }
 }
 
-TensorContractor::TensorContractor(const Graph& graph): DependentCutSetDiscoverer(graph) {
+TensorContractor::TensorContractor(const Graph& graph, const std::vector<Dimension>& current):
+    DependentCutSetDiscoverer(graph),
+    collected(Graph::CompactIndices::None())
+{
+    collected.merges(add(current));
     collected.merges(graph.getAncestors(
         graph.getTopmost().getExpansions()
         | std::views::transform(Expand::PointerToDimension{})
@@ -343,6 +352,27 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx) {
     return current;
 }
 
+IR IR::copy() const {
+    std::map<Tensor, Tensor> oldToNew;
+    auto dfs = [&](const auto& self, const Tensor& tensor) -> void {
+        if (oldToNew.contains(tensor)) return;
+        for (const Tensor& input: tensor.inputs()) {
+            self(self, input);
+        }
+        Tensor newTensor = tensor.clone(oldToNew);
+        auto [_, inserted] = oldToNew.try_emplace(tensor, newTensor);
+        KAS_ASSERT(inserted);
+    };
+    dfs(dfs, outputTensor);
+    auto newInputs = ranges::to<std::vector<Tensor>>(
+        inputTensors
+        | std::views::transform([&](const Tensor& t) {
+            return oldToNew.at(t);
+        })
+    );
+    return { expansions, std::move(newInputs), oldToNew.at(outputTensor) };
+}
+
 Graph IR::buildGraph() const {
     return Graph::Builder()
         .addDimensions(inputTensors | std::views::transform(&Tensor::output) | std::views::join)
@@ -400,33 +430,33 @@ IR IRBuilder::initial(const ContractionScheme& scheme) const {
         inputs.emplace_back(TensorImpl::CreateInput(topmost.getDimensions()));
     }
 
-    KAS_ASSERT(scheme.contractions.at(0).at(0) == 0, "The first contraction must include the input tensor as the first tensor.");
-    TensorContractor contractor { graph };
-
-    Tensor current;
-    std::vector<Tensor> currentInputs;
+    Tensor current = inputs.at(0);
+    auto contractor = TensorContractor(graph, current.output());
+    bool isFirst = true;
     for (const auto& contraction: scheme.contractions) {
-        KAS_ASSERT(!contraction.empty());
+        KAS_ASSERT(!contraction.empty() || isFirst, "Only when we do early reduction, we can have an empty contraction group.");
 
+        std::vector<Tensor> currentInputs = { current };
+
+        // Add newly contracted tensors to inputs.
+        for (std::size_t index: contraction) {
+            currentInputs.emplace_back(inputs.at(index));
+        }
         // Collect all the required dimensions.
         contractor.contract(
-            contraction
-            | std::views::transform([&](std::size_t index) -> const std::vector<Dimension>& {
-                return inputs.at(index).output();
-            })
+            currentInputs
+            | std::views::drop(1) // skip the current tensor.
+            | std::views::transform(&Tensor::output)
         );
-        // Also add them to input.
-        for (std::size_t index: contraction) {
-            currentInputs.emplace_back(inputs[index]);
-        }
 
         // And apply reductions.
         contractor.reduce();
         current = TensorImpl::CreateView(currentInputs, Bottommost(contractor.build()));
-        currentInputs = { current };
 
         // Remove all the reductions, so we can continue to the next contraction.
         contractor.removeReductions();
+
+        isFirst = false;
     }
 
     // If we have not reached the output, perform required views. Note that by this time we have done all reductions.
@@ -439,7 +469,7 @@ IR IRBuilder::initial(const ContractionScheme& scheme) const {
         contractor.fill();
         auto finalOutput = contractor.build();
         KAS_ASSERT(DimensionSetEqual(finalOutput, graph.getOutputIterators()));
-        current = TensorImpl::CreateView(currentInputs, std::move(finalOutput), std::vector<const Reduce *>{});
+        current = TensorImpl::CreateView(std::vector<Tensor>{current}, std::move(finalOutput), std::vector<const Reduce *>{});
     }
 
     // We do not need to adjust the layout here, because rfactor pass will overwrite that anyway.
@@ -470,10 +500,6 @@ void IRBuilder::optimizeLayout(IR& ir) const {
         ir.outputTensor.adjustLayout(&expectedOutput, nullptr);
     }
     // TODO!!! Really optimize locality.
-}
-
-void IRBuilder::performViews(IR& ir) const {
-    // TODO!!!
 }
 
 IRBuilder::IRBuilder(const std::vector<Topmost>& tensors):
@@ -542,11 +568,8 @@ Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes() const {
             ranges::to<std::vector<std::size_t>>(std::views::iota(static_cast<std::size_t>(1), numTensors))
         )
     ) {
-        if (!earlyReduction && !scheme.contractions.empty()) {
-            auto& c = scheme.contractions.front();
-            c.insert(c.begin(), 0);
-        } else {
-            scheme.contractions.insert(scheme.contractions.begin(), {0});
+        if (earlyReduction) {
+            scheme.contractions.insert(scheme.contractions.begin(), {});
         }
         co_yield std::move(scheme);
     }
@@ -558,7 +581,6 @@ IR IRBuilder::build(const ContractionScheme& scheme, const BindingContext& ctx) 
     auto ir = initial(scheme);
     rfactor(ir, ctx);
     optimizeLayout(ir);
-    performViews(ir);
     return ir;
 }
 

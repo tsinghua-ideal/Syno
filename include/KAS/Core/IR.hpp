@@ -59,7 +59,8 @@ public:
 };
 
 class TensorContractor: protected DependentCutSetDiscoverer {
-    Graph::CompactIndices collected = Graph::CompactIndices::None();
+protected:
+    Graph::CompactIndices collected;
     std::set<const Reduce *> doneReductions;
 
     // Helper function for `fill`.
@@ -75,26 +76,15 @@ class TensorContractor: protected DependentCutSetDiscoverer {
     void excludeHook(const PrimitiveOp *op) override;
 
 public:
-    // Mark all expansions as collected.
-    TensorContractor(const Graph& graph);
-    template<std::ranges::input_range R>
-    requires std::convertible_to<std::ranges::range_value_t<R>, std::vector<Dimension>>
-    TensorContractor(const Graph& graph, R&& tensors): TensorContractor(graph) {
-        contract(std::forward<R>(tensors));
-    }
+    // Mark all expansions as collected as well.
+    TensorContractor(const Graph& graph, const std::vector<Dimension>& current);
 
-    // Mark this as a new tensor, and perform all possible contractions available so far.
-    TensorContractor& contract(const std::vector<Dimension>& tensorOutput) {
-        auto features = add(tensorOutput);
-        performContractions(features);
-        return *this;
-    }
     // Mark these as new tensors, and perform all possible contractions available so far.
     template<std::ranges::input_range R>
     requires std::convertible_to<std::ranges::range_value_t<R>, std::vector<Dimension>>
     TensorContractor& contract(R&& tensors) {
         auto features = Graph::CompactIndices::None();
-        for (auto&& tensor: tensors) {
+        for (auto&& tensor: std::forward<R>(tensors)) {
             features.merges(add(std::forward<decltype(tensor)>(tensor)));
         }
         performContractions(features);
@@ -114,9 +104,22 @@ public:
     TensorContractor& removeReductions();
 
     // Helper function.
-    template<TensorRange R>
+    template<std::ranges::input_range R>
+    requires std::convertible_to<std::ranges::range_value_t<R>, std::vector<Dimension>>
     static std::vector<Dimension> Contract(const Graph& graph, R&& tensors) {
-        return TensorContractor(graph, std::forward<R>(tensors)).build();
+        using std::begin;
+        using std::end;
+        auto b = begin(tensors);
+        auto e = end(tensors);
+        KAS_ASSERT(b != e, "Cannot contract 0 tensors.");
+        auto contractor = TensorContractor(graph, *b);
+        ++b;
+        auto features = Graph::CompactIndices::None();
+        for (; b != e; ++b) {
+            features.merges(contractor.add(*b));
+        }
+        contractor.performContractions(features);
+        return contractor.build();
     }
 };
 
@@ -183,6 +186,8 @@ struct IR {
     void forEach(std::invocable<const Tensor&> auto&& f) const { forEachHelper<true>(std::forward<decltype(f)>(f)); }
     void forEach(std::invocable<Tensor&> auto&& f) { forEachHelper<false>(std::forward<decltype(f)>(f)); }
 
+    IR copy() const;
+
     Graph buildGraph() const;
     std::size_t getFLOPs(const BindingContext& ctx) const;
 };
@@ -205,7 +210,7 @@ struct ContractionScheme {
 // initial pass: extract computation graph (i.e., the IR) from the graph, based on a given contraction order.
 // rfactor pass: search for rfactor chances to reduce FLOPs.
 // layout pass: alter the layout of the tensors to improve locality.
-// view pass: move the views to computation graph level, so PyTorchGen can use einsum to contract tensors.
+// view pass: move the views to computation graph level, so PyTorchGen can use einsum to contract tensors. This is done by PyTorchGen.
 class IRBuilder {
     const std::vector<Topmost>& inputTensors;
     Graph graph;
@@ -224,8 +229,6 @@ public:
     void rfactor(IR& ir, const BindingContext& ctx) const;
     // Optimize locality.
     void optimizeLayout(IR& ir) const;
-    // For PyTorch codegen, further split Tensor's apart so that contractions are apparent, that is, ShareOp's are above any other type of Op's in each Tensor.
-    void performViews(IR& ir) const;
 
     // Perform all the passes.
     IR build(const ContractionScheme& scheme, const BindingContext& ctx) const;

@@ -9,6 +9,13 @@
 
 namespace kas {
 
+// For PyTorch codegen, further split Tensor's apart so that contractions are apparent, that is, ShareOp's are above any other type of Op's in each Tensor.
+class PerformViewsIRPass {
+public:
+    PerformViewsIRPass(IR& ir);
+    void apply();
+};
+
 class PythonCodePrinter {
     std::ostringstream& oss;
     bool isNewLine = true;
@@ -46,11 +53,8 @@ public:
 
 class PyTorchGen {
     const BindingContext& ctx;
+    IR ir;
     Graph graph;
-
-    std::vector<std::vector<const Expand *>> expansions;
-    std::vector<Tensor> inputTensors;
-    Tensor outputTensor;
 
     std::vector<Tensor> topologicallyOrderedTensors;
 
@@ -159,9 +163,9 @@ public:
 
     std::vector<std::size_t> concretize(const std::vector<Dimension>& interface, const ConcreteConsts& consts) const;
 
-    PyTorchGen(const BindingContext& ctx, Graph graph, const IR& subgraphs);
+    PyTorchGen(const BindingContext& ctx, const IR& subgraphs);
     PyTorchGen(const BindingContext& ctx, const TensorView& tensorView):
-        PyTorchGen { ctx, tensorView.buildGraph(), tensorView.getSubgraphs() } {}
+        PyTorchGen { ctx, tensorView.getSubgraphs() } {}
     void loadWeights(PythonCodePrinter& printer) const;
     void padInputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const;
     void cropOutputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const;

@@ -9,6 +9,7 @@
 // Do not use any other function!
 #include "KAS/Transforms/Expand.hpp"
 
+
 namespace kas {
 
 Dimension RepeatLikeVertex::operator[](RepeatLikeOp::Branch branch) const {

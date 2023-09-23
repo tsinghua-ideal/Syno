@@ -229,6 +229,9 @@ public:
         [[nodiscard]] CompactIndices excluded(CompactIndices other) const {
             return { content & ~other.content };
         }
+        explicit operator bool() const {
+            return content != 0;
+        }
         friend bool operator==(CompactIndices lhs, CompactIndices rhs) { return lhs.content == rhs.content; }
         CompactIndices& excludes(CompactIndices other) {
             content &= ~other.content;

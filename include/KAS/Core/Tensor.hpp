@@ -75,6 +75,8 @@ public:
 
     void adjustLayout(const std::vector<Dimension> *expectedOutput, const std::vector<const Reduce *> *expectedReductions);
 
+    Tensor clone(const std::map<Tensor, Tensor>& oldToNew) const;
+
     std::size_t getFLOPs(const BindingContext& ctx) const;
 
     // No input tensors. Only when this is the case, output can contain Reduce's.

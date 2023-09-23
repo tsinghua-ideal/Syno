@@ -24,6 +24,19 @@ void Tensor::adjustLayout(const std::vector<Dimension> *expectedOutput, const st
     }
 }
 
+Tensor Tensor::clone(const std::map<Tensor, Tensor>& oldToNew) const {
+    return TensorImpl::CreateView(
+        ranges::to<std::vector<Tensor>>(
+            inputs()
+            | std::views::transform([&](const Tensor& t) {
+                return oldToNew.at(t);
+            })
+        ),
+        output(),
+        reductions()
+    );
+}
+
 std::size_t Tensor::getFLOPs(const BindingContext& ctx) const {
     // TODO: this has some redundant code with IR.cpp.
     auto numelOuter = std::transform_reduce(

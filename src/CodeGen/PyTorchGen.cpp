@@ -7,6 +7,14 @@
 
 namespace kas {
 
+PerformViewsIRPass::PerformViewsIRPass(IR& ir) {
+    // TODO!!!!!
+}
+
+void PerformViewsIRPass::apply() {
+    // TODO!!!!!
+}
+
 std::pair<Dimension, std::size_t> PyTorchGen::SubgraphGen::assignShare(Dimension dim) {
     auto subscript = newSubscript();
     auto discoverer = ShareBlockDiscoverer(graph, dim, [&](const Dimension& d) {
@@ -298,14 +306,13 @@ std::vector<std::size_t> PyTorchGen::concretize(const std::vector<Dimension>& in
     return ShapeView(interface).eval<std::size_t>(consts);
 }
 
-PyTorchGen::PyTorchGen(const BindingContext& ctx, Graph graph, const IR& subgraphs):
+PyTorchGen::PyTorchGen(const BindingContext& ctx, const IR& ir):
     ctx { ctx },
-    graph { std::move(graph) },
-    expansions(subgraphs.expansions),
-    inputTensors(subgraphs.inputTensors),
-    outputTensor { subgraphs.outputTensor }
+    ir { ir.copy() },
+    graph { this->ir.buildGraph() }
 {
-    for (std::size_t index = 0; const auto& tensor: this->inputTensors) {
+    PerformViewsIRPass(this->ir).apply();
+    for (std::size_t index = 0; const auto& tensor: this->ir.inputTensors) {
         declare(tensor, "in_" + std::to_string(index));
         ++index;
     }
@@ -321,20 +328,20 @@ PyTorchGen::PyTorchGen(const BindingContext& ctx, Graph graph, const IR& subgrap
             topologicallyOrderedTensors.emplace_back(tensor);
         }
     };
-    dfs(dfs, this->outputTensor);
+    dfs(dfs, this->ir.outputTensor);
 }
 
 void PyTorchGen::loadWeights(PythonCodePrinter& printer) const {
-    for (std::size_t index = 1; const Tensor& weight: inputTensors | std::views::drop(1)) {
+    for (std::size_t index = 1; const Tensor& weight: ir.inputTensors | std::views::drop(1)) {
         printer.writeLn("{} = self.weights[{}]", use(weight), index - 1);
-        KAS_ASSERT(expansions.at(index).empty(), "Expansion for weights unsupported.");
+        KAS_ASSERT(ir.expansions.at(index).empty(), "Expansion for weights unsupported.");
         ++index;
     }
 }
 
 void PyTorchGen::padInputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const {
-    const Tensor& inputTensor = inputTensors.at(0);
-    const auto& inputExpansions = expansions.at(0);
+    const Tensor& inputTensor = ir.inputTensors.at(0);
+    const auto& inputExpansions = ir.expansions.at(0);
     const auto& expandedShape = inputTensor.output();
     // Note that inputTensor.output() contain all the expanded dimensions. So we need to filter them out to obtain the original input.
     auto isExpanded = [&inputExpansions](const Dimension& dim) {
@@ -390,7 +397,7 @@ void PyTorchGen::padInputTensor(PythonCodePrinter& printer, const PaddedConsts& 
 }
 
 void PyTorchGen::cropOutputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const {
-    const auto& shape = outputTensor.output();
+    const auto& shape = ir.outputTensor.output();
     auto unpaddedShape = concretize(shape, consts.unpadded);
     auto paddedShape = concretize(shape, consts.padded);
     std::vector<std::pair<int, int>> slices;
@@ -403,7 +410,7 @@ void PyTorchGen::cropOutputTensor(PythonCodePrinter& printer, const PaddedConsts
     }
     if (needsPad) {
         printer.writeLn("# We need to crop the output tensor.");
-        printer.write("y = {}[", use(outputTensor));
+        printer.write("y = {}[", use(ir.outputTensor));
         for (const auto& [left, right]: slices) {
             if (left == 0 && right == 0) {
                 printer.write(":, ");
@@ -414,7 +421,7 @@ void PyTorchGen::cropOutputTensor(PythonCodePrinter& printer, const PaddedConsts
         printer.writeLn("]");
     } else {
         printer.writeLn("# No need to crop the output tensor.");
-        printer.writeLn("y = {}", use(outputTensor));
+        printer.writeLn("y = {}", use(ir.outputTensor));
     }
     printer.writeLn();
 }
@@ -440,12 +447,12 @@ void PyTorchGen::generate(std::ostream& outputStream, std::string_view className
         printer.writeLn("def __init__(self):");
         printer.indent([&] {
             printer.writeLn("super().__init__()");
-            if (inputTensors.size() == 1) {
+            if (ir.inputTensors.size() == 1) {
                 return;
             }
             printer.writeLn("self.weights = torch.nn.ParameterList([");
             printer.indent([&] {
-                for (const Tensor& weight: inputTensors | std::views::drop(1)) {
+                for (const Tensor& weight: ir.inputTensors | std::views::drop(1)) {
                     auto concretizedShape = concretize(weight.output(), consts.padded);
                     // If we want to adjust dimension order, we must defer this. TODO
                     printer.writeLn("torch.randn([{}]),", fmt::join(concretizedShape, ", "));
