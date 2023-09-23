@@ -267,11 +267,7 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
         );
     } else {
         printer.writeLn("// Stage tensor.");
-        auto subgraph = ConstrainedGraph::Builder(graph)
-            .addTop(tensor.inputs() | std::views::transform(&Tensor::output) | std::views::join)
-            .addBottom(tensor.output())
-            .addBottom(tensor.reductions())
-            .build();
+        auto subgraph = tensor.buildConstrainedGraph(graph);
 
         // TODO: if this tensor needs to be stored, indicate in the label.
         auto _ = printer.scope("subgraph cluster_subgraph_{0}", index);

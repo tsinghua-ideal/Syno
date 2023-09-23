@@ -9,9 +9,65 @@
 
 namespace kas {
 
+template<typename F>
+requires std::invocable<F, const Dimension&>
+class ShareBlockDiscoverer {
+    const Graph& graph;
+    Dimension bottommost;
+    F f;
+public:
+    void operator()(const RepeatLikeVertex&, auto) {}
+    void operator()(const SplitLikeVertex&, auto) {}
+    void operator()(const MergeLikeVertex& vertex, MergeLikeOp::Branch) {
+        if (vertex.op.getType() != DimensionType::Share) {
+            return;
+        }
+        // This is a ShareOp. First collect.
+        f(vertex[MergeLikeOp::Branch::InputLhs]);
+        f(vertex[MergeLikeOp::Branch::InputRhs]);
+        // Then propagate.
+        propagateTo(vertex.visitAdjacent(MergeLikeOp::Branch::InputLhs));
+        propagateTo(vertex.visitAdjacent(MergeLikeOp::Branch::InputRhs));
+    }
+    void operator()(const ExpandVertex&, auto) {}
+    void propagateTo(VisitedVertex vertex) {
+        vertex.match(*this);
+    }
+    ShareBlockDiscoverer(const Graph& graph, Dimension dim, const Graph::CutSet& boundary, F&& f):
+        graph { graph },
+        bottommost { dim }, // temporary.
+        f { std::forward<F>(f) }
+    {
+        // First find the bottom-most Share dimension.
+        while (dim.type() == DimensionType::Share && !boundary.contains(dim)) {
+            dim = dim.as<MergeLikeOp::Input>().getOp()->output;
+        }
+        bottommost = dim;
+    }
+    Dimension getBottommost() const { return bottommost; }
+    Dimension traverse() {
+        f(bottommost);
+        propagateTo(graph.visitAlong(bottommost, Direction::Up));
+        return bottommost;
+    }
+};
+
 // For PyTorch codegen, further split Tensor's apart so that contractions are apparent, that is, ShareOp's are above any other type of Op's in each Tensor.
 class PerformViewsIRPass {
+    Graph graph;
+    IR& ir;
 public:
+    class ViewPerformer: protected DependentCutSetDiscoverer {
+        Tensor tensor;
+        ConstrainedGraph subgraph;
+        std::set<const ShareOp *> visitedShareOps;
+        Graph::DimensionSet visitedShareInputs;
+        Graph::DimensionSet weightDims;
+        void fill(const Dimension& dimension, bool inShareBlock = false);
+    public:
+        ViewPerformer(const Graph& graph, Tensor& tensor);
+        void apply();
+    };
     PerformViewsIRPass(IR& ir);
     void apply();
 };
@@ -84,6 +140,8 @@ public:
         PythonCodePrinter& printer;
 
         const Tensor& tensor;
+        Graph::CutSet bottommost;
+        std::set<const Reduce *> remainingReductions;
 
         // To perform contraction using einsum, we need to track the subscripts.
         std::size_t existingSubscripts = 0;
@@ -105,9 +163,10 @@ public:
             std::size_t concretize(const Size& size) const { return size.eval<std::size_t>(consts); }
             std::vector<Dimension>& interface;
             const Tensor& tensor;
+            std::set<const Reduce *>& remainingReductions;
             const std::string& name;
             std::map<Dimension, std::size_t, Dimension::AddressLessThan> outputSet;
-            OpLower(const BindingContext& ctx, const Graph& graph, PythonCodePrinter& printer, const ConcreteConsts& consts, std::vector<Dimension>& interface, const Tensor& tensor, const std::string& name);
+            OpLower(const BindingContext& ctx, const Graph& graph, PythonCodePrinter& printer, const ConcreteConsts& consts, std::vector<Dimension>& interface, const Tensor& tensor, std::set<const Reduce *>& remainingReductions, const std::string& name);
 
             bool successfulVisit = false;
             bool operator()(const auto& vertex, auto) {
@@ -146,7 +205,7 @@ public:
         };
 
     public:
-        SubgraphGen(const BindingContext& ctx, const Graph& graph, const std::map<Tensor, std::string>& tensorNames, PythonCodePrinter& printer, const Tensor& tensor): ctx { ctx }, graph { graph }, tensorNames(tensorNames), printer { printer }, tensor { tensor } {}
+        SubgraphGen(const BindingContext& ctx, const Graph& graph, const std::map<Tensor, std::string>& tensorNames, PythonCodePrinter& printer, const Tensor& tensor);
 
         template<std::ranges::input_range R>
         requires std::same_as<std::ranges::range_value_t<R>, std::size_t>

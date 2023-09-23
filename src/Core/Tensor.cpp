@@ -57,6 +57,14 @@ std::size_t Tensor::getFLOPs(const BindingContext& ctx) const {
     return flops;
 }
 
+ConstrainedGraph Tensor::buildConstrainedGraph(const Graph& graph) const {
+    return ConstrainedGraph::Builder(graph)
+        .addTop(inputs() | std::views::transform(&Tensor::output) | std::views::join)
+        .addBottom(output())
+        .addBottom(reductions())
+        .build();
+}
+
 std::string Tensor::toString(const BindingContext& ctx) const {
     auto outputString = ShapeView(output()).toString(ctx);
     if (isInputTensor()) {

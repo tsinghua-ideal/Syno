@@ -7,17 +7,114 @@
 
 namespace kas {
 
-PerformViewsIRPass::PerformViewsIRPass(IR& ir) {
-    // TODO!!!!!
+void PerformViewsIRPass::ViewPerformer::fill(const Dimension& dimension, bool inShareBlock) {
+    subgraph.visitAlong(dimension, Direction::Down).match(Match {
+        [&](const RepeatLikeVertex& r, auto) {
+            assertErase(dimension);
+            assertInsert(r.op.output);
+            fill(r.op.output);
+        },
+        [&](const SplitLikeVertex& s, auto) {
+            assertErase(dimension);
+            assertInsert(s.op.outputLhs);
+            assertInsert(s.op.outputRhs);
+            fill(s.op.outputLhs);
+            fill(s.op.outputRhs);
+        },
+        [&](const MergeLikeVertex& m, auto) {
+            // Only propagate in Share block if we encounter Share.
+            if (dimension.is(DimensionType::Share)) {
+                if (!inShareBlock) {
+                    visitedShareInputs.insert(dimension);
+                }
+                KAS_ASSERT(weightDims.contains(dimension.as<ShareOp::Input>().getOther()));
+                visitedShareOps.insert(static_cast<const ShareOp *>(&m.op));
+                if (m.op.output.is(DimensionType::Share)) {
+                    fill(m.op.output, true);
+                }
+            } else if (tryErase(dimension.as<MergeLikeOp::Input>().getOther())) {
+                assertErase(dimension);
+                assertInsert(m.op.output);
+                fill(m.op.output);
+            }
+        },
+        [&](const ExpandVertex& e, auto) {
+            KAS_UNREACHABLE();
+        },
+        [&](Direction type, const Dimension& dim) {
+            // Great. We have reached the bottom.
+        },
+    });
 }
 
+PerformViewsIRPass::ViewPerformer::ViewPerformer(const Graph& graph, Tensor& tensor):
+    DependentCutSetDiscoverer(graph, tensor.inputs().at(0).output()),
+    tensor(tensor),
+    subgraph(this->tensor.buildConstrainedGraph(graph))
+{
+    auto weightDims =
+        this->tensor.inputs()
+        | std::views::drop(1)
+        | std::views::transform(&Tensor::output)
+        | std::views::join;
+    this->weightDims.insert(weightDims.begin(), weightDims.end());
+}
+
+void PerformViewsIRPass::ViewPerformer::apply() {
+    const auto& firstInputTensor = tensor.inputs()[0].output();
+    for (const Dimension& dim: firstInputTensor) {
+        // First expand the input tensor as far as possible.
+        fill(dim);
+    }
+    // If we already have the ShareOps' inputs, then no need to build the view.
+    if (std::ranges::all_of(visitedShareInputs, [&](const Dimension& shareInput) {
+        return subgraph.getTop()->contains(shareInput);
+    })) {
+        // No need to perform view.
+        return;
+    }
+
+    // Now include the dependencies.
+    auto discoverer = DependentCutSetDiscoverer(graph, firstInputTensor);
+    discoverer.include(visitedShareInputs);
+    // With the cut set, build a view.
+    auto viewTensor = TensorImpl::CreateView(
+        std::vector<Tensor>{tensor.inputs()[0]},
+        discoverer.build(),
+        std::vector<const Reduce *>{}
+    );
+    // Replace the input tensor.
+    tensor.getInputs()[0] = std::move(viewTensor);
+
+    if (std::ranges::any_of(
+        subgraph.getOps()
+        | std::views::filter([](const PrimitiveOp *op) {
+            return op->getType() == DimensionType::Share;
+        }),
+        [&](const PrimitiveOp *op) {
+            return !visitedShareOps.contains(static_cast<const ShareOp *>(op));
+        }
+    )) {
+        // We need to perform additional Share.
+        KAS_WARNING("This case is not lowerable to PyTorch. Taking diagonal entries!");
+        // Recursively perform another view.
+        ViewPerformer(graph, tensor).apply();
+    }
+}
+
+PerformViewsIRPass::PerformViewsIRPass(IR& ir): graph(ir.buildGraph()), ir(ir) {}
+
 void PerformViewsIRPass::apply() {
-    // TODO!!!!!
+    ir.forEach([&](Tensor& tensor) {
+        if (tensor.hasContraction()) {
+            ViewPerformer(graph, tensor).apply();
+        }
+    });
 }
 
 std::pair<Dimension, std::size_t> PyTorchGen::SubgraphGen::assignShare(Dimension dim) {
     auto subscript = newSubscript();
-    auto discoverer = ShareBlockDiscoverer(graph, dim, [&](const Dimension& d) {
+    auto discoverer = ShareBlockDiscoverer(graph, dim, bottommost, [&](const Dimension& d) {
         assignSubscript(d, subscript);
     });
     return { discoverer.traverse(), subscript };
@@ -31,16 +128,17 @@ std::vector<Dimension> PyTorchGen::SubgraphGen::performContraction(std::string_v
             // This is a ShareOp.
             dim.type() == DimensionType::Share &&
             // But we have to check whether it is preserved in the output.
-            std::ranges::find(tensor.output(), dim) == tensor.output().end();
+            !bottommost.contains(dim);
     };
 
-    // Consider the special case where we do not need any Share or reduction.
+    // Consider the special case where we do not need any einsum.
     if (
         const auto& inputTensor = tensor.inputs()[0];
-        tensor.inputs().size() == 1 && // We only have one input tensor so we do not need to perform Share
+        tensor.inputs().size() == 1 && // We only have one input tensor so we do not need to do contraction or outer product,
         std::ranges::none_of(inputTensor.output(), [&](const Dimension& dim) {
             return
-                dim.type() == DimensionType::Reduce || // there is no reduction.
+                // Since we have added reduction in the end of each subgraph, and there is no possibility that we have a remaining reduction, we do not need to check for this condition.
+                // dim.type() == DimensionType::Reduce || // there is no reduction.
                 isToBeShared(dim); // and there is no Share to be performed.
         })
     ) {
@@ -75,12 +173,19 @@ std::vector<Dimension> PyTorchGen::SubgraphGen::performContraction(std::string_v
         }
     }
 
-    // Perform reduction. By removing all Reduce in realInput.
+    // Perform reduction. By removing all required Reduce in realInput.
     // This only works for products. TODO: make this work for addition.
-    auto [removeBegin, removeEnd] = std::ranges::remove_if(realInput, [](const std::pair<Dimension, std::size_t>& pair) {
-        return pair.first.type() == DimensionType::Reduce;
-    });
-    realInput.erase(removeBegin, removeEnd);
+    std::vector<std::pair<Dimension, std::size_t>> newRealInput;
+    for (auto&& pair: realInput) {
+        auto reduction = pair.first.tryAs<Reduce>();
+        if (reduction && remainingReductions.contains(reduction)) {
+            // This is a reduction.
+            remainingReductions.erase(reduction);
+        } else {
+            newRealInput.emplace_back(std::move(pair));
+        }
+    }
+    realInput = std::move(newRealInput);
 
     // Then contract.
     printer.writeLn(
@@ -97,8 +202,8 @@ std::vector<Dimension> PyTorchGen::SubgraphGen::performContraction(std::string_v
     return ranges::to<std::vector<Dimension>>(realInput | std::views::transform(&std::pair<Dimension, std::size_t>::first));
 }
 
-PyTorchGen::SubgraphGen::OpLower::OpLower(const BindingContext& ctx, const Graph& graph, PythonCodePrinter& printer, const ConcreteConsts& consts, std::vector<Dimension>& interface, const Tensor& tensor, const std::string& name):
-    ctx { ctx }, graph { graph }, printer { printer }, consts { consts }, interface { interface }, tensor { tensor }, name { name }
+PyTorchGen::SubgraphGen::OpLower::OpLower(const BindingContext& ctx, const Graph& graph, PythonCodePrinter& printer, const ConcreteConsts& consts, std::vector<Dimension>& interface, const Tensor& tensor, std::set<const Reduce *>& remainingReductions, const std::string& name):
+    ctx { ctx }, graph { graph }, printer { printer }, consts { consts }, interface { interface }, tensor { tensor }, remainingReductions(remainingReductions), name { name }
 {
     for (std::size_t index = 0; const auto& outputDim: this->tensor.output()) {
         outputSet.emplace(outputDim, index);
@@ -124,7 +229,30 @@ void PyTorchGen::SubgraphGen::OpLower::lower() {
         }
         if (!changed) break; // All Op's lowered.
     }
+
+    // Now reduce the remaining dimensions.
+    if (!remainingReductions.empty()) {
+        printer.writeLn("# Reduce the remaining dimensions.");
+        std::vector<std::size_t> reducedIndices;
+        std::vector<Dimension> newInterface;
+        for (std::size_t i = 0; i < interface.size(); ++i) {
+            if (auto reduction = interface[i].tryAs<Reduce>(); reduction) {
+                if (auto it = remainingReductions.find(reduction); it != remainingReductions.end()) {
+                    // This is a dimension to be reduced.
+                    reducedIndices.emplace_back(i);
+                    remainingReductions.erase(it);
+                    continue;
+                }
+            }
+            // This is a dimension to be kept.
+            newInterface.emplace_back(interface[i]);
+        }
+        printer.writeLn("{0} = torch.sum({0}, dim=({1}, ))", name, fmt::join(reducedIndices, ", "));
+        interface = std::move(newInterface);
+    }
+
     // Finished.
+    KAS_ASSERT(remainingReductions.empty());
     KAS_ASSERT(interface.size() == tensor.output().size());
 
     // Well, we need to permute the interface so that it matches the output of this subgraph.
@@ -292,13 +420,20 @@ void PyTorchGen::SubgraphGen::OpLower::visit(const UnfoldOp& op) {
     reshapeToInterface();
 }
 
+PyTorchGen::SubgraphGen::SubgraphGen(const BindingContext& ctx, const Graph& graph, const std::map<Tensor, std::string>& tensorNames, PythonCodePrinter& printer, const Tensor& tensor):
+    ctx { ctx }, graph { graph }, tensorNames(tensorNames), printer { printer }, tensor { tensor }
+{
+    bottommost.insert(tensor.output().begin(), tensor.output().end());
+    remainingReductions.insert(tensor.reductions().begin(), tensor.reductions().end());
+}
+
 void PyTorchGen::SubgraphGen::generate(const ConcreteConsts& consts) {
     const auto& name = tensorNames.at(tensor);
 
     // First perform contraction.
     auto interface = performContraction(name);
     // Now we have got the input. Time to work on it. The objective is to reach `tensor.output()`.
-    auto opLower = OpLower { ctx, graph, printer, consts, interface, tensor, name };
+    auto opLower = OpLower { ctx, graph, printer, consts, interface, tensor, remainingReductions, name };
     opLower.lower();
 }
 

@@ -66,11 +66,14 @@ bool TensorContractor::pushDownwards(const Dimension& dimension) {
     return graph.visitAlong(dimension, Direction::Down).match(Match {
         [&](const RepeatLikeVertex& r, auto) {
             assertErase(dimension);
+            assertInsert(r.op.output);
             pushDownwards(r.op.output);
             return true;
         },
         [&](const SplitLikeVertex& s, auto) {
             assertErase(dimension);
+            assertInsert(s.op.outputLhs);
+            assertInsert(s.op.outputRhs);
             pushDownwards(s.op.outputLhs);
             pushDownwards(s.op.outputRhs);
             return true;
@@ -79,6 +82,7 @@ bool TensorContractor::pushDownwards(const Dimension& dimension) {
             KAS_ASSERT(!dimension.is(DimensionType::Share), "fill() is not allowed to fill ShareOp's! Maybe this contraction scheme is not valid?");
             if (tryErase(dimension.as<MergeLikeOp::Input>().getOther())) {
                 assertErase(dimension);
+                assertInsert(m.op.output);
                 pushDownwards(m.op.output);
                 return true;
             }
@@ -218,7 +222,11 @@ Generator<RFactorSolver::Scheme> RFactorSolver::plausibleRFactorSchemes() const 
         remainingReductions = std::vector<const Reduce *>(reductionsSet.begin(), reductionsSet.end());
     }
 
-    for (Scheme scheme: PlausibleRFactorSchemes(std::move(remainingReductions), tensor.hasContraction())) {
+    for (Scheme scheme: PlausibleRFactorSchemes(
+        std::move(remainingReductions),
+        // Allow empty group if there is contraction, or there are contracted reductions.
+        tensor.hasContraction() || !contractedReductions.empty()
+    )) {
         auto& contractedGroup = scheme.reductions.at(0);
         contractedGroup.insert(contractedGroup.end(), contractedReductions.begin(), contractedReductions.end());
         co_yield std::move(scheme);
@@ -569,7 +577,7 @@ Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes() const {
         )
     ) {
         if (earlyReduction) {
-            scheme.contractions.insert(scheme.contractions.begin(), {});
+            scheme.contractions.insert(scheme.contractions.begin(), std::vector<std::size_t>{});
         }
         co_yield std::move(scheme);
     }

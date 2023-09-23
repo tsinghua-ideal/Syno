@@ -472,6 +472,9 @@ public:
     VisitedSubgraphVertex visitAlong(const Dimension& dim, Direction dir) const;
     const DimensionSet& getDimensions() const { return dimensions; }
     const std::set<const PrimitiveOp *>& getOps() const { return ops; }
+
+    const std::optional<CutSet>& getTop() const { return top; }
+    const std::optional<CutSet>& getBottom() const { return bottom; }
 };
 
 } // namespace kas

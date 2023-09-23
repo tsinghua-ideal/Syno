@@ -6,49 +6,6 @@
 
 namespace kas {
 
-template<typename F>
-requires std::invocable<F, const Dimension&>
-class ShareBlockDiscoverer {
-    const Graph& graph;
-    Dimension bottommost;
-    F f;
-public:
-    void operator()(const RepeatLikeVertex&, auto) {}
-    void operator()(const SplitLikeVertex&, auto) {}
-    void operator()(const MergeLikeVertex& vertex, MergeLikeOp::Branch) {
-        if (vertex.op.getType() != DimensionType::Share) {
-            return;
-        }
-        // This is a ShareOp. First collect.
-        f(vertex[MergeLikeOp::Branch::InputLhs]);
-        f(vertex[MergeLikeOp::Branch::InputRhs]);
-        // Then propagate.
-        propagateTo(vertex.visitAdjacent(MergeLikeOp::Branch::InputLhs));
-        propagateTo(vertex.visitAdjacent(MergeLikeOp::Branch::InputRhs));
-    }
-    void operator()(const ExpandVertex&, auto) {}
-    void propagateTo(VisitedVertex vertex) {
-        vertex.match(*this);
-    }
-    ShareBlockDiscoverer(const Graph& graph, Dimension dim, F&& f):
-        graph { graph },
-        bottommost { dim }, // temporary.
-        f { std::forward<F>(f) }
-    {
-        // First find the bottom-most Share dimension.
-        while (dim.type() == DimensionType::Share) {
-            dim = dim.as<MergeLikeOp::Input>().getOp()->output;
-        }
-        bottommost = dim;
-    }
-    Dimension getBottommost() const { return bottommost; }
-    Dimension traverse() {
-        f(bottommost);
-        propagateTo(graph.visitAlong(bottommost, Direction::Up));
-        return bottommost;
-    }
-};
-
 class TensorImpl;
 
 class Tensor {
@@ -87,6 +44,8 @@ public:
     bool hasReduction() const { return !reductions().empty(); }
     // Exactly one input tensor, and no reductions.
     bool isView() const { return inputs().size() == 1 && !hasReduction(); }
+
+    ConstrainedGraph buildConstrainedGraph(const Graph& graph) const;
 
     std::string toString(const BindingContext& ctx) const;
 
