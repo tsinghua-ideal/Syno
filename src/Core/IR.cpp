@@ -62,32 +62,6 @@ std::vector<Dimension> DependentCutSetDiscoverer::build() const {
     return std::vector<Dimension>(cutSet.begin(), cutSet.end());
 }
 
-void TensorContractor::pushDownwards(const Dimension& dimension, Graph::DimensionSet& visited, Graph::DimensionSet& bottom) const {
-    auto [_, attempt] = visited.insert(dimension);
-    if (!attempt) return;
-    if (!graph.visitAlong(dimension, Direction::Down).match(Match {
-        [&](const RepeatLikeVertex& r, auto) {
-            pushDownwards(r.op.output, visited, bottom);
-            return true;
-        },
-        [&](const SplitLikeVertex& s, auto) {
-            pushDownwards(s.op.outputLhs, visited, bottom);
-            pushDownwards(s.op.outputRhs, visited, bottom);
-            return true;
-        },
-        [&](const MergeLikeVertex& m, auto) {
-            KAS_ASSERT(!dimension.is(DimensionType::Share), "fill() is not allowed to fill ShareOp's! Maybe this contraction scheme is not valid?");
-            pushDownwards(m.op.output, visited, bottom);
-            return true;
-        },
-        [&](const ExpandVertex& e, auto) -> bool {
-            KAS_UNREACHABLE();
-        },
-    })) {
-        bottom.insert(dimension);
-    }
-}
-
 Graph::CompactIndices TensorContractor::add(const std::vector<Dimension>& tensorOutput) {
     Graph::CompactIndices features = graph.getAncestors(tensorOutput);
     KAS_ASSERT(collected.disjoint(features));
@@ -106,7 +80,11 @@ void TensorContractor::performContractions(Graph::CompactIndices targets) {
     ) {
         const Dimension& candidate = op->output;
         const auto feature = graph.getAncestors(candidate);
-        if (feature.excluded(collected) && result.contains(feature)) {
+        if (
+            result.contains(feature) && // after contraction, we should have included this dimension.
+            feature.excluded(collected) && // before contraction, this should not reside in the collected set, i.e., be done by it alone.
+            feature.excluded(targets) // before contraction, this should not reside in the targets set, i.e., be done by it alone.
+        ) {
             // This is a contraction.
             allowedShareOps.emplace(op);
         }
@@ -115,6 +93,7 @@ void TensorContractor::performContractions(Graph::CompactIndices targets) {
         const MergeLikeOp *op = *allowedShareOps.begin();
         include(op->output);
     }
+    collected = result;
 }
 
 void TensorContractor::excludeHook(const PrimitiveOp *op) {
@@ -148,12 +127,13 @@ TensorContractor& TensorContractor::reduce() {
 }
 
 TensorContractor& TensorContractor::fill() {
-    Graph::DimensionSet visited, bottom;
-    for (const Dimension& dim: cutSet) {
-        pushDownwards(dim, visited, bottom);
-    }
-    for (const Dimension& dim: bottom) {
+    for (Dimension dim: graph.getOutputIterators()) {
         include(dim);
+    }
+    for (const Reduce *reduction: graph.getReduceIterators()) {
+        if (!doneReductions.contains(reduction)) {
+            include(reduction);
+        }
     }
     return *this;
 }
@@ -265,7 +245,12 @@ std::size_t RFactorSolver::getFLOPs(const Scheme& scheme, std::size_t overflow) 
 
         // remove all reductions from discoverer
         auto removedReductions = discoverer.removeReductions();
-        KAS_ASSERT(removedReductions == reductionGroup.size(), "The number of applied reductions ({}) is not equal to the size ({}) of the reduction group.", removedReductions, reductionGroup.size());
+        if (removedReductions != reductionGroup.size()) {
+            // It seems there are some other reductions that had better get reduced at the same time.
+            // This is to say that this reduction scheme is actually invalid.
+            // We only need to return infinity here.
+            return Infinity;
+        }
 
         // Later on, only reductions.
         isContraction = false;
@@ -472,9 +457,9 @@ IR IRBuilder::initial(const ContractionScheme& scheme) const {
         (allDimensionsCollected && current.isInputTensor() && !std::ranges::equal(current.output(), graph.getOutputIterators()))
     ) {
         contractor.fill();
-        auto finalOutput = contractor.build();
-        KAS_ASSERT(DimensionSetEqual(finalOutput, graph.getOutputIterators()));
-        current = TensorImpl::CreateView(std::vector<Tensor>{current}, std::move(finalOutput), std::vector<const Reduce *>{});
+        auto finalOutput = Bottommost(contractor.build());
+        KAS_ASSERT(DimensionSetEqual(finalOutput.getOutput(), graph.getOutputIterators()));
+        current = TensorImpl::CreateView(std::vector<Tensor>{current}, std::move(finalOutput));
     }
 
     // We do not need to adjust the layout here, because rfactor pass will overwrite that anyway.

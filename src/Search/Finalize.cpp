@@ -3,6 +3,7 @@
 #include <numeric>
 #include <stack>
 
+#include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/Core/Colors.hpp"
 #include "KAS/Core/TensorView.hpp"
 #include "KAS/Search/Finalize.hpp"

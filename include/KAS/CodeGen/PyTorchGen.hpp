@@ -61,8 +61,7 @@ public:
         Tensor tensor;
         ConstrainedGraph subgraph;
         std::set<const ShareOp *> visitedShareOps;
-        Graph::DimensionSet visitedShareInputs;
-        Graph::DimensionSet weightDims;
+        Graph::DimensionSet visited, visitedShareInputs;
         void fill(const Dimension& dimension, bool inShareBlock = false);
     public:
         ViewPerformer(const Graph& graph, Tensor& tensor);

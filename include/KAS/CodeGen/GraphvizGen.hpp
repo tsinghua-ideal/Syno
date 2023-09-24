@@ -113,6 +113,7 @@ class GraphvizDFGGen: public detail::GraphvizCode {
 
 public:
     GraphvizDFGGen(const IR& subgraphs, const BindingContext& ctx);
+    static std::string Print(const IR& subgraphs, const BindingContext& ctx);
 };
 
 } // namespace kas

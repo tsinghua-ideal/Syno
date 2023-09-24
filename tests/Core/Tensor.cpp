@@ -56,17 +56,18 @@ TEST(core_tensor_tests, subgraph) {
     ASSERT_EQ(inputTensors[0], outputTensor);
 }
 
-TEST(core_tensor_tests, subgraph_diagonal) {
-    auto ctx = BindingContext(2, 0);
-    BindingContext::DebugPublicCtx = &ctx;
-    auto [x_0, x_1] = ctx.getSizes("x_0", "x_1");
-    Iterator i_0 { 0, x_0 };
-    ReduceOp i_1 { x_1, Reduce::ReduceType::Sum };
-    ShareOp shareOp { i_1.getInput(0) };
-    GraphHandle interface = {{&i_0, shareOp.getInputL(), shareOp.getInputR()}, {}};
+// This test cannot be done because only PyTorchGen requires this pattern. See `tests/IR/InterdependentShare.cpp`.
+// TEST(core_tensor_tests, subgraph_diagonal) {
+//     auto ctx = BindingContext(2, 0);
+//     BindingContext::DebugPublicCtx = &ctx;
+//     auto [x_0, x_1] = ctx.getSizes("x_0", "x_1");
+//     Iterator i_0 { 0, x_0 };
+//     ReduceOp i_1 { x_1, Reduce::ReduceType::Sum };
+//     ShareOp shareOp { i_1.getInput(0) };
+//     GraphHandle interface = {{&i_0, shareOp.getInputL(), shareOp.getInputR()}, {}};
 
-    auto [expansions, inputTensors, outputTensor] = IR::Build({{{&i_0, shareOp.getInputL(), shareOp.getInputR()}, {}}}, ctx);
-    ASSERT_TRUE(std::ranges::all_of(expansions, [](const auto& expansion) { return expansion.empty(); }));
-    ASSERT_EQ(inputTensors.size(), 1);
-    ASSERT_EQ(outputTensor.toString(ctx), "([x_0, x_1, x_1] -> [x_0])");
-}
+//     auto [expansions, inputTensors, outputTensor] = IR::Build({{{&i_0, shareOp.getInputL(), shareOp.getInputR()}, {}}}, ctx);
+//     ASSERT_TRUE(std::ranges::all_of(expansions, [](const auto& expansion) { return expansion.empty(); }));
+//     ASSERT_EQ(inputTensors.size(), 1);
+//     ASSERT_EQ(outputTensor.toString(ctx), "([x_0, x_1, x_1] -> [x_0])");
+// }

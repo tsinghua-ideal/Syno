@@ -63,9 +63,6 @@ protected:
     Graph::CompactIndices collected;
     std::set<const Reduce *> doneReductions;
 
-    // Helper function for `fill`.
-    void pushDownwards(const Dimension& dimension, Graph::DimensionSet& visited, Graph::DimensionSet& bottom) const;
-
     // Add a tensor, and return its ancestors.
     Graph::CompactIndices add(const std::vector<Dimension>& tensorOutput);
     // Store the remaining ShareOp's to be contracted.
@@ -232,6 +229,10 @@ public:
 
     // Perform all the passes.
     IR build(const ContractionScheme& scheme, const BindingContext& ctx) const;
+};
+
+class LayoutOptimizer {
+
 };
 
 } // namespace kas

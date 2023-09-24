@@ -109,7 +109,7 @@ BindingContext::BindingContext(const std::vector<std::size_t>& primaryEstimates,
         primarySpecs.emplace_back("x_" + std::to_string(i), Parser::PureSpec { .size = primaryEstimates[i] });
     }
     for (std::size_t i = 0; i < coefficientEstimates.size(); ++i) {
-        coefficientSpecs.emplace_back("y_" + std::to_string(i), Parser::PureSpec { .size = coefficientEstimates[i] });
+        coefficientSpecs.emplace_back("c_" + std::to_string(i), Parser::PureSpec { .size = coefficientEstimates[i] });
     }
     applySpecs(primarySpecs, coefficientSpecs);
     applyMappings({{}}, true);

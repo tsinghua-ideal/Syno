@@ -4,6 +4,8 @@
 namespace kas {
 
 TEST_F(search_tests, sampler) {
+    auto rng = std::mt19937_64(42);
+
     constexpr std::size_t trials = 500;
     std::size_t successes = 0;
     std::size_t successfulReconstruction = 0;
@@ -23,13 +25,14 @@ TEST_F(search_tests, sampler) {
                 ++failedReconstruction;
             }
         }
-        if (randomLeaves.empty() || !randomLeaves[0].second.isFinal()) {
+        if (randomLeaves.empty()) {
             fmt::print("Trial {} failed.\n", i);
             continue;
         } else {
             fmt::print("Trial {} succeeded.\n", i);
         }
-        auto [_, node] = randomLeaves[0];
+        auto randomLeafIndex = std::uniform_int_distribution<std::size_t>(0, randomLeaves.size() - 1)(rng);
+        auto [_, node] = randomLeaves[randomLeafIndex];
         ++successes;
         auto& tensorView = *node.asFinal();
 

@@ -396,4 +396,9 @@ GraphvizDFGGen::GraphvizDFGGen(const IR& subgraphs, const BindingContext& ctx):
     code = ss.str();
 }
 
+std::string GraphvizDFGGen::Print(const IR& subgraphs, const BindingContext& ctx) {
+    auto gen = GraphvizDFGGen(subgraphs, ctx);
+    return gen.print("preview");
+}
+
 } // namespace kas

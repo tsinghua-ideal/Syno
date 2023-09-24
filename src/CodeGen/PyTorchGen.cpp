@@ -9,16 +9,14 @@
 namespace kas {
 
 void PerformViewsIRPass::ViewPerformer::fill(const Dimension& dimension, bool inShareBlock) {
+    // TODO!!!!!!! First traverse ShareOp's to ban contracted dims, then find required inputs, respecting MergeLikeOp's.
+    auto [_, attempt] = visited.insert(dimension);
+    if (!attempt) return;
     subgraph.visitAlong(dimension, Direction::Down).match(Match {
         [&](const RepeatLikeVertex& r, auto) {
-            assertErase(dimension);
-            assertInsert(r.op.output);
             fill(r.op.output);
         },
         [&](const SplitLikeVertex& s, auto) {
-            assertErase(dimension);
-            assertInsert(s.op.outputLhs);
-            assertInsert(s.op.outputRhs);
             fill(s.op.outputLhs);
             fill(s.op.outputRhs);
         },
@@ -28,14 +26,11 @@ void PerformViewsIRPass::ViewPerformer::fill(const Dimension& dimension, bool in
                 if (!inShareBlock) {
                     visitedShareInputs.insert(dimension);
                 }
-                KAS_ASSERT(weightDims.contains(dimension.as<ShareOp::Input>().getOther()));
                 visitedShareOps.insert(static_cast<const ShareOp *>(&m.op));
                 if (m.op.output.is(DimensionType::Share)) {
                     fill(m.op.output, true);
                 }
-            } else if (tryErase(dimension.as<MergeLikeOp::Input>().getOther())) {
-                assertErase(dimension);
-                assertInsert(m.op.output);
+            } else {
                 fill(m.op.output);
             }
         },
@@ -52,14 +47,7 @@ PerformViewsIRPass::ViewPerformer::ViewPerformer(const Graph& graph, Tensor& ten
     DependentCutSetDiscoverer(graph, tensor.inputs().at(0).output()),
     tensor(tensor),
     subgraph(this->tensor.buildConstrainedGraph(graph))
-{
-    auto weightDims =
-        this->tensor.inputs()
-        | std::views::drop(1)
-        | std::views::transform(&Tensor::output)
-        | std::views::join;
-    this->weightDims.insert(weightDims.begin(), weightDims.end());
-}
+{}
 
 void PerformViewsIRPass::ViewPerformer::apply() {
     const auto& firstInputTensor = tensor.inputs()[0].output();
@@ -572,6 +560,10 @@ void PyTorchGen::applyDivision(PythonCodePrinter& printer, const ConcreteConsts&
 
 void PyTorchGen::generatePrelude(std::ostream& outputStream) const {
     outputStream << "import torch\n";
+    outputStream << "\"\"\"\n";
+    auto gvCode = GraphvizDFGGen(ir, ctx).print("kernel_preview");
+    outputStream << gvCode << "\n";
+    outputStream << "\"\"\"\n";
 }
 
 void PyTorchGen::generate(std::ostream& outputStream, std::string_view className, const AbstractAccess& forwardAccess, const PaddedConsts& consts) const {
