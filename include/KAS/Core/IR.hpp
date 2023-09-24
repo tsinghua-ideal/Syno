@@ -64,7 +64,7 @@ protected:
     std::set<const Reduce *> doneReductions;
 
     // Helper function for `fill`.
-    bool pushDownwards(const Dimension& dimension);
+    void pushDownwards(const Dimension& dimension, Graph::DimensionSet& visited, Graph::DimensionSet& bottom) const;
 
     // Add a tensor, and return its ancestors.
     Graph::CompactIndices add(const std::vector<Dimension>& tensorOutput);

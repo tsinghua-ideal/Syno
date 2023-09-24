@@ -10,6 +10,7 @@ endfunction()
 
 # Tests
 add_subdirectory(Core)
+add_subdirectory(IR)
 add_subdirectory(Search)
 add_subdirectory(Semantics)
 add_subdirectory(Transforms)

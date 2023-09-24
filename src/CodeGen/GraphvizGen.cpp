@@ -266,7 +266,7 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
         // Only need to draw the box.
         printer.writeLn("// Input tensor.");
         drawTensorBox(
-            fmt::format("subgraph_{}", index), fmt::format("Input {}", index),
+            fmt::format("subgraph_{}", index), fmt::format("Input {}", inputIndex.at(tensor)),
             index, Direction::Down, tensor.output()
         );
     } else {
@@ -363,6 +363,11 @@ GraphvizDFGGen::GraphvizDFGGen(const IR& subgraphs, const BindingContext& ctx):
 {
     printer.writeLn("newrank = true;"); // To allow alignment for subgraphs.
     printer.writeLn();
+
+    for (std::size_t i = 0; i < subgraphs.inputTensors.size(); ++i) {
+        const Tensor& input = subgraphs.inputTensors[i];
+        inputIndex[input] = i;
+    }
 
     // DFS.
     drawTensor(subgraphs.outputTensor);

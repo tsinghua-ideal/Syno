@@ -74,7 +74,7 @@ private:
     // This overwrites the current metadata.
     void applySpecs(const ShapeSpecParser::NamedSpecs& primarySpecs, const ShapeSpecParser::NamedSpecs& coefficientSpecs);
     // This overwrites the current allConsts.
-    void applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings);
+    void applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings, bool defaultFallback = false);
 
 public:
     // This is not a legal state. You must overwrite it.

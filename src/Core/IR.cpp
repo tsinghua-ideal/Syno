@@ -62,36 +62,30 @@ std::vector<Dimension> DependentCutSetDiscoverer::build() const {
     return std::vector<Dimension>(cutSet.begin(), cutSet.end());
 }
 
-bool TensorContractor::pushDownwards(const Dimension& dimension) {
-    return graph.visitAlong(dimension, Direction::Down).match(Match {
+void TensorContractor::pushDownwards(const Dimension& dimension, Graph::DimensionSet& visited, Graph::DimensionSet& bottom) const {
+    auto [_, attempt] = visited.insert(dimension);
+    if (!attempt) return;
+    if (!graph.visitAlong(dimension, Direction::Down).match(Match {
         [&](const RepeatLikeVertex& r, auto) {
-            assertErase(dimension);
-            assertInsert(r.op.output);
-            pushDownwards(r.op.output);
+            pushDownwards(r.op.output, visited, bottom);
             return true;
         },
         [&](const SplitLikeVertex& s, auto) {
-            assertErase(dimension);
-            assertInsert(s.op.outputLhs);
-            assertInsert(s.op.outputRhs);
-            pushDownwards(s.op.outputLhs);
-            pushDownwards(s.op.outputRhs);
+            pushDownwards(s.op.outputLhs, visited, bottom);
+            pushDownwards(s.op.outputRhs, visited, bottom);
             return true;
         },
         [&](const MergeLikeVertex& m, auto) {
             KAS_ASSERT(!dimension.is(DimensionType::Share), "fill() is not allowed to fill ShareOp's! Maybe this contraction scheme is not valid?");
-            if (tryErase(dimension.as<MergeLikeOp::Input>().getOther())) {
-                assertErase(dimension);
-                assertInsert(m.op.output);
-                pushDownwards(m.op.output);
-                return true;
-            }
-            return false;
+            pushDownwards(m.op.output, visited, bottom);
+            return true;
         },
         [&](const ExpandVertex& e, auto) -> bool {
             KAS_UNREACHABLE();
         },
-    });
+    })) {
+        bottom.insert(dimension);
+    }
 }
 
 Graph::CompactIndices TensorContractor::add(const std::vector<Dimension>& tensorOutput) {
@@ -154,9 +148,12 @@ TensorContractor& TensorContractor::reduce() {
 }
 
 TensorContractor& TensorContractor::fill() {
-    const auto dims = std::vector(cutSet.begin(), cutSet.end());
-    for (const Dimension& dim: dims) {
-        pushDownwards(dim);
+    Graph::DimensionSet visited, bottom;
+    for (const Dimension& dim: cutSet) {
+        pushDownwards(dim, visited, bottom);
+    }
+    for (const Dimension& dim: bottom) {
+        include(dim);
     }
     return *this;
 }

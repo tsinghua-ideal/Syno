@@ -25,7 +25,7 @@ namespace detail {
 class GraphvizCodePrinter {
     std::ostringstream& oss;
     bool isNewLine = true;
-    std::size_t indentLevel;
+    std::size_t indentLevel = 0;
     void writeIndent() {
         for (std::size_t i = 0; i < indentLevel; ++i) oss << "    ";
     }
@@ -90,6 +90,7 @@ public:
 class GraphvizDFGGen: public detail::GraphvizCode {
     const BindingContext& ctx;
     Graph graph;
+    std::map<Tensor, std::size_t> inputIndex;
     std::map<Tensor, std::size_t> subgraphIndex;
 
     std::ostringstream ss;

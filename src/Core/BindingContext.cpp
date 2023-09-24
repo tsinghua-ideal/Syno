@@ -79,10 +79,10 @@ void BindingContext::applySpecs(const ShapeSpecParser::NamedSpecs& primarySpecs,
     updateLookUpTables();
 }
 
-void BindingContext::applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings) {
+void BindingContext::applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings, bool defaultFallback) {
     decltype(allConsts) result;
     for (const auto& mappings: allMappings) {
-        result.emplace_back(realizeConsts(mappings));
+        result.emplace_back(realizeConsts(mappings, defaultFallback));
     }
     allConsts = std::move(result);
 }
@@ -99,7 +99,7 @@ BindingContext::BindingContext(const std::vector<std::string>& primarySpecs, con
     auto parser = ShapeSpecParser(primarySpecs, coefficientSpecs);
     auto [contractedPrimarySpecs, contractedCoefficientSpecs] = parser.build();
     applySpecs(contractedPrimarySpecs, contractedCoefficientSpecs);
-    applyMappings({{}});
+    applyMappings({{}}, true);
 }
 
 
@@ -112,7 +112,7 @@ BindingContext::BindingContext(const std::vector<std::size_t>& primaryEstimates,
         coefficientSpecs.emplace_back("y_" + std::to_string(i), Parser::PureSpec { .size = coefficientEstimates[i] });
     }
     applySpecs(primarySpecs, coefficientSpecs);
-    applyMappings({{}});
+    applyMappings({{}}, true);
 }
 
 BindingContext::BindingContext(std::size_t primaryCount, std::size_t coefficientCount):
