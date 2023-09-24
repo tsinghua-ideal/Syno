@@ -56,10 +56,13 @@ TEST(ir_tests, pooled_conv) {
         {dimCout, dimCin_filter, dimK1, dimK2},
     });
     auto tensorView = TensorView(topmosts, Parser("in_0 * in_1").parseTensorExpression(), ctx);
+    auto graphvizGen = GraphvizGen(tensorView, ctx);
+    graphvizGen.generate("./pooled_conv.dot", "pooled_conv");
+
     const IR& ir = tensorView.getSubgraphs();
     fmt::print("Result: {}\n", ir.outputTensor.toString(ctx));
     auto dfgGen = GraphvizDFGGen(ir, ctx);
-    dfgGen.generate("./pooled_conv.dot", "pooled_conv");
+    dfgGen.generate("./pooled_conv_dfg.dot", "pooled_conv");
 
     auto pytorchGen = PyTorchGen(ctx, tensorView);
     pytorchGen.generateSingle("./pooled_conv.py", "PooledConv", tensorView, {});

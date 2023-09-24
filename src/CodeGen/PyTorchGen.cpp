@@ -1,5 +1,6 @@
 #include <fstream>
 
+#include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/CodeGen/PyTorchGen.hpp"
 #include "KAS/Transforms/Transforms.hpp"
 #include "KAS/Utils/Ranges.hpp"
@@ -432,6 +433,33 @@ void PyTorchGen::SubgraphGen::generate(const ConcreteConsts& consts) {
 
     // First perform contraction.
     auto interface = performContraction(name);
+
+    // Next, perform expansions.
+    auto subgraph = tensor.buildConstrainedGraph(graph);
+    const auto expansions = ranges::to<Graph::DimensionSet>(
+        subgraph.getOps()
+        | std::views::transform([](const PrimitiveOp *op) { return dynamic_cast<const ExpandOp *>(op); })
+        | std::views::filter([](const ExpandOp *expand) { return expand != nullptr; })
+        | std::views::transform(Expand::PointerToDimension{})
+    );
+    if (!expansions.empty()) {
+        // TODO: optimize locality.
+        auto currentShape = ShapeView(interface).eval<std::size_t>(consts);
+        // We need to perform unsqueeze and expand to obtain the interface for the subgraph.
+        printer.writeLn("# We need to unsqueeze and expand the input tensor.");
+        for (std::size_t i = 0; i < expansions.size(); ++i) {
+            currentShape.emplace_back(1);
+        }
+        printer.writeLn("{0} = torch.reshape({0}, ({1}, ))", name, fmt::join(currentShape, ", "));
+        for (std::size_t i = interface.size(); const Dimension& dim: expansions) {
+            interface.emplace_back(dim);
+            currentShape[i] = dim.size().eval<std::size_t>(consts);
+            ++i;
+        }
+        printer.writeLn("{0} = {0}.expand({1})", name, fmt::join(currentShape, ", "));
+        printer.writeLn();
+    }
+
     // Now we have got the input. Time to work on it. The objective is to reach `tensor.output()`.
     auto opLower = OpLower { ctx, graph, printer, consts, interface, tensor, remainingReductions, name };
     opLower.lower();
@@ -476,20 +504,11 @@ void PyTorchGen::loadWeights(PythonCodePrinter& printer) const {
 
 void PyTorchGen::padInputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const {
     const Tensor& inputTensor = ir.inputTensors.at(0);
-    const auto& inputExpansions = ir.expansions.at(0);
-    const auto& expandedShape = inputTensor.output();
-    // Note that inputTensor.output() contain all the expanded dimensions. So we need to filter them out to obtain the original input.
-    auto isExpanded = [&inputExpansions](const Dimension& dim) {
-        return std::ranges::find(inputExpansions, dim, Expand::PointerToDimension{}) != inputExpansions.end();
-    };
-    const auto originalShape = ranges::to<std::vector<Dimension>>(
-        expandedShape
-        | std::views::filter(std::not_fn(isExpanded))
-    );
-    auto unpaddedShape = concretize(originalShape, consts.unpadded);
-    auto paddedShape = concretize(originalShape, consts.padded);
+    const auto& inputShape = inputTensor.output();
+    auto unpaddedShape = concretize(inputShape, consts.unpadded);
+    auto paddedShape = concretize(inputShape, consts.padded);
     std::vector<std::pair<int, int>> paddingParams;
-    for (std::size_t i = 0; i < originalShape.size(); ++i) {
+    for (std::size_t i = 0; i < inputShape.size(); ++i) {
         int delta = static_cast<int>(paddedShape[i]) - static_cast<int>(unpaddedShape[i]);
         KAS_ASSERT(delta >= 0, "Padded shape must be larger than unpadded shape!");
         if (delta == 0) {
@@ -512,23 +531,6 @@ void PyTorchGen::padInputTensor(PythonCodePrinter& printer, const PaddedConsts& 
         printer.writeLn("{} = x", use(inputTensor));
     }
     printer.writeLn();
-    if (originalShape.size() != expandedShape.size()) {
-        auto paddedExpandedShape = concretize(expandedShape, consts.padded);
-        // We need to perform unsqueeze and expand to obtain the interface for the subgraph.
-        printer.writeLn("# We need to unsqueeze and expand the input tensor.");
-        for (std::size_t i = 0; const Dimension& dim: expandedShape) {
-            if (isExpanded(dim)) {
-                printer.writeLn("{0} = torch.unsqueeze({0}, {1})", use(inputTensor), i);
-            }
-            ++i;
-        }
-        printer.writeLn(
-            "{0} = {0}.expand({1})",
-            use(inputTensor),
-            fmt::join(paddedExpandedShape, ", ")
-        );
-        printer.writeLn();
-    }
 }
 
 void PyTorchGen::cropOutputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const {
