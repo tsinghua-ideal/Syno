@@ -41,10 +41,6 @@ std::span<const Size::PowerType> Size::getCoefficient() const {
 
 boost::rational<std::size_t> Size::lowerBoundEst(const BindingContext& ctx) const {
     const auto& allConsts = ctx.getAllConsts();
-    if (allConsts.empty()) {
-        const auto& defaultConsts = ctx.getDefaultConsts();
-        return eval<std::size_t>(defaultConsts);
-    }
     return std::ranges::min(
         allConsts
         | std::views::transform([&](const ConcreteConsts& consts) {
@@ -54,10 +50,6 @@ boost::rational<std::size_t> Size::lowerBoundEst(const BindingContext& ctx) cons
 }
 boost::rational<std::size_t> Size::upperBoundEst(const BindingContext& ctx) const {
     const auto& allConsts = ctx.getAllConsts();
-    if (allConsts.empty()) {
-        const auto& defaultConsts = ctx.getDefaultConsts();
-        return eval<std::size_t>(defaultConsts);
-    }
     return std::ranges::max(
         allConsts
         | std::views::transform([&](const ConcreteConsts& consts) {

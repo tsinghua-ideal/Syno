@@ -83,6 +83,7 @@ public:
     GraphvizGen(const Topmost& inputs, const BindingContext& ctx);
     GraphvizGen(const std::vector<Topmost>& tensors, const BindingContext& ctx);
     GraphvizGen(const TensorView& tensorView, const BindingContext& ctx);
+    static std::string Print(const TensorView& tensorView, const BindingContext& ctx);
     // Functions to emphasize some Dimension's. TODO
 };
 

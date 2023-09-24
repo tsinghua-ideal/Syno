@@ -9,15 +9,7 @@ namespace kas {
 
 class core_size_tests: public ::testing::Test {
 protected:
-    using Metadata = BindingContext::Metadata;
-    std::vector<Metadata> metaPrimary {
-        { .alias = "H", .maximumOccurrence = 2, .estimate = 128 },
-        { .alias = "W", .maximumOccurrence = 2, .estimate = 128 },
-    };
-    std::vector<Metadata> metaCoefficient {
-        { .alias = "c", .maximumOccurrence = 2, .estimate = 5 },
-    };
-    BindingContext ctx = { std::move(metaPrimary), std::move(metaCoefficient) };
+    BindingContext ctx = BindingContext({"H=128:2", "W=128:2"}, {"c=5:2"});
     Size sizeH = ctx.getSize("H");
     Size sizeW = ctx.getSize("W");
     Size sizeC = ctx.getSize("c");

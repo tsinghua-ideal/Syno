@@ -6,17 +6,15 @@ namespace kas {
 TEST_F(semantics_tests, conv2d) {
     constexpr int n = 100, c_in = 64, c_out = 96, h = 16, w = 16, k = 3;
 
-    using SizeName = BindingContext::Metadata;
-    BindingContext ctx { std::vector<SizeName> {
-        SizeName { .alias = "N", .estimate = n },
-        SizeName { .alias = "H", .estimate = h },
-        SizeName { .alias = "W", .estimate = w },
-    }, std::vector<SizeName> {
-        SizeName { .alias = "C_in", .estimate = c_in },
-        SizeName { .alias = "C_out", .estimate = c_out },
-        SizeName { .alias = "K", .estimate = k },
-    } };
-    ctx.applyMappings({{}});
+    auto ctx = BindingContext({
+        "N=" + std::to_string(n),
+        "H=" + std::to_string(h),
+        "W=" + std::to_string(w),
+    }, {
+        "C_in=" + std::to_string(c_in),
+        "C_out=" + std::to_string(c_out),
+        "K=" + std::to_string(k),
+    });
     BindingContext::DebugPublicCtx = &ctx;
     Forward::Factory factory { ctx };
     auto [sizeN, sizeCin, sizeCout, sizeH, sizeW, sizeK] = factory.getSizes("N", "C_in", "C_out", "H", "W", "K");

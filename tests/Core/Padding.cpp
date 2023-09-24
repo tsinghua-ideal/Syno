@@ -7,18 +7,7 @@ using namespace kas;
 
 class core_padding_tests: public ::testing::Test {
 protected:
-    using Metadata = BindingContext::Metadata;
-    BindingContext ctx =  {
-        {
-            { .alias = "C", .estimate = 3 },
-            { .alias = "H", .estimate = 128 },
-            { .alias = "W", .estimate = 40 },
-        },
-        {
-            { .alias = "k", .estimate = 5 },
-            { .alias = "s", .estimate = 2 },
-        },
-    };
+    BindingContext ctx = BindingContext({"C=3", "H=128", "W=40"}, {"k=5", "s=2"});
     Size sizeC = ctx.getSize("C");
     Size sizeH = ctx.getSize("H");
     Size sizeW = ctx.getSize("W");

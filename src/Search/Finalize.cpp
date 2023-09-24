@@ -67,9 +67,6 @@ double FinalizeOp::weightVariance(const ConcreteConsts& consts) const {
 
 double FinalizeOp::weightVariance(const BindingContext& ctx) const {
     const auto& allConsts = ctx.getAllConsts();
-    if (allConsts.empty()) {
-        return weightVariance(ctx.getDefaultConsts());
-    }
     return std::transform_reduce(allConsts.begin(), allConsts.end(), 0.0, std::plus<>{}, [this](const auto& consts) {
         return weightVariance(consts);
     });
