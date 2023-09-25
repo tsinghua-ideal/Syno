@@ -52,6 +52,20 @@ public:
     }
 };
 
+class EinsumTensorContractor: protected DependentCutSetDiscoverer {
+    std::set<const ShareOp *>& remainingShares;
+public:
+    EinsumTensorContractor(const Graph& graph, std::set<const ShareOp *>& remainingShares):
+        DependentCutSetDiscoverer(graph), remainingShares(remainingShares) {}
+    template<DimensionRange R>
+    EinsumTensorContractor& with(R&& dims) {
+        includeUnchecked(std::forward<R>(dims));
+        return *this;
+    }
+    EinsumTensorContractor& contract();
+    Graph::CutSet dump() { return std::move(cutSet); }
+};
+
 // For PyTorch codegen, further split Tensor's apart so that contractions are apparent, that is, ShareOp's are above any other type of Op's in each Tensor.
 class PerformViewsIRPass {
     Graph graph;
@@ -60,11 +74,25 @@ public:
     class ViewPerformer: protected DependentCutSetDiscoverer {
         Tensor tensor;
         ConstrainedGraph subgraph;
-        std::set<const ShareOp *> visitedShareOps;
-        Graph::DimensionSet visited, visitedShareInputs;
-        void fill(const Dimension& dimension, bool inShareBlock = false);
+
+        std::set<const ShareOp *> remainingShares;
+
+        enum class State: bool {
+            Disabled, // Share descendants.
+            Collected, // Reachable by views.
+        };
+        Graph::DimensionMap<State> visited;
+
+        int warn = 0;
+
+        Graph::DimensionSet einsumContract();
+        template<State Marker, bool StopAtShare>
+        void mark(const Dimension& dim);
+        void disable(const Dimension& dim);
+        void collect(const Dimension& dim);
     public:
         ViewPerformer(const Graph& graph, Tensor& tensor);
+        ViewPerformer& shouldWarn(int level) { warn = level + 1; return *this; }
         void apply();
     };
     PerformViewsIRPass(IR& ir);

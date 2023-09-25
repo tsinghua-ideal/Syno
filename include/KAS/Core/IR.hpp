@@ -22,9 +22,7 @@ protected:
     template<DimensionRange R>
     std::size_t includeUnchecked(R&& dimensions) {
         const auto originalSize = cutSet.size();
-        using std::begin;
-        using std::end;
-        cutSet.insert(begin(std::forward<R>(dimensions)), end(std::forward<R>(dimensions)));
+        std::ranges::copy(std::forward<R>(dimensions), std::inserter(cutSet, cutSet.begin()));
         return cutSet.size() - originalSize;
     }
 
@@ -187,6 +185,7 @@ struct IR {
 
     Graph buildGraph() const;
     std::size_t getFLOPs(const BindingContext& ctx) const;
+    std::size_t numStages() const;
 };
 
 struct ContractionScheme {

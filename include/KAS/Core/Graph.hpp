@@ -183,6 +183,8 @@ static_assert(GeneralizedVertex<ExpandVertex>);
 class Graph {
 public:
     using DimensionSet = std::set<Dimension, Dimension::AddressLessThan>;
+    template<typename T>
+    using DimensionMap = std::map<Dimension, T, Dimension::AddressLessThan>;
     using CutSet = DimensionSet;
 
     // In the original graph, each Dimension serves as an edge. It provides easy access for the Op below it (which has the Dimension as input), but cannot access the Op above it. This is used to store the Op above each Dimension.
@@ -473,6 +475,7 @@ public:
     const DimensionSet& getDimensions() const { return dimensions; }
     const std::set<const PrimitiveOp *>& getOps() const { return ops; }
 
+    const Graph& getGraph() const { return graph; }
     const std::optional<CutSet>& getTop() const { return top; }
     const std::optional<CutSet>& getBottom() const { return bottom; }
 };

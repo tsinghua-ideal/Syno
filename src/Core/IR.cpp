@@ -334,8 +334,14 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx) {
             current = std::move(result);
             optimal = flops;
         } else if (flops == optimal) {
-            // TODO!!! Tie breaker.
-            KAS_WARNING("Equal FLOPs {} for two contraction schemes!", optimal);
+            const auto currentStages = current.numStages(), resultStages = result.numStages();
+            if (currentStages < resultStages) {
+                // More stages enable schedulers to do more optimizations.
+                current = std::move(result);
+            } else if (currentStages == resultStages) {
+                // TODO!!! Tie breaker.
+                KAS_WARNING("Equal FLOPs {} and stages {} for two contraction schemes!", optimal, currentStages);
+            }
         }
     }
 
@@ -376,6 +382,14 @@ std::size_t IR::getFLOPs(const BindingContext& ctx) const {
         flops += tensor.getFLOPs(ctx);
     });
     return flops;
+}
+
+std::size_t IR::numStages() const {
+    std::size_t stages = 0;
+    forEach([&](const Tensor& tensor) {
+        stages += !tensor.isInputTensor();
+    });
+    return stages;
 }
 
 Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes(const std::vector<std::vector<bool>>& laterThan, std::vector<std::size_t> remaining) const {

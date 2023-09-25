@@ -1,37 +1,80 @@
 #include <fstream>
+#include <ranges>
 
 #include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/CodeGen/PyTorchGen.hpp"
+#include "KAS/Core/Dimension.hpp"
 #include "KAS/Transforms/Transforms.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
 
 namespace kas {
 
-void PerformViewsIRPass::ViewPerformer::fill(const Dimension& dimension, bool inShareBlock) {
-    // TODO!!!!!!! First traverse ShareOp's to ban contracted dims, then find required inputs, respecting MergeLikeOp's.
-    auto [_, attempt] = visited.insert(dimension);
+EinsumTensorContractor& EinsumTensorContractor::contract() {
+    bool contracted = false;
+    while (true) {
+        for (Dimension dim: cutSet) {
+            if (auto shareInput = dim.tryAs<ShareOp::Input>(); shareInput) {
+                Dimension other = shareInput->getOther();
+                if (cutSet.contains(other)) {
+                    contracted = true;
+                    assertErase(dim);
+                    assertErase(other);
+                    auto op = shareInput->getDerivedOp<ShareOp>();
+                    assertInsert(op->output);
+                    auto erased = remainingShares.erase(op);
+                    KAS_ASSERT(erased == 1);
+                    break;
+                }
+            }
+        }
+        if (!contracted) break;
+        contracted = false;
+    }
+    return *this;
+}
+
+Graph::DimensionSet PerformViewsIRPass::ViewPerformer::einsumContract() {
+    return
+        EinsumTensorContractor(
+            subgraph.getGraph(),
+            remainingShares
+        )
+        .with(subgraph.getTop().value())
+        // Collect expansions.
+        .with(
+            subgraph.getOps()
+            | std::views::filter([](const PrimitiveOp *op) {
+                return op->getType() == DimensionType::Expand;
+            })
+            | std::views::transform([](const PrimitiveOp *op) -> const Dimension& {
+                return dynamic_cast<const ExpandOp *>(op)->output;
+            })
+        )
+        .contract()
+        .dump();
+}
+
+template<PerformViewsIRPass::ViewPerformer::State Marker, bool StopAtShare>
+void PerformViewsIRPass::ViewPerformer::mark(const Dimension& dimension) {
+    auto [_, attempt] = visited.try_emplace(dimension, Marker);
     if (!attempt) return;
     subgraph.visitAlong(dimension, Direction::Down).match(Match {
-        [&](const RepeatLikeVertex& r, auto) {
-            fill(r.op.output);
+        [this](const RepeatLikeVertex& r, auto) {
+            mark<Marker, StopAtShare>(r.op.output);
         },
-        [&](const SplitLikeVertex& s, auto) {
-            fill(s.op.outputLhs);
-            fill(s.op.outputRhs);
+        [this](const SplitLikeVertex& s, auto) {
+            mark<Marker, StopAtShare>(s.op.outputLhs);
+            mark<Marker, StopAtShare>(s.op.outputRhs);
         },
         [&](const MergeLikeVertex& m, auto) {
-            // Only propagate in Share block if we encounter Share.
-            if (dimension.is(DimensionType::Share)) {
-                if (!inShareBlock) {
-                    visitedShareInputs.insert(dimension);
-                }
-                visitedShareOps.insert(static_cast<const ShareOp *>(&m.op));
-                if (m.op.output.is(DimensionType::Share)) {
-                    fill(m.op.output, true);
+            if constexpr (StopAtShare) {
+                if (!dimension.is(DimensionType::Share)) {
+                    // Ignore dependencies
+                    mark<Marker, StopAtShare>(m.op.output);
                 }
             } else {
-                fill(m.op.output);
+                mark<Marker, StopAtShare>(m.op.output);
             }
         },
         [&](const ExpandVertex& e, auto) {
@@ -42,53 +85,81 @@ void PerformViewsIRPass::ViewPerformer::fill(const Dimension& dimension, bool in
         },
     });
 }
+void PerformViewsIRPass::ViewPerformer::disable(const Dimension& dimension) {
+    mark<State::Disabled, false>(dimension);
+}
+void PerformViewsIRPass::ViewPerformer::collect(const Dimension& dimension) {
+    mark<State::Collected, true>(dimension);
+}
 
 PerformViewsIRPass::ViewPerformer::ViewPerformer(const Graph& graph, Tensor& tensor):
     DependentCutSetDiscoverer(graph, tensor.inputs().at(0).output()),
     tensor(tensor),
     subgraph(this->tensor.buildConstrainedGraph(graph))
-{}
+{
+    std::ranges::copy(
+        subgraph.getOps()
+        | std::views::filter([](const PrimitiveOp *op) {
+            return op->getType() == DimensionType::Share;
+        })
+        | std::views::transform([](const PrimitiveOp *op) {
+            return static_cast<const ShareOp *>(op);
+        }),
+        std::inserter(remainingShares, remainingShares.begin())
+    );
+}
 
 void PerformViewsIRPass::ViewPerformer::apply() {
-    const auto& firstInputTensor = tensor.inputs()[0].output();
-    for (const Dimension& dim: firstInputTensor) {
-        // First expand the input tensor as far as possible.
-        fill(dim);
-    }
-    // If we already have the ShareOps' inputs, then no need to build the view.
-    if (std::ranges::all_of(visitedShareInputs, [&](const Dimension& shareInput) {
-        return subgraph.getTop()->contains(shareInput);
-    })) {
-        // No need to perform view.
+    // First we find out the einsum-contracted interface.
+    auto einsumContractionResult = einsumContract();
+    // If we have no remaining ShareOp's, then this Tensor is already able to be handled by PyTorchGen.
+    // Skip.
+    if (remainingShares.empty()) {
         return;
+    } else if (warn) {
+        // We need to perform additional Share.
+        KAS_WARNING("This case is not lowerable to PyTorch. Taking diagonal entries!");
+        if (warn > 5) {
+            KAS_CRITICAL("Too many recursions.");
+        }
     }
 
-    // Now include the dependencies.
-    auto discoverer = DependentCutSetDiscoverer(graph, firstInputTensor);
-    discoverer.include(visitedShareInputs);
-    // With the cut set, build a view.
+    // Then disable all descendants of ShareOp's.
+    for (const ShareOp *share: remainingShares) {
+        disable(share->output);
+    }
+
+    // Now that results of ShareOp's are disabled, all Dimension's left are reachable.
+    // Collect them.
+    for (const Dimension& dim: einsumContractionResult) {
+        collect(dim);
+    }
+    // But we only need to find inputs of ShareOp's. They are all that are necessary.
+    struct EinsumCutSetDiscoverer: public DependentCutSetDiscoverer {
+        using DependentCutSetDiscoverer::DependentCutSetDiscoverer;
+        void excludeHook(const PrimitiveOp *op) override {
+            KAS_ASSERT(op->getType() != DimensionType::Share);
+        }
+    };
+    auto discoverer = EinsumCutSetDiscoverer(graph, einsumContractionResult);
+    for (const auto& [dim, state]: visited) {
+        if (state == State::Collected && dim.is(DimensionType::Share)) {
+            discoverer.include(dim);
+        }
+    }
+
+    // With the newly collected cut set as the stage tensor, build a view.
+    // TODO: make this a helper function.
     auto viewTensor = TensorImpl::CreateView(
-        std::vector<Tensor>{tensor.inputs()[0]},
+        tensor.inputs(),
         discoverer.build(),
         std::vector<const Reduce *>{}
     );
     // Replace the input tensor.
-    tensor.getInputs()[0] = std::move(viewTensor);
+    tensor.getInputs() = { viewTensor };
 
-    if (std::ranges::any_of(
-        subgraph.getOps()
-        | std::views::filter([](const PrimitiveOp *op) {
-            return op->getType() == DimensionType::Share;
-        }),
-        [&](const PrimitiveOp *op) {
-            return !visitedShareOps.contains(static_cast<const ShareOp *>(op));
-        }
-    )) {
-        // We need to perform additional Share.
-        KAS_WARNING("This case is not lowerable to PyTorch. Taking diagonal entries!");
-        // Recursively perform another view.
-        ViewPerformer(graph, tensor).apply();
-    }
+    // Recursively perform another view.
+    ViewPerformer(graph, tensor).shouldWarn(warn).apply();
 }
 
 PerformViewsIRPass::PerformViewsIRPass(IR& ir): graph(ir.buildGraph()), ir(ir) {}
