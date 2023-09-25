@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <map>
 #include <optional>
 #include <string>
 #include <utility>
@@ -57,8 +58,7 @@ public:
         Quantity quantity;
         std::optional<std::size_t> maxOccurrences;
         std::optional<std::string> name() const;
-        PureSpec toPureSpec() const &;
-        PureSpec toPureSpec() &&;
+        PureSpec toPureSpec() const;
         bool operator==(const SizeSpec& other) const = default;
     };
     // Unnamed SizeSpec
@@ -67,6 +67,21 @@ public:
         std::optional<std::size_t> maxOccurrences;
     };
     SizeSpec parseSizeSpec();
+};
+
+class ShapeSpecParser {
+public:
+    using SpecsDict = std::map<std::string, Parser::SizeSpec>;
+    using NamedSpecs = std::vector<std::pair<std::string, Parser::PureSpec>>;
+private:
+    SpecsDict primarySpecs, coefficientSpecs;
+    // Parse multiple `SizeSpec`s. `prefix` is for anonymous variables.
+    static SpecsDict ParseSpecs(const std::vector<std::string>& specs, const std::string& prefix);
+    static NamedSpecs ContractSpecs(const SpecsDict& specs);
+public:
+    ShapeSpecParser(const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs);
+    ShapeSpecParser& addShape(std::string_view shape);
+    std::pair<NamedSpecs, NamedSpecs> build() const;
 };
 
 } // namespace kas

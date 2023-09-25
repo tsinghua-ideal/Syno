@@ -43,25 +43,27 @@ struct PaddedConsts {
 };
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PaddedConsts, unpadded, padded)
 
-class BindingContext final {
+class BindingContext {
 public:
+    struct Options {
+        std::size_t maximumVariablesInSize = std::numeric_limits<std::size_t>::max();
+        std::size_t maximumVariablesPowersInSize = std::numeric_limits<std::size_t>::max();
+        bool requiresExactDivision = false;
+    };
+
+private:
     struct Metadata {
         std::string alias = "D";
-        bool isOdd = false;
         std::size_t maximumOccurrence = 3;
         std::optional<std::size_t> estimate = std::nullopt;
     };
 
-protected:
     // The varaibles are the indices. Metadata can be accessed by index.
     std::vector<Metadata> primaryMetadata;
     std::vector<Metadata> coefficientMetadata;
 
-    std::size_t maximumVariablesInSize = std::numeric_limits<std::size_t>::max();
-    std::size_t maximumVariablesPowersInSize = std::numeric_limits<std::size_t>::max();
-    bool requiresExactDivision = false;
+    Options options;
 
-    ConcreteConsts defaultConsts;
     std::vector<ConcreteConsts> allConsts;
 
     using LookUpTable = std::map<std::string, std::size_t>;
@@ -69,10 +71,22 @@ protected:
     void updateLookUpTables();
     Size getSizeFromFactors(const std::vector<Parser::Factor>& factors) const;
 
+    // This overwrites the current metadata.
+    void applySpecs(const ShapeSpecParser::NamedSpecs& primarySpecs, const ShapeSpecParser::NamedSpecs& coefficientSpecs);
+    // This overwrites the current allConsts.
+    void applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings, bool defaultFallback = false);
+
 public:
+    // This is not a legal state. You must overwrite it.
     BindingContext() = default;
-    BindingContext(std::size_t countPrimary, std::size_t countCoefficient);
-    BindingContext(std::vector<Metadata> primaryMetadata, std::vector<Metadata> coefficientMetadata);
+    // Specify all you want.
+    BindingContext(const ShapeSpecParser::NamedSpecs& primarySpecs, const ShapeSpecParser::NamedSpecs& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const Options& options);
+    // Convenient constructor. Specify the sizes in textual form.
+    BindingContext(const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs);
+    // Convenient constructor. Name all the variables by default. Provide one consts.
+    BindingContext(const std::vector<std::size_t>& primaryEstimates, const std::vector<std::size_t>& coefficientEstimates);
+    // Even more convenient constructor, that sets all primary estimates to 128, and all coefficient estimates to 3.
+    BindingContext(std::size_t primaryCount, std::size_t coefficientCount);
 
     std::size_t getPrimaryCount() const;
     std::size_t getCoefficientCount() const;
@@ -90,23 +104,16 @@ public:
         return std::array { getSize(std::forward<Args>(args))... };
     }
 
-    void setMaxVariablesInSize(std::size_t maximumVariablesInSize);
     std::size_t getMaxVariablesInSize() const;
-    void setMaxVariablesPowersInSize(std::size_t maximumVariablesPowersInSize);
     std::size_t getMaxVariablesPowersInSize() const;
-    void setRequiresExactDivision(bool requiresExactDivision);
     bool isSizeValid(const Size& size) const;
 
     std::vector<Size> getSizes(const std::vector<std::string>& names) const;
     Shape getShape(const std::vector<std::string>& names) const;
-    // This overwrites the current metadata.
-    void applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs);
+    Shape getShape(std::string_view shape) const;
 
     ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings, bool defaultFallback = false) const;
-    // This overwrites the current allConsts.
-    void applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings);
     const std::vector<ConcreteConsts>& getAllConsts() const { return allConsts; }
-    const ConcreteConsts& getDefaultConsts() const { return defaultConsts; }
 
     // FOR DEBUG USAGE ONLY!
     static inline const BindingContext *DebugPublicCtx = nullptr;

@@ -7,6 +7,7 @@
 
 #include "KAS/Core/CodeGen.hpp"
 #include "KAS/Core/Expand.hpp"
+#include "KAS/Core/IR.hpp"
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/Shape.hpp"
@@ -87,13 +88,13 @@ protected:
     AbstractAccess forwardAccess; // Iterators evaluated for the forward pipeline.
     std::vector<AbstractAccess> backwardAccesses; // Iterators evaluated for the backward pipeline.
 
-    Subgraphs subgraphs;
+    IR subgraphs;
 
 public:
     // Build the tensor from iterator DAG.
-    explicit TensorView(const std::vector<Topmost>& tensors, TensorExpression blending);
+    explicit TensorView(const std::vector<Topmost>& tensors, TensorExpression blending, const BindingContext& ctx);
 
-    const Subgraphs& getSubgraphs() const { return subgraphs; }
+    const IR& getSubgraphs() const { return subgraphs; }
 
     IteratorShapeView getInterfaceShape() const { return IteratorShapeView(interface); }
 
@@ -131,8 +132,9 @@ public:
         return { std::move(unpaddedConsts), std::move(paddedConsts) };
     }
 
-    // Observe that FLOPs is determined by outer loops and inner loops.
-    std::size_t getFLOPs(const ConcreteConsts& consts) const;
+    // By IR.
+    std::size_t getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const;
+    std::size_t getFLOPs(const BindingContext& ctx) const;
 
     // Evaluate the full loops.
     std::string printNestedLoops(const BindingContext& ctx, int pos) const;

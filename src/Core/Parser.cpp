@@ -268,22 +268,13 @@ std::optional<std::string> Parser::SizeSpec::name() const {
     return std::nullopt;
 }
 
-Parser::PureSpec Parser::SizeSpec::toPureSpec() const & {
+Parser::PureSpec Parser::SizeSpec::toPureSpec() const {
     if (std::holds_alternative<std::size_t>(quantity)) {
         return { std::get<std::size_t>(quantity), maxOccurrences };
     } else if (std::holds_alternative<std::pair<std::string, std::size_t>>(quantity)) {
         return { std::get<std::pair<std::string, std::size_t>>(quantity).second, maxOccurrences };
     }
     return { std::nullopt, maxOccurrences };
-}
-
-Parser::PureSpec Parser::SizeSpec::toPureSpec() && {
-    if (std::holds_alternative<std::size_t>(quantity)) {
-        return { std::get<std::size_t>(quantity), std::move(maxOccurrences) };
-    } else if (std::holds_alternative<std::pair<std::string, std::size_t>>(quantity)) {
-        return { std::get<std::pair<std::string, std::size_t>>(quantity).second, std::move(maxOccurrences) };
-    }
-    return { std::nullopt, std::move(maxOccurrences) };
 }
 
 Parser::SizeSpec Parser::parseSizeSpec() {
@@ -304,6 +295,50 @@ Parser::SizeSpec Parser::parseSizeSpec() {
         return { std::move(size), parseInteger() };
     }
     return { std::move(size), std::nullopt };
+}
+
+ShapeSpecParser::SpecsDict ShapeSpecParser::ParseSpecs(const std::vector<std::string>& specs, const std::string& prefix) {
+    SpecsDict names;
+    std::size_t unnamed = 0;
+    for (const auto& spec: specs) {
+        auto result = Parser(spec).parseSizeSpec();
+        auto name = result.name();
+        auto [_, inserted] = names.try_emplace(name.value_or(prefix + std::to_string(unnamed++)), std::move(result));
+        if (!inserted) {
+            throw std::runtime_error("Duplicate size name.");
+        }
+    }
+    return names;
+}
+
+ShapeSpecParser::NamedSpecs ShapeSpecParser::ContractSpecs(const SpecsDict& specs) {
+    NamedSpecs result;
+    for (auto&& [name, spec]: specs) {
+        result.emplace_back(name, spec.toPureSpec());
+    }
+    return result;
+}
+
+ShapeSpecParser::ShapeSpecParser(const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs):
+    primarySpecs(ParseSpecs(primarySpecs, "x_")),
+    coefficientSpecs(ParseSpecs(coefficientSpecs, "c_"))
+{}
+
+ShapeSpecParser& ShapeSpecParser::addShape(std::string_view shape) {
+    auto parsedShape = Parser(shape).parseShape();
+    for (const auto& size: parsedShape) {
+        for (const auto& [var, _]: size) {
+            if (!coefficientSpecs.contains(var) && !primarySpecs.contains(var)) {
+                // We have to add a default spec for the name.
+                primarySpecs.try_emplace(var, Parser::SizeSpec { .quantity = var, .maxOccurrences = std::nullopt });
+            }
+        }
+    }
+    return *this;
+}
+
+std::pair<ShapeSpecParser::NamedSpecs, ShapeSpecParser::NamedSpecs> ShapeSpecParser::build() const {
+    return { ContractSpecs(primarySpecs), ContractSpecs(coefficientSpecs) };
 }
 
 } // namespace kas

@@ -14,7 +14,6 @@ namespace kas {
 
 class semantics_tests: public ::testing::Test {
 protected:
-    using SizeName = BindingContext::Metadata;
     using Mappings = std::map<std::string, std::size_t>;
     const CodeGenOptions options = {
         .halide = true,

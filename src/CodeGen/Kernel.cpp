@@ -95,7 +95,7 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
         paddedOutputShape = concretizeOutputTensor(consts.padded);
 
         // Because we actually use the padded consts.
-        flops = tensorView.getFLOPs(consts.padded);
+        flops = tensorView.getFLOPs(ctx, consts.padded);
     }
 
     std::filesystem::create_directories(dir);
@@ -107,6 +107,10 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
     {
         GraphvizGen gen { tensorView, ctx };
         gen.generate(dir / "kernel_graph.dot", name);
+    }
+    {
+        GraphvizDFGGen gen { tensorView.getSubgraphs(), ctx };
+        gen.generate(dir / "kernel_dfg.dot", name);
     }
     if (options.halide) {
         std::vector<std::future<std::string>> schedules;

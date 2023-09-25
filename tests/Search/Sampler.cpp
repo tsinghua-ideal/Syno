@@ -4,6 +4,8 @@
 namespace kas {
 
 TEST_F(search_tests, sampler) {
+    auto rng = std::mt19937_64(42);
+
     constexpr std::size_t trials = 500;
     std::size_t successes = 0;
     std::size_t successfulReconstruction = 0;
@@ -23,13 +25,14 @@ TEST_F(search_tests, sampler) {
                 ++failedReconstruction;
             }
         }
-        if (randomLeaves.empty() || !randomLeaves[0].second.isFinal()) {
+        if (randomLeaves.empty()) {
             fmt::print("Trial {} failed.\n", i);
             continue;
         } else {
             fmt::print("Trial {} succeeded.\n", i);
         }
-        auto [_, node] = randomLeaves[0];
+        auto randomLeafIndex = std::uniform_int_distribution<std::size_t>(0, randomLeaves.size() - 1)(rng);
+        auto [_, node] = randomLeaves[randomLeafIndex];
         ++successes;
         auto& tensorView = *node.asFinal();
 
@@ -52,68 +55,6 @@ TEST_F(search_tests, sampler) {
     StatisticsCollector::PrintSummary(std::cout);
     fmt::print("Success rate: {:.2f} ({} / {})\n", static_cast<float>(successes) / trials, successes, trials);
     fmt::print("Reconstruction: successful = {}, failed = {}\n", successfulReconstruction, failedReconstruction);
-    ASSERT_GT(successfulReconstruction, failedReconstruction);
-}
-
-TEST_F(search_tests, sampler_2step) {
-    constexpr std::size_t trials = 500;
-    std::size_t successes = 0;
-    std::size_t successfulReconstruction = 0;
-    std::size_t failedReconstruction = 0;
-    for (int i = 0; i < trials; ++i) {
-        auto randomLeaves = sampler.randomFinalNodesWithPrefix({}, 32, Next::Type::Merge, 2);
-        for (const auto &[pathSampled, node] : randomLeaves) {
-            auto path = sampler.convertTensorViewToPath(*node.asFinal());
-            auto reconstructedNode = sampler.visit(path);
-            ASSERT_EQ(pathSampled[0].type, Next::Type::Merge);
-            if (reconstructedNode.has_value()) {
-                ASSERT_EQ(
-                    node.asFinal()->printNestedLoopsForAll(ctx),
-                    reconstructedNode->asFinal()->printNestedLoopsForAll(ctx));
-                ++successfulReconstruction;
-            } else {
-                ++failedReconstruction;
-            }
-        }
-        if (randomLeaves.empty() || !randomLeaves[0].second.isFinal()) {
-            fmt::print("Trial {} failed.\n", i);
-            continue;
-        } else {
-            fmt::print("Trial {} succeeded.\n", i);
-        }
-        auto [_, node] = randomLeaves[0];
-        ++successes;
-        auto &tensorView = *node.asFinal();
-
-        auto r = tensorView.getUnderlyingTensors() |
-                 std::ranges::views::transform([&](const auto &tensor) {
-                   return tensor.shapeToString(ctx);
-                 });
-        std::cout << fmt::format("Input Shape: {}", fmt::join(r, ", "))
-                  << std::endl;
-        std::cout << tensorView.printNestedLoopsForAll(ctx);
-
-        PyTorchGen(ctx, tensorView)
-            .generateSingle("./search_pt/trial_" + std::to_string(i) + ".py",
-                            "trial_" + std::to_string(i), tensorView, dict);
-        GraphvizGen(tensorView, ctx)
-            .generate("./search_viz/trial_" + std::to_string(i) + ".dot",
-                      "trial_" + std::to_string(i));
-
-        if (doRealization) {
-            auto cgOpt = CodeGenOptions();
-            cgOpt.scheduler = CodeGenOptions::AutoScheduler::Anderson2021;
-            cgOpt.useGPU = true;
-            HalideGen gen(ctx, tensorView, cgOpt);
-            auto name = "search_codegen_test_" + std::to_string(i);
-            gen.performTrial<false>(dict, name, true, false, [] {});
-        }
-    }
-    StatisticsCollector::PrintSummary(std::cout);
-    fmt::print("Success rate: {:.2f} ({} / {})\n",
-               static_cast<float>(successes) / trials, successes, trials);
-    fmt::print("Reconstruction: successful = {}, failed = {}\n",
-               successfulReconstruction, failedReconstruction);
     ASSERT_GT(successfulReconstruction, failedReconstruction);
 }
 

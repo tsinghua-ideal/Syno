@@ -92,23 +92,20 @@ template<MergeLikeCase CaseMergeLike>
 using MergeLikeCaseResult = std::invoke_result_t<CaseMergeLike, const MergeLikeVertex&, MergeLikeOp::Branch>;
 
 class ExpandVertex {
-    const Graph& graph;
-
 public:
     using OpType = ExpandOp;
     using BranchType = std::monostate;
     const OpType& op;
 
-    ExpandVertex(const Graph& graph, const OpType& op):
-        graph { graph }, op { op } {}
-    Dimension operator[](BranchType branch) const;
-    Direction outgoingDirection(BranchType branch) const;
-    VisitedVertex visitAdjacent(BranchType branch) const;
+    ExpandVertex(const OpType& op): op { op } {}
 };
 template<typename CaseExpand>
 concept ExpandCase = std::invocable<CaseExpand, const ExpandVertex&, std::monostate>;
 template<ExpandCase CaseExpand>
 using ExpandCaseResult = std::invoke_result_t<CaseExpand, const ExpandVertex&, std::monostate>;
+
+template<typename V>
+concept GeneralizedVertex = Vertex<V> || std::same_as<std::remove_cvref_t<V>, ExpandVertex>;
 
 class VisitedVertex {
     friend class Graph;
@@ -117,7 +114,7 @@ class VisitedVertex {
         std::pair<RepeatLikeVertex, RepeatLikeVertex::BranchType>,
         std::pair<SplitLikeVertex, SplitLikeVertex::BranchType>,
         std::pair<MergeLikeVertex, MergeLikeVertex::BranchType>,
-        std::pair<ExpandVertex, ExpandVertex::BranchType>
+        ExpandVertex
     >;
     std::optional<Inner> vertexAndSource;
 
@@ -140,8 +137,8 @@ class VisitedVertex {
         decltype(auto) operator()(std::pair<MergeLikeVertex, MergeLikeVertex::BranchType>& m) const {
             return std::invoke(std::forward<CaseMergeLike>(caseMergeLike), m.first, m.second);
         }
-        decltype(auto) operator()(std::pair<ExpandVertex, ExpandVertex::BranchType>& e) const {
-            return std::invoke(std::forward<CaseExpand>(caseExpand), e.first, e.second);
+        decltype(auto) operator()(ExpandVertex& e) const {
+            return std::invoke(std::forward<CaseExpand>(caseExpand), e, std::monostate{});
         }
     };
 
@@ -181,16 +178,35 @@ public:
 static_assert(Vertex<RepeatLikeVertex>);
 static_assert(Vertex<SplitLikeVertex>);
 static_assert(Vertex<MergeLikeVertex>);
+static_assert(GeneralizedVertex<ExpandVertex>);
+
+template<PrimitiveOpImpl Op>
+auto FilterOpsOfType(auto& ops) {
+    return ops
+        | std::views::filter([](const PrimitiveOp *op) { return op->getType() == Op::Type; })
+        | std::views::transform([](const PrimitiveOp *op) -> const Op * { return dynamic_cast<const Op *>(op); });
+}
+template<std::derived_from<PrimitiveOp> Op>
+auto FilterOpsOfType(auto& ops, DimensionType ty) {
+    return ops
+        | std::views::filter([=](const PrimitiveOp *op) { return op->getType() == ty; })
+        | std::views::transform([](const PrimitiveOp *op) -> const Op * { return dynamic_cast<const Op *>(op); });
+}
 
 class Graph {
 public:
+    using DimensionSet = std::set<Dimension, Dimension::AddressLessThan>;
+    template<typename T>
+    using DimensionMap = std::map<Dimension, T, Dimension::AddressLessThan>;
+    using CutSet = DimensionSet;
+
     // In the original graph, each Dimension serves as an edge. It provides easy access for the Op below it (which has the Dimension as input), but cannot access the Op above it. This is used to store the Op above each Dimension.
     struct OpAbove {
         // std::monostate means the dimension is an input dimension, and has no Op above.
         std::variant<std::monostate, const RepeatLikeOp *, std::pair<const SplitLikeOp *, Order>, const MergeLikeOp *, const ExpandOp *> op;
         template<typename F>
-        void visit(F&& f) const {
-            std::visit(std::forward<F>(f), op);
+        decltype(auto) visit(F&& f) const {
+            return std::visit(std::forward<F>(f), op);
         }
     };
 
@@ -216,9 +232,22 @@ public:
         [[nodiscard]] bool contains(std::size_t index) const {
             return Single(index).content & content;
         }
+        [[nodiscard]] bool contains(CompactIndices other) const {
+            return other.content == (other.content & content);
+        }
+        [[nodiscard]] bool disjoint(CompactIndices other) const {
+            return (other.content & content) == 0;
+        }
+        [[nodiscard]] bool intersects(CompactIndices other) const {
+            return content & other.content;
+        }
         [[nodiscard]] CompactIndices excluded(CompactIndices other) const {
             return { content & ~other.content };
         }
+        explicit operator bool() const {
+            return content != 0;
+        }
+        friend bool operator==(CompactIndices lhs, CompactIndices rhs) { return lhs.content == rhs.content; }
         CompactIndices& excludes(CompactIndices other) {
             content &= ~other.content;
             return *this;
@@ -350,7 +379,25 @@ public:
     // Includes ExpandOp.
     const PrimitiveOp *getOpAbove(const Dimension& dim) const;
     // Every Op, including ExpandOp, excluding ReduceOp.
-    const std::set<const PrimitiveOp *> getOps() const { return ops; }
+    const std::set<const PrimitiveOp *>& getOps() const { return ops; }
+    template<PrimitiveOpImpl Op>
+    auto getOpsOfType() const {
+        return FilterOpsOfType<Op>(ops);
+    }
+    template<std::derived_from<PrimitiveOp> Op>
+    auto getOpsOfType(DimensionType ty) const {
+        return FilterOpsOfType<Op>(ops, ty);
+    }
+
+    CompactIndices getAncestors(const Dimension& dim) const;
+    template<DimensionRange R>
+    CompactIndices getAncestors(R&& dims) const {
+        auto ancestors = CompactIndices::None();
+        for (const Dimension& dim: dims) {
+            ancestors.merges(getAncestors(dim));
+        }
+        return ancestors;
+    }
 
     template<typename Value>
     class AttributeMap {
@@ -391,6 +438,75 @@ public:
             }
         }
     };
+};
+
+class ConstrainedGraph {
+    const Graph *graph;
+    using DimensionSet = Graph::DimensionSet;
+    using CutSet = Graph::CutSet;
+    DimensionSet dimensions;
+    std::set<const PrimitiveOp *> ops;
+    std::optional<CutSet> top;
+    std::optional<CutSet> bottom;
+    ConstrainedGraph(const Graph& graph, DimensionSet&& dimensions, std::set<const PrimitiveOp *>&& ops, std::optional<CutSet>&& top, std::optional<CutSet>&& bottom):
+        graph { &graph }, dimensions(std::move(dimensions)), ops(std::move(ops)), top(std::move(top)), bottom(std::move(bottom)) {}
+
+public:
+    class Builder {
+        const Graph& graph;
+        std::optional<CutSet> top;
+        std::optional<CutSet> bottom;
+        template<DimensionRange R>
+        Builder& add(std::optional<CutSet> Builder::*field, R&& r) {
+            auto& cutSet = this->*field;
+            if (!cutSet) {
+                cutSet = CutSet();
+            }
+            using std::begin;
+            using std::end;
+            cutSet->insert(begin(std::forward<R>(r)), end(std::forward<R>(r)));
+            return *this;
+        }
+    public:
+        Builder(const Graph& graph): graph { graph } {}
+        template<DimensionRange Top>
+        Builder& addTop(Top&& top) {
+            return add(&Builder::top, std::forward<Top>(top));
+        }
+        template<DimensionRange Bottom>
+        Builder& addBottom(Bottom&& bottom) {
+            return add(&Builder::bottom, std::forward<Bottom>(bottom));
+        }
+        ConstrainedGraph build();
+    };
+    struct VisitedSubgraphVertex {
+        std::variant<VisitedVertex, std::pair<Direction, Dimension>> result;
+        template<typename F>
+        decltype(auto) match(F&& f) {
+            return std::visit([&](auto&& x) -> decltype(auto) {
+                if constexpr (std::is_same_v<std::remove_cvref_t<decltype(x)>, VisitedVertex>) {
+                    return x.match(std::forward<F>(f));
+                } else {
+                    return f(x.first, x.second);
+                }
+            }, result);
+        }
+    };
+    VisitedSubgraphVertex visitAlong(const Dimension& dim, Direction dir) const;
+    const DimensionSet& getDimensions() const { return dimensions; }
+    const std::set<const PrimitiveOp *>& getOps() const { return ops; }
+    template<PrimitiveOpImpl Op>
+    auto getOpsOfType() const {
+        return FilterOpsOfType<Op>(ops);
+    }
+    template<std::derived_from<PrimitiveOp> Op>
+    auto getOpsOfType(DimensionType ty) const {
+        return FilterOpsOfType<Op>(ops, ty);
+    }
+
+    const Graph& getGraph() const { return *graph; }
+    const std::optional<CutSet>& getTop() const { return top; }
+    const std::optional<CutSet>& getBottom() const { return bottom; }
 };
 
 } // namespace kas

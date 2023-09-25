@@ -50,7 +50,8 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
         .ctx = sampler.getBindingContext(),
         .dimUpperBound = options.dimUpperBound,
         .outputSize = sampler.getTotalOutputSize(),
-        .maxFLOPs = options.maxFLOPs,
+        .maxRDomSize = sampler.getMaxRDomSize(),
+        .maximumReductions = options.maximumReductions,
     })) {
         ReductionStage *stage;
         Finalizability f;

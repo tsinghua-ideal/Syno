@@ -82,8 +82,8 @@ bool Node::operator==(const Node& rhs) const {
         [&](NormalStage *nStage) { // Because we have uniquified them.
             return nStage == std::get<NormalStage *>(rhs.inner);
         },
-        [&](std::shared_ptr<TensorView> tensor) {
-            return *tensor == *std::get<std::shared_ptr<TensorView>>(rhs.inner);
+        [&](TensorView *tensor) {
+            return *tensor == *std::get<TensorView *>(rhs.inner);
         }
     );
 }
@@ -106,7 +106,7 @@ AbstractStage *Node::tryAsStage() const {
         [](AbstractStage *stage) {
             return stage;
         },
-        [](std::shared_ptr<TensorView> tensor) -> AbstractStage * {
+        [](TensorView *tensor) -> AbstractStage * {
             return nullptr;
         }
     );
@@ -116,8 +116,8 @@ NormalStage *Node::asNormalStage() const {
     return std::get<NormalStage *>(inner);
 }
 
-std::shared_ptr<TensorView> Node::asFinal() const {
-    return std::get<std::shared_ptr<TensorView>>(inner);
+TensorView *Node::asFinal() const {
+    return std::get<TensorView *>(inner);
 }
 
 std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& directory, const std::string& name) const {
@@ -130,12 +130,7 @@ std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::str
 
 std::size_t Node::estimateTotalFLOPsAsFinal() const {
     auto final = asFinal();
-    const auto& allConsts = sampler->getBindingContext().getAllConsts();
-    std::size_t result = 0;
-    for (const auto& consts: allConsts) {
-        result += final->getFLOPs(consts);
-    }
-    return result;
+    return final->getFLOPs(sampler->getBindingContext());
 }
 
 void Node::generateGraphviz(const std::filesystem::path& path, const std::string& name) const {
@@ -149,7 +144,7 @@ void Node::generateGraphviz(const std::filesystem::path& path, const std::string
             GraphvizGen gen { nStage->getInterface().getRaw(), ctx };
             gen.generate(path, name);
         },
-        [&](std::shared_ptr<TensorView>) -> void {
+        [&](TensorView *) -> void {
             generateGraphvizAsFinal(path, name);
         }
     );
@@ -169,42 +164,42 @@ std::string Node::getNestedLoopsAsFinal() const {
 std::size_t Node::countChildren() const {
     return match<std::size_t>(
         [](AbstractStage *stage) { return stage->countChildren(); },
-        [](std::shared_ptr<TensorView> tensor) { return 0; }
+        [](TensorView *tensor) { return 0; }
     );
 }
 
 std::vector<Next> Node::getChildrenHandles() const {
     return match<std::vector<Next>>(
         [](AbstractStage *stage) { return stage->getChildrenHandles(); },
-        [](std::shared_ptr<TensorView> tensor) { return std::vector<Next>{}; }
+        [](TensorView *tensor) { return std::vector<Next>{}; }
     );
 }
 
 std::vector<Arc> Node::getChildrenArcs() const {
     return match<std::vector<Arc>>(
         [](AbstractStage *stage) { return stage->getChildrenArcs(); },
-        [](std::shared_ptr<TensorView> tensor) { return std::vector<Arc>{}; }
+        [](TensorView *tensor) { return std::vector<Arc>{}; }
     );
 }
 
 std::optional<Arc> Node::getArcFromHandle(Next next) const {
     return match<std::optional<Arc>>(
         [&](AbstractStage *stage) { return stage->getArcFromHandle(next); },
-        [](std::shared_ptr<TensorView> tensor) -> std::optional<Arc> { return std::nullopt; }
+        [](TensorView *tensor) -> std::optional<Arc> { return std::nullopt; }
     );
 }
 
 std::optional<Node> Node::getChild(Next next) const {
     return match<std::optional<Node>>(
         [&](AbstractStage *stage) { return stage->getChild(next); },
-        [](std::shared_ptr<TensorView> tensor) -> std::optional<Node> { return std::nullopt; }
+        [](TensorView *tensor) -> std::optional<Node> { return std::nullopt; }
     );
 }
 
 std::vector<std::optional<Node>> Node::getChildren(const std::vector<Next>& nexts) const {
     return match<std::vector<std::optional<Node>>>(
         [&](AbstractStage *stage) { return stage->getChildren(nexts); },
-        [&](std::shared_ptr<TensorView> tensor) {
+        [&](TensorView *tensor) {
             return std::vector<std::optional<Node>>(nexts.size());
         }
     );
@@ -213,14 +208,14 @@ std::vector<std::optional<Node>> Node::getChildren(const std::vector<Next>& next
 bool Node::canAcceptArc(Arc arc) const {
     return match<bool>(
         [&](AbstractStage *stage) { return stage->canAcceptArc(arc); },
-        [](std::shared_ptr<TensorView> tensor) -> bool { return false; }
+        [](TensorView *tensor) -> bool { return false; }
     );
 }
 
 Node Node::getChildFromArc(Arc arc) const {
     return match<Node>(
         [&](AbstractStage *stage) { return stage->getChild(arc); },
-        [](std::shared_ptr<TensorView> tensor) -> Node { KAS_UNREACHABLE(); }
+        [](TensorView *tensor) -> Node { KAS_UNREACHABLE(); }
     );
 }
 
@@ -229,7 +224,7 @@ std::vector<Next> Node::getPossiblePath() const {
         [](AbstractStage *stage) {
             return Sampler::ConvertGraphHandleToPath(stage->getInterface());
         },
-        [&](std::shared_ptr<TensorView> tensorView) {
+        [&](TensorView *tensorView) {
             return sampler->convertTensorViewToPath(*tensorView);
         }
     );
@@ -247,7 +242,7 @@ void Node::expandSync(int layers) const {
         [&](AbstractStage *stage) {
             stage->expandSync(layers);
         },
-        [](std::shared_ptr<TensorView>) -> void {
+        [](TensorView *) -> void {
             return;
         }
     );
@@ -258,7 +253,7 @@ void Node::expand(int layers) const {
         [&](AbstractStage *stage) {
             stage->expand(layers);
         },
-        [](std::shared_ptr<TensorView>) -> void {
+        [](TensorView *) -> void {
             return;
         }
     );
@@ -271,7 +266,7 @@ std::optional<std::string> Node::getChildDescription(Next next) const {
             if (!arc) return std::nullopt;
             return arc->toString();
         },
-        [](std::shared_ptr<TensorView> tensor) -> std::string {
+        [](TensorView *tensor) -> std::string {
             KAS_UNREACHABLE();
         }
     );
@@ -280,14 +275,14 @@ std::optional<std::string> Node::getChildDescription(Next next) const {
 bool Node::isDeadEnd() const {
     return match<bool>(
         [](AbstractStage *stage) { return stage->getFinalizability() == Finalizability::No; },
-        [](std::shared_ptr<TensorView> tensor) { return false; }
+        [](TensorView *tensor) { return false; }
     );
 }
 
 bool Node::discoveredFinalDescendant() const {
     return match<bool>(
         [](AbstractStage *stage) { return stage->getFinalizability() == Finalizability::Yes; },
-        [](std::shared_ptr<TensorView> tensor) { return true; }
+        [](TensorView *tensor) { return true; }
     );
 }
 
@@ -295,7 +290,7 @@ std::string Node::toString() const {
     const BindingContext& ctx = sampler->getBindingContext();
     return match<std::string>(
         [](AbstractStage *stage) { return stage->description(); },
-        [&](std::shared_ptr<TensorView> tensor) { return tensor->description(ctx); }
+        [&](TensorView *tensor) { return tensor->description(ctx); }
     );
 }
 

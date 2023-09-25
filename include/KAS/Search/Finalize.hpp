@@ -38,7 +38,7 @@ public:
         tensors { std::forward<decltype(tensors)>(tensors) }
     {}
     // Pass in sorted fixed dimensions.
-    std::shared_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending) const;
+    std::unique_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending, const BindingContext& ctx) const;
     bool operator==(const FinalizeOp& rhs) const noexcept;
     std::size_t hash() const noexcept;
     std::size_t count() const noexcept { return tensors.size(); }
@@ -79,6 +79,7 @@ public:
 
 struct NextFinalizeSlot: Next {
     FinalizeOp finalization;
+    std::unique_ptr<TensorView> tensorView;
     template<TopmostRange TR>
     static std::size_t GetKey(TR&& tensors) { return std::hash<std::vector<Topmost>>{}(tensors); }
     Arc toArc(const Sampler *sampler) const { return Arc(sampler, &finalization); }

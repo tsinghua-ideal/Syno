@@ -327,7 +327,7 @@ class Node {
         Final = 2, // Finalization performed.
     };
     // This corresponds to the three types.
-    std::variant<ReductionStage *, NormalStage *, std::shared_ptr<TensorView>> inner;
+    std::variant<ReductionStage *, NormalStage *, TensorView *> inner;
     Type type() const noexcept {
         return static_cast<Type>(inner.index());
     }
@@ -335,14 +335,14 @@ class Node {
     requires
         std::convertible_to<std::invoke_result_t<FR, ReductionStage *>, R> &&
         std::convertible_to<std::invoke_result_t<FN, NormalStage *>, R> &&
-        std::convertible_to<std::invoke_result_t<FF, std::shared_ptr<TensorView> >, R>
+        std::convertible_to<std::invoke_result_t<FF, TensorView *>, R>
     R match(FR&& fr, FN&& fn, FF&& ff) const {
         return std::visit([&](auto arg) -> R {
             if constexpr (std::is_same_v<decltype(arg), ReductionStage *>) {
                 return fr(arg);
             } else if constexpr (std::is_same_v<decltype(arg), NormalStage *>) {
                 return fn(arg);
-            } else if constexpr (std::is_same_v<decltype(arg), std::shared_ptr<TensorView> >) {
+            } else if constexpr (std::is_same_v<decltype(arg), TensorView *>) {
                 return ff(arg);
             } else {
                 KAS_UNREACHABLE();
@@ -352,14 +352,14 @@ class Node {
     template<typename R, typename FS, typename FF>
     requires
         std::convertible_to<std::invoke_result_t<FS, AbstractStage *>, R> &&
-        std::convertible_to<std::invoke_result_t<FF, std::shared_ptr<TensorView> >, R>
+        std::convertible_to<std::invoke_result_t<FF, TensorView *>, R>
     R match(FS&& fs, FF&& ff) const {
         return std::visit([&](auto arg) -> R {
             if constexpr (std::is_same_v<decltype(arg), ReductionStage *>) {
                 return fs(arg);
             } else if constexpr (std::is_same_v<decltype(arg), NormalStage *>) {
                 return fs(arg);
-            } else if constexpr (std::is_same_v<decltype(arg), std::shared_ptr<TensorView> >) {
+            } else if constexpr (std::is_same_v<decltype(arg), TensorView *>) {
                 return ff(arg);
             } else {
                 KAS_UNREACHABLE();
@@ -372,7 +372,7 @@ public:
         sampler { sampler }, inner { rStage } {}
     Node(Sampler *sampler, NormalStage *nStage):
         sampler { sampler }, inner { nStage } {}
-    Node(Sampler *sampler, std::shared_ptr<TensorView> kernel):
+    Node(Sampler *sampler, TensorView *kernel):
         sampler { sampler }, inner { kernel } {}
 
     // For Python.
@@ -385,7 +385,7 @@ public:
 
     AbstractStage *tryAsStage() const;
     NormalStage *asNormalStage() const;
-    std::shared_ptr<TensorView> asFinal() const;
+    TensorView *asFinal() const;
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& directory, const std::string& name) const;
     // Obtain the mappings from Sampler, and do not solve the paddings. We only want to estimate the FLOPs.
     std::size_t estimateTotalFLOPsAsFinal() const;

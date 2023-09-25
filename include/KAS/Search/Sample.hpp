@@ -201,6 +201,7 @@ public:
     const TensorExpression& getExpressionForTensorNum(std::size_t num) const;
     // Taking fixed dimensions into account.
     Size getTotalOutputSize() const;
+    Size getMaxRDomSize() const;
 
     // The following APIs can be provided for Python bindings.
     std::optional<Node> visit(const std::vector<Next>& path);

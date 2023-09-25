@@ -26,15 +26,15 @@ TEST_F(search_tests, forward) {
     dimN.output(0);
     dimH_over_K.output(1);
     dimW_over_K.output(2);
-    dimK2_shared.reduce(Reduce::ReduceType::Mean);
-    dimK1_shared.reduce(Reduce::ReduceType::Mean);
+    dimK2_shared.reduce(Reduce::ReduceType::Sum);
+    dimK1_shared.reduce(Reduce::ReduceType::Sum);
     // [N, H, W], the output.
 
     auto input = Topmost({ dimN, dimH, dimW }, {});
     auto weight = Topmost({ dimK1, dimK2 }, {});
     std::vector<Topmost> tensors { input, weight };
     sampler.sortAllExpansionsAndWeightDimensions(tensors);
-    auto tensorView = TensorView(tensors, TensorExpression::ProductOfTensors(tensors.size()));
+    auto tensorView = TensorView(tensors, TensorExpression::ProductOfTensors(tensors.size()), ctx);
     auto obtainedTensors = ranges::to<std::vector<Topmost>>(tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent));
     sampler.sortAllExpansionsAndWeightDimensions(obtainedTensors);
     ASSERT_EQ(tensors.size(), obtainedTensors.size());
@@ -47,17 +47,17 @@ TEST_F(search_tests, forward) {
     for (auto&& next: path) {
         fmt::print("{}\n", next.toString());
     }
-    auto node = *sampler.visit({});
+    auto node = sampler.visit({}).value();
     for (auto next: path) {
         fmt::print("Trying {}...\n", next.toString());
         fmt::print("The children are:\n");
         for (auto handles = node.getChildrenHandles(); auto handle: handles) {
-            fmt::print("  {}\n", *node.getChildDescription(handle));
+            fmt::print("  {}\n", node.getChildDescription(handle).value());
         }
         fmt::print("Getting child...\n");
         auto old = node;
-        node = *node.getChild(next);
-        fmt::print("Got child. BTW, it is {}.\n", *old.getChildDescription(next));
+        node = node.getChild(next).value();
+        fmt::print("Got child. BTW, it is {}.\n", old.getChildDescription(next).value());
     }
     ASSERT_EQ(
         node.asFinal()->printNestedLoopsForAll(ctx),

@@ -19,11 +19,10 @@ namespace kas {
 // Here, we verify the shape, iterator and codegen semantics of each transform.
 class transforms_tests: public ::testing::Test {
 protected:
-    using SizeName = BindingContext::Metadata;
-    BindingContext ctx { std::vector<SizeName> { SizeName("H", 128), SizeName("W", 128) }, std::vector<SizeName> { SizeName("c", 5) } };
-    Size sizeH = ctx.getSinglePrimaryVariableSize(0);
-    Size sizeW = ctx.getSinglePrimaryVariableSize(1);
-    Size sizeC = ctx.getSingleCoefficientVariableSize(0);
+    BindingContext ctx = BindingContext({"H=128", "W=128"}, {"c=5"});
+    Size sizeH = ctx.getSize("H");
+    Size sizeW = ctx.getSize("W");
+    Size sizeC = ctx.getSize("c");
     Iterator itH { 0, sizeH }, itW { 1, sizeW }, itCH { 2, sizeC * sizeH };
     Dimension dimH { &itH }, dimW { &itW }, dimCH { &itCH };
     transforms_tests() {

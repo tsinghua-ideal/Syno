@@ -237,8 +237,168 @@ GraphvizGen::GraphvizGen(const TensorView& tensorView, const BindingContext& ctx
     code = draw(ctx, tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent));
 }
 
-GraphvizDFGGen::GraphvizDFGGen(const Subgraphs& subgraphs, const Graph& graph, const BindingContext& ctx) {
-    
+std::string GraphvizGen::Print(const TensorView& tensorView, const BindingContext& ctx) {
+    return GraphvizGen(tensorView, ctx).print("preview");
+}
+
+std::string GraphvizDFGGen::InterfaceName(const Dimension& dim, std::size_t subgraphIndex, Direction type) {
+    return fmt::format("interface_{}_{}_{}", subgraphIndex, type == Direction::Up ? "in" : "out", fmt::ptr(dim.getInnerPointer()));
+}
+std::string GraphvizDFGGen::Name(const PrimitiveOp& op) {
+    return fmt::format("op_{}", fmt::ptr(&op));
+}
+std::string GraphvizDFGGen::Name(const Reduce& op) {
+    return fmt::format("reduce_{}", fmt::ptr(&op));
+}
+
+void GraphvizDFGGen::drawDFGEdge(const Tensor& from, std::size_t to) {
+    for (const Dimension& dim: from.output()) {
+        printer.writeLn("{} -> {};", InterfaceName(dim, subgraphIndex.at(from), Direction::Down), InterfaceName(dim, to, Direction::Up));
+    }
+}
+
+void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
+    auto [it, inserted] = subgraphIndex.try_emplace(tensor, subgraphIndex.size());
+    if (!inserted) return;
+    auto index = it->second;
+
+    if (tensor.isInputTensor()) {
+        // Only need to draw the box.
+        printer.writeLn("// Input tensor.");
+        drawTensorBox(
+            fmt::format("subgraph_{}", index), fmt::format("Input {}", inputIndex.at(tensor)),
+            index, Direction::Down, tensor.output()
+        );
+    } else {
+        printer.writeLn("// Stage tensor.");
+        auto subgraph = tensor.buildConstrainedGraph(graph);
+
+        // TODO: if this tensor needs to be stored, indicate in the label.
+        auto _ = printer.scope("subgraph cluster_subgraph_{0}", index);
+        printer.writeLn("label = \"Subgraph {0}\";", index);
+
+        // First draw the reductions.
+        printer.writeLn("// Reductions.");
+        for (const Reduce *reduction: tensor.reductions()) {
+            printer.writeLn("{} [label=\"{}\", shape=box];", Name(*reduction), reduction->whatReduce());
+        }
+
+        // Then draw the output.
+        printer.writeLn("// Output.");
+        drawTensorBox(
+            fmt::format("subgraph_{}_out", index), "",
+            index, Direction::Down, tensor.output()
+        );
+
+        // Align the output with reductions.
+        {
+            auto _ = printer.scope();
+            printer.writeLn("rank = same;");
+            for (const Reduce *reduction: tensor.reductions()) {
+                printer.writeLn("{};", Name(*reduction));
+            }
+            for (const Dimension& dim: tensor.output()) {
+                printer.writeLn("{};", InterfaceName(dim, index, Direction::Down));
+            }
+        }
+
+        // Draw the inputs.
+        for (std::size_t i = 0; const Tensor& input: tensor.inputs()) {
+            printer.writeLn("// Input {}.", i);
+            drawTensorBox(
+                fmt::format("subgraph_{}_in_{}", index, i), "",
+                index, Direction::Up, input.output()
+            );
+            ++i;
+        }
+        // Align all the inputs.
+        {
+            auto _ = printer.scope();
+            printer.writeLn("rank = same;");
+            for (const Tensor& input: tensor.inputs()) {
+                for (const Dimension& dim: input.output()) {
+                    printer.writeLn("{};", InterfaceName(dim, index, Direction::Up));
+                }
+            }
+        }
+
+        // Finally draw the Op's.
+        printer.writeLn("// Op's.");
+        for (const PrimitiveOp *op: subgraph.getOps()) {
+            printer.writeLn("{} [label=\"{}\"];", Name(*op), op->getType());
+        }
+
+        // And the dimensions.
+        printer.writeLn("// Dimension's.");
+        auto matcher = Match {
+            [](GeneralizedVertex auto&& vertex, auto) {
+                return Name(vertex.op);
+            },
+            [index](Direction type, const Dimension& dim) {
+                if (auto reduction = dim.tryAs<Reduce>(); reduction) {
+                    return Name(*reduction);
+                }
+                return InterfaceName(dim, index, type);
+            },
+        };
+        for (const Dimension& dim: subgraph.getDimensions()) {
+            std::string fro = subgraph.visitAlong(dim, Direction::Up).match(matcher);
+            std::string to = subgraph.visitAlong(dim, Direction::Down).match(matcher);
+            printer.writeLn("{} -> {} [label=\"{}\"];", fro, to, dim.size().toString(ctx));
+        }
+    }
+    printer.writeLn();
+
+    // DFS.
+    for (const Tensor& input: tensor.inputs()) {
+        drawTensor(input);
+        drawDFGEdge(input, index);
+        printer.writeLn();
+    }
+}
+
+GraphvizDFGGen::GraphvizDFGGen(const IR& subgraphs, const BindingContext& ctx):
+    ctx { ctx },
+    graph { subgraphs.buildGraph() }
+{
+    printer.writeLn("newrank = true;"); // To allow alignment for subgraphs.
+    printer.writeLn();
+
+    for (std::size_t i = 0; i < subgraphs.inputTensors.size(); ++i) {
+        const Tensor& input = subgraphs.inputTensors[i];
+        inputIndex[input] = i;
+    }
+
+    // DFS.
+    drawTensor(subgraphs.outputTensor);
+
+    // Align input tensors.
+    {
+        auto _ = printer.scope();
+        printer.writeLn("rank = same;");
+        for (const Tensor& input: subgraphs.inputTensors) {
+            std::size_t index = subgraphIndex.at(input);
+            for (const Dimension& dim: input.output()) {
+                printer.writeLn("{};", InterfaceName(dim, index, Direction::Down));
+            }
+        }
+    }
+
+    // Draw output box.
+    std::size_t outputIndex = subgraphIndex.size();
+    drawTensorBox("subgraph_output", "Output", outputIndex, Direction::Up, subgraphs.outputTensor.output());
+
+    // And link the output box.
+    drawDFGEdge(subgraphs.outputTensor, outputIndex);
+
+    printer.writeLn();
+
+    code = ss.str();
+}
+
+std::string GraphvizDFGGen::Print(const IR& subgraphs, const BindingContext& ctx) {
+    auto gen = GraphvizDFGGen(subgraphs, ctx);
+    return gen.print("preview");
 }
 
 } // namespace kas

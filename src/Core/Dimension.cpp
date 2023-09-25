@@ -142,6 +142,10 @@ std::string Topmost::description(const BindingContext& ctx) const {
     }
 }
 
+std::string Topmost::debugDescription() const {
+    return BindingContext::ApplyDebugPublicCtx(&Topmost::description, *this);
+}
+
 GraphHandle GraphHandle::FromInterfaces(const std::vector<Topmost>& interfaces) {
     std::vector<Dimension> interface;
     std::vector<const Expand *> expansions;
@@ -203,6 +207,33 @@ Graph GraphHandle::buildGraph() const {
     Graph::Builder builder;
     builder.addTopmost(*this);
     return builder.build();
+}
+
+void Bottommost::extractReductions() {
+    decltype(output) newOutput;
+    decltype(reductions) newReductions;
+    for (const Dimension& dim: output) {
+        if (auto reduction = dim.tryAs<Reduce>(); reduction) {
+            newReductions.push_back(reduction);
+        } else {
+            newOutput.push_back(dim);
+        }
+    }
+    if (newReductions.empty()) return;
+    output = std::move(newOutput);
+    std::ranges::move(reductions, std::back_inserter(newReductions));
+    reductions = std::move(newReductions);
+}
+
+Bottommost& Bottommost::operator+=(const Bottommost& other) {
+    output.insert(output.end(), other.output.begin(), other.output.end());
+    reductions.insert(reductions.end(), other.reductions.begin(), other.reductions.end());
+    return *this;
+}
+Bottommost Bottommost::operator+(const Bottommost& other) const {
+    Bottommost result = *this;
+    result += other;
+    return result;
 }
 
 std::ostream& operator<<(std::ostream& os, kas::DimensionType t) {

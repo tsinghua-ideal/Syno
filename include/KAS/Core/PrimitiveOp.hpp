@@ -257,6 +257,14 @@ public:
         case Order::Right: return Branch::OutputRhs;
         }
     }
+    static Branch OtherOutputBranch(Branch branch) {
+        KAS_ASSERT(branch == Branch::OutputLhs || branch == Branch::OutputRhs);
+        if (branch == Branch::OutputLhs) {
+            return Branch::OutputRhs;
+        } else {
+            return Branch::OutputLhs;
+        }
+    }
     static constexpr std::uint8_t BranchCount = 3;
 
     class Input: public DimensionImpl {

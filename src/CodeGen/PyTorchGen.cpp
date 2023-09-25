@@ -1,141 +1,291 @@
 #include <fstream>
+#include <ranges>
 
+#include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/CodeGen/PyTorchGen.hpp"
+#include "KAS/Core/Dimension.hpp"
 #include "KAS/Transforms/Transforms.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
 
 namespace kas {
 
-std::pair<Dimension, std::size_t> PyTorchGen::SubgraphGen::assignShare(Dimension dim) {
-    auto subscript = newSubscript();
-    auto discoverer = ShareBlockDiscoverer(graph, dim, [&](const Dimension& d) {
-        assignSubscript(d, subscript);
-    });
-    return { discoverer.traverse(), subscript };
-}
-
-std::vector<Dimension> PyTorchGen::SubgraphGen::performContraction(std::string_view name) {
-    KAS_ASSERT(!tensor.isInputTensor());
-
-    auto isToBeShared = [&](const Dimension& dim) {
-        return
-            // This is a ShareOp.
-            dim.type() == DimensionType::Share &&
-            // But we have to check whether it is preserved in the output.
-            std::ranges::find(tensor.output(), dim) == tensor.output().end();
-    };
-
-    // Consider the special case where we do not need any Share or reduction.
-    if (
-        const auto& inputTensor = tensor.inputs()[0];
-        tensor.inputs().size() == 1 && // We only have one input tensor so we do not need to perform Share
-        std::ranges::none_of(inputTensor.output(), [&](const Dimension& dim) {
-            return
-                dim.type() == DimensionType::Reduce || // there is no reduction.
-                isToBeShared(dim); // and there is no Share to be performed.
-        })
-    ) {
-        printer.writeLn("{} = {}", name, tensorNames.at(inputTensor));
-        printer.writeLn();
-        return inputTensor.output();
-    }
-
-    // First we only perform share. Reductions are later considered.
-    std::vector<std::pair<Dimension, std::size_t>> realInput;
-    std::vector<std::vector<std::size_t>> inputsSubscripts;
-    for (const Tensor& inputTensor: tensor.inputs()) {
-        inputsSubscripts.emplace_back();
-        auto& inputSubscripts = inputsSubscripts.back();
-        for (const Dimension& dim: inputTensor.output()) {
-            if (auto it = subscripts.find(dim); it != subscripts.end()) {
-                // This is a shared dimension, and we are sure that this is already in realInput.
-                inputSubscripts.emplace_back(it->second);
-                continue;
-            }
-            if (isToBeShared(dim)) {
-                // Assign with new subscript.
-                auto [realDim, subscript] = assignShare(dim);
-                inputSubscripts.emplace_back(subscript);
-                realInput.emplace_back(realDim, subscript);
-            } else {
-                // We need to pass it down.
-                auto subscript = newSubscript();
-                inputSubscripts.emplace_back(subscript);
-                realInput.emplace_back(dim, subscript);
-            }
-        }
-    }
-
-    // Perform reduction. By removing all Reduce in realInput.
-    // This only works for products. TODO: make this work for addition.
-    auto [removeBegin, removeEnd] = std::ranges::remove_if(realInput, [](const std::pair<Dimension, std::size_t>& pair) {
-        return pair.first.type() == DimensionType::Reduce;
-    });
-    realInput.erase(removeBegin, removeEnd);
-
-    // Then contract.
-    printer.writeLn(
-        R"code({} = torch.einsum("{} -> {}", {}))code",
-        name,
-        fmt::join(inputsSubscripts | std::views::transform(&ToEinsteinNotation<const std::vector<std::size_t>&>), ", "),
-        ToEinsteinNotation(realInput | std::views::transform(&std::pair<Dimension, std::size_t>::second)),
-        fmt::join(tensor.inputs() | std::views::transform([&](const Tensor& inputTensor) -> decltype(auto) {
-            return tensorNames.at(inputTensor);
-        }), ", ")
-    );
-    printer.writeLn();
-
-    return ranges::to<std::vector<Dimension>>(realInput | std::views::transform(&std::pair<Dimension, std::size_t>::first));
-}
-
-PyTorchGen::SubgraphGen::OpLower::OpLower(const BindingContext& ctx, const Graph& graph, PythonCodePrinter& printer, const ConcreteConsts& consts, std::vector<Dimension>& interface, const Tensor& tensor, const std::string& name):
-    ctx { ctx }, graph { graph }, printer { printer }, consts { consts }, interface { interface }, tensor { tensor }, name { name }
+EinsumDiscoverer::EinsumDiscoverer(const ConstrainedGraph& subgraph, std::set<const ShareOp *>& remainingShares):
+    DependentCutSetDiscoverer(subgraph.getGraph()),
+    subgraph { subgraph },
+    remainingShares(remainingShares)
 {
-    for (std::size_t index = 0; const auto& outputDim: this->tensor.output()) {
-        outputSet.emplace(outputDim, index);
-        // It is possible that there are Reduce's in output.
-        // KAS_ASSERT(outputDim.type() != DimensionType::Reduce);
-        ++index;
-    }
+    includeUnchecked(subgraph.getTop().value());
+    includeUnchecked(
+        subgraph.getOpsOfType<ExpandOp>()
+        | std::views::transform(Expand::PointerToDimension{})
+    );
 }
 
-void PyTorchGen::SubgraphGen::OpLower::lower() {
+Graph::DimensionSet EinsumDiscoverer::contract() {
+    auto original = cutSet;
+
+    bool contracted = false;
     while (true) {
-        bool changed = false;
-        for (Dimension dim: interface) {
-            // Lower an Op.
-            if (!outputSet.contains(dim)) {
-                // Try lowering.
-                if (graph.visitAlong(dim, Direction::Down).match(*this)) {
-                    // Only upon successful visit, break and start another iteration.
-                    changed = true;
+        for (Dimension dim: cutSet) {
+            if (auto shareInput = dim.tryAs<ShareOp::Input>(); shareInput) {
+                Dimension other = shareInput->getOther();
+                if (cutSet.contains(other)) {
+                    contracted = true;
+                    assertErase(dim);
+                    assertErase(other);
+                    auto op = shareInput->getDerivedOp<ShareOp>();
+                    assertInsert(op->output);
+                    auto erased = remainingShares.erase(op);
+                    KAS_ASSERT(erased == 1);
                     break;
                 }
             }
         }
-        if (!changed) break; // All Op's lowered.
+        if (!contracted) break;
+        contracted = false;
     }
-    // Finished.
-    KAS_ASSERT(interface.size() == tensor.output().size());
 
-    // Well, we need to permute the interface so that it matches the output of this subgraph.
-    // Maybe we can alter the output to get better performance? TODO
-    std::vector<std::size_t> indices(interface.size(), std::numeric_limits<std::size_t>::max());
-    for (std::size_t i = 0; const Dimension& dim: interface) {
-        indices[outputSet.at(dim)] = i;
-        ++i;
-    }
-    if (std::ranges::adjacent_find(indices, [](std::size_t a, std::size_t b) { return a + 1 != b; }) != indices.end()) {
-        // We need to permute.
-        printer.writeLn("# Permute to match the output of this subgraph.");
-        printer.write("{0} = torch.permute({0}, (", name);
-        for (std::size_t i: indices) {
-            printer.write("{}, ", i);
+    Graph::DimensionSet collectedShareBlocks;
+    for (const Dimension& dim: cutSet) {
+        if (!original.contains(dim)) {
+            // If this is a new dimension, then it must
+            collectedShareBlocks.insert(dim);
         }
-        printer.writeLn("))");
+    }
+    return collectedShareBlocks;
+}
+
+EinsumContractor::EinsumContractor(const ConstrainedGraph& subgraph, std::set<const Reduce *>& remainingReductions):
+    DependentCutSetDiscoverer(subgraph.getGraph()),
+    subgraph { subgraph },
+    remainingReductions(remainingReductions)
+{
+    includeUnchecked(subgraph.getTop().value());
+    // We do not want to include ExpandOp's, because it is better to leave them to be lowered when needed.
+}
+
+EinsumContractor& EinsumContractor::contract() {
+    bool contracted = false;
+    while (true) {
+        for (Dimension dim: cutSet) {
+            // If there are contractions that can be done,
+            // find the bottommost ShareOp.
+            // Since we have processed the IR with PerformViewsIRPass, we are sure that there is only one ShareOp.
+            while (
+                dim.type() == DimensionType::Share &&
+                !subgraph.getBottom().value().contains(dim)
+            ) {
+                contracted = true;
+                dim = dim.as<ShareOp::Input>().getOp()->output;
+            }
+            if (contracted) {
+                assignSubscript(dim, newSubscript());
+                include(dim);
+                if (auto reduction = dim.tryAs<Reduce>(); reduction) {
+                    // Reduce that.
+                    assertErase(dim);
+                    auto erased = remainingReductions.erase(reduction);
+                    KAS_ASSERT(erased);
+                }
+                break;
+            }
+        }
+        if (!contracted) break;
+        contracted = false;
+    }
+    for (const Dimension& dim: cutSet) {
+        // If there are remaining dimensions, assign them.
+        auto [_, inserted] = subscripts.try_emplace(dim, existingSubscripts);
+        if (inserted) {
+            ++existingSubscripts;
+        }
+    }
+    return *this;
+}
+
+std::vector<Dimension> EinsumContractor::build(const std::vector<Tensor>& inputs) const {
+    // TODO!!! optimize locality.
+    return DependentCutSetDiscoverer::build();
+}
+
+void EinsumContractor::beforeExclusionHook(const PrimitiveOp *op) {
+    if (auto share = dynamic_cast<const ShareOp *>(op)) {
+        // Assign subscripts.
+        auto subscript = subscripts.at(share->output);
+        assignSubscript(share->getInputL(), subscript);
+        assignSubscript(share->getInputR(), subscript);
+    } else {
+        // Since we have transformed the IR into PyTorch form, we are sure that only ShareOp and ExpandOp are for contractions.
+        KAS_ASSERT(op->getType() == DimensionType::Expand);
     }
 }
+
+std::vector<Dimension> PerformViewsIRPass::ViewPerformer::einsumContract() {
+    // Prepare the remaining ShareOp's.
+    std::ranges::copy(
+        subgraph.getOpsOfType<ShareOp>(),
+        std::inserter(remainingShares, remainingShares.begin())
+    );
+    // First find reachable share blocks.
+    auto collectedShareBlocks =
+        EinsumDiscoverer(subgraph, remainingShares)
+        .contract();
+    // Then perform them, by including the bottom most dim as dependency.
+    return
+        DependentCutSetDiscoverer(
+            subgraph.getGraph(), subgraph.getTop().value()
+        )
+        .include(collectedShareBlocks)
+        .build();
+}
+
+template<PerformViewsIRPass::ViewPerformer::State Marker, bool StopAtShare>
+void PerformViewsIRPass::ViewPerformer::mark(const Dimension& dimension) {
+    auto [_, attempt] = visited.try_emplace(dimension, Marker);
+    if (!attempt) return;
+    subgraph.visitAlong(dimension, Direction::Down).match(Match {
+        [this](const RepeatLikeVertex& r, auto) {
+            mark<Marker, StopAtShare>(r.op.output);
+        },
+        [this](const SplitLikeVertex& s, auto) {
+            mark<Marker, StopAtShare>(s.op.outputLhs);
+            mark<Marker, StopAtShare>(s.op.outputRhs);
+        },
+        [&](const MergeLikeVertex& m, auto) {
+            if constexpr (StopAtShare) {
+                if (!dimension.is(DimensionType::Share)) {
+                    // Ignore dependencies
+                    mark<Marker, StopAtShare>(m.op.output);
+                }
+            } else {
+                mark<Marker, StopAtShare>(m.op.output);
+            }
+        },
+        [&](const ExpandVertex& e, auto) {
+            KAS_UNREACHABLE();
+        },
+        [&](Direction type, const Dimension& dim) {
+            // Great. We have reached the bottom.
+        },
+    });
+}
+void PerformViewsIRPass::ViewPerformer::disable(const Dimension& dimension) {
+    mark<State::Disabled, false>(dimension);
+}
+void PerformViewsIRPass::ViewPerformer::collect(const Dimension& dimension) {
+    mark<State::Collected, true>(dimension);
+}
+
+std::vector<Dimension> PerformViewsIRPass::ViewPerformer::buildStage(const std::vector<Dimension>& cutSet) const {
+    // We only need to find inputs of ShareOp's. They are all that are necessary.
+    struct EinsumCutSetDiscoverer: public DependentCutSetDiscoverer {
+        using DependentCutSetDiscoverer::DependentCutSetDiscoverer;
+        void beforeExclusionHook(const PrimitiveOp *op) override {
+            KAS_ASSERT(op->getType() != DimensionType::Share);
+        }
+    };
+    auto discoverer = EinsumCutSetDiscoverer(subgraph.getGraph(), cutSet);
+    for (const auto& [dim, state]: visited) {
+        if (state == State::Collected && dim.is(DimensionType::Share)) {
+            discoverer.include(dim);
+        }
+    }
+    return discoverer.build();
+}
+
+PerformViewsIRPass::ViewPerformer::ViewPerformer(const Graph& graph, Tensor& tensor):
+    tensor(tensor),
+    subgraph(this->tensor.buildConstrainedGraph(graph))
+{}
+
+void PerformViewsIRPass::ViewPerformer::apply() {
+    // We should first attempt to perform some views on the first input tensor.
+    const auto& firstInput = tensor.inputs().at(0);
+    // We only want to do views. So disable all weights.
+    disable(tensor.inputs() | std::views::drop(1) | std::views::transform(&Tensor::output) | std::views::join);
+    // Then collect the firstInput.
+    collect(firstInput.output());
+    // Great. Now let's see if we have performed any view.
+    auto stage1 = buildStage(firstInput.output());
+    if (!DimensionSetEqual(stage1, firstInput.output())) {
+        // We have performed some views. Let's build a view.
+        auto stage1Bottommost = Bottommost(stage1);
+        auto viewTensor = TensorImpl::CreateView(
+            std::vector<Tensor> { firstInput },
+            stage1Bottommost
+        );
+        // Replace the input tensor.
+        tensor.getInputs()[0] = viewTensor;
+        auto& currentReductions = tensor.getReductions();
+        auto [removeBegin, removeEnd] = std::ranges::remove_if(currentReductions, [&](const Reduce *reduction) {
+            return std::ranges::find(stage1Bottommost.getReductions(), reduction) != stage1Bottommost.getReductions().end();
+        });
+        currentReductions.erase(removeBegin, removeEnd);
+        // Now we have a new subgraph.
+        subgraph = tensor.buildConstrainedGraph(subgraph.getGraph());
+    }
+
+    // Clear the marks so we can use `disable` and `collect` again.
+    visited.clear();
+
+    // Then we find out the einsum-contracted interface.
+    auto einsumContractionResult = einsumContract();
+    // If we have no remaining ShareOp's, then this Tensor is already able to be handled by PyTorchGen.
+    // Skip.
+    if (remainingShares.empty()) {
+        return;
+    } else if (warn) {
+        // We need to perform additional Share.
+        KAS_WARNING("This case is not lowerable to PyTorch. Taking diagonal entries!");
+        if (warn > 5) {
+            KAS_CRITICAL("Too many recursions.");
+        }
+    }
+
+    // Then disable all descendants of ShareOp's.
+    for (const ShareOp *share: remainingShares) {
+        disable(share->output);
+    }
+
+    // Now that results of ShareOp's are disabled, all Dimension's left are reachable.
+    // Collect them.
+    for (const Dimension& dim: einsumContractionResult) {
+        collect(dim);
+    }
+    // With the newly collected cut set as the stage tensor, build a view.
+    auto stage2 = buildStage(einsumContractionResult);
+    auto stage2Bottommost = Bottommost(stage2);
+    // TODO!!! make this a helper function.
+    auto viewTensor = TensorImpl::CreateView(
+        tensor.inputs(),
+        stage2Bottommost
+    );
+    // Replace the input tensor.
+    tensor.getInputs() = { viewTensor };
+    auto& currentReductions = tensor.getReductions();
+    auto [removeBegin, removeEnd] = std::ranges::remove_if(currentReductions, [&](const Reduce *reduction) {
+        return std::ranges::find(stage2Bottommost.getReductions(), reduction) != stage2Bottommost.getReductions().end();
+    });
+    currentReductions.erase(removeBegin, removeEnd);
+
+    // Recursively perform another view.
+    ViewPerformer(subgraph.getGraph(), tensor).shouldWarn(warn).apply();
+}
+
+PerformViewsIRPass::PerformViewsIRPass(IR& ir): graph(ir.buildGraph()), ir(ir) {}
+
+void PerformViewsIRPass::apply() {
+    ir.forEach([&](Tensor& tensor) {
+        if (tensor.hasContraction()) {
+            ViewPerformer(graph, tensor).apply();
+        }
+    });
+}
+
+PyTorchGen::SubgraphGen::OpLower::OpLower(const BindingContext& ctx, const Graph& graph, PythonCodePrinter& printer, const ConcreteConsts& consts, std::vector<Dimension>& interface, const Tensor& tensor, const std::string& name):
+    ctx { ctx }, graph { graph }, printer { printer }, consts { consts }, interface { interface }, tensor { tensor }, name { name }
+{}
 
 void PyTorchGen::SubgraphGen::OpLower::reshapeToInterface() {
     printer.write("{0} = torch.reshape({0}, (", name);
@@ -164,6 +314,24 @@ std::array<std::size_t, 4> PyTorchGen::SubgraphGen::OpLower::reshapeToNCHW(std::
     return { batchSize, channelSize, heightSize, widthSize };
 }
 
+void PyTorchGen::SubgraphGen::OpLower::visit(const ExpandOp& op) {
+    successfulVisit = true;
+    // This is simple. Just unsqueeze and expand.
+    printer.writeLn("{0} = torch.unsqueeze({0}, {1})", name, interface.size());
+    interface.emplace_back(op.output);
+    printer.write("{0} = {0}.expand(", name);
+    for (const Dimension& dim: interface) {
+        printer.write("{}, ", concretize(dim.size()));
+    }
+    printer.writeLn(")");
+}
+void PyTorchGen::SubgraphGen::OpLower::visit(const Reduce& reduction) {
+    auto inputIt = std::ranges::find(interface, &reduction);
+    std::size_t inputIndex = std::distance(interface.begin(), inputIt);
+    KAS_ASSERT(inputIndex < interface.size());
+    printer.writeLn("{0} = torch.sum({0}, dim=({1}, ))", name, inputIndex);
+    interface.erase(inputIt);
+}
 void PyTorchGen::SubgraphGen::OpLower::visit(const MergeOp& op) {
     const auto lhs = op.getInputL(), rhs = op.getInputR();
     std::size_t lhsIndex = std::distance(interface.begin(), std::ranges::find(interface, lhs));
@@ -284,28 +452,95 @@ void PyTorchGen::SubgraphGen::OpLower::visit(const UnfoldOp& op) {
     reshapeToInterface();
 }
 
+PyTorchGen::SubgraphGen::SubgraphGen(const BindingContext& ctx, const Graph& graph, const std::map<Tensor, std::string>& tensorNames, PythonCodePrinter& printer, const Tensor& tensor):
+    ctx { ctx }, tensorNames(tensorNames), printer { printer }, tensor { tensor }, subgraph(tensor.buildConstrainedGraph(graph))
+{
+    remainingReductions.insert(tensor.reductions().begin(), tensor.reductions().end());
+}
+
 void PyTorchGen::SubgraphGen::generate(const ConcreteConsts& consts) {
     const auto& name = tensorNames.at(tensor);
 
     // First perform contraction.
-    auto interface = performContraction(name);
+    auto contractor = EinsumContractor(subgraph, remainingReductions);
+    auto interface = contractor.contract().build(tensor.inputs());
+    const auto& subscripts = contractor.getSubscripts();
+    auto dimToSubscript = [&](const Dimension& dim) -> std::size_t {
+        return subscripts.at(dim);
+    };
+    std::vector<std::string> inputsSubscripts;
+    for (const Tensor& inputTensor: tensor.inputs()) {
+        inputsSubscripts.emplace_back(ToEinsteinNotation(inputTensor.output() | std::views::transform(dimToSubscript)));
+    }
+    printer.writeLn(
+        R"code({} = torch.einsum("{} -> {}", {}))code",
+        name,
+        fmt::join(inputsSubscripts, ", "),
+        ToEinsteinNotation(interface | std::views::transform(dimToSubscript)),
+        fmt::join(tensor.inputs() | std::views::transform([&](const Tensor& inputTensor) -> const std::string& {
+            return tensorNames.at(inputTensor);
+        }), ", ")
+    );
+    printer.writeLn();
+
     // Now we have got the input. Time to work on it. The objective is to reach `tensor.output()`.
-    auto opLower = OpLower { ctx, graph, printer, consts, interface, tensor, name };
-    opLower.lower();
+    auto opLower = OpLower { ctx, subgraph.getGraph(), printer, consts, interface, tensor, name };
+    struct LowerHelper: DependentCutSetDiscoverer {
+        OpLower& opLower;
+        LowerHelper(OpLower& opLower): DependentCutSetDiscoverer(opLower.graph, opLower.interface), opLower(opLower) {}
+        void afterExclusionHook(const PrimitiveOp *op) override {
+            opLower.printer.writeLn("# {}", op->description(opLower.ctx));
+            opLower.successfulVisit = false;
+            op->accept(opLower);
+            KAS_ASSERT(opLower.successfulVisit);
+            opLower.successfulVisit = false;
+            opLower.printer.writeLn();
+        }
+    };
+    auto helper = LowerHelper { opLower };
+    for (const Reduce *reduction: remainingReductions) {
+        helper.include(reduction);
+        // Reduce this.
+        opLower.visit(*reduction);
+    }
+    // remainingReductions.clear(); // No need to clear it.
+    // Then make sure all the output dims are visited as well.
+    for (const Dimension& dim: tensor.output()) {
+        helper.include(dim);
+    }
+
+    KAS_ASSERT(DimensionSetEqual(interface, tensor.output()));
+
+    // Well, we need to permute the interface so that it matches the output of this subgraph.
+    // Maybe we can alter the output to get better performance? TODO
+    std::vector<std::size_t> indices(interface.size(), std::numeric_limits<std::size_t>::max());
+    for (std::size_t i = 0; const Dimension& dim: interface) {
+        auto index = std::distance(tensor.output().begin(), std::ranges::find(tensor.output(), dim));
+        indices.at(index) = i;
+        ++i;
+    }
+    if (std::ranges::adjacent_find(indices, [](std::size_t a, std::size_t b) { return a + 1 != b; }) != indices.end()) {
+        // We need to permute.
+        printer.writeLn("# Permute to match the output of this subgraph.");
+        printer.write("{0} = torch.permute({0}, (", name);
+        for (std::size_t i: indices) {
+            printer.write("{}, ", i);
+        }
+        printer.writeLn("))");
+    }
 }
 
 std::vector<std::size_t> PyTorchGen::concretize(const std::vector<Dimension>& interface, const ConcreteConsts& consts) const {
     return ShapeView(interface).eval<std::size_t>(consts);
 }
 
-PyTorchGen::PyTorchGen(const BindingContext& ctx, Graph graph, const Subgraphs& subgraphs):
+PyTorchGen::PyTorchGen(const BindingContext& ctx, const IR& ir):
     ctx { ctx },
-    graph { std::move(graph) },
-    expansions(subgraphs.expansions),
-    inputTensors(subgraphs.inputTensors),
-    outputTensor { subgraphs.outputTensor }
+    ir { ir.copy() },
+    graph { this->ir.buildGraph() }
 {
-    for (std::size_t index = 0; const auto& tensor: this->inputTensors) {
+    PerformViewsIRPass(this->ir).apply();
+    for (std::size_t index = 0; const auto& tensor: this->ir.inputTensors) {
         declare(tensor, "in_" + std::to_string(index));
         ++index;
     }
@@ -321,33 +556,24 @@ PyTorchGen::PyTorchGen(const BindingContext& ctx, Graph graph, const Subgraphs& 
             topologicallyOrderedTensors.emplace_back(tensor);
         }
     };
-    dfs(dfs, this->outputTensor);
+    dfs(dfs, this->ir.outputTensor);
 }
 
 void PyTorchGen::loadWeights(PythonCodePrinter& printer) const {
-    for (std::size_t index = 1; const Tensor& weight: inputTensors | std::views::drop(1)) {
+    for (std::size_t index = 1; const Tensor& weight: ir.inputTensors | std::views::drop(1)) {
         printer.writeLn("{} = self.weights[{}]", use(weight), index - 1);
-        KAS_ASSERT(expansions.at(index).empty(), "Expansion for weights unsupported.");
+        KAS_ASSERT(ir.expansions.at(index).empty(), "Expansion for weights unsupported.");
         ++index;
     }
 }
 
 void PyTorchGen::padInputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const {
-    const Tensor& inputTensor = inputTensors.at(0);
-    const auto& inputExpansions = expansions.at(0);
-    const auto& expandedShape = inputTensor.output();
-    // Note that inputTensor.output() contain all the expanded dimensions. So we need to filter them out to obtain the original input.
-    auto isExpanded = [&inputExpansions](const Dimension& dim) {
-        return std::ranges::find(inputExpansions, dim, Expand::PointerToDimension{}) != inputExpansions.end();
-    };
-    const auto originalShape = ranges::to<std::vector<Dimension>>(
-        expandedShape
-        | std::views::filter(std::not_fn(isExpanded))
-    );
-    auto unpaddedShape = concretize(originalShape, consts.unpadded);
-    auto paddedShape = concretize(originalShape, consts.padded);
+    const Tensor& inputTensor = ir.inputTensors.at(0);
+    const auto& inputShape = inputTensor.output();
+    auto unpaddedShape = concretize(inputShape, consts.unpadded);
+    auto paddedShape = concretize(inputShape, consts.padded);
     std::vector<std::pair<int, int>> paddingParams;
-    for (std::size_t i = 0; i < originalShape.size(); ++i) {
+    for (std::size_t i = 0; i < inputShape.size(); ++i) {
         int delta = static_cast<int>(paddedShape[i]) - static_cast<int>(unpaddedShape[i]);
         KAS_ASSERT(delta >= 0, "Padded shape must be larger than unpadded shape!");
         if (delta == 0) {
@@ -370,27 +596,10 @@ void PyTorchGen::padInputTensor(PythonCodePrinter& printer, const PaddedConsts& 
         printer.writeLn("{} = x", use(inputTensor));
     }
     printer.writeLn();
-    if (originalShape.size() != expandedShape.size()) {
-        auto paddedExpandedShape = concretize(expandedShape, consts.padded);
-        // We need to perform unsqueeze and expand to obtain the interface for the subgraph.
-        printer.writeLn("# We need to unsqueeze and expand the input tensor.");
-        for (std::size_t i = 0; const Dimension& dim: expandedShape) {
-            if (isExpanded(dim)) {
-                printer.writeLn("{0} = torch.unsqueeze({0}, {1})", use(inputTensor), i);
-            }
-            ++i;
-        }
-        printer.writeLn(
-            "{0} = {0}.expand({1})",
-            use(inputTensor),
-            fmt::join(paddedExpandedShape, ", ")
-        );
-        printer.writeLn();
-    }
 }
 
 void PyTorchGen::cropOutputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const {
-    const auto& shape = outputTensor.output();
+    const auto& shape = ir.outputTensor.output();
     auto unpaddedShape = concretize(shape, consts.unpadded);
     auto paddedShape = concretize(shape, consts.padded);
     std::vector<std::pair<int, int>> slices;
@@ -403,7 +612,7 @@ void PyTorchGen::cropOutputTensor(PythonCodePrinter& printer, const PaddedConsts
     }
     if (needsPad) {
         printer.writeLn("# We need to crop the output tensor.");
-        printer.write("y = {}[", use(outputTensor));
+        printer.write("y = {}[", use(ir.outputTensor));
         for (const auto& [left, right]: slices) {
             if (left == 0 && right == 0) {
                 printer.write(":, ");
@@ -414,7 +623,7 @@ void PyTorchGen::cropOutputTensor(PythonCodePrinter& printer, const PaddedConsts
         printer.writeLn("]");
     } else {
         printer.writeLn("# No need to crop the output tensor.");
-        printer.writeLn("y = {}", use(outputTensor));
+        printer.writeLn("y = {}", use(ir.outputTensor));
     }
     printer.writeLn();
 }
@@ -428,6 +637,10 @@ void PyTorchGen::applyDivision(PythonCodePrinter& printer, const ConcreteConsts&
 
 void PyTorchGen::generatePrelude(std::ostream& outputStream) const {
     outputStream << "import torch\n";
+    outputStream << "\"\"\"\n";
+    auto gvCode = GraphvizDFGGen(ir, ctx).print("kernel_preview");
+    outputStream << gvCode << "\n";
+    outputStream << "\"\"\"\n";
 }
 
 void PyTorchGen::generate(std::ostream& outputStream, std::string_view className, const AbstractAccess& forwardAccess, const PaddedConsts& consts) const {
@@ -440,12 +653,12 @@ void PyTorchGen::generate(std::ostream& outputStream, std::string_view className
         printer.writeLn("def __init__(self):");
         printer.indent([&] {
             printer.writeLn("super().__init__()");
-            if (inputTensors.size() == 1) {
+            if (ir.inputTensors.size() == 1) {
                 return;
             }
             printer.writeLn("self.weights = torch.nn.ParameterList([");
             printer.indent([&] {
-                for (const Tensor& weight: inputTensors | std::views::drop(1)) {
+                for (const Tensor& weight: ir.inputTensors | std::views::drop(1)) {
                     auto concretizedShape = concretize(weight.output(), consts.padded);
                     // If we want to adjust dimension order, we must defer this. TODO
                     printer.writeLn("torch.randn([{}]),", fmt::join(concretizedShape, ", "));

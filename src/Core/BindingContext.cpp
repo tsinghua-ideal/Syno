@@ -4,9 +4,11 @@
 #include <vector>
 
 #include "KAS/Core/BindingContext.hpp"
+#include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Utils/Algorithm.hpp"
 #include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/Ranges.hpp"
 
 
 namespace kas {
@@ -30,19 +32,16 @@ std::string PaddedConsts::toString(const BindingContext& ctx) const {
     );
 }
 
-namespace {
-    std::map<std::string, std::size_t> GetLookupTable(const std::vector<BindingContext::Metadata>& metadata) {
+void BindingContext::updateLookUpTables() {
+    auto getLookUpTable = [](const std::vector<Metadata>& metadata) {
         std::map<std::string, std::size_t> lookupTable;
         for (std::size_t i = 0; i < metadata.size(); ++i) {
             lookupTable[metadata[i].alias] = i;
         }
         return lookupTable;
-    }
-}
-
-void BindingContext::updateLookUpTables() {
-    primaryLookUpTable = GetLookupTable(primaryMetadata);
-    coefficientLookUpTable = GetLookupTable(coefficientMetadata);
+    };
+    primaryLookUpTable = getLookUpTable(primaryMetadata);
+    coefficientLookUpTable = getLookUpTable(coefficientMetadata);
 }
 
 Size BindingContext::getSizeFromFactors(const std::vector<Parser::Factor>& factors) const {
@@ -58,30 +57,70 @@ Size BindingContext::getSizeFromFactors(const std::vector<Parser::Factor>& facto
     return result;
 }
 
-BindingContext::BindingContext(std::size_t countPrimary, std::size_t countCoefficient):
-    primaryMetadata(countPrimary),
-    coefficientMetadata(countCoefficient) {
-    for (std::size_t i = 0; i < countPrimary; ++i) {
+void BindingContext::applySpecs(const ShapeSpecParser::NamedSpecs& primarySpecs, const ShapeSpecParser::NamedSpecs& coefficientSpecs) {
+    primaryMetadata.resize(primarySpecs.size());
+    for (std::size_t i = 0; i < primarySpecs.size(); ++i) {
+        const auto& [name, spec] = primarySpecs[i];
         primaryMetadata[i] = Metadata {
-            .alias = "x_" + std::to_string(i),
+            .alias = name,
+            .maximumOccurrence = spec.maxOccurrences.value_or(3),
+            .estimate = spec.size,
         };
     }
-    for (std::size_t i = 0; i < countCoefficient; ++i) {
+    coefficientMetadata.resize(coefficientSpecs.size());
+    for (std::size_t i = 0; i < coefficientSpecs.size(); ++i) {
+        const auto& [name, spec] = coefficientSpecs[i];
         coefficientMetadata[i] = Metadata {
-            .alias = "c_" + std::to_string(i),
+            .alias = name,
+            .maximumOccurrence = spec.maxOccurrences.value_or(3),
+            .estimate = spec.size,
         };
     }
-    defaultConsts = realizeConsts({}, true);
     updateLookUpTables();
 }
 
-BindingContext::BindingContext(std::vector<Metadata> primaryMetadata, std::vector<Metadata> coefficientMetadata):
-    primaryMetadata { std::move(primaryMetadata) },
-    coefficientMetadata { std::move(coefficientMetadata) }
-{
-    defaultConsts = realizeConsts({}, true);
-    updateLookUpTables();
+void BindingContext::applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings, bool defaultFallback) {
+    decltype(allConsts) result;
+    for (const auto& mappings: allMappings) {
+        result.emplace_back(realizeConsts(mappings, defaultFallback));
+    }
+    allConsts = std::move(result);
 }
+
+BindingContext::BindingContext(const ShapeSpecParser::NamedSpecs& primarySpecs, const ShapeSpecParser::NamedSpecs& coefficientSpecs, const std::vector<std::map<std::string, std::size_t>>& allMappings, const Options& options):
+    options(options)
+{
+    applySpecs(primarySpecs, coefficientSpecs);
+    KAS_ASSERT(!allMappings.empty());
+    applyMappings(allMappings);
+}
+
+BindingContext::BindingContext(const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs) {
+    auto parser = ShapeSpecParser(primarySpecs, coefficientSpecs);
+    auto [contractedPrimarySpecs, contractedCoefficientSpecs] = parser.build();
+    applySpecs(contractedPrimarySpecs, contractedCoefficientSpecs);
+    applyMappings({{}}, true);
+}
+
+
+BindingContext::BindingContext(const std::vector<std::size_t>& primaryEstimates, const std::vector<std::size_t>& coefficientEstimates) {
+    ShapeSpecParser::NamedSpecs primarySpecs, coefficientSpecs;
+    for (std::size_t i = 0; i < primaryEstimates.size(); ++i) {
+        primarySpecs.emplace_back("x_" + std::to_string(i), Parser::PureSpec { .size = primaryEstimates[i] });
+    }
+    for (std::size_t i = 0; i < coefficientEstimates.size(); ++i) {
+        coefficientSpecs.emplace_back("c_" + std::to_string(i), Parser::PureSpec { .size = coefficientEstimates[i] });
+    }
+    applySpecs(primarySpecs, coefficientSpecs);
+    applyMappings({{}}, true);
+}
+
+BindingContext::BindingContext(std::size_t primaryCount, std::size_t coefficientCount):
+    BindingContext(
+        std::vector<std::size_t>(primaryCount, 128),
+        std::vector<std::size_t>(coefficientCount, 3)
+    )
+{}
 
 std::size_t BindingContext::getPrimaryCount() const {
     return primaryMetadata.size();
@@ -121,20 +160,11 @@ Size BindingContext::getSize(const std::string& name) const {
     return getSizeFromFactors(factors);
 }
 
-void BindingContext::setMaxVariablesInSize(std::size_t maximumVariablesInSize) {
-    this->maximumVariablesInSize = maximumVariablesInSize;
-}
 std::size_t BindingContext::getMaxVariablesInSize() const {
-    return maximumVariablesInSize;
-}
-void BindingContext::setMaxVariablesPowersInSize(std::size_t maximumVariablesPowersInSize) {
-    this->maximumVariablesPowersInSize = maximumVariablesPowersInSize;
+    return options.maximumVariablesInSize;
 }
 std::size_t BindingContext::getMaxVariablesPowersInSize() const {
-    return maximumVariablesPowersInSize;
-}
-void BindingContext::setRequiresExactDivision(bool requiresExactDivision) {
-    this->requiresExactDivision = requiresExactDivision;
+    return options.maximumVariablesPowersInSize;
 }
 
 bool BindingContext::isSizeValid(const Size& size) const {
@@ -149,15 +179,15 @@ bool BindingContext::isSizeValid(const Size& size) const {
         coefficientVarsPowers += std::abs(c);
     }
     const bool divides =
-        !requiresExactDivision ||
+        !options.requiresExactDivision ||
         std::ranges::all_of(
             getAllConsts(),
             [&](const ConcreteConsts& consts) { return size.isInteger(consts); }
         );
     return
         divides &&
-        usedPrimaryVars + usedCoefficientVars <= maximumVariablesInSize &&
-        primaryVarsPowers + coefficientVarsPowers <= maximumVariablesPowersInSize;
+        usedPrimaryVars + usedCoefficientVars <= options.maximumVariablesInSize &&
+        primaryVarsPowers + coefficientVarsPowers <= options.maximumVariablesPowersInSize;
 }
 
 std::vector<Size> BindingContext::getSizes(const std::vector<std::string>& names) const {
@@ -172,26 +202,10 @@ Shape BindingContext::getShape(const std::vector<std::string>& names) const {
     return Shape { getSizes(names) };
 }
 
-void BindingContext::applySpecs(std::vector<std::pair<std::string, Parser::PureSpec>>& primarySpecs, std::vector<std::pair<std::string, Parser::PureSpec>>& coefficientSpecs) {
-    for (std::size_t i = 0; i < primarySpecs.size(); ++i) {
-        auto& [name, spec] = primarySpecs[i];
-        primaryMetadata[i] = Metadata {
-            .alias = std::move(name),
-            .maximumOccurrence = spec.maxOccurrences.value_or(3),
-            .estimate = spec.size,
-        };
-    }
-    for (std::size_t i = 0; i < coefficientSpecs.size(); ++i) {
-        auto& [name, spec] = coefficientSpecs[i];
-        coefficientMetadata[i] = Metadata {
-            .alias = std::move(name),
-            .isOdd = spec.size.value_or(0) % 2 == 1,
-            .maximumOccurrence = spec.maxOccurrences.value_or(3),
-            .estimate = spec.size,
-        };
-    }
-    defaultConsts = realizeConsts({}, true);
-    updateLookUpTables();
+Shape BindingContext::getShape(std::string_view shape) const {
+    return ranges::to<std::vector<Size>>(Parser(shape).parseShape() | std::views::transform([&](const auto& factors) {
+        return getSizeFromFactors(factors);
+    }));
 }
 
 ConcreteConsts BindingContext::realizeConsts(const std::map<std::string, std::size_t>& mappings, bool defaultFallback) const {
@@ -231,14 +245,6 @@ ConcreteConsts BindingContext::realizeConsts(const std::map<std::string, std::si
         consts.coefficient.emplace_back(static_cast<int>(concrete));
     }
     return consts;
-}
-
-void BindingContext::applyMappings(const std::vector<std::map<std::string, std::size_t>>& allMappings) {
-    decltype(allConsts) result;
-    for (const auto& mappings: allMappings) {
-        result.emplace_back(realizeConsts(mappings));
-    }
-    allConsts = std::move(result);
 }
 
 } // namespace kas

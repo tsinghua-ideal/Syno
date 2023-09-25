@@ -5,7 +5,7 @@ namespace kas {
 
 TEST_F(transforms_tests, share) {
     ShareOp shareOp { dimH };
-    auto tensorView = TensorView({{{shareOp.getInputL(), dimW, dimCH}, {}}, {{shareOp.getInputR()}, {}}}, TensorExpression::ProductOfTensors(2));
+    auto tensorView = TensorView({{{shareOp.getInputL(), dimW, dimCH}, {}}, {{shareOp.getInputR()}, {}}}, TensorExpression::ProductOfTensors(2), ctx);
     ASSERT_EQ(tensorView.getInterfaceShape().toString(ctx), "[H, W, c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[0].shapeToString(ctx), "[H, W, c*H]");
     ASSERT_EQ(tensorView.getUnderlyingTensors()[1].shapeToString(ctx), "[H]");

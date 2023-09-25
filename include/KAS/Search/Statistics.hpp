@@ -3,6 +3,7 @@
 #include <array>
 #include <iterator>
 
+#include "KAS/Core/IR.hpp"
 #include "KAS/Core/Lower.hpp"
 #include "KAS/Search/AbstractStage.hpp"
 #include "KAS/Search/Finalize.hpp"
@@ -28,6 +29,7 @@ struct StatisticsCollector {
         KAS_COLLECT_STATS_FOR_OP(SplitOp)
         KAS_COLLECT_STATS_FOR_OP(StrideOp)
         KAS_COLLECT_STATS_FOR_OP(UnfoldOp)
+        KAS_COLLECT_STATS_FOR_OP(IR)
         KAS_COLLECT_STATS_FOR_OP(FinalizeOp)
         KAS_COLLECT_STATS_FOR_OP(AbstractStage)
         KAS_COLLECT_STATS_FOR_OP(NormalStage)

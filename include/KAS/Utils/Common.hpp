@@ -89,4 +89,9 @@ struct Deferred {
 
 } // namespace detail
 
+template<typename... Ts>
+struct Match: Ts... { using Ts::operator()...; };
+template<typename... Ts>
+Match(Ts...) -> Match<Ts...>;
+
 } // namespace kas

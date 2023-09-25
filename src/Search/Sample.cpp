@@ -100,28 +100,6 @@ StageStore::~StageStore() {
 }
 
 namespace {
-    void parseSpecs(const std::vector<std::string>& specs, std::map<std::string, Parser::SizeSpec>& names, const char *prefix) {
-        std::size_t unnamed = 0;
-        for (const auto& spec: specs) {
-            auto result = Parser(spec).parseSizeSpec();
-            auto name = result.name();
-            if (name) {
-                names[*name] = std::move(result);
-            } else {
-                names[std::string(prefix) + std::to_string(unnamed++)] = std::move(result);
-            }
-        }
-    }
-    std::vector<std::pair<std::string, Parser::PureSpec>> contractSpecs(std::map<std::string, Parser::SizeSpec>& specs) {
-        std::vector<std::pair<std::string, Parser::PureSpec>> result;
-        for (auto&& [name, spec]: specs) {
-            result.emplace_back(name, std::move(spec).toPureSpec());
-        }
-        return result;
-    }
-}
-
-namespace {
 
 // By birthday paradox, about 1/8 probability of collision.
 std::size_t MutexCountFromNumWorkers(std::size_t numWorkerThreads) {
@@ -147,38 +125,24 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     }
 
     // First parse the variable names in specifications. Unnamed variables are named by x_i and c_i.
-    std::map<std::string, Parser::SizeSpec> primaryVars;
-    std::map<std::string, Parser::SizeSpec> coefficientVars;
-    parseSpecs(primarySpecs, primaryVars, "x_");
-    parseSpecs(coefficientSpecs, coefficientVars, "c_");
+    auto parser = ShapeSpecParser(primarySpecs, coefficientSpecs);
 
     // Then we collect the variables in in/out shapes. In case of new variable, add it to primary.
-    auto onNewName = [&](const std::string& newName) {
-        if (!coefficientVars.contains(newName) && !primaryVars.contains(newName)) {
-            // We have to add a default spec for the name.
-            primaryVars[newName] = Parser::SizeSpec { .quantity = newName, .maxOccurrences = std::nullopt };
-        }
-    };
-    std::vector<std::string> inputShapeNames = Size::parseNames(inputShape, onNewName);
-    std::vector<std::string> outputShapeNames = Size::parseNames(outputShape, onNewName);
+    parser.addShape(inputShape).addShape(outputShape);
 
     // Put the specs in order.
-    auto contractedPrimarySpecs = contractSpecs(primaryVars);
-    auto contractedCoefficientSpecs = contractSpecs(coefficientVars);
+    auto [contractedPrimarySpecs, contractedCoefficientSpecs] = parser.build();
 
-    // Apply the specs to all variables.
-    ctx = BindingContext { contractedPrimarySpecs.size(), contractedCoefficientSpecs.size() };
-    ctx.applySpecs(contractedPrimarySpecs, contractedCoefficientSpecs);
-    ctx.setMaxVariablesInSize(options.maximumVariablesInSize);
-    ctx.setMaxVariablesPowersInSize(options.maximumVariablesPowersInSize);
-    ctx.setRequiresExactDivision(options.requiresExactDivision);
+    // Apply the specs to all variables, and the mappings to obtain concrete consts.
+    ctx = BindingContext(contractedPrimarySpecs, contractedCoefficientSpecs, allMappings, {
+        .maximumVariablesInSize = options.maximumVariablesInSize,
+        .maximumVariablesPowersInSize = options.maximumVariablesPowersInSize,
+        .requiresExactDivision = options.requiresExactDivision,
+    });
 
     // Parse shape from names.
-    this->inputShape = ctx.getShape(inputShapeNames);
-    this->outputShape = ctx.getShape(outputShapeNames);
-
-    // Apply the mappings to obtain concrete consts.
-    ctx.applyMappings(allMappings);
+    this->inputShape = ctx.getShape(inputShape);
+    this->outputShape = ctx.getShape(outputShape);
 
     this->options.check();
     // Initialize the output iterators.
@@ -248,6 +212,11 @@ Size Sampler::getTotalOutputSize() const {
         result = result * FixedDimensionsShapeView { fixedDimensions }.totalSize();
     }
     return result;
+}
+
+Size Sampler::getMaxRDomSize() const {
+    // We allow at most one matrix multiplication.
+    return inputShape.totalSize();
 }
 
 std::optional<Node> Sampler::visit(const std::vector<Next>& path) {

@@ -6,14 +6,14 @@ namespace kas {
 TEST_F(semantics_tests, pool2d) {
     constexpr int n = 64, c = 3, h = 128, hp = 130, w = 128, wp = 130, k = 5;
 
-    BindingContext ctx { std::vector<SizeName> {
-        SizeName { .alias = "N", .estimate = n },
-        SizeName { .alias = "H", .estimate = h },
-        SizeName { .alias = "W", .estimate = w },
-    }, std::vector<SizeName> {
-        SizeName { .alias = "C", .estimate = c },
-        SizeName { .alias = "K", .estimate = k },
-    } };
+    auto ctx = BindingContext({
+        "N=" + std::to_string(n),
+        "H=" + std::to_string(h),
+        "W=" + std::to_string(w),
+    }, {
+        "C=" + std::to_string(c),
+        "K=" + std::to_string(k),
+    });
     Forward::Factory factory { ctx };
     auto [sizeN, sizeC, sizeH, sizeW, sizeK] = factory.getSizes("N", "C", "H", "W", "K");
 
@@ -37,7 +37,7 @@ TEST_F(semantics_tests, pool2d) {
     dimH_over_K.output(2);
     dimW_over_K.output(3);
 
-    auto tensorView = TensorView({{{dimN, dimC, dimH, dimW}, {}}}, Parser("in_0").parseTensorExpression());
+    auto tensorView = TensorView({{{dimN, dimC, dimH, dimW}, {}}}, Parser("in_0").parseTensorExpression(), ctx);
     ASSERT_EQ(tensorView.printNestedLoops(ctx, TensorExpression::Output),
 R"(for (int i_0 = 0; i_0 < N; i_0++) {
     for (int i_1 = 0; i_1 < C; i_1++) {
