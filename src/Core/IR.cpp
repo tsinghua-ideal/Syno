@@ -22,24 +22,28 @@ void DependentCutSetDiscoverer::excludeUpwards(const Dimension& dimension) {
     // And follow the trace back, to push the cut set downward.
     bool success = graph.visitAlong(dimension, Direction::Up).match(Match {
         [this](const RepeatLikeVertex& r, auto) {
-            excludeHook(&r.op);
+            beforeExclusionHook(&r.op);
             excludeUpwards(r.op.getInput());
+            afterExclusionHook(&r.op);
             return true;
         },
         [this](const SplitLikeVertex& s, auto from) {
-            excludeHook(&s.op);
+            beforeExclusionHook(&s.op);
             excludeUpwards(s.op.getInput());
             assertInsert(s[SplitLikeOp::OtherOutputBranch(from)]);
+            afterExclusionHook(&s.op);
             return true;
         },
         [this](const MergeLikeVertex& m, auto) {
-            excludeHook(&m.op);
+            beforeExclusionHook(&m.op);
             excludeUpwards(m.op.getInputL());
             excludeUpwards(m.op.getInputR());
+            afterExclusionHook(&m.op);
             return true;
         },
         [this](const ExpandVertex& e, auto) {
-            excludeHook(&e.op);
+            beforeExclusionHook(&e.op);
+            afterExclusionHook(&e.op);
             return true;
         },
     });
@@ -73,11 +77,7 @@ Graph::CompactIndices TensorContractor::add(const std::vector<Dimension>& tensor
 void TensorContractor::performContractions(Graph::CompactIndices targets) {
     KAS_ASSERT(collected.disjoint(targets));
     auto result = collected.merged(targets);
-    for (const MergeLikeOp *op:
-        graph.getOps()
-        | std::views::filter([](const PrimitiveOp *op) { return op->getType() == DimensionType::Share; })
-        | std::views::transform([](const PrimitiveOp *op) { return dynamic_cast<const MergeLikeOp *>(op); })
-    ) {
+    for (const MergeLikeOp *op: graph.getOpsOfType<MergeLikeOp>(DimensionType::Share)) {
         const Dimension& candidate = op->output;
         const auto feature = graph.getAncestors(candidate);
         if (
@@ -96,7 +96,7 @@ void TensorContractor::performContractions(Graph::CompactIndices targets) {
     collected = result;
 }
 
-void TensorContractor::excludeHook(const PrimitiveOp *op) {
+void TensorContractor::beforeExclusionHook(const PrimitiveOp *op) {
     if (op->getType() == DimensionType::Share) {
         // For sure we are doing contraction here.
         auto erased = allowedShareOps.erase(dynamic_cast<const MergeLikeOp *>(op));
@@ -543,11 +543,7 @@ Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes() const {
 
     std::vector<std::vector<bool>> laterThan(numTensors, std::vector<bool>(numTensors));
     // The first tensor must be the earliest, which is by default the case.
-    for (const MergeLikeOp *op:
-        graph.getOps()
-        | std::views::filter([](const PrimitiveOp *op) { return op->getType() == DimensionType::Share; })
-        | std::views::transform([](const PrimitiveOp *op) { return dynamic_cast<const MergeLikeOp *>(op); })
-    ) {
+    for (const MergeLikeOp *op: graph.getOpsOfType<MergeLikeOp>(DimensionType::Share)) {
         const Dimension lhs = op->getInputL(), rhs = op->getInputR();
         const auto lhsFeatures = graph.getAncestors(lhs), rhsFeatures = graph.getAncestors(rhs);
 

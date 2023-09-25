@@ -278,7 +278,7 @@ ConstrainedGraph::VisitedSubgraphVertex ConstrainedGraph::visitAlong(const Dimen
     } else if (dir == Direction::Down && bottom && bottom->contains(dim)) {
         return { std::pair { Direction::Down, dim } };
     } else {
-        return { graph.visitAlong(dim, dir) };
+        return { graph->visitAlong(dim, dir) };
     }
 }
 

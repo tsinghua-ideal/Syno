@@ -180,6 +180,19 @@ static_assert(Vertex<SplitLikeVertex>);
 static_assert(Vertex<MergeLikeVertex>);
 static_assert(GeneralizedVertex<ExpandVertex>);
 
+template<PrimitiveOpImpl Op>
+auto FilterOpsOfType(auto& ops) {
+    return ops
+        | std::views::filter([](const PrimitiveOp *op) { return op->getType() == Op::Type; })
+        | std::views::transform([](const PrimitiveOp *op) -> const Op * { return dynamic_cast<const Op *>(op); });
+}
+template<std::derived_from<PrimitiveOp> Op>
+auto FilterOpsOfType(auto& ops, DimensionType ty) {
+    return ops
+        | std::views::filter([=](const PrimitiveOp *op) { return op->getType() == ty; })
+        | std::views::transform([](const PrimitiveOp *op) -> const Op * { return dynamic_cast<const Op *>(op); });
+}
+
 class Graph {
 public:
     using DimensionSet = std::set<Dimension, Dimension::AddressLessThan>;
@@ -367,6 +380,14 @@ public:
     const PrimitiveOp *getOpAbove(const Dimension& dim) const;
     // Every Op, including ExpandOp, excluding ReduceOp.
     const std::set<const PrimitiveOp *>& getOps() const { return ops; }
+    template<PrimitiveOpImpl Op>
+    auto getOpsOfType() const {
+        return FilterOpsOfType<Op>(ops);
+    }
+    template<std::derived_from<PrimitiveOp> Op>
+    auto getOpsOfType(DimensionType ty) const {
+        return FilterOpsOfType<Op>(ops, ty);
+    }
 
     CompactIndices getAncestors(const Dimension& dim) const;
     template<DimensionRange R>
@@ -420,7 +441,7 @@ public:
 };
 
 class ConstrainedGraph {
-    const Graph& graph;
+    const Graph *graph;
     using DimensionSet = Graph::DimensionSet;
     using CutSet = Graph::CutSet;
     DimensionSet dimensions;
@@ -428,7 +449,7 @@ class ConstrainedGraph {
     std::optional<CutSet> top;
     std::optional<CutSet> bottom;
     ConstrainedGraph(const Graph& graph, DimensionSet&& dimensions, std::set<const PrimitiveOp *>&& ops, std::optional<CutSet>&& top, std::optional<CutSet>&& bottom):
-        graph { graph }, dimensions(std::move(dimensions)), ops(std::move(ops)), top(std::move(top)), bottom(std::move(bottom)) {}
+        graph { &graph }, dimensions(std::move(dimensions)), ops(std::move(ops)), top(std::move(top)), bottom(std::move(bottom)) {}
 
 public:
     class Builder {
@@ -474,8 +495,16 @@ public:
     VisitedSubgraphVertex visitAlong(const Dimension& dim, Direction dir) const;
     const DimensionSet& getDimensions() const { return dimensions; }
     const std::set<const PrimitiveOp *>& getOps() const { return ops; }
+    template<PrimitiveOpImpl Op>
+    auto getOpsOfType() const {
+        return FilterOpsOfType<Op>(ops);
+    }
+    template<std::derived_from<PrimitiveOp> Op>
+    auto getOpsOfType(DimensionType ty) const {
+        return FilterOpsOfType<Op>(ops, ty);
+    }
 
-    const Graph& getGraph() const { return graph; }
+    const Graph& getGraph() const { return *graph; }
     const std::optional<CutSet>& getTop() const { return top; }
     const std::optional<CutSet>& getBottom() const { return bottom; }
 };

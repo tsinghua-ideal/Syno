@@ -28,8 +28,10 @@ protected:
 
     // Helper function for `include`.
     void excludeUpwards(const Dimension& dimension);
-    // For sanity check. This is called whenever `excludeUpwards` handles an Op.
-    virtual void excludeHook(const PrimitiveOp *op) {}
+    // This is called whenever `excludeUpwards` handles an Op, before DFS..
+    virtual void beforeExclusionHook(const PrimitiveOp *op) {}
+    // This is called whenever `excludeUpwards` handles an Op, after DFS.
+    virtual void afterExclusionHook(const PrimitiveOp *op) {}
 
 public:
     DependentCutSetDiscoverer(const Graph& graph): graph(graph) {}
@@ -68,7 +70,7 @@ protected:
     // Find Share's where `collected` < shareOp.output.ancestors <= `collected + targets`.
     void performContractions(Graph::CompactIndices targets);
     // This checks for ShareOp's.
-    void excludeHook(const PrimitiveOp *op) override;
+    void beforeExclusionHook(const PrimitiveOp *op) override;
 
 public:
     // Mark all expansions as collected as well.
