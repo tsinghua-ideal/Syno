@@ -340,7 +340,8 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx) {
                 current = std::move(result);
             } else if (currentStages == resultStages) {
                 // TODO!!! Tie breaker.
-                KAS_WARNING("Equal FLOPs {} and stages {} for two contraction schemes!", optimal, currentStages);
+                ++CountEqualFLOPs;
+                // KAS_WARNING("Equal FLOPs {} and stages {} for two contraction schemes!", optimal, currentStages);
             }
         }
     }
@@ -376,6 +377,13 @@ Graph IR::buildGraph() const {
         .build();
 }
 
+std::size_t IR::getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const {
+    std::size_t flops = 0;
+    forEach([&](const Tensor& tensor) {
+        flops += tensor.getFLOPs(ctx, consts);
+    });
+    return flops;
+}
 std::size_t IR::getFLOPs(const BindingContext& ctx) const {
     std::size_t flops = 0;
     forEach([&](const Tensor& tensor) {

@@ -3,6 +3,7 @@
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/Tensor.hpp"
+#include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
@@ -186,8 +187,13 @@ struct IR {
     IR copy() const;
 
     Graph buildGraph() const;
+    std::size_t getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const;
     std::size_t getFLOPs(const BindingContext& ctx) const;
     std::size_t numStages() const;
+
+    KAS_STATISTICS_DEF(
+        EqualFLOPs,
+    )
 };
 
 struct ContractionScheme {

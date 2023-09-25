@@ -48,8 +48,12 @@ void NormalStage::guardGeneratedChildren() {
         .maximumTensors = options.maximumTensors,
         .maximumFinalizations = options.maximumFinalizations,
         .allowWeightPermutation = options.allowWeightPermutation,
-    }), [](FinalizeOp& f) {
-        return NextFinalizeSlot({Next::Type::Finalize, NextFinalizeSlot::GetKey(f.tensors)}, std::move(f));
+    }), [this](FinalizeOp& f) {
+        auto fin = getFinalize(&f);
+        return NextFinalizeSlot({Next::Type::Finalize, NextFinalizeSlot::GetKey(f.tensors)}, std::move(f), std::move(fin));
+    });
+    nextFinalizations.remove([&](const NextFinalizeSlot& slot) {
+        return slot.tensorView->getFLOPs(ctx) > options.maxFLOPs;
     });
     nextFinalizations.checkHashCollisionAndRemove();
 

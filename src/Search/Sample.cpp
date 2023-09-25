@@ -214,6 +214,11 @@ Size Sampler::getTotalOutputSize() const {
     return result;
 }
 
+Size Sampler::getMaxRDomSize() const {
+    // We allow at most one matrix multiplication.
+    return inputShape.totalSize();
+}
+
 std::optional<Node> Sampler::visit(const std::vector<Next>& path) {
     Node n { this, rootStage };
     for (const auto& next: path) {

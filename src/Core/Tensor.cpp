@@ -37,7 +37,7 @@ Tensor Tensor::clone(const std::map<Tensor, Tensor>& oldToNew) const {
     );
 }
 
-std::size_t Tensor::getFLOPs(const BindingContext& ctx) const {
+Size Tensor::getNumElements(const BindingContext& ctx) const {
     // TODO: this has some redundant code with IR.cpp.
     auto numelOuter = std::transform_reduce(
         output().begin(), output().end(), // outer loops.
@@ -49,6 +49,17 @@ std::size_t Tensor::getFLOPs(const BindingContext& ctx) const {
         numelOuter, std::multiplies<>(),
         [&](const Reduce *reduce) -> const Size& { return reduce->size(); }
     );
+    return numel;
+}
+
+std::size_t Tensor::getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const {
+    auto numel = getNumElements(ctx);
+    auto instsPerAddition = hasContraction() ? std::max<std::size_t>(inputs().size() - 1, 1) : 1;
+    return numel.eval<std::size_t>(consts) * instsPerAddition;
+}
+
+std::size_t Tensor::getFLOPs(const BindingContext& ctx) const {
+    auto numel = getNumElements(ctx);
     auto instsPerAddition = hasContraction() ? std::max<std::size_t>(inputs().size() - 1, 1) : 1;
     std::size_t flops = 0;
     for (const ConcreteConsts& consts: ctx.getAllConsts()) {

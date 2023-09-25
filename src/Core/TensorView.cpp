@@ -147,13 +147,11 @@ ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const Concr
     return sol.solve(Size::Product(getUnderlyingTensors() | std::views::transform(&PureTensor::getDims) | std::views::join | std::views::transform(&Dimension::size)), Size::Product(getInterfaceShape()));
 }
 
-std::size_t TensorView::getFLOPs(const ConcreteConsts& consts) const {
-    std::size_t outerLoopsIterations = getInterfaceShape().totalSize().eval<std::size_t>(consts);
-    std::size_t innerLoopsIterations = getManipulations().size() > 0 ? Size::Product(getManipulations() | std::views::transform([](const Reduce *op) -> const Size& { return op->size(); })).eval<std::size_t>(consts) : 1;
-    auto fma = std::max<std::size_t>(getUnderlyingTensors().size() - 1, 1);
-    bool hasDivBy = forwardAccess.divBy.has_value();
-    // FMA + Division
-    return outerLoopsIterations * (innerLoopsIterations * fma + hasDivBy);
+std::size_t TensorView::getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const {
+    return getSubgraphs().getFLOPs(ctx, consts);
+}
+std::size_t TensorView::getFLOPs(const BindingContext& ctx) const {
+    return getSubgraphs().getFLOPs(ctx);
 }
 
 namespace {

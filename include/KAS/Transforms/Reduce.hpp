@@ -49,7 +49,7 @@ public:
         const BindingContext& ctx;
         std::size_t dimUpperBound;
         Size outputSize;
-        std::size_t maxFLOPs;
+        Size maxRDomSize;
         std::size_t maximumReductions;
     };
     static std::vector<const ReduceOp *> Generate(PrimitiveOpStore& store, const std::vector<const Reduce *>& current, const GenerateOptions& options);

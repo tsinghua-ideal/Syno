@@ -130,12 +130,7 @@ std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::str
 
 std::size_t Node::estimateTotalFLOPsAsFinal() const {
     auto final = asFinal();
-    const auto& allConsts = sampler->getBindingContext().getAllConsts();
-    std::size_t result = 0;
-    for (const auto& consts: allConsts) {
-        result += final->getFLOPs(consts);
-    }
-    return result;
+    return final->getFLOPs(sampler->getBindingContext());
 }
 
 void Node::generateGraphviz(const std::filesystem::path& path, const std::string& name) const {

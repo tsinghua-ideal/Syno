@@ -56,12 +56,14 @@ std::vector<const ReduceOp *> ReduceOp::Generate(PrimitiveOpStore& store, const 
     Size reductionSize = current.empty() ? outputSize.identity() : BaseShapeView(current).totalSize();
 
     auto withinFLOPs = [&](const Size& size) {
-        std::size_t flops = 0;
         for (const ConcreteConsts& consts: ctx.getAllConsts()) {
-            // Conservative approximation.
-            flops += outputSize.eval<std::size_t>(consts) * ((reductionSize * size).eval<std::size_t>(consts) - 1);
+            // This actually has nothing to do with FLOPs.
+            auto rate = (reductionSize * size / options.maxRDomSize).evalFraction<std::size_t>(consts);
+            if (rate > 1) {
+                return false;
+            }
         }
-        return flops <= options.maxFLOPs;
+        return true;
     };
 
     Allowance allowance = { outputSize * reductionSize, ctx };

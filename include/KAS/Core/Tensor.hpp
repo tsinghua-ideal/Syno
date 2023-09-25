@@ -34,6 +34,8 @@ public:
 
     Tensor clone(const std::map<Tensor, Tensor>& oldToNew) const;
 
+    Size getNumElements(const BindingContext& ctx) const;
+    std::size_t getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const;
     std::size_t getFLOPs(const BindingContext& ctx) const;
 
     // No input tensors. Only when this is the case, output can contain Reduce's.

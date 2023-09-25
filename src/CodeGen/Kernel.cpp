@@ -95,7 +95,7 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
         paddedOutputShape = concretizeOutputTensor(consts.padded);
 
         // Because we actually use the padded consts.
-        flops = tensorView.getFLOPs(consts.padded);
+        flops = tensorView.getFLOPs(ctx, consts.padded);
     }
 
     std::filesystem::create_directories(dir);

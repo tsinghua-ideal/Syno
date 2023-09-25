@@ -132,8 +132,9 @@ public:
         return { std::move(unpaddedConsts), std::move(paddedConsts) };
     }
 
-    // Observe that FLOPs is determined by outer loops and inner loops.
-    std::size_t getFLOPs(const ConcreteConsts& consts) const;
+    // By IR.
+    std::size_t getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const;
+    std::size_t getFLOPs(const BindingContext& ctx) const;
 
     // Evaluate the full loops.
     std::string printNestedLoops(const BindingContext& ctx, int pos) const;
