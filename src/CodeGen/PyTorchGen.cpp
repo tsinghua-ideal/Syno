@@ -105,8 +105,20 @@ EinsumContractor& EinsumContractor::contract() {
 }
 
 std::vector<Dimension> EinsumContractor::build(const std::vector<Tensor>& inputs) const {
-    // TODO!!! optimize locality.
-    return DependentCutSetDiscoverer::build();
+    // TODO: we need to consider Iterator in weights.
+    std::map<std::size_t, std::size_t> preferredOrder;
+    std::size_t total = 0;
+    for (const Dimension& dim: inputs | std::views::transform(&Tensor::output) | std::views::join) {
+        auto [_, inserted] = preferredOrder.try_emplace(subscripts.at(dim), total);
+        if (inserted) {
+            ++total;
+        }
+    }
+    auto result = DependentCutSetDiscoverer::build();
+    std::ranges::sort(result, [&](const Dimension& lhs, const Dimension& rhs) {
+        return preferredOrder.at(subscripts.at(lhs)) <= preferredOrder.at(subscripts.at(rhs));
+    });
+    return result;
 }
 
 void EinsumContractor::beforeExclusionHook(const PrimitiveOp *op) {
@@ -256,7 +268,7 @@ void PerformViewsIRPass::ViewPerformer::apply() {
     // With the newly collected cut set as the stage tensor, build a view.
     auto stage2 = buildStage(einsumContractionResult);
     auto stage2Bottommost = Bottommost(stage2);
-    // TODO!!! make this a helper function.
+    // TODO: make this a helper function.
     auto viewTensor = TensorImpl::CreateView(
         tensor.inputs(),
         stage2Bottommost
