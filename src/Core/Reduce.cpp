@@ -43,4 +43,12 @@ std::size_t Reduce::hash() const noexcept {
     return h;
 }
 
+std::string Reduce::description(const BindingContext& ctx) const {
+    return fmt::format("[{}]@Reduce", base.getDomain().toString(ctx));
+}
+
+std::string Reduce::debugDescription() const {
+    return BindingContext::ApplyDebugPublicCtx(&Reduce::description, *this);
+}
+
 } // namespace kas

@@ -338,11 +338,13 @@ void PyTorchGen::SubgraphGen::OpLower::visit(const ExpandOp& op) {
     printer.writeLn(")");
 }
 void PyTorchGen::SubgraphGen::OpLower::visit(const Reduce& reduction) {
+    printer.writeLn("# {}", reduction.description(ctx));
     auto inputIt = std::ranges::find(interface, &reduction);
     std::size_t inputIndex = std::distance(interface.begin(), inputIt);
     KAS_ASSERT(inputIndex < interface.size());
     printer.writeLn("{0} = torch.sum({0}, dim=({1}, ))", name, inputIndex);
     interface.erase(inputIt);
+    printer.writeLn();
 }
 void PyTorchGen::SubgraphGen::OpLower::visit(const MergeOp& op) {
     const auto lhs = op.getInputL(), rhs = op.getInputR();

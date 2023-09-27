@@ -94,6 +94,11 @@ public:
     }
 
     std::size_t getMultiplicity() const { return multiplicity; }
+
+    std::string description(const BindingContext& ctx) const;
+
+    // FOR DEBUG USAGE ONLY!
+    std::string debugDescription() const;
 };
 
 } // namespace kas
