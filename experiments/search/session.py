@@ -1,11 +1,12 @@
 import ctypes
 import json
 import logging
-import os
+import os, shutil
 import time
 import threading
 import queue
 import traceback
+from KAS import KernelLoader
 from KAS.Node import Path, Node
 from KAS.Statistics import Statistics
 
@@ -158,6 +159,10 @@ class Session:
                     f,
                     indent=2,
                 )
+            
+            # copying kernel dir
+            kernel: KernelLoader = self.sampler.realize(node)
+            shutil.copytree(kernel.get_directory(), os.path.join(kernel_save_dir, "kernel_scheduler_dir"))
 
         # Update with reward
         if accuracy > 0:
