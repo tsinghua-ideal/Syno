@@ -24,14 +24,10 @@ class Handler:
         assert "path" in j
         return j["path"]
 
-    def reward(self, path, accuracy, flops, params):
-        logging.info(
-            f"Post: {self.addr}/reward?path={path}&accuracy={accuracy}&flops={flops}&params={params}"
-        )
-        self.session.post(
-            f"{self.addr}/reward?path={path}&accuracy={accuracy}&flops={flops}&params={params}",
-            timeout=self.timeout,
-        )
+    def reward(self, path, accuracy, flops, params, kernel_dir):
+        message = f"{self.addr}/reward?path={path}&accuracy={accuracy}&flops={flops}&params={params}&kernel_dir={kernel_dir}"
+        logging.info("Post: " + message)
+        self.session.post(message, timeout=self.timeout)
 
 
 def main():
@@ -81,12 +77,13 @@ def main():
                     -1 if random.random() < 0.5 else random.random(),
                     random.randint(int(1e6), int(1e7)),
                     random.randint(int(1e6), int(1e7)),
+                    "MOCKPATH"
                 )
                 continue
 
             # Load and evaluate on a dataset
             try:
-                model.load_kernel(
+                kernel_dir = model.load_kernel(
                     sampler, node, compile=args.compile, batch_size=args.batch_size
                 )
                 flops, params = model.profile(args.batch_size)
@@ -103,8 +100,8 @@ def main():
                     raise e
                 logging.warning(f"OOM when evaluating {path}, skipping ...")
                 model.remove_thop_hooks()
-                flops, params, accuracy = 0, 0, -1
-            client.reward(path, accuracy, flops, params)
+                flops, params, accuracy, kernel_dir = 0, 0, -1, "EMPTY"
+            client.reward(path, accuracy, flops, params, kernel_dir)
     except KeyboardInterrupt:
         logging.info("Interrupted by user, exiting ...")
 

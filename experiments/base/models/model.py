@@ -4,6 +4,7 @@ import thop
 from collections import OrderedDict
 from torch import nn
 from typing import List, Tuple
+from os import PathLike
 from KAS.Placeholder import Placeholder
 
 from .placeholder import LinearPlaceholder, ConvPlaceholder
@@ -15,7 +16,7 @@ class KASModel(nn.Module):
         self.flops = 0
         self.params = 0
     
-    def load_kernel(self, sampler: KAS.Sampler, node: KAS.Node, name: str=None, compile=False, batch_size=1):
+    def load_kernel(self, sampler: KAS.Sampler, node: KAS.Node, name: str=None, compile=False, batch_size=1) -> PathLike:
         kernel = sampler.realize(self, node, name)
         kernel_packs = kernel.construct_kernel_packs()
         placeholders = sampler._extract_placeholders(self)
@@ -34,6 +35,8 @@ class KASModel(nn.Module):
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
             placeholder.reload(kernel_pack, compile)
             placeholder.refered_layer = None
+        
+        return kernel.get_directory()
 
     def remove_thop_hooks(self):
         for m in self.modules():

@@ -6,7 +6,7 @@ import time
 import threading
 import queue
 import traceback
-from KAS import KernelLoader
+from KAS import KernelLoader, Sampler
 from KAS.Node import Path, Node
 from KAS.Statistics import Statistics
 
@@ -14,7 +14,7 @@ from KAS.Statistics import Statistics
 class Session:
     # TODO: add interface for deserializing from file
 
-    def __init__(self, sampler, algo, args):
+    def __init__(self, sampler: Sampler, algo, args):
         # Parameters
         self.args = args
         self.sampler = sampler
@@ -110,7 +110,7 @@ class Session:
         self.algo.deserialize(state)
         logging.info("Successfully loaded session. ")
 
-    def update(self, path, accuracy, flops, params):
+    def update(self, path, accuracy, flops, params, kernel_dir):
         # No receiving timeout kernels
         if path in self.timeout_samples:
             logging.debug(f"{path} is removed due to timeout...")
@@ -154,6 +154,7 @@ class Session:
                         "accuracy": accuracy,
                         "flops": flops,
                         "params": params,
+                        "kernel_dir": kernel_dir,
                         "time": time.time() - self.start_time,
                     },
                     f,
@@ -161,8 +162,8 @@ class Session:
                 )
             
             # copying kernel dir
-            kernel: KernelLoader = self.sampler.realize(node)
-            shutil.copytree(kernel.get_directory(), os.path.join(kernel_save_dir, "kernel_scheduler_dir"))
+            if kernel_dir not in ["EMPTY", "MOCK"]: 
+                shutil.copytree(kernel_dir, os.path.join(kernel_save_dir, "kernel_scheduler_dir"))
 
         # Update with reward
         if accuracy > 0:

@@ -45,16 +45,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def reward(self):
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        path, accuracy, flops, nparams = (
+        path, accuracy, flops, nparams, kernel_dir = (
             params["path"][0],
             float(params["accuracy"][0]),
             int(params["flops"][0]),
             int(params["params"][0]),
+            params["kernel_dir"][0]
         )
         logging.info(
-            f"Path received to /reward request: {path}, accuracy: {accuracy}, flops: {flops}, params: {nparams}"
+            f"Path received to /reward request: {path}, accuracy: {accuracy}, flops: {flops}, params: {nparams}, kernel_dir: {kernel_dir}"
         )
-        self.session.update(path, accuracy, flops, nparams)
+        self.session.update(path, accuracy, flops, nparams, kernel_dir)
         self.session.save(force=False)
         self.session.print_stats(force=False)
 
