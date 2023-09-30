@@ -30,7 +30,7 @@ def get_sampler(args, model) -> Sampler:
         # TODO: maybe change to zero
         max_placeholder_flops = 1e12
 
-    # Build sampler09
+    # Build sampler
     model_params = model.sampler_parameters()
     params = {
         "input_shape": model_params["input_shape"],
@@ -53,9 +53,9 @@ def get_sampler(args, model) -> Sampler:
         "cuda": True,
         "autoscheduler": CodeGenOptions.AutoScheduler.Anderson2021,
         "num_worker_threads": args.kas_sampler_workers,
-        "requires_exact_division": True,
-        "requires_odd_kernel_size_in_unfold": True,
-        "minimum_unfold_ratio": 1.5,
+        "requires_exact_division": False,
+        "requires_odd_kernel_size_in_unfold": False,
+        "minimum_unfold_ratio": 1.0,
         "extra_options": {
             "beam_size": "32",
             "num_passes": "1",

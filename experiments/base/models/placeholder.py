@@ -75,4 +75,4 @@ class ConvPlaceholder(Placeholder):
     def exclusion_condition(in_size, out_size) -> bool:
         n, c1, h, w = in_size
         n2, c2, h2, w2 = out_size
-        return (h < 16 or w < 16)
+        return (h < 4 or w < 4)

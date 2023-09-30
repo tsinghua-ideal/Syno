@@ -32,6 +32,9 @@ class KASModel(nn.Module):
         
         self.flops, self.params = self.profile(batch_size, force_update=True)
         
+        if compile:
+            torch._dynamo.reset()
+        
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
             placeholder.reload(kernel_pack, compile)
             placeholder.refered_layer = None

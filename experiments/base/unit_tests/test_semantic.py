@@ -195,7 +195,77 @@ class Impl:
             [in_N, in_C, in_H, in_W, s_H_expand, s_W_expand],
             [out_C, w_in_C, w_k_1, w_k_2],
         )
+        
+    def Conv2d_pool1d(self) -> Assembled:
+        N, H, W, k_1, k_2, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "W", "k_1", "k_2", "s", "C_in", "C_out"
+        )
+        k = k_1
+        (
+            in_N,
+            in_H,
+            in_W,
+            in_C,
+            out_C,
+            w_in_C,
+            w_k_1,
+        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, C_out, C_in, k)
+        
+        # pool along spatial dimensions
+        H_pooled, s_H = self.assembler.create_split(in_H, s)
+        main_H_pooled, windows_H = self.assembler.create_unfold(H_pooled, k)
+        shared_k_1 = self.assembler.create_share(windows_H, w_k_1)
+        shared_C_in = self.assembler.create_share(in_C, w_in_C)
 
+        s_H_expand = self.assembler.create_expand(s)
+        main_H = self.assembler.create_merge(main_H_pooled, s_H_expand)
+
+        in_N.output(0)
+        out_C.output(1)
+        main_H.output(2)
+        in_W.output(3)
+        s_H.sum()
+        shared_k_1.sum()
+        shared_C_in.sum()
+
+        return self.assembler.assemble(
+            "conv",
+            "in_0 * in_1",
+            [in_N, in_C, in_H, in_W, s_H_expand],
+            [out_C, w_in_C, w_k_1],
+        )
+
+    def Shift2d(self) -> Assembled:
+        N, H, W, k_1, k_2, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "W", "k_1", "k_2", "s", "C_in", "C_out"
+        )
+        k = k_1
+        (
+            in_N,
+            in_H,
+            in_W,
+            in_C,
+            out_C,
+            w_in_C
+        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, C_out, C_in)
+        
+        # Convolutions
+        main_H = self.assembler.create_shift(in_H, 1)
+        main_W = self.assembler.create_shift(in_W, 1)
+        shared_C_in = self.assembler.create_share(in_C, w_in_C)
+
+        in_N.output(0)
+        out_C.output(1)
+        main_H.output(2)
+        main_W.output(3)
+        shared_C_in.sum()
+
+        return self.assembler.assemble(
+            "conv",
+            "in_0 * in_1",
+            [in_N, in_C, in_H, in_W],
+            [out_C, w_in_C],
+        )
 
 def train(
     args: Namespace,
@@ -205,6 +275,7 @@ def train(
 ) -> None:
 
     model, sampler = models.get_model(args, return_sampler=True)
+    # logging.info(f"model verbose: {model}")
     impl = Impl(sampler.create_assembler())
     assert hasattr(impl, name), f"{name} is not a valid kernel"
     kernel = getattr(impl, name)()
@@ -226,13 +297,13 @@ def train(
             else:
                 node = sampler.visit(subpath)
 
-    # model.load_kernel(
-    #     sampler, kernel, name=name, compile=args.compile, batch_size=args.batch_size
-    # )
-    # flops, params = model.profile(args.batch_size)
-    # logging.debug(
-    #     f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
-    # )
+    model.load_kernel(
+        sampler, kernel, name=name, compile=args.compile, batch_size=args.batch_size
+    )
+    flops, params = model.profile(args.batch_size)
+    logging.info(
+        f"Loaded model has {flops / 1e9}G FLOPs per batch and {params / 1e6}M parameters in total."
+    )
 
     # logging.info("Evaluating on real dataset ...")
     # accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
@@ -259,15 +330,27 @@ def test_semantic_conv2d() -> None:
     #     train_dataloader,
     #     val_dataloader,
     # )
+    # train(
+    #     args,
+    #     "Conv2d_group",
+    #     train_dataloader,
+    #     val_dataloader,
+    # )
+    # train(
+    #     args,
+    #     "Conv2d_pool",
+    #     train_dataloader,
+    #     val_dataloader,
+    # )
     train(
         args,
-        "Conv2d_group",
+        "Conv2d_pool1d",
         train_dataloader,
         val_dataloader,
     )
     # train(
     #     args,
-    #     "Conv2d_pool",
+    #     "Shift2d",
     #     train_dataloader,
     #     val_dataloader,
     # )

@@ -1,37 +1,40 @@
 import logging
-import torchvision
 from torch import nn
 from torchvision import models
+from typing import Optional
 
 from .model import KASModel
 from .placeholder import ConvPlaceholder
 
 
-def replace_conv2d_filter(conv: nn.Conv2d) -> bool:
+def replace_conv2d_filter(conv: nn.Conv2d) -> Optional[nn.Module]:
     # TODO: maybe relax the requirements
-    if conv.kernel_size not in [(1, 1), (3, 3), (5, 5), (7, 7)]:
-        return False
-    if conv.stride != (1, 1):
-        return False
-    if conv.kernel_size == (1, 1) and conv.padding != (0, 0):
-        return False
-    if conv.kernel_size == (3, 3) and conv.padding != (1, 1):
-        return False
-    if conv.kernel_size == (5, 5) and conv.padding != (2, 2):
-        return False
-    if conv.kernel_size == (7, 7) and conv.padding != (3, 3):
-        return False
-    return True
+    
+    def same_padding(k, p):
+        return k[0] == 2 * p[0] + 1 and k[1] == 2 * p[1] + 1
+    
+    if conv.kernel_size not in [(1, 1), (3, 3), (5, 5), (7, 7)] or conv.stride not in [(1, 1), (2, 2)]:
+        return None
+    if not same_padding(conv.kernel_size, conv.padding):
+        return None
+    if conv.stride == (1, 1):
+        return ConvPlaceholder(conv.in_channels, conv.out_channels, conv.kernel_size)
+    else:
+        return nn.Sequential(
+            nn.AvgPool2d(*conv.stride), 
+            ConvPlaceholder(conv.in_channels, conv.out_channels, conv.kernel_size)
+        )
+        
 
 
 def replace_conv2d_to_placeholder(module: nn.Module):
     count = 0
     for name, child in module.named_children():
         if isinstance(child, nn.Conv2d):
-            if replace_conv2d_filter(child):
+            replaced_kernel = replace_conv2d_filter(child)
+            if replaced_kernel is not None:
                 count += 1
-                setattr(module, name, 
-                        ConvPlaceholder(child.in_channels, child.out_channels, child.kernel_size))
+                setattr(module, name, replaced_kernel)
         elif len(list(child.named_children())) > 0:
             count += replace_conv2d_to_placeholder(child)
     return count
@@ -57,7 +60,7 @@ class CommonModel(KASModel):
             'input_shape': '[N, C_in, H, W]',
             'output_shape': '[N, C_out, H, W]',
             'primary_specs': ['N: 0', 'C_in: 2', 'C_out: 2', 'H: 2', 'W: 2'],
-            'coefficient_specs': ['k_1=3: 8', 'k_2=5: 2', 's=2: 4'],
+            'coefficient_specs': ['k_1=3: 10', 'k_2=5: 2', 's=2: 10'],
             'fixed_io_pairs': [(0, 0)],
         }
 

@@ -73,7 +73,8 @@ if __name__ == "__main__":
         fig_id += 1
         plt.figure(fig_id, figsize=(10, 6), dpi=300)
         plt.scatter(flops, y, label=name, s=3)
-        plt.scatter([flops[ind]], [y[ind]], s=5, c="r", marker="^")
+        if args.reference_hash is not None:
+            plt.scatter([flops[ind]], [y[ind]], s=5, c="r", marker="^")
         plt.xlabel("FLOPs")
         plt.ylabel("Accuracy")
         plt.legend()
@@ -83,7 +84,8 @@ if __name__ == "__main__":
         fig_id += 1
         plt.figure(fig_id, figsize=(10, 6), dpi=300)
         plt.scatter(params, y, label=name, s=3)
-        plt.scatter([params[ind]], [y[ind]], s=5, c="r", marker="^")
+        if args.reference_hash is not None: 
+            plt.scatter([params[ind]], [y[ind]], s=5, c="r", marker="^")
         plt.xlabel("Params")
         plt.ylabel("Accuracy")
         plt.legend()
