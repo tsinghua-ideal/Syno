@@ -56,9 +56,9 @@ class Residual(nn.Module):
 
         self.act = nn.GELU()
         self.pool1 = nn.MaxPool2d(2, 2)
-        self.conv1 = nn.Conv2d(ic, oc, 3, padding='same')
+        self.conv1 = nn.Conv2d(ic, oc, 3, padding=1)
         self.norm1 = nn.BatchNorm2d(oc)
-        self.conv2 = nn.Conv2d(oc, oc, 3, padding='same')
+        self.conv2 = nn.Conv2d(oc, oc, 3, padding=1)
         self.norm2 = nn.BatchNorm2d(oc)
 
     def forward(self, x):
