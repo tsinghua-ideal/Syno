@@ -1,9 +1,14 @@
 import torch
 from torch import nn
-from typing import Dict
+from enum import Enum
+from typing import Dict, Optional, Union
 
 from .KernelPack import KernelPack
 
+
+class ExportType(Enum):
+    ONNX = 'onnx'
+    RELAX = 'relax'
 
 class ONNXKernelMark(torch.autograd.Function):
     @staticmethod
@@ -31,7 +36,9 @@ class Placeholder(nn.Module):
         self.params = 0
         self.build_mapping_mode = False
         self.filtered_flag = False
-        self.onnx_id = None
+        # For model export.
+        self.export_type: Optional[ExportType] = None
+        self.export_id: Optional[int] = None
 
     def reload(self, kernel: KernelPack, compile=False) -> None:
         self.kernel = torch.compile(kernel, backend='inductor', dynamic=False, fullgraph=False) if compile else kernel
@@ -47,9 +54,16 @@ class Placeholder(nn.Module):
         return False
 
     def forward(self, x) -> torch.Tensor:
-        if self.onnx_id is not None:
+        if self.export_type is not None:
             assert self.refered_layer is not None
-            return ONNXKernelMark.apply(self.refered_layer(x), self.onnx_id)
+            assert self.export_id is not None
+            if self.export_type == ExportType.ONNX:
+                return ONNXKernelMark.apply(self.refered_layer(x), self.export_id)
+            elif self.export_type == ExportType.RELAX:
+                # This is a hack. There is no way to pass information to Relax, so we do this and run a transformation pass in Relax.
+                return torch.exp(self.refered_layer(x - self.export_id))
+            else:
+                assert False, f'Unknown export type {self.export_type}'
 
         x_size = x.size()
         out = self.refered_layer(x) if self.kernel is None else self.kernel(x)
@@ -82,12 +96,17 @@ def build_placeholder_mappings(net: nn.Module, sample_input: torch.Tensor):
     net(sample_input)
     set_mode(False)
 
-def enable_onnx_for_placeholders(net: nn.Module, enabled: bool = True):
-    onnx_id = 0
+def enable_export_for_placeholders(net: nn.Module, export_type: ExportType, enabled: bool = True):
+    export_id = 0
     def set_mode(module: nn.Module):
-        nonlocal onnx_id
+        nonlocal export_id
         if isinstance(module, Placeholder):
-            module.onnx_id = onnx_id if enabled else None
-            onnx_id += 1
+            if enabled:
+                module.export_type = export_type
+                module.export_id = export_id
+                export_id += 1
+            else:
+                module.export_type = None
+                module.export_id = None
     for child in net.modules():
         set_mode(child)
