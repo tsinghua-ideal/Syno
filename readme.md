@@ -48,6 +48,10 @@ pytest
 
 See all the tests in `tests/`.
 
+### Disabling Halide
+
+Halide has been made optional. If you do not want to use Halide codegen, change the line `option(KAS_WITH_HALIDE "..." ON)` in `CMakeLists.txt` to `OFF`. This disables all the tests as well.
+
 ## Scripts for Experiments
 
 Experiments' codes for searching kernels on MNIST and CIFAR10 are provided under the `experiments` folder. To launch an experiment using 8 GPUs, run

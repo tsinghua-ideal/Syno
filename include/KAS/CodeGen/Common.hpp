@@ -1,12 +1,16 @@
 #pragma once
 
 #include <filesystem>
+#include <vector>
 
+#ifdef KAS_USE_HALIDE
 #include "Halide.h"
+#endif
 
 
 namespace kas {
 
+#ifdef KAS_USE_HALIDE
 inline Halide::Target GetHostTarget(bool useGPU, bool withRuntime) {
     auto t = Halide::get_host_target();
     if (useGPU) {
@@ -21,6 +25,7 @@ inline Halide::Target GetHostTarget(bool useGPU, bool withRuntime) {
     }
     return t;
 }
+#endif
 
 // Link the objects into a shared library.
 int LinkObjects(const std::filesystem::path& dir, const std::string& soName, const std::vector<std::string>& objects);
