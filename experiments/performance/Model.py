@@ -1,30 +1,64 @@
+from dataclasses import dataclass
 import importlib
+import logging
 import os
-from typing import Tuple
 import sys
+from typing import Callable, Tuple, Optional
 
 import tvm
-from tvm import IRModule, relax
+from tvm import IRModule, relax, te
+import numpy as np
 
 from KAS import KernelLoader
 
+
+@dataclass
+class KernelMetadata:
+    id: int
+    sinfo_input: relax.StructInfo
+    sinfo_output: relax.StructInfo
 
 def import_templated_model(working_dir: os.PathLike, model_name: str) -> Tuple[IRModule, Tuple]:
     """Import an exported model. Returns the imported model and the input shape."""
     # import the Relax model
     py_mod_name = f"model_relax_{model_name.replace('/', '_')}"
-    assert py_mod_name not in sys.modules
-    spec = importlib.util.spec_from_file_location(py_mod_name, os.path.join(working_dir, f"{model_name}.py"))
-    py_mod = importlib.util.module_from_spec(spec)
-    sys.modules[py_mod_name] = py_mod
-    spec.loader.exec_module(py_mod)
+    if py_mod_name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(py_mod_name, os.path.join(working_dir, f"{model_name}.py"))
+        py_mod = importlib.util.module_from_spec(spec)
+        sys.modules[py_mod_name] = py_mod
+        spec.loader.exec_module(py_mod)
+    else:
+        py_mod = sys.modules[py_mod_name]
     relax_mod = py_mod.Module
     assert isinstance(relax_mod, IRModule)
     input_shape = py_mod.INPUT_SHAPE
     return relax_mod, input_shape
 
-def substitute_kernels(relax_mod: IRModule, kernel_loader: KernelLoader) -> IRModule:
-    """Substitute the kernels in the imported model."""
+def _shape_expr_to_tuple(shape_expr: relax.ShapeExpr) -> tuple:
+    return tuple(v.value for v in shape_expr.values)
+
+def substitute_kernels(relax_mod: IRModule, kernel_builder: Optional[Callable[[KernelMetadata, relax.BlockBuilder, relax.Var], relax.Var]]) -> IRModule:
+    """
+        Substitute the kernels in the imported model.
+        If kernel_builder is None, the kernels will be restored as defined in the network.
+        Example:
+        ```python
+            def kernel_builder(kernel_meta: KernelMetadata, bb: relax.BlockBuilder, data: relax.Var) -> relax.Var:
+                # This is a simple kernel that adds a constant to the input,
+                added = bb.emit(relax.op.add(data, relax.const(kernel_meta.id, "float32")))
+                # and performs a 1x1 convolution.
+                in_channels = kernel_meta.sinfo_input.shape[1].value
+                out_channels = kernel_meta.sinfo_output.shape[1].value
+                conv = bb.emit(relax.op.nn.conv2d(
+                    added,
+                    relax.const(np.zeros((out_channels, in_channels, 1, 1), "float32")),
+                    out_dtype="float32",
+                ))
+                return conv
+            result = substitute_kernels(relax_mod, kernel_builder)
+            result.show()
+        ```
+    """
     @relax.expr_functor.mutator
     class KernelReplacer(relax.PyExprMutator):
         def __init__(self, mod: IRModule) -> None:
@@ -85,33 +119,32 @@ def substitute_kernels(relax_mod: IRModule, kernel_loader: KernelLoader) -> IRMo
             sinfo_output = original_output.struct_info
             logging.info(f"sinfo_output = {sinfo_output.shape.values}")
 
-            # Restore the kernel. TODO: replace.
-            new_output = self.builder_.emit(
-                relax.op.nn.conv2d(
-                    data,
-                    conv_weight,
-                    strides=conv_call.attrs.strides,
-                    padding=conv_call.attrs.padding,
-                    dilation=conv_call.attrs.dilation,
-                    groups=conv_call.attrs.groups,
-                    data_layout=conv_call.attrs.data_layout,
-                    kernel_layout=conv_call.attrs.kernel_layout,
-                    out_dtype=conv_call.attrs.out_dtype,
+            if kernel_builder is None:
+                # Restore the kernel.
+                new_output = self.builder_.emit(
+                    relax.op.nn.conv2d(
+                        data,
+                        conv_weight,
+                        strides=conv_call.attrs.strides,
+                        padding=conv_call.attrs.padding,
+                        dilation=conv_call.attrs.dilation,
+                        groups=conv_call.attrs.groups,
+                        data_layout=conv_call.attrs.data_layout,
+                        kernel_layout=conv_call.attrs.kernel_layout,
+                        out_dtype=conv_call.attrs.out_dtype,
+                    )
                 )
-            )
-            if has_bias:
-                new_output = self.builder_.emit(relax.op.add(new_output, conv_bias))
-            logging.info(f"Rewritten.")
+                if has_bias:
+                    new_output = self.builder_.emit(relax.op.add(new_output, conv_bias))
+                logging.info(f"Rewritten.")
 
-            return new_output
-
-            # Proof of concept.
-            interesting_bias = relax.const(np.zeros(_shape_expr_to_tuple(sinfo_output.shape), "float32"))
-            def te_func(X: te.Tensor, Y: te.Tensor):
-                return te.compute(sinfo_output.shape.values, lambda *i: X[i] + Y[i])
-            biased = self.builder_.emit_te(te_func, new_output, interesting_bias)
-
-            return biased
+                return new_output
+            else:
+                # Substitute the kernel as given.
+                kernel_meta = KernelMetadata(kernel_id, sinfo_input, sinfo_output)
+                result = kernel_builder(kernel_meta, self.builder_, data)
+                logging.info(f"Rewritten as given in the builder.")
+                return result
 
         def transform(self) -> IRModule:
             for global_var, func in self.mod_.functions.items():

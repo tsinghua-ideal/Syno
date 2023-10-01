@@ -29,13 +29,13 @@ import numpy as np  # type: ignore
 import importlib
 
 import tvm
-from tvm import relay, relax, runtime, te, transform
+from tvm import relax, runtime, te, transform
 from tvm.ir.module import IRModule
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-from tvm.relax.testing import relay_translator
 from tvm.target.target import Target
+
+from Model import import_templated_model, substitute_kernels
 
 
 def _parse_args():
@@ -44,11 +44,6 @@ def _parse_args():
         "--model",
         type=str,
         default="ConvNet",
-    )
-    args.add_argument(
-        "--input-shape",
-        type=str,
-        default="[1, 3, 32, 32]",
     )
     args.add_argument(
         "--target",
@@ -81,11 +76,6 @@ def _parse_args():
         default="./measurements",
     )
     args.add_argument(
-        "--cache-dir",
-        type=str,
-        default="./cached_networks",
-    )
-    args.add_argument(
         "--rpc-timeout-sec",
         type=int,
         default=180,
@@ -95,7 +85,6 @@ def _parse_args():
     args.add_argument("--results-file", type=str, default="./results.csv")
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
-    parsed.input_shape = json.loads(parsed.input_shape)
     if parsed.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
         parsed.alloc_repeat = 3
     else:
@@ -122,20 +111,12 @@ ARGS = _parse_args()
 
 def apply_opt_before_tuning(relax_mod: IRModule, target: Target) -> IRModule:
     with transform.PassContext(opt_level=3):
-        # relay_mod = relay.transform.SimplifyInference()(relay_mod)
-        # relay_mod = relay.transform.FoldConstant()(relay_mod)
-        # relay_mod = relay.transform.FoldScaleAxis()(relay_mod)
-        # relay_mod = relay.transform.CanonicalizeOps()(relay_mod)
-        # relay_mod = relay.transform.AlterOpLayout()(relay_mod)
-        # relay_mod = relay.transform.FoldConstant()(relay_mod)
-
-        relax_mod = relax.transform.LegalizeOps()(relax_mod)
-        # relax_mod = relax.transform.DecomposeOpsForInference()(relax_mod)
-        # relax_mod = relax.transform.FoldConstant()(relax_mod)
-
-        # relax_mod = relax.transform.AnnotateTIROpPattern()(relax_mod)
-        # relax_mod = relax.transform.FuseOps()(relax_mod)
-        # relax_mod = relax.transform.FuseTIR()(relax_mod)
+        relax_mod = relax.transform.DecomposeOpsForInference()(relax_mod)
+        relax_mod = relax.transform.LegalizeOps(enable_warning=True)(relax_mod)
+        relax_mod = relax.transform.AnnotateTIROpPattern()(relax_mod)
+        relax_mod = relax.transform.FoldConstant()(relax_mod)
+        relax_mod = relax.transform.FuseOps()(relax_mod)
+        relax_mod = relax.transform.FuseTIR()(relax_mod)
     return relax_mod
 
 def f_measurement(
@@ -151,7 +132,6 @@ def f_measurement(
         min_repeat_ms=500,
     )
     return evaluator()
-
 
 def get_runner():
     runner_config = {
@@ -172,139 +152,13 @@ def get_runner():
 
     return runner
 
-def _shape_expr_to_tuple(shape_expr: relax.ShapeExpr) -> tuple:
-    return tuple(v.value for v in shape_expr.values)
-
-def substitute_kernels(relax_mod: IRModule) -> IRModule:
-    @relax.expr_functor.mutator
-    class KernelReplacer(relax.PyExprMutator):
-        def __init__(self, mod: IRModule) -> None:
-            super().__init__()
-            self.mod_ = mod
-
-        def visit_call_(self, call):
-            call = self.visit_expr_post_order(call)
-
-            # This is a hack. Since we cannot pass information to Relax, we rewrite the layer to be replaced to this form:
-            #   layer(x) -> exp(layer(x - kernel_id))
-            # In this way we can know which kernels we should replace and the kernel ids.
-
-            exp_op = tvm.ir.Op.get("relax.exp")
-            add_op = tvm.ir.Op.get("relax.add")
-            conv2d_op = tvm.ir.Op.get("relax.nn.conv2d")
-            subtract_op = tvm.ir.Op.get("relax.subtract")
-
-            # First match the outer exp.
-            if call.op != exp_op:
-                return call
-
-            original_output = self.lookup_binding(call.args[0])
-
-            logging.info(f"Processing {original_output}...")
-
-            # Relax conv2d does not support bias, and bias is implemented by another add op.
-            if original_output.op == add_op:
-                has_bias = True
-                conv_call = self.lookup_binding(original_output.args[0])
-                conv_bias = original_output.args[1]
-            elif original_output.op == conv2d_op:
-                has_bias = False
-                conv_call = original_output
-                conv_bias = None
-            else:
-                assert False, f"Unknown op {original_output.op} when handling a marked kernel!"
-
-            # x - kernel_id
-            marked_input = self.lookup_binding(conv_call.args[0])
-            assert isinstance(marked_input, relax.Call) and marked_input.op == subtract_op, f"Marked input is illegal: {marked_input}"
-
-            # x
-            data = marked_input.args[0]
-            logging.info(f"data = {data}")
-            conv_weight = conv_call.args[1]
-            logging.info(f"conv_weight = {conv_weight}")
-            if has_bias:
-                logging.info(f"conv_bias = {conv_bias}")
-
-            kernel_id = marked_input.args[1]
-            assert isinstance(kernel_id, relax.Constant)
-            kernel_id = int(kernel_id.data.numpy())
-            logging.info(f"kernel_id = {kernel_id}")
-
-            sinfo_input = data.struct_info
-            logging.info(f"sinfo_input = {sinfo_input.shape.values}")
-            sinfo_output = original_output.struct_info
-            logging.info(f"sinfo_output = {sinfo_output.shape.values}")
-
-            # Restore the kernel. TODO: replace.
-            new_output = self.builder_.emit(
-                relax.op.nn.conv2d(
-                    data,
-                    conv_weight,
-                    strides=conv_call.attrs.strides,
-                    padding=conv_call.attrs.padding,
-                    dilation=conv_call.attrs.dilation,
-                    groups=conv_call.attrs.groups,
-                    data_layout=conv_call.attrs.data_layout,
-                    kernel_layout=conv_call.attrs.kernel_layout,
-                    out_dtype=conv_call.attrs.out_dtype,
-                )
-            )
-            if has_bias:
-                new_output = self.builder_.emit(relax.op.add(new_output, conv_bias))
-            logging.info(f"Rewritten.")
-
-            # Proof of concept.
-            interesting_bias = relax.const(np.zeros(_shape_expr_to_tuple(sinfo_output.shape), "float32"))
-            def te_func(X: te.Tensor, Y: te.Tensor):
-                return te.compute(sinfo_output.shape.values, lambda *i: X[i] + Y[i])
-            biased = self.builder_.emit_te(te_func, new_output, interesting_bias)
-
-            return biased
-
-        def transform(self) -> IRModule:
-            for global_var, func in self.mod_.functions.items():
-                if not isinstance(func, relax.Function):
-                    continue
-                updated_func = self.visit_expr(func)
-                self.builder_.update_func(global_var, updated_func)
-
-            return self.builder_.get()
-
-    @tvm.ir.transform.module_pass(opt_level=0, name="KASReplaceKernels")
-    class ReplaceKernelsPass:
-        """The wrapper for the LowerTensorIR pass."""
-        def transform_module(self, mod, ctx):
-            return KernelReplacer(mod).transform()
-
-    relax_mod = ReplaceKernelsPass()(relax_mod)
-    relax_mod = relax.transform.DeadCodeElimination(["main"])(relax_mod) # To remove markers.
-    relax_mod = relax.transform.CanonicalizeBindings()(relax_mod)
-    return relax_mod
-
 def main():
-    input_name = "inp_0"
-    input_dtype = "float32"
-    input_info = {input_name: ARGS.input_shape}
-    input_data = {}
-    for input_name, input_shape in input_info.items():
-        logging.info(f"  input_name: {input_name}")
-        logging.info(f"  input_shape: {input_shape}")
-        logging.info(f"  input_dtype: {input_dtype}")
-
     # import the Relax model
-    py_mod_name = f"model_relax.{ARGS.model}"
-    assert py_mod_name not in sys.modules
-    spec = importlib.util.spec_from_file_location(py_mod_name, f"model_relax/{ARGS.model}.py")
-    py_mod = importlib.util.module_from_spec(spec)
-    sys.modules[py_mod_name] = py_mod
-    spec.loader.exec_module(py_mod)
-    relax_mod = py_mod.Module
-    assert isinstance(relax_mod, tvm.IRModule)
+    relax_mod, loaded_input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), ARGS.model)
 
-    relax_mod = substitute_kernels(relax_mod)
+    relax_mod = substitute_kernels(relax_mod, None)
+    logging.info("After substitute_kernels:")
     relax_mod.show()
-    # input()
 
     relax_mod = apply_opt_before_tuning(relax_mod, ARGS.target)
 
@@ -324,6 +178,15 @@ def main():
         target=ARGS.target,
         params=None,
     )
+
+    input_name = "inp_0"
+    input_dtype = "float32"
+    input_info = {input_name: loaded_input_shape}
+    input_data = {}
+    for input_name, input_shape in input_info.items():
+        logging.info(f"  input_name: {input_name}")
+        logging.info(f"  input_shape: {input_shape}")
+        logging.info(f"  input_dtype: {input_dtype}")
 
     for input_name, input_shape in input_info.items():
         if input_dtype.startswith("float"):
@@ -359,7 +222,7 @@ def main():
         # write experiment parameters at the top as a record
         writer.writerow(["start", str(start_time)])
         writer.writerow(["model", ARGS.model])
-        writer.writerow(["input_shape", ARGS.input_shape])
+        writer.writerow(["input_shape", loaded_input_shape])
         writer.writerow(["target", ARGS.target])
         writer.writerow(["num_measurement_repeats", ARGS.num_measurement_repeats])
         for res in result.results:

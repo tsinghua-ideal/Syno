@@ -43,6 +43,8 @@ if __name__ == '__main__':
             "import tvm\n",
             "from tvm.script import ir as I\n",
             "from tvm.script import tir as T\n",
-            "from tvm.script import relax as R\n"
+            "from tvm.script import relax as R\n",
+            "INPUT_SHAPE = ", str(shape), "\n",
+            "\n"
         ])
         f.write(mod.script(show_meta=True))
