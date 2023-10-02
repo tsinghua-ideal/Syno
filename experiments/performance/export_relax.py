@@ -4,7 +4,7 @@ import numpy as np
 import tvm
 from tvm.relax.frontend.torch import from_fx
 
-from KAS.Placeholder import enable_onnx_for_placeholders
+from KAS.Placeholder import enable_export_for_placeholders, ExportType
 
 import os
 import sys
@@ -19,7 +19,7 @@ if __name__ == '__main__':
 
     model = models.get_model(args, return_sampler=False)
     model.eval()
-    enable_onnx_for_placeholders(model)
+    enable_export_for_placeholders(model, ExportType.RELAX)
     shape = (args.batch_size, *model.sample_input_shape())
     
     input_info = [(shape, "float32")]
@@ -35,9 +35,16 @@ if __name__ == '__main__':
     mod: tvm.IRModule = from_fx(graph_module, input_info)
 
     # Print out the imported model.
-    print(mod.script())
+    mod.show()
 
     os.makedirs('model_relax', exist_ok=True)
     with open(f'model_relax/{args.model}.py', 'w') as f:
-        f.writelines(["import tvm\n", "from tvm.script import ir as I\n", "from tvm.script import relax as R\n"])
+        f.writelines([
+            "import tvm\n",
+            "from tvm.script import ir as I\n",
+            "from tvm.script import tir as T\n",
+            "from tvm.script import relax as R\n",
+            "INPUT_SHAPE = ", str(shape), "\n",
+            "\n"
+        ])
         f.write(mod.script(show_meta=True))

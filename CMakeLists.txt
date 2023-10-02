@@ -26,26 +26,35 @@ link_libraries(nlohmann_json::nlohmann_json)
 find_package(fmt REQUIRED)
 link_libraries(fmt::fmt-header-only)
 
-# Halide
-find_package(Halide REQUIRED)
-
 # pybind11
 find_package(pybind11 CONFIG REQUIRED)
 
-# GTest
-enable_testing()
-find_package(GTest REQUIRED)
-include_directories(${GTEST_INCLUDE_DIRS})
+# To disable Halide, change ON to OFF.
+option(KAS_WITH_HALIDE "Enable Halide. If not enabled, you cannot use tests." ON)
+if(KAS_WITH_HALIDE)
+    add_definitions(-DKAS_USE_HALIDE)
 
-# OpenMP, which is used to speed up tests. Optional.
-find_package(OpenMP)
+    # Halide
+    find_package(Halide REQUIRED)
+
+    # GTest
+    enable_testing()
+    find_package(GTest REQUIRED)
+    include_directories(${GTEST_INCLUDE_DIRS})
+
+    # OpenMP, which is used to speed up tests. Optional.
+    find_package(OpenMP)
+endif()
 
 # Includes and libraries
 include_directories(include)
 
 # Sub-directories
 add_subdirectory(src)
-add_subdirectory(tests)
 
-# Only runtime requires CUDA and Torch.
+if(KAS_WITH_HALIDE)
+    add_subdirectory(tests)
+endif()
+
+# Only runtime may require CUDA or Torch.
 add_subdirectory(runtime)

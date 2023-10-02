@@ -16,6 +16,12 @@ On your target device, which in our case is NVIDIA Jetson Orin Nano, run
 python -m tvm.exec.rpc_server --tracker=[HOST_IP]:9190 --key=jetson-orin-nano
 ```
 
+for example, if you are running the tracker on the host machine, then it is
+    
+```bash
+python -m tvm.exec.rpc_server --tracker=127.0.0.1:9190 --key=jetson-orin-nano
+```
+
 to start the client.
 
 ## How to run

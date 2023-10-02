@@ -4,3 +4,5 @@ oss2
 matplotlib
 seaborn
 tqdm
+fmt
+nlohmann_json

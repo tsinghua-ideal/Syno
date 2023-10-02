@@ -1,3 +1,6 @@
+# This file is adapted from apps/relax_examples/e2e_auto_tir.py in https://github.com/apache/tvm.
+# See the license below.
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -21,18 +24,18 @@ import csv
 import json
 import argparse
 import logging
-from typing import Dict
+from typing import Dict, Optional
 import numpy as np  # type: ignore
 import importlib
 
 import tvm
-from tvm import relay, relax, runtime, transform
+from tvm import relax, runtime, te, transform
 from tvm.ir.module import IRModule
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-from tvm.relax.testing import relay_translator
 from tvm.target.target import Target
+
+from Model import import_templated_model, substitute_kernels
 
 
 def _parse_args():
@@ -41,11 +44,6 @@ def _parse_args():
         "--model",
         type=str,
         default="ConvNet",
-    )
-    args.add_argument(
-        "--input-shape",
-        type=str,
-        default="[1, 3, 32, 32]",
     )
     args.add_argument(
         "--target",
@@ -78,11 +76,6 @@ def _parse_args():
         default="./measurements",
     )
     args.add_argument(
-        "--cache-dir",
-        type=str,
-        default="./cached_networks",
-    )
-    args.add_argument(
         "--rpc-timeout-sec",
         type=int,
         default=180,
@@ -92,7 +85,6 @@ def _parse_args():
     args.add_argument("--results-file", type=str, default="./results.csv")
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
-    parsed.input_shape = json.loads(parsed.input_shape)
     if parsed.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
         parsed.alloc_repeat = 3
     else:
@@ -114,26 +106,17 @@ def _parse_args():
         parsed.workers = 1
     return parsed
 
-logging.basicConfig()
-logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 ARGS = _parse_args()
 
 def apply_opt_before_tuning(relax_mod: IRModule, target: Target) -> IRModule:
     with transform.PassContext(opt_level=3):
-        # relay_mod = relay.transform.SimplifyInference()(relay_mod)
-        # relay_mod = relay.transform.FoldConstant()(relay_mod)
-        # relay_mod = relay.transform.FoldScaleAxis()(relay_mod)
-        # relay_mod = relay.transform.CanonicalizeOps()(relay_mod)
-        # relay_mod = relay.transform.AlterOpLayout()(relay_mod)
-        # relay_mod = relay.transform.FoldConstant()(relay_mod)
-
-        relax_mod = relax.transform.LegalizeOps()(relax_mod)
-        # relax_mod = relax.transform.DecomposeOpsForInference()(relax_mod)
-        # relax_mod = relax.transform.FoldConstant()(relax_mod)
-
-        # relax_mod = relax.transform.AnnotateTIROpPattern()(relax_mod)
-        # relax_mod = relax.transform.FuseOps()(relax_mod)
-        # relax_mod = relax.transform.FuseTIR()(relax_mod)
+        relax_mod = relax.transform.DecomposeOpsForInference()(relax_mod)
+        relax_mod = relax.transform.LegalizeOps(enable_warning=True)(relax_mod)
+        relax_mod = relax.transform.AnnotateTIROpPattern()(relax_mod)
+        relax_mod = relax.transform.FoldConstant()(relax_mod)
+        relax_mod = relax.transform.FuseOps()(relax_mod)
+        relax_mod = relax.transform.FuseTIR()(relax_mod)
     return relax_mod
 
 def f_measurement(
@@ -149,7 +132,6 @@ def f_measurement(
         min_repeat_ms=500,
     )
     return evaluator()
-
 
 def get_runner():
     runner_config = {
@@ -170,68 +152,19 @@ def get_runner():
 
     return runner
 
-def substitute_kernels(relax_mod: IRModule) -> IRModule:
-    @relax.expr_functor.mutator
-    class KernelReplacer(relax.PyExprMutator):
-        def __init__(self, mod: IRModule) -> None:
-            super().__init__()
-            self.mod_ = mod
-
-        def visit_call_(self, call):
-            call = self.visit_expr_post_order(call)
-            conv2d_op = tvm.ir.Op.get("relax.nn.conv2d")
-            if call.op != conv2d_op:
-                return call
-            print(f"Processing {call}")
-            return call
-
-        def transform(self) -> IRModule:
-            for global_var, func in self.mod_.functions.items():
-                if not isinstance(func, relax.Function):
-                    continue
-                updated_func = self.visit_expr(func)
-                self.builder_.update_func(global_var, updated_func)
-
-            return self.builder_.get()
-    @tvm.ir.transform.module_pass(opt_level=0, name="KASReplaceKernels")
-    class ReplaceKernelsPass:
-        """The wrapper for the LowerTensorIR pass."""
-        def transform_module(self, mod, ctx):
-            return KernelReplacer(mod).transform()
-    return ReplaceKernelsPass()(relax_mod)
-
 def main():
-    input_name = "inp_0"
-    input_dtype = "float32"
-    input_info = {input_name: ARGS.input_shape}
-    input_data = {}
-    for input_name, input_shape in input_info.items():
-        print(f"  input_name: {input_name}")
-        print(f"  input_shape: {input_shape}")
-        print(f"  input_dtype: {input_dtype}")
-
     # import the Relax model
-    py_mod_name = f"model_relax.{ARGS.model}"
-    assert py_mod_name not in sys.modules
-    spec = importlib.util.spec_from_file_location(py_mod_name, f"model_relax/{ARGS.model}.py")
-    py_mod = importlib.util.module_from_spec(spec)
-    sys.modules[py_mod_name] = py_mod
-    spec.loader.exec_module(py_mod)
-    relax_mod = py_mod.Module
-    assert isinstance(relax_mod, tvm.IRModule)
+    relax_mod, loaded_input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), ARGS.model)
 
-    relax_mod = substitute_kernels(relax_mod)
-    # relax_mod.show()
-    input()
+    relax_mod = substitute_kernels(relax_mod, None)
+    logging.info("After substitute_kernels:")
+    relax_mod.show()
 
     relax_mod = apply_opt_before_tuning(relax_mod, ARGS.target)
 
-    # relax_mod.show()
-    # input()
     db = ms.relax_integration.tune_relax(
         mod=relax_mod,
         target=ARGS.target,
-        # params=params,
         params=None,
         num_trials_per_iter=64,
         max_trials_per_task=ARGS.num_trials,
@@ -239,15 +172,21 @@ def main():
         runner=get_runner(),
         work_dir=ARGS.work_dir,
     )
-    # relax_mod.show()
-    # input()
     executable = ms.relax_integration.compile_relax(
         db,
         mod=relax_mod,
         target=ARGS.target,
-        # params=params,
         params=None,
     )
+
+    input_name = "inp_0"
+    input_dtype = "float32"
+    input_info = {input_name: loaded_input_shape}
+    input_data = {}
+    for input_name, input_shape in input_info.items():
+        logging.info(f"  input_name: {input_name}")
+        logging.info(f"  input_shape: {input_shape}")
+        logging.info(f"  input_dtype: {input_dtype}")
 
     for input_name, input_shape in input_info.items():
         if input_dtype.startswith("float"):
@@ -272,7 +211,7 @@ def main():
         dev = tvm.device(ARGS.target.kind.name)
         result = f_measurement(executable.mod, dev, input_data)
 
-    print(result)
+    logging.info(result)
 
     if not ARGS.results_file:
         return
@@ -283,7 +222,7 @@ def main():
         # write experiment parameters at the top as a record
         writer.writerow(["start", str(start_time)])
         writer.writerow(["model", ARGS.model])
-        writer.writerow(["input_shape", ARGS.input_shape])
+        writer.writerow(["input_shape", loaded_input_shape])
         writer.writerow(["target", ARGS.target])
         writer.writerow(["num_measurement_repeats", ARGS.num_measurement_repeats])
         for res in result.results:

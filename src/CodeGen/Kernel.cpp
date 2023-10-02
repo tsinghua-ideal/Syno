@@ -112,6 +112,7 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
         GraphvizDFGGen gen { tensorView.getSubgraphs(), ctx };
         gen.generate(dir / "kernel_dfg.dot", name);
     }
+#ifdef KAS_USE_HALIDE
     if (options.halide) {
         std::vector<std::future<std::string>> schedules;
         const auto gen = HalideGen { ctx, tensorView, options };
@@ -151,6 +152,9 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
         int err = LinkObjects(dir, soName, objects);
         KAS_ASSERT(err == 0, "Failed to invoke linker, error code = {}", err);
     }
+#else
+    KAS_ASSERT(!options.halide, "Halide is not enabled!");
+#endif
     {
         auto gen = PyTorchGen { ctx, tensorView };
         std::ofstream pytorchFile { dir / "kernels.py" };

@@ -9,7 +9,9 @@
 #include <pybind11/stl.h>
 #include <pybind11/stl/filesystem.h>
 
+#ifdef KAS_USE_HALIDE
 #include "KAS/CodeGen/HalideGen.hpp"
+#endif
 #include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/Sample.hpp"

@@ -1,7 +1,7 @@
 import torch
 from torch.onnx import TrainingMode, OperatorExportTypes
 
-from KAS.Placeholder import enable_onnx_for_placeholders
+from KAS.Placeholder import enable_export_for_placeholders, ExportType
 
 import os
 import sys
@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     model = models.get_model(args, return_sampler=False)
     model.eval()
-    enable_onnx_for_placeholders(model)
+    enable_export_for_placeholders(model, ExportType.ONNX)
     shape = (args.batch_size, *model.sample_input_shape())
     os.makedirs('model_onnx', exist_ok=True)
     torch.onnx.export(

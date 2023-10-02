@@ -7,7 +7,10 @@
 
 #include <nlohmann/json.hpp>
 
+#include "KAS/CodeGen/Common.hpp"
+#ifdef KAS_USE_HALIDE
 #include "KAS/CodeGen/HalideGen.hpp"
+#endif
 #include "KAS/CodeGen/Options.hpp"
 #include "KAS/Core/TensorView.hpp"
 
