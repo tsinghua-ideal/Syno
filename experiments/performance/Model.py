@@ -3,7 +3,7 @@ import importlib
 import logging
 import os
 import sys
-from typing import Callable, Tuple, Optional
+from typing import Callable, Dict, List, Tuple, Optional
 
 import tvm
 from tvm import IRModule, relax, te
@@ -18,8 +18,8 @@ class KernelMetadata:
     sinfo_input: relax.StructInfo
     sinfo_output: relax.StructInfo
 
-def import_templated_model(working_dir: os.PathLike, model_name: str) -> Tuple[IRModule, Tuple]:
-    """Import an exported model. Returns the imported model and the input shape."""
+def import_templated_model(working_dir: os.PathLike, model_name: str) -> Tuple[IRModule, List[Dict[str, int]], Tuple]:
+    """Import an exported model. Returns the imported model, all mappings and the input shape."""
     # import the Relax model
     py_mod_name = f"model_relax_{model_name.replace('/', '_')}"
     if py_mod_name not in sys.modules:
@@ -31,8 +31,9 @@ def import_templated_model(working_dir: os.PathLike, model_name: str) -> Tuple[I
         py_mod = sys.modules[py_mod_name]
     relax_mod = py_mod.Module
     assert isinstance(relax_mod, IRModule)
+    all_mappings = py_mod.ALL_MAPPINGS
     input_shape = py_mod.INPUT_SHAPE
-    return relax_mod, input_shape
+    return relax_mod, all_mappings, input_shape
 
 def _shape_expr_to_tuple(shape_expr: relax.ShapeExpr) -> tuple:
     return tuple(v.value for v in shape_expr.values)
@@ -152,7 +153,7 @@ def substitute_kernels(relax_mod: IRModule, kernel_builder: Optional[Callable[[K
                     continue
                 updated_func = self.visit_expr(func)
                 self.builder_.update_func(global_var, updated_func)
-
+            # TODO: maybe we need to perform some CSE?
             return self.builder_.get()
 
     @tvm.ir.transform.module_pass(opt_level=0, name="KASReplaceKernels")
@@ -165,3 +166,11 @@ def substitute_kernels(relax_mod: IRModule, kernel_builder: Optional[Callable[[K
     relax_mod = relax.transform.DeadCodeElimination(["main"])(relax_mod) # To remove markers.
     relax_mod = relax.transform.CanonicalizeBindings()(relax_mod)
     return relax_mod
+
+def construct_kernel_builder(all_mappings: List[Dict[str, int]], generic_builder: Callable[[relax.BlockBuilder, relax.Var], relax.Var]) -> Callable[[KernelMetadata, relax.BlockBuilder, relax.Var], relax.Var]:
+    #TODO!!!: There are redundant mappings. We should generate functions for distict mappings, and call the functions.
+    # Use frozenset for hash.
+    def with_mappings(kernel_meta: KernelMetadata, bb: relax.BlockBuilder, data: relax.Var) -> relax.Var:
+        mappings = all_mappings[kernel_meta.id]
+        return generic_builder(bb, data, **mappings)
+    return with_mappings

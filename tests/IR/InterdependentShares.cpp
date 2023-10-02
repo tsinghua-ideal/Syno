@@ -44,6 +44,8 @@ TEST(ir_tests, interdependent_shares) {
     dfgGen.generate("./interdependent_shares.dot", "interdependent_shares");
     auto pytorchGen = PyTorchGen(ctx, tensorView);
     pytorchGen.generateSingle("./interdependent_shares.py", "InterdependentShares", tensorView, {});
+    auto tvmGen = TVMCodeGen(ctx, ir);
+    tvmGen.generate("./interdependent_shares_tvm.py");
 }
 
 } // namespace kas

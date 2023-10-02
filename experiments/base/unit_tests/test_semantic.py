@@ -140,7 +140,7 @@ class Impl:
         return self.assembler.assemble(
             "conv",
             "in_0 * in_1",
-            [in_N, in_C, in_H, in_W],
+            [in_N, in_C, in_H, in_W, tmp_dim],
             [out_G, out_C_group, w_in_C, w_k_1, w_k_2],
         )
         

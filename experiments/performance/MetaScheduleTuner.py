@@ -35,7 +35,8 @@ from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.target.target import Target
 
-from Model import import_templated_model, substitute_kernels
+from Model import import_templated_model, substitute_kernels, construct_kernel_builder
+import tvm_kernel_example
 
 
 def _parse_args():
@@ -154,11 +155,13 @@ def get_runner():
 
 def main():
     # import the Relax model
-    relax_mod, loaded_input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), ARGS.model)
-
-    relax_mod = substitute_kernels(relax_mod, None)
+    relax_mod, all_mappings, loaded_input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), ARGS.model)
+    # construct kernel builder
+    kernel_builder = construct_kernel_builder(all_mappings, tvm_kernel_example.build)
+    relax_mod = substitute_kernels(relax_mod, kernel_builder)
     logging.info("After substitute_kernels:")
     relax_mod.show()
+    # input()
 
     relax_mod = apply_opt_before_tuning(relax_mod, ARGS.target)
 

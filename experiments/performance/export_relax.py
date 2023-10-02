@@ -4,6 +4,7 @@ import numpy as np
 import tvm
 from tvm.relax.frontend.torch import from_fx
 
+from KAS import Sampler
 from KAS.Placeholder import enable_export_for_placeholders, ExportType
 
 import os
@@ -44,7 +45,11 @@ if __name__ == '__main__':
             "from tvm.script import ir as I\n",
             "from tvm.script import tir as T\n",
             "from tvm.script import relax as R\n",
+            "\n",
             "INPUT_SHAPE = ", str(shape), "\n",
             "\n"
+            "ALL_MAPPINGS = ", str(Sampler._extract_all_mappings(model)), "\n",
+            "\n",
+            mod.script(show_meta=True),
+            "\n",
         ])
-        f.write(mod.script(show_meta=True))

@@ -26,6 +26,8 @@ TEST(ir_tests, outer_product) {
     dfgGen.generate("./outer_product.dot", "outer_product");
     auto pytorchGen = PyTorchGen(ctx, tensorView);
     pytorchGen.generateSingle("./outer_product.py", "OuterProduct", tensorView, {});
+    auto tvmGen = TVMCodeGen(ctx, ir);
+    tvmGen.generate("./outer_product_tvm.py");
 }
 
 } // namespace kas

@@ -29,6 +29,7 @@ protected:
 
 public:
     MergeOp(const Dimension& output, const Size& block);
+    const Size& getBlock() const { return minorSize; }
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
     void accept(OpVisitor& visitor) const override { visitor.visit(*this); }

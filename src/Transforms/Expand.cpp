@@ -12,14 +12,19 @@ GraphHandle ExpandOp::applyToInterface(const GraphHandle& interface) const {
 std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
-    // First, check if there are too many Expand's.
-    const auto currentExpansion = std::transform_reduce(
-        interface.getExpansions().begin(),
-        interface.getExpansions().end(),
-        Size::Identity(options.ctx),
-        std::multiplies<>{},
-        [](const Expand *expansion) { return expansion->output.size(); }
-    );
+    // We need to check if there are too many Expand's.
+    auto currentExpansionRepeat = Size::Identity(options.ctx);
+    auto currentExpansionMerge = Size::Identity(options.ctx);
+    for (auto expansion: interface.getExpansions()) {
+        if (expansion->output.is(DimensionType::Merge)) {
+            // Expand + Merge == Repeat.
+            currentExpansionRepeat = currentExpansionRepeat * expansion->output.size();
+        } else {
+            // Merge input and weight.
+            KAS_ASSERT(expansion->output.is(DimensionType::Share));
+            currentExpansionMerge = currentExpansionMerge * expansion->output.size();
+        }
+    }
 
     // Here we only allow repeat semantics.
     using T = DimensionTypeWithOrder;
@@ -43,14 +48,22 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
             if (share->getOp()->output.type() != DimensionType::Merge) {
                 continue;
             }
-            // Yes, it is.
-        }
-        if (
-            options.maxExpansionMultiplier &&
-            // Do not make expansions too large.
-            (currentExpansion * dim.size()).upperBoundEst(options.ctx) > options.maxExpansionMultiplier
-        ) {
-            continue;
+            // Yes, it is. But check if it exceeds the maximum.
+            if (
+                options.maxExpansionMergeMultiplier &&
+                // Do not make expansions too large.
+                (currentExpansionMerge * dim.size()).upperBoundEst(options.ctx) > options.maxExpansionMergeMultiplier
+            ) {
+                continue;
+            }
+        } else {
+            if (
+                options.maxExpansionRepeatMultiplier &&
+                // Do not make expansions too large.
+                (currentExpansionRepeat * dim.size()).upperBoundEst(options.ctx) > options.maxExpansionRepeatMultiplier
+            ) {
+                continue;
+            }
         }
         ++CountSuccessfulGenerations;
         res.emplace_back(store.get<ExpandOp>(dim));

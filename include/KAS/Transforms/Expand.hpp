@@ -47,7 +47,8 @@ public:
         const BindingContext& ctx;
         bool disallowMergeInputAndWeight;
         bool disallowTile;
-        std::size_t maxExpansionMultiplier;
+        std::size_t maxExpansionRepeatMultiplier;
+        std::size_t maxExpansionMergeMultiplier;
     };
     KAS_STATISTICS_DEF(
         GenerateInvocations,
