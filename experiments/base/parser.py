@@ -129,10 +129,46 @@ def arg_parse():
         help="KAS sampler maximum reductions",
     )
     parser.add_argument(
+        "--kas-max-expands",
+        default=-1,
+        type=int,
+        help="KAS sampler maximum Splits",
+    )
+    parser.add_argument(
+        "--kas-max-merges",
+        default=-1,
+        type=int,
+        help="KAS sampler maximum Merges",
+    )
+    parser.add_argument(
+        "--kas-max-splits",
+        default=-1,
+        type=int,
+        help="KAS sampler maximum Splits",
+    )
+    parser.add_argument(
         "--kas-max-shifts",
         default=-1,
         type=int,
         help="KAS sampler maximum Shifts",
+    )
+    parser.add_argument(
+        "--kas-max-strides",
+        default=-1,
+        type=int,
+        help="KAS sampler maximum Strides",
+    )
+    parser.add_argument(
+        "--kas-max-unfolds",
+        default=-1,
+        type=int,
+        help="KAS sampler maximum Unfolds",
+    )
+    parser.add_argument(
+        "--kas-max-shares",
+        default=-1,
+        type=int,
+        help="KAS sampler maximum Shares",
     )
     parser.add_argument(
         "--kas-max-finalizations",
