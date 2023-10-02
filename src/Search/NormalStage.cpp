@@ -126,7 +126,8 @@ void NormalStage::guardGeneratedChildren() {
                     .ctx = ctx,
                     .disallowMergeInputAndWeight = options.disallowMergeInputAndWeight,
                     .disallowTile = options.disallowTile,
-                    .maxExpansionMultiplier = options.maxExpansionMultiplier,
+                    .maxExpansionRepeatMultiplier = options.maxExpansionRepeatMultiplier,
+                    .maxExpansionMergeMultiplier = options.maxExpansionMergeMultiplier,
                 }));
             }
         }
