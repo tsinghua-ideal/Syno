@@ -98,6 +98,7 @@ constexpr std::optional<std::string_view> OrderToLR(std::optional<Order> order) 
 }
 
 class DimVisitor;
+class PrimitiveOp;
 
 class DimensionImpl {
 public:
@@ -109,6 +110,7 @@ public:
         return static_cast<DimensionTypeWithOrder>(type()) == ty;
     }
     virtual void accept(DimVisitor& visitor) const = 0;
+    virtual const PrimitiveOp *getOpBelow() const = 0;
     virtual const Color& getColor() const = 0;
     virtual ~DimensionImpl() = default;
 };
@@ -137,6 +139,7 @@ public:
         return inner == other.inner; // If the impls are equal, they have equal hash.
     }
     void accept(DimVisitor& visitor) const { inner->accept(visitor); }
+    const PrimitiveOp *getOpBelow() const { return inner->getOpBelow(); }
     // Sort the dimensions in an interface to obtain hash for it.
     std::size_t hash() const noexcept { return hashValue; }
     struct HashLessThan {

@@ -61,6 +61,9 @@ TEST(ir_tests, pooled_conv) {
 
     auto pytorchGen = PyTorchGen(ctx, tensorView);
     pytorchGen.generateSingle("./pooled_conv.py", "PooledConv", tensorView, {});
+
+    auto tvmGen = TVMCodeGen(ctx, ir);
+    tvmGen.generate("./pooled_conv_tvm.py");
 }
 
 } // namespace kas

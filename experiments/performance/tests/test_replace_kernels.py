@@ -8,7 +8,7 @@ import numpy as np
 
 from Model import KernelMetadata, import_templated_model, substitute_kernels
 
-relax_mod, input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "model_relax"), "ConvNet")
+relax_mod, all_mappings, input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "model_relax"), "ConvNet")
 
 def test_substitute_none():
     result = substitute_kernels(relax_mod, None)

@@ -1,6 +1,6 @@
 if(KAS_WITH_HALIDE)
-    add_library(codegen-lib STATIC Common.cpp GraphvizGen.cpp HalideGen.cpp Kernel.cpp PyTorchGen.cpp)
+    add_library(codegen-lib STATIC Common.cpp GraphvizGen.cpp HalideGen.cpp Kernel.cpp PyTorchGen.cpp TVMCodeGen.cpp)
     target_link_libraries(codegen-lib PRIVATE Halide::Halide)
 else()
-    add_library(codegen-lib STATIC Common.cpp GraphvizGen.cpp Kernel.cpp PyTorchGen.cpp)
+    add_library(codegen-lib STATIC Common.cpp GraphvizGen.cpp Kernel.cpp PyTorchGen.cpp TVMCodeGen.cpp)
 endif()

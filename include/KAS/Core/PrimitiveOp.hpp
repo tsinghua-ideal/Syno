@@ -205,6 +205,7 @@ public:
             return op->opHash();
         }
         void accept(DimVisitor& visitor) const final override;
+        const PrimitiveOp *getOpBelow() const final override { return op; }
         const Color& getColor() const final override { return op->color; }
         const RepeatLikeOp *getOp() const noexcept { return op; }
     };
@@ -280,6 +281,7 @@ public:
             return op->opHash();
         }
         void accept(DimVisitor& visitor) const final override;
+        const PrimitiveOp *getOpBelow() const final override { return op; }
         const Color& getColor() const final override { return op->color; }
         const SplitLikeOp *getOp() const noexcept { return op; }
     };
@@ -352,6 +354,7 @@ public:
         }
         virtual bool is(DimensionTypeWithOrder ty) const noexcept override = 0;
         void accept(DimVisitor& visitor) const final override;
+        const PrimitiveOp *getOpBelow() const final override { return op; }
         const Color& getColor() const final override { return op->color; }
         const MergeLikeOp *getOp() const noexcept { return op; }
         Order getOrder() const noexcept { return order; }

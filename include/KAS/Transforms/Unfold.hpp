@@ -23,6 +23,7 @@ protected:
 
 public:
     UnfoldOp(const Dimension& outputLhs, const Dimension& outputRhs);
+    const Size& getWindow() const { return outputRhs.size(); }
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override { return DimensionTypeHash(Type); }
     void accept(OpVisitor& visitor) const override { visitor.visit(*this); }
