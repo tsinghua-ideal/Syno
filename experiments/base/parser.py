@@ -177,6 +177,12 @@ def arg_parse():
         help="KAS sampler maximum Finalizations",
     )
     parser.add_argument(
+        "--kas-max-expansion-multiplier",
+        default=-1,
+        type=int,
+        help="KAS sampler maximum expansion multiplier",
+    )
+    parser.add_argument(
         "--kas-min-dim", default=1, type=int, help="KAS sampler minimum dimensions"
     )
     parser.add_argument(
