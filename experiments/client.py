@@ -83,9 +83,18 @@ def main():
 
             # Load and evaluate on a dataset
             try:
-                kernel_dir = model.load_kernel(
-                    sampler, node, compile=args.compile, batch_size=args.batch_size
-                )
+                try:
+                    kernel_dir = model.load_kernel(
+                        sampler, node, compile=args.compile, batch_size=args.batch_size
+                    )
+                except Exception as e:
+                    if args.compile:
+                        logging.warning("torch compile error, falling back to non-compile version. ")
+                        kernel_dir = model.load_kernel(
+                            sampler, node, compile=False, batch_size=args.batch_size
+                        )
+                    else:
+                        raise e
                 flops, params = model.profile(args.batch_size)
                 logging.debug(
                     f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."

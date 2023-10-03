@@ -36,6 +36,9 @@ class LinearPlaceholder(Placeholder):
 
 class ConvPlaceholder(Placeholder):
     def __init__(self, in_features, out_features, kernel_size) -> None:
+        if isinstance(kernel_size, tuple):
+            assert len(kernel_size) == 2 and kernel_size[0] == kernel_size[1]
+            kernel_size = kernel_size[0]
         super(ConvPlaceholder, self).__init__(
             refered_layer=nn.Conv2d(in_features, out_features, kernel_size, bias=False, padding=kernel_size // 2),
             mapping_func=ConvPlaceholder.mapping

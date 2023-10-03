@@ -2,7 +2,7 @@
 Not finished test. 
 """
 
-import os, sys
+import os, sys, json
 import logging
 from argparse import Namespace
 
@@ -55,8 +55,8 @@ class Impl:
         )
 
     def Conv2d_dilation(self) -> Assembled:
-        N, H, W, k_1, k_2, s, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "k_2", "s", "C_in", "C_out"
+        N, H, W, k_1, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "W", "k_1", "s", "C_in", "C_out"
         )
         (
             in_N,
@@ -95,8 +95,8 @@ class Impl:
         )
 
     def Conv2d_group(self) -> Assembled:
-        N, H, W, k_1, k_2, s, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "k_2", "s", "C_in", "C_out"
+        N, H, W, k_1, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "W", "k_1", "s", "C_in", "C_out"
         )
         k = k_1
         g = s  # 2
@@ -145,8 +145,8 @@ class Impl:
         )
         
     def Conv2d_pool(self) -> Assembled:
-        N, H, W, k_1, k_2, s, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "k_2", "s", "C_in", "C_out"
+        N, H, W, k_1, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "W", "k_1", "s", "C_in", "C_out"
         )
         k = k_1
         (
@@ -197,8 +197,8 @@ class Impl:
         )
         
     def Conv2d_pool1d(self) -> Assembled:
-        N, H, W, k_1, k_2, s, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "k_2", "s", "C_in", "C_out"
+        N, H, W, k_1, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "W", "k_1", "s", "C_in", "C_out"
         )
         k = k_1
         (
@@ -234,10 +234,44 @@ class Impl:
             [in_N, in_C, in_H, in_W, s_H_expand],
             [out_C, w_in_C, w_k_1],
         )
+        
+    def Conv1d_shift1d(self) -> Assembled:
+        N, H, W, k, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "W", "k_1", "C_in", "C_out"
+        )
+        (
+            in_N,
+            in_H,
+            in_W,
+            in_C,
+            out_C,
+            w_in_C,
+            w_k_1,
+        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, C_out, C_in, k)
+
+        main_H, windows_H = self.assembler.create_unfold(in_H, k)
+        main_W = self.assembler.create_shift(in_W, 1)
+
+        shared_k_1 = self.assembler.create_share(windows_H, w_k_1)
+        shared_C_in = self.assembler.create_share(in_C, w_in_C)
+
+        in_N.output(0)
+        out_C.output(1)
+        main_H.output(2)
+        main_W.output(3)
+        shared_k_1.sum()
+        shared_C_in.sum()
+
+        return self.assembler.assemble(
+            "conv",
+            "in_0 * in_1",
+            [in_N, in_C, in_H, in_W],
+            [out_C, w_in_C, w_k_1],
+        )
 
     def Shift2d(self) -> Assembled:
-        N, H, W, k_1, k_2, s, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "k_2", "s", "C_in", "C_out"
+        N, H, W, k_1, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "W", "k_1", "s", "C_in", "C_out"
         )
         k = k_1
         (
@@ -272,6 +306,7 @@ def train(
     name: str,
     train_dataloader: dataset.FuncDataloader,
     val_dataloader: dataset.FuncDataloader,
+    test_run: bool
 ) -> None:
 
     model, sampler = models.get_model(args, return_sampler=True)
@@ -280,7 +315,7 @@ def train(
     assert hasattr(impl, name), f"{name} is not a valid kernel"
     kernel = getattr(impl, name)()
 
-    logging.debug(f"Assembled path: {kernel.convert_to_path(sampler)}")
+    logging.info(f"Assembled path: {kernel.convert_to_path(sampler)}")
     if sampler.visit(kernel.convert_to_path(sampler)) is None:
         path = Path(kernel.convert_to_path(sampler))
         logging.warning(f"Path {path} is not valid, testing...")
@@ -305,57 +340,56 @@ def train(
         f"Loaded model has {flops / 1e9}G FLOPs per batch and {params / 1e6}M parameters in total."
     )
 
-    # logging.info("Evaluating on real dataset ...")
-    # accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
-    # print(f"Evaluation result: {flops} {params} {accuracy}")
+    if test_run:
+        logging.info("Evaluating on real dataset ...")
+        accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
+        print(f"Evaluation result: {flops} {params} {accuracy}")
+        print(f"[Passed\tOK] {name}")
+        return {
+            "flops": flops,
+            "params": params, 
+            "accuracy": accuracy
+        }
+    else:
+        print(f"[Passed\tOK] {name}")
+        return {
+            "flops": flops,
+            "params": params, 
+        }
 
-    print(f"[Passed\tOK] {name}")
 
-
-def test_semantic_conv2d() -> None:
+def test_semantic_conv2d(test_kernels, test_run) -> None:
     args = parser.arg_parse()
 
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
-
-    # train(
-    #     args,
-    #     "Conv2d_simple",
-    #     train_dataloader,
-    #     val_dataloader,
-    # )
-    # train(
-    #     args,
-    #     "Conv2d_dilation",
-    #     train_dataloader,
-    #     val_dataloader,
-    # )
-    # train(
-    #     args,
-    #     "Conv2d_group",
-    #     train_dataloader,
-    #     val_dataloader,
-    # )
-    # train(
-    #     args,
-    #     "Conv2d_pool",
-    #     train_dataloader,
-    #     val_dataloader,
-    # )
-    train(
-        args,
-        "Conv2d_pool1d",
-        train_dataloader,
-        val_dataloader,
-    )
-    # train(
-    #     args,
-    #     "Shift2d",
-    #     train_dataloader,
-    #     val_dataloader,
-    # )
+    results = json.load(open("base/unit_tests/results.json"))
+    
+    for test_kernel in test_kernels:
+        result = train(
+            args,
+            test_kernel,
+            train_dataloader,
+            val_dataloader,
+            test_run
+        )
+        results[test_kernel] = result
+    
+    json.dump(results, open("base/unit_tests/results.json", "w"), indent=4)
 
 
 if __name__ == "__main__":
     log.setup(level=logging.INFO)
-    test_semantic_conv2d()
+    
+    test_kernels = [
+        "Conv2d_simple",
+        # "Conv2d_dilation",
+        "Conv2d_group",
+        # "Conv2d_pool",
+        # "Conv2d_pool1d",
+        # "Conv1d_shift1d",
+        "Shift2d",
+    ]
+    test_run = True
+    
+    test_semantic_conv2d(test_kernels, test_run)

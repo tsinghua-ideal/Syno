@@ -18,6 +18,8 @@ def get_memory() -> int:
 def memory_limit(ratio: float = 1.0) -> None:
     """Limit max memory usage to half."""
     assert 0.0 < ratio <= 1.0, f"ratio {ratio} is not valid! It should be in (0, 1]. "
+    if ratio == 1.0:
+        return 
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
     # Convert KiB to bytes
     logging.info(f"Setting memory limit to {int(get_memory() * ratio) / 1024 / 1024} GiB. ")

@@ -7,8 +7,8 @@ def arg_parse():
     parser = argparse.ArgumentParser(description="KAS trainer/searcher")
     
     # Resource
-    parser.add_argument("--server-mem-limit", type=float, default=0.05, help="Maximum portion of memory that server used. ")
-    parser.add_argument("--client-mem-limit", type=float, default=0.05, help="Maximum portion of memory that client used. ")
+    parser.add_argument("--server-mem-limit", type=float, default=1.0, help="Maximum portion of memory that server used. ")
+    parser.add_argument("--client-mem-limit", type=float, default=1.0, help="Maximum portion of memory that client used. ")
 
     # Model
     parser.add_argument("--model", type=str, default="FCNet")
@@ -177,8 +177,14 @@ def arg_parse():
         help="KAS sampler maximum Finalizations",
     )
     parser.add_argument(
-        "--kas-max-expansion-multiplier",
-        default=-1,
+        "--kas-max-expansion-repeat-multiplier",
+        default=10,
+        type=int,
+        help="KAS sampler maximum expansion multiplier",
+    )
+    parser.add_argument(
+        "--kas-max-expansion-merge-multiplier",
+        default=256,
         type=int,
         help="KAS sampler maximum expansion multiplier",
     )
