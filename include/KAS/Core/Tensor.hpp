@@ -19,6 +19,7 @@ public:
     // Check if empty.
     explicit operator bool() const { return static_cast<bool>(inner); }
 
+    bool operator==(const Tensor& rhs) const = default;
     // So that Tensor can be stored in an std::map.
     std::strong_ordering operator<=>(const Tensor& rhs) const = default;
 

@@ -288,7 +288,7 @@ void PerformViewsIRPass::ViewPerformer::apply() {
 PerformViewsIRPass::PerformViewsIRPass(IR& ir): graph(ir.buildGraph()), ir(ir) {}
 
 void PerformViewsIRPass::apply() {
-    ir.forEach([&](Tensor& tensor) {
+    ir.topBottomForEach([&](Tensor& tensor) {
         if (tensor.hasContraction()) {
             ViewPerformer(graph, tensor).apply();
         }
@@ -553,24 +553,21 @@ PyTorchGen::PyTorchGen(const BindingContext& ctx, const IR& ir):
     ir { ir.copy() },
     graph { this->ir.buildGraph() }
 {
+    // First perform views.
     PerformViewsIRPass(this->ir).apply();
+    // Now that the tensors are in a mess again, optimize layout one more time.
+    LayoutOptimizer().optimize(this->ir);
     for (std::size_t index = 0; const auto& tensor: this->ir.inputTensors) {
         declare(tensor, "in_" + std::to_string(index));
         ++index;
     }
-    auto dfs = [&](const auto& self, const Tensor& tensor) -> void {
-        if (declared(tensor)) {
-            return;
-        }
-        declare(tensor);
-        for (const Tensor& source: tensor.inputs()) {
-            self(self, source);
-        }
+
+    this->ir.topBottomForEach([&](const Tensor& tensor) {
         if (!tensor.isInputTensor()) {
+            declare(tensor);
             topologicallyOrderedTensors.emplace_back(tensor);
         }
-    };
-    dfs(dfs, this->ir.outputTensor);
+    });
 }
 
 void PyTorchGen::loadWeights(PythonCodePrinter& printer) const {

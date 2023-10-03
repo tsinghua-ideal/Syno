@@ -8,6 +8,7 @@
 #include "KAS/CodeGen/Kernel.hpp"
 #include "KAS/CodeGen/GraphvizGen.hpp"
 #include "KAS/CodeGen/PyTorchGen.hpp"
+#include "KAS/CodeGen/TVMCodeGen.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
@@ -163,6 +164,11 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
             gen.generate(pytorchFile, fmt::format("{}_{}", name, i), tensorView.getForwardAccess(), placeholder.consts);
             ++i;
         }
+    }
+    {
+        auto gen = TVMCodeGen { ctx, tensorView.getSubgraphs() };
+        std::ofstream tvmFile { dir / "kernels_tvm.py" };
+        gen.generate(tvmFile);
     }
     {
         std::ofstream metadataFile { dir / "metadata.json" };

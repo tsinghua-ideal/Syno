@@ -40,8 +40,8 @@ TVMConcreteSize TVMConcreteSize::operator*(const TVMConcreteSize& rhs) const {
 }
 
 TVMConcreteSize TVMConcreteSize::operator/(const TVMConcreteSize& rhs) const {
-    bool lhsParen = precedence < Precedence::Factor;
-    bool rhsParen = rhs.precedence <= Precedence::Factor;
+    bool lhsParen = precedence < Precedence::Term;
+    bool rhsParen = rhs.precedence <= Precedence::Term;
     return BinaryOp(Precedence::Term, *this, lhsParen, rhs, rhsParen, "//");
 }
 
@@ -280,17 +280,25 @@ void TVMCodeGen::generateSubgraph(const Tensor& tensor) {
             ++i;
         }
         if (divBy) {
-            printer.write(" / ({})", concretizer.concretize(*divBy).value);
+            auto divByFactor = concretizer.concretize(*divBy);
+            if (divByFactor.precedence <= TVMConcreteSize::Precedence::Term) {
+                printer.write(" // ({})", divByFactor.value);
+            } else {
+                printer.write(" // {}", divByFactor.value);
+            }
             divBy = std::nullopt;
         }
         printer.writeLn(",");
     };
     auto guardCond = [&] {
-        printer.write("te.all(");
-        for (const auto& bound: opLower.bounds) {
-            printer.write("{0} >= 0, {0} < {1}, ", bound.first.value, bound.second.value);
-        }
-        printer.writeLn("),");
+        printer.writeLn(
+            "te.all({}),",
+            fmt::join(
+                opLower.bounds | std::views::transform([](const auto& bound) {
+                    return fmt::format("{0} >= 0, {0} < {1}", bound.first.value, bound.second.value);
+                }), ", "
+            )
+        );
     };
     auto guardedExpression = [&] {
         if (opLower.bounds.empty()) {
@@ -321,11 +329,16 @@ void TVMCodeGen::generateSubgraph(const Tensor& tensor) {
         }
     };
 
-    printer.write("def build_{}(", myName);
-    for (std::size_t i = 0; i < tensor.inputs().size(); ++i) {
-        printer.write("{}: te.Tensor, ", VarNameForInput(i++));
-    }
-    printer.writeLn(") -> te.Tensor:");
+    printer.writeLn(
+        "def build_{}({}) -> te.Tensor:",
+        myName,
+        fmt::join(
+            std::views::iota(static_cast<std::size_t>(0), tensor.inputs().size())
+            | std::views::transform([](std::size_t i) {
+                return VarNameForInput(i) + ": te.Tensor";
+            }), ", "
+        )
+    );
     printer.indent([&] {
         for (std::size_t i = 0; const Reduce *reduction: tensor.reductions()) {
             printer.writeLn(
@@ -356,23 +369,15 @@ void TVMCodeGen::generateSubgraph(const Tensor& tensor) {
 }
 
 void TVMCodeGen::generateCalls() {
-    std::set<Tensor> done;
-    for (const Tensor& inputTensor: ir.inputTensors) {
-        done.emplace(inputTensor);
-    }
-    auto dfs = [&](const auto& self, const Tensor& tensor) -> void {
-        auto [it, toBeVisited] = done.emplace(tensor);
-        if (!toBeVisited) return;
-        for (const Tensor& input: tensor.inputs()) {
-            self(self, input);
+    ir.topBottomForEach([&](const Tensor& tensor) {
+        if (!tensor.isInputTensor()) {
+            printer.writeLn("{0} = bb.emit_te(build_{0}, {1})", variables.at(tensor), fmt::join(
+                tensor.inputs() | std::views::transform([&](const Tensor& input) {
+                    return variables.at(input);
+                }), ", "
+            ));
         }
-        printer.writeLn("{0} = build_{0}({1})", variables.at(tensor), fmt::join(
-            tensor.inputs() | std::views::transform([&](const Tensor& input) {
-                return variables.at(input);
-            }), ", "
-        ));
-    };
-    dfs(dfs, ir.outputTensor);
+    });
 }
 
 TVMCodeGen::TVMCodeGen(const BindingContext& ctx, const IR& ir):
@@ -399,7 +404,6 @@ TVMCodeGen::TVMCodeGen(const BindingContext& ctx, const IR& ir):
         generateCalls();
         printer.writeLn("return {}", variables.at(this->ir.outputTensor));
     });
-    printer.writeLn();
 }
 
 void TVMCodeGen::generate(std::ostream& outputStream) const {

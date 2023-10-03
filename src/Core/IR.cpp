@@ -1,3 +1,5 @@
+#include <list>
+
 #include "KAS/Core/Expand.hpp"
 #include "KAS/Core/IR.hpp"
 #include "KAS/Core/Dimension.hpp"
@@ -379,14 +381,14 @@ Graph IR::buildGraph() const {
 
 std::size_t IR::getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const {
     std::size_t flops = 0;
-    forEach([&](const Tensor& tensor) {
+    bottomTopForEach([&](const Tensor& tensor) {
         flops += tensor.getFLOPs(ctx, consts);
     });
     return flops;
 }
 std::size_t IR::getFLOPs(const BindingContext& ctx) const {
     std::size_t flops = 0;
-    forEach([&](const Tensor& tensor) {
+    bottomTopForEach([&](const Tensor& tensor) {
         flops += tensor.getFLOPs(ctx);
     });
     return flops;
@@ -394,7 +396,7 @@ std::size_t IR::getFLOPs(const BindingContext& ctx) const {
 
 std::size_t IR::numStages() const {
     std::size_t stages = 0;
-    forEach([&](const Tensor& tensor) {
+    bottomTopForEach([&](const Tensor& tensor) {
         stages += !tensor.isInputTensor();
     });
     return stages;
@@ -495,7 +497,7 @@ IR IRBuilder::initial(const ContractionScheme& scheme) const {
 }
 
 void IRBuilder::rfactor(IR& ir, const BindingContext& ctx) const {
-    ir.forEach([&](Tensor& tensor) {
+    ir.topBottomForEach([&](Tensor& tensor) {
         if (!tensor.hasReduction()) return;
         auto solver = RFactorSolver(tensor, graph, ctx);
         // TODO!!! Add overflow.
@@ -511,7 +513,7 @@ void IRBuilder::optimizeLayout(IR& ir) const {
         std::ranges::copy(graph.getOutputIterators(), std::back_inserter(expectedOutput));
         ir.outputTensor.adjustLayout(&expectedOutput, nullptr);
     }
-    // TODO!!! Really optimize locality.
+    LayoutOptimizer().optimize(ir);
 }
 
 IRBuilder::IRBuilder(const std::vector<Topmost>& tensors):
@@ -590,6 +592,161 @@ IR IRBuilder::build(const ContractionScheme& scheme, const BindingContext& ctx) 
     rfactor(ir, ctx);
     optimizeLayout(ir);
     return ir;
+}
+
+void LayoutOptimizer::optimize(const Graph& graph, Tensor& tensor) const {
+    // We use a simple algorithm here.
+    // First ignore the effect of weights, i.e., tensor.inputs() | std::views::drop(1).
+    // Because we have optimized the layout of weights beforehand in LocalityOptimizer::permuteWeightDimensions.
+    // TODO: unify the LocalityOptimizer.
+    // Then, we try to keep the layout of the output as close as the input as possible.
+    // - RepeatLikeOp, same priority.
+    // - SplitLikeOp, the priority splits into two branches. lhs takes the outer loop, and rhs takes the inner loop.
+    // - MergeLikeOp, if both operands has priority, then choose the inner loop. Otherwise, choose the one with priority.
+    struct Priority {
+        std::list<int> *serialized;
+        using Placeholder = std::list<int>::iterator;
+        std::optional<Placeholder> value;
+        static Priority Append(std::list<int>& serialized) {
+            serialized.emplace_back(0);
+            return { &serialized, --serialized.end() };
+        }
+        static Priority Empty(std::list<int>& serialized) {
+            return { &serialized };
+        }
+        std::strong_ordering operator<=>(const Priority& rhs) const {
+            const Priority& lhs = *this;
+            if (!lhs.value.has_value()) {
+                if (!rhs.value.has_value()) {
+                    return std::strong_ordering::equal;
+                } else {
+                    return std::strong_ordering::greater;
+                }
+            } else if (!rhs.value.has_value()) {
+                return std::strong_ordering::less;
+            }
+            Placeholder l = *lhs.value, r = *rhs.value;
+            if (l == r) {
+                return std::strong_ordering::equal;
+            }
+            while (++l != serialized->end()) {
+                if (l == r) {
+                    // If l is before r in the list, l is in outer loop.
+                    return std::strong_ordering::greater;
+                }
+            }
+            l = *lhs.value;
+            // Sanity check.
+            while (++r != serialized->end()) {
+                if (l == r) {
+                    // If r is before l in the list, r is in outer loop.
+                    return std::strong_ordering::less;
+                }
+            }
+            KAS_UNREACHABLE();
+        }
+        static std::pair<Priority, Priority> Split(Priority from) {
+            auto serialized = from.serialized;
+            auto it = from.value.value();
+            auto lhs = Priority { serialized, from.serialized->insert(it, *it) };
+            return { std::move(lhs), std::move(from) };
+        }
+        static Priority Merge(Priority lhs, Priority rhs) {
+            return std::min(lhs, rhs);
+        }
+    };
+    struct Assigner {
+        const Graph& graph;
+        std::list<int>& serialized;
+        Graph::DimensionMap<Priority> priorities;
+        int all = 0;
+        void set(const Dimension& dim, Priority priority) {
+            auto [_, inserted] = priorities.try_emplace(dim, std::move(priority));
+            KAS_ASSERT(inserted);
+        }
+        Priority get(const Dimension& dim) {
+            if (auto it = priorities.find(dim); it != priorities.end()) {
+                return it->second;
+            }
+            graph.visitAlong(dim, Direction::Up).match(Match {
+                [&](const RepeatLikeVertex& r, auto) {
+                    set(dim, get(r.op.getInput()));
+                },
+                [&](const SplitLikeVertex& s, auto from) {
+                    auto [lhs, rhs] = Priority::Split(get(s.op.getInput()));
+                    set(s.op.outputLhs, std::move(lhs));
+                    set(s.op.outputRhs, std::move(rhs));
+                },
+                [&](const MergeLikeVertex& m, auto) {
+                    set(dim, Priority::Merge(get(m.op.getInputL()), get(m.op.getInputR())));
+                },
+                [&](const ExpandVertex& e, auto) {
+                    set(dim, Priority::Empty(serialized));
+                },
+            });
+            return priorities.at(dim);
+        }
+        Assigner(const Graph& graph, const Tensor& tensor, std::list<int>& serialized):
+            graph(graph), serialized(serialized)
+        {
+            for (
+                const Dimension& dim:
+                tensor.inputs().at(0).output()
+            ) {
+                set(dim, Priority::Append(serialized));
+            }
+            for (
+                const Dimension& dim:
+                tensor.inputs() | std::views::drop(1) | std::views::transform(&Tensor::output) | std::views::join
+            ) {
+                set(dim, Priority::Empty(serialized));
+            }
+        }
+        void serialize() {
+            for (int& p: serialized) {
+                p = all++;
+            }
+        }
+        int priority(const Priority& priority) {
+            if (priority.value) {
+                return *(*priority.value);
+            }
+            return all++;
+        }
+    };
+    std::list<int> serialized;
+    auto assigner = Assigner(graph, tensor, serialized);
+    std::vector<Priority> outputPriorities, reductionPriorities;
+    for (const Dimension& dim: tensor.output()) outputPriorities.emplace_back(assigner.get(dim));
+    for (Dimension dim: tensor.reductions()) reductionPriorities.emplace_back(assigner.get(dim));
+    assigner.serialize();
+    std::vector<std::size_t> outputIndices(outputPriorities.size()), reductionIndices(reductionPriorities.size());
+    std::iota(outputIndices.begin(), outputIndices.end(), 0);
+    std::iota(reductionIndices.begin(), reductionIndices.end(), 0);
+    std::vector<int> outputPrioritiesValues, reductionPrioritiesValues;
+    for (const Priority& priority: outputPriorities) outputPrioritiesValues.emplace_back(assigner.priority(priority));
+    for (const Priority& priority: reductionPriorities) reductionPrioritiesValues.emplace_back(assigner.priority(priority));
+    std::sort(outputIndices.begin(), outputIndices.end(), [&](std::size_t lhs, std::size_t rhs) {
+        return outputPrioritiesValues[lhs] < outputPrioritiesValues[rhs];
+    });
+    std::sort(reductionIndices.begin(), reductionIndices.end(), [&](std::size_t lhs, std::size_t rhs) {
+        return reductionPrioritiesValues[lhs] < reductionPrioritiesValues[rhs];
+    });
+    std::vector<Dimension> output;
+    std::vector<const Reduce *> reductions;
+    for (std::size_t index: outputIndices) output.emplace_back(tensor.output()[index]);
+    for (std::size_t index: reductionIndices) reductions.emplace_back(tensor.reductions()[index]);
+    tensor.getOutput() = std::move(output);
+    tensor.getReductions() = std::move(reductions);
+}
+
+void LayoutOptimizer::optimize(IR& ir) const {
+    auto graph = ir.buildGraph();
+    ir.topBottomForEach([&](Tensor& tensor) {
+        if (!tensor.isInputTensor() && ir.outputTensor != tensor) {
+            optimize(graph, tensor);
+        }
+    });
 }
 
 } // namespace kas

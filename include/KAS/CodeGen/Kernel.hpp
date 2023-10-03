@@ -20,10 +20,11 @@ namespace kas {
 // In a directory:
 //   - metadata.json
 //   - nested_loops.h
-//   - halide_schedule.h
-//   - kernels.so
+//   - halide_schedule.h, if Halide is enabled
+//   - kernels.so, if Halide is enabled
 //   - kernel_graph.dot
 //   - kernels.py
+//   - kernels_tvm.py
 //
 // The functions in kernels.so are named as name_0, name_0_grad, name_1, name_1_grad, ...
 // Other undocumented files are also generated.

@@ -164,25 +164,34 @@ struct IR {
     // Helper function.
     static IR Build(const std::vector<Topmost>& tensors, const BindingContext& ctx);
 
-    template<bool isConst = true, typename F>
+    template<bool Const = true, bool PostOrder = false, typename F>
     void forEachHelper(F&& f) const {
         std::set<Tensor> visited;
         auto dfs = [&](const auto& self, const Tensor& tensor) {
             auto [_, inserted] = visited.insert(tensor);
             if (!inserted) return;
-            if constexpr (isConst) {
+            if constexpr (PostOrder) {
+                for (const Tensor& input: tensor.inputs()) {
+                    self(self, input);
+                }
+            }
+            if constexpr (Const) {
                 std::invoke(std::forward<F>(f), tensor);
             } else {
                 std::invoke(std::forward<F>(f), const_cast<Tensor&>(tensor));
             }
-            for (const Tensor& input: tensor.inputs()) {
-                self(self, input);
+            if constexpr (!PostOrder) {
+                for (const Tensor& input: tensor.inputs()) {
+                    self(self, input);
+                }
             }
         };
         dfs(dfs, outputTensor);
     }
-    void forEach(std::invocable<const Tensor&> auto&& f) const { forEachHelper<true>(std::forward<decltype(f)>(f)); }
-    void forEach(std::invocable<Tensor&> auto&& f) { forEachHelper<false>(std::forward<decltype(f)>(f)); }
+    void bottomTopForEach(std::invocable<const Tensor&> auto&& f) const { forEachHelper<true, false>(std::forward<decltype(f)>(f)); }
+    void bottomTopForEach(std::invocable<Tensor&> auto&& f) { forEachHelper<false, false>(std::forward<decltype(f)>(f)); }
+    void topBottomForEach(std::invocable<const Tensor&> auto&& f) const { forEachHelper<true, true>(std::forward<decltype(f)>(f)); }
+    void topBottomForEach(std::invocable<Tensor&> auto&& f) { forEachHelper<false, true>(std::forward<decltype(f)>(f)); }
 
     IR copy() const;
 
@@ -238,8 +247,11 @@ public:
     IR build(const ContractionScheme& scheme, const BindingContext& ctx) const;
 };
 
+// Optimize the layout of all the Tensor's, except the input and output tensors.
 class LayoutOptimizer {
-
+    void optimize(const Graph& graph, Tensor& tensor) const;
+public:
+    void optimize(IR& ir) const;
 };
 
 } // namespace kas
