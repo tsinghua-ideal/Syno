@@ -17,28 +17,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import datetime
 import os
-import sys
 import csv
-import json
 import argparse
-import logging
-from typing import Dict, Optional
-import numpy as np  # type: ignore
+from typing import Dict, List, Optional
+import numpy as np
 import importlib
 
 import tvm
-from tvm import relax, runtime, te, transform
-from tvm.relax.transform import MetaScheduleApplyDatabase
+from tvm import relax, runtime, transform
 from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-from tvm.target.target import Target
 
 from Model import import_templated_model, substitute_kernels, construct_kernel_builder
-import tvm_kernel_example
 
 
 def _parse_args():
@@ -86,154 +78,215 @@ def _parse_args():
     args.add_argument("--num-measurement-repeats", type=int, default=3)
     args.add_argument("--num-measurements", type=int, default=2)
     args.add_argument("--results-file", type=str, default=None)
-    parsed = args.parse_args()
-    parsed.target = tvm.target.Target(parsed.target)
-    if parsed.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
-        parsed.alloc_repeat = 3
-    else:
-        parsed.alloc_repeat = 1
-    if parsed.rpc_host and parsed.rpc_port and parsed.rpc_key:
-        parsed.rpc_config = ms.runner.RPCConfig(
-            tracker_host=parsed.rpc_host,
-            tracker_port=parsed.rpc_port,
-            tracker_key=parsed.rpc_key,
-            session_timeout_sec=parsed.rpc_timeout_sec,
+    return args.parse_args()
+
+class KernelSpecificTuner:
+    def __init__(self, parent: 'MetaScheduleTuner', working_dir: os.PathLike, relax_mod: IRModule) -> None:
+        self.parent = parent
+        self.working_dir = working_dir
+        self.relax_mod = relax_mod
+        self.db = None
+
+    def get_relax_mod(self) -> IRModule:
+        return self.relax_mod
+
+    def optimize_model_before_tuning(self, show: bool = False) -> None:
+        seq = transform.Sequential([
+            relax.transform.DecomposeOpsForInference(),
+            relax.transform.LegalizeOps(enable_warning=True),
+            relax.transform.AnnotateTIROpPattern(),
+            relax.transform.FoldConstant(),
+            relax.transform.FuseOps(),
+            relax.transform.FuseTIR(),
+        ])
+        with transform.PassContext(opt_level=3):
+            self.relax_mod = seq(self.relax_mod)
+        if show:
+            print("After optimization passes:")
+            self.relax_mod.show()
+
+    def tune(self, num_trials: int = 10) -> None:
+        self.db = ms.relax_integration.tune_relax(
+            mod=self.relax_mod,
+            target=self.parent.target,
+            params=None,
+            num_trials_per_iter=64,
+            max_trials_per_task=num_trials,
+            max_trials_global=num_trials,
+            runner=self.parent._get_runner(),
+            work_dir=self.working_dir,
         )
-        parsed.workers = parsed.rpc_config.count_num_servers(allow_missing=False)
-    else:
-        # check all rpc configs are None
-        assert (
-            (parsed.rpc_host is None) and (parsed.rpc_port is None) and (parsed.rpc_key is None)
-        ), "Please set all 'rpc_host', 'rpc_port' and 'rpc_key' to use PRC server"
-        parsed.rpc_config = None
-        parsed.workers = 1
-    return parsed
 
-logging.basicConfig(level=logging.DEBUG)
-ARGS = _parse_args()
-
-def apply_opt_before_tuning(relax_mod: IRModule, target: Target) -> IRModule:
-    with transform.PassContext(opt_level=3):
-        relax_mod = relax.transform.DecomposeOpsForInference()(relax_mod)
-        relax_mod = relax.transform.LegalizeOps(enable_warning=True)(relax_mod)
-        relax_mod = relax.transform.AnnotateTIROpPattern()(relax_mod)
-        relax_mod = relax.transform.FoldConstant()(relax_mod)
-        relax_mod = relax.transform.FuseOps()(relax_mod)
-        relax_mod = relax.transform.FuseTIR()(relax_mod)
-    return relax_mod
-
-def f_measurement(
-    rt_mod: runtime.Module, device: runtime.ndarray.Device, input_data: Dict[str, runtime.NDArray]
-):
-    vm = relax.VirtualMachine(rt_mod, device=device)
-    vm.save_function("main", "measure_func", **input_data, include_return=False)
-    evaluator = vm.time_evaluator(
-        func_name="measure_func",
-        dev=device,
-        repeat=ARGS.num_measurement_repeats,
-        number=ARGS.num_measurements,
-        min_repeat_ms=500,
-    )
-    return evaluator()
-
-def get_runner():
-    runner_config = {
-        "evaluator_config": ms.runner.EvaluatorConfig(
-            number=3,
-            repeat=1,
-            min_repeat_ms=100,
-            enable_cpu_cache_flush=False,
-        ),
-        "alloc_repeat": ARGS.alloc_repeat,
-    }
-    if ARGS.rpc_config:
-        runner = ms.runner.RPCRunner(
-            rpc_config=ARGS.rpc_config, max_workers=ARGS.workers, **runner_config
-        )
-    else:
-        runner = ms.runner.LocalRunner(**runner_config)
-
-    return runner
-
-def main():
-    # import the Relax model
-    relax_mod, all_mappings, loaded_input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), ARGS.model)
-    # construct kernel builder
-    kernel_builder = construct_kernel_builder(all_mappings, tvm_kernel_example.weights, tvm_kernel_example.build)
-    relax_mod = substitute_kernels(relax_mod, kernel_builder)
-    logging.info("After substitute_kernels:")
-    relax_mod.show()
-    # input()
-
-    relax_mod = apply_opt_before_tuning(relax_mod, ARGS.target)
-    logging.info("After apply_opt_before_tuning:")
-    relax_mod.show()
-    # input()
-
-    db = ms.relax_integration.tune_relax(
-        mod=relax_mod,
-        target=ARGS.target,
-        params=None,
-        num_trials_per_iter=64,
-        max_trials_per_task=ARGS.num_trials,
-        max_trials_global=ARGS.num_trials,
-        runner=get_runner(),
-        work_dir=ARGS.work_dir,
-    )
-    with ARGS.target, db, PassContext(opt_level=3):
-        applied_mod = MetaScheduleApplyDatabase(enable_warning=False)(relax_mod)
-        executable = relax.build(applied_mod, exec_mode="compiled", target=ARGS.target)
-    executable.export_library("lib.so")
-
-    input_name = "inp_0"
-    input_dtype = "float32"
-    input_info = {input_name: loaded_input_shape}
-    input_data = {}
-    for input_name, input_shape in input_info.items():
-        logging.info(f"  input_name: {input_name}")
-        logging.info(f"  input_shape: {input_shape}")
-        logging.info(f"  input_dtype: {input_dtype}")
-
-    for input_name, input_shape in input_info.items():
-        if input_dtype.startswith("float"):
-            input_data[input_name] = np.random.uniform(size=input_shape).astype(input_dtype)
+    def build(self) -> relax.Executable:
+        if self.db is None:
+            with transform.PassContext(opt_level=3):
+                executable = relax.build(self.relax_mod, target=self.parent.target)
         else:
-            input_data[input_name] = np.random.randint(
-                low=0, high=10000, size=input_shape, dtype=input_dtype
+            executable = ms.relax_integration.compile_relax(
+                self.db,
+                mod=self.relax_mod,
+                target=self.parent.target,
+                params=None,
             )
+        executable.export_library(os.path.join(self.working_dir, "kernels_tvm_tuned.so"))
+        return executable
 
-    # for documentation purposes
-    start_time = datetime.datetime.now()
+    def measure(self, executable: relax.Executable) -> runtime.module.BenchmarkResult:
+        result = self.parent._measure(executable)
+        out_path = os.path.join(self.working_dir, "benchmark_results.csv")
+        with open(out_path, "w") as out_file:
+            writer = csv.writer(out_file)
+            # write experiment parameters at the top as a record
+            writer.writerow(["model", self.parent.model_name])
+            writer.writerow(["input_shape", self.parent.input_shape])
+            writer.writerow(["target", self.parent.target])
+            writer.writerow(["num_measurement_repeats", self.parent.num_measurement_repeats])
+            for res in result.results:
+                writer.writerow([str(res)])
+        return result
 
-    if ARGS.rpc_config:
-        result = run_module_via_rpc(
-            rpc_config=ARGS.rpc_config,
-            lib=executable.mod,
-            dev_type=ARGS.target.kind.name,
-            args=input_data,
-            continuation=f_measurement,
+_TOTAL_KERNELS_SUBSTITUTED = 0
+
+class MetaScheduleTuner:
+    def __init__(
+        self,
+        model: str,
+        target: str,
+        rpc_host: Optional[str] = "127.0.0.1",
+        rpc_port: Optional[int] = 9190,
+        rpc_key: Optional[str] = "jetson-orin-nano",
+        working_dir: os.PathLike = "./measurements",
+        rpc_timeout_sec: int = 180,
+        num_measurement_repeats: int = 3,
+        num_measurements: int = 2
+    ) -> None:
+        # Basic configurations.
+        self.model_name = model
+        self.target = tvm.target.Target(target)
+        if self.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
+            self.alloc_repeat = 3
+        else:
+            self.alloc_repeat = 1
+        if rpc_host and rpc_port and rpc_key:
+            self.rpc_config = ms.runner.RPCConfig(
+                tracker_host=rpc_host,
+                tracker_port=rpc_port,
+                tracker_key=rpc_key,
+                session_timeout_sec=rpc_timeout_sec,
+            )
+            self.workers = self.rpc_config.count_num_servers(allow_missing=False)
+        else:
+            # check all rpc configs are None
+            assert (
+                (rpc_host is None) and (rpc_port is None) and (rpc_key is None)
+            ), "Please set all 'rpc_host', 'rpc_port' and 'rpc_key' to use PRC server"
+            self.rpc_config = None
+            self.workers = 1
+        self.working_dir = working_dir
+        os.makedirs(self.working_dir, exist_ok=True)
+        self.num_measurement_repeats = num_measurement_repeats
+        self.num_measurements = num_measurements
+
+        # Load the model.
+        self.templated_mod, self.all_mappings, self.input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self.model_name)
+
+        # Input shape for runtime.
+        self.input_dtype = "float32"
+        self.input_info = {"inp_0": self.input_shape}
+
+    def get_templated_mod(self) -> IRModule:
+        return self.templated_mod
+
+    def get_all_mappings(self) -> List[Dict[str, int]]:
+        return self.all_mappings
+
+    def get_kernel_specific_tuner(self, kernels_dir: Optional[os.PathLike], show: bool = False) -> KernelSpecificTuner:
+        """Construct kernels according to the directory generated by Sampler.realize(). If the directory is None, return the original model."""
+        if kernels_dir is None:
+            working_dir = self.working_dir
+            relax_mod = substitute_kernels(self.templated_mod, None)
+        else:
+            working_dir = kernels_dir
+            global _TOTAL_KERNELS_SUBSTITUTED
+            kernels_file = os.path.join(kernels_dir, "kernels_tvm.py")
+            spec = importlib.util.spec_from_file_location(f"kas_tvm_kernels_mod_{_TOTAL_KERNELS_SUBSTITUTED}", kernels_file)
+            _TOTAL_KERNELS_SUBSTITUTED += 1
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            kernel_builder = construct_kernel_builder(self.all_mappings, mod.weights, mod.build)
+            relax_mod = substitute_kernels(self.templated_mod, kernel_builder)
+        if show:
+            print("After substitution of kernels:")
+            relax_mod.show()
+        return KernelSpecificTuner(self, working_dir, relax_mod)
+
+    def _get_runner(self) -> ms.Runner:
+        runner_config = {
+            "evaluator_config": ms.runner.EvaluatorConfig(
+                number=3,
+                repeat=1,
+                min_repeat_ms=100,
+                enable_cpu_cache_flush=False,
+            ),
+            "alloc_repeat": self.alloc_repeat,
+        }
+        if self.rpc_config:
+            runner = ms.runner.RPCRunner(
+                rpc_config=self.rpc_config, max_workers=self.workers, **runner_config
+            )
+        else:
+            runner = ms.runner.LocalRunner(**runner_config)
+        return runner
+
+    def _get_input_data(self) -> Dict[str, runtime.NDArray]:
+        input_data: Dict[str, runtime.NDArray] = {}
+        for input_name, input_shape in self.input_info.items():
+            if self.input_dtype.startswith("float"):
+                input_data[input_name] = np.random.uniform(size=input_shape).astype(self.input_dtype)
+            else:
+                input_data[input_name] = np.random.randint(
+                    low=0, high=10000, size=input_shape, dtype=self.input_dtype
+                )
+        return input_data
+
+    def _perform_measurement(
+        self, rt_mod: runtime.Module, device: runtime.ndarray.Device, input_data: Dict[str, runtime.NDArray]
+    ) -> runtime.module.BenchmarkResult:
+        vm = relax.VirtualMachine(rt_mod, device=device)
+        vm.save_function("main", "measure_func", **input_data, include_return=False)
+        evaluator = vm.time_evaluator(
+            func_name="measure_func",
+            dev=device,
+            repeat=self.num_measurement_repeats,
+            number=self.num_measurements,
+            min_repeat_ms=500,
         )
-    else:
-        dev = tvm.device(ARGS.target.kind.name)
-        result = f_measurement(executable.mod, dev, input_data)
+        return evaluator()
 
-    logging.info(result)
-
-    if not ARGS.results_file:
-        return
-
-    out_path = os.path.abspath(os.path.expanduser(ARGS.results_file))
-    with open(out_path, "w") as out_file:
-        writer = csv.writer(out_file)
-        # write experiment parameters at the top as a record
-        writer.writerow(["start", str(start_time)])
-        writer.writerow(["model", ARGS.model])
-        writer.writerow(["input_shape", loaded_input_shape])
-        writer.writerow(["target", ARGS.target])
-        writer.writerow(["num_measurement_repeats", ARGS.num_measurement_repeats])
-        for res in result.results:
-            writer.writerow([str(res)])
+    def _measure(self, executable: relax.Executable) -> runtime.module.BenchmarkResult:
+        input_data = self._get_input_data()
+        if self.rpc_config:
+            result = run_module_via_rpc(
+                rpc_config=self.rpc_config,
+                lib=executable.mod,
+                dev_type=self.target.kind.name,
+                args=input_data,
+                continuation=self._perform_measurement,
+            )
+        else:
+            dev = tvm.device(self.target.kind.name)
+            result = self._perform_measurement(executable.mod, dev, input_data)
+        return result
 
 
 if __name__ == "__main__":
-    main()
+    tuner = MetaScheduleTuner(
+        model="torchvision/resnet18",
+        target="llvm -num-cores 16",
+    )
+    kernels_tuner = tuner.get_kernel_specific_tuner(None, show=True)
+    kernels_tuner.optimize_model_before_tuning(show=True)
+    kernels_tuner.tune(10)
+    executable = kernels_tuner.build()
+    results = kernels_tuner.measure(executable)
+    print("results:", results)
