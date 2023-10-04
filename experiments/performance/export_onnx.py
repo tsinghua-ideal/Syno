@@ -18,11 +18,12 @@ if __name__ == '__main__':
     model.eval()
     enable_export_for_placeholders(model, ExportType.ONNX)
     shape = (args.batch_size, *model.sample_input_shape())
-    os.makedirs('model_onnx', exist_ok=True)
+    model_module = f'model_onnx/{args.model}.py'
+    os.makedirs(os.path.dirname(model_module), exist_ok=True)
     torch.onnx.export(
         model=model,
         args=torch.randn(shape, device='cuda'),
-        f=f'model_onnx/{args.model}.onnx',
+        f=model_module,
         verbose=True,
         training=TrainingMode.EVAL,
         do_constant_folding=True,

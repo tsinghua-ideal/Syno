@@ -201,13 +201,12 @@ void TVMCodeGen::generateImports() {
     printer.writeLn("import tvm");
     printer.writeLn("from tvm import relax, te");
     printer.writeLn("from tvm.relax import BlockBuilder");
+    printer.writeLn("from typing import List");
     printer.writeLn("import numpy as np");
     printer.writeLn();
 }
 
-void TVMCodeGen::generateArgs() {
-    variables.try_emplace(ir.inputTensors.at(0), "in_0");
-    printer.write("bb: BlockBuilder, in_0: relax.Var, ");
+void TVMCodeGen::generateMappingsParams() {
     auto arg = [&](const auto& meta) {
         int estimate = -1;
         if (meta.estimate.has_value()) {
@@ -217,20 +216,6 @@ void TVMCodeGen::generateArgs() {
     };
     for (const auto& meta: ctx.getPrimaryMetadata()) arg(meta);
     for (const auto& meta: ctx.getCoefficientMetadata()) arg(meta);
-}
-
-void TVMCodeGen::generateAssertions() {
-    printer.write("assert ");
-    bool comma = false;
-    auto positive = [&](const auto& meta) {
-        if (comma) printer.write(" and ");
-        comma = true;
-        printer.write("{} > 0", meta.alias);
-    };
-    for (const auto& meta: ctx.getPrimaryMetadata()) positive(meta);
-    for (const auto& meta: ctx.getCoefficientMetadata()) positive(meta);
-    printer.writeLn();
-    KAS_ASSERT(comma);
 }
 
 void TVMCodeGen::generateWeights() {
@@ -247,6 +232,44 @@ void TVMCodeGen::generateWeights() {
             )
         );
     }
+}
+
+void TVMCodeGen::generateWeightsBuilder() {
+    printer.write("def weights(");
+    generateMappingsParams();
+    printer.writeLn(") -> List[relax.Constant]:");
+    printer.indent([&] {
+        generateWeights();
+        printer.writeLn("return [{}]", fmt::join(
+            ir.inputTensors | std::views::drop(1) | std::views::transform([&](const Tensor& tensor) -> const std::string& {
+                return variables.at(tensor);
+            }), ", "
+        ));
+    });
+}
+
+void TVMCodeGen::generateBuilderArgs() {
+    printer.write("bb: BlockBuilder, ");
+    variables.try_emplace(ir.inputTensors.at(0), VarNameForInput(0));
+    for (std::size_t i = 0; const Tensor& inputTensor: ir.inputTensors) {
+        auto name = VarNameForInput(i++);
+        printer.write("{}: relax.Expr, ", variables.at(inputTensor));
+    }
+    generateMappingsParams();
+}
+
+void TVMCodeGen::generateAssertions() {
+    printer.write("assert ");
+    bool comma = false;
+    auto positive = [&](const auto& meta) {
+        if (comma) printer.write(" and ");
+        comma = true;
+        printer.write("{} > 0", meta.alias);
+    };
+    for (const auto& meta: ctx.getPrimaryMetadata()) positive(meta);
+    for (const auto& meta: ctx.getCoefficientMetadata()) positive(meta);
+    printer.writeLn();
+    KAS_ASSERT(comma);
 }
 
 void TVMCodeGen::generateSubgraph(const Tensor& tensor) {
@@ -282,9 +305,9 @@ void TVMCodeGen::generateSubgraph(const Tensor& tensor) {
         if (divBy) {
             auto divByFactor = concretizer.concretize(*divBy);
             if (divByFactor.precedence <= TVMConcreteSize::Precedence::Term) {
-                printer.write(" // ({})", divByFactor.value);
+                printer.write(" / ({})", divByFactor.value);
             } else {
-                printer.write(" // {}", divByFactor.value);
+                printer.write(" / {}", divByFactor.value);
             }
             divBy = std::nullopt;
         }
@@ -394,12 +417,13 @@ TVMCodeGen::TVMCodeGen(const BindingContext& ctx, const IR& ir):
         std::multiplies<>{}
     );
     generateImports();
+    generateWeightsBuilder();
+    printer.writeLn();
     printer.write("def build(");
-    generateArgs(); // put the first input tensor into variables.
+    generateBuilderArgs();
     printer.writeLn(") -> relax.Var:");
     printer.indent([this] {
         generateAssertions();
-        generateWeights(); // put other input tensors into variables.
         generateSubgraph(this->ir.outputTensor);
         generateCalls();
         printer.writeLn("return {}", variables.at(this->ir.outputTensor));

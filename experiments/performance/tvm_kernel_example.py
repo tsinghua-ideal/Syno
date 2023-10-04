@@ -1,12 +1,15 @@
 import tvm
 from tvm import relax, te
 from tvm.relax import BlockBuilder
+from typing import List
 import numpy as np
 
-
-def build(bb: BlockBuilder, in_0: relax.Var, N: int = 1, C_in: int = -1, C_out: int = -1, H: int = -1, W: int = -1, k: int = 3, s: int = 2) -> relax.Var:
-    assert N > 0 and C_in > 0 and C_out > 0 and H > 0 and W > 0 and k > 0 and s > 0
+def weights(N: int = 1, C_in: int = -1, C_out: int = -1, H: int = -1, W: int = -1, k: int = 3, s: int = 2) -> List[relax.Constant]:
     in_1: relax.Constant = relax.const(np.random.normal(size=(C_out, C_in, k, k)).astype("float32"))
+    return [in_1]
+
+def build(bb: BlockBuilder, in_0: relax.Var, in_1: relax.Constant, N: int = 1, C_in: int = -1, C_out: int = -1, H: int = -1, W: int = -1, k: int = 3, s: int = 2) -> relax.Var:
+    assert N > 0 and C_in > 0 and C_out > 0 and H > 0 and W > 0 and k > 0 and s > 0
     def subgraph_0(in_0: te.Tensor) -> te.Tensor:
         ri_0 = te.reduce_axis((0, s), "ri_0")
         ri_1 = te.reduce_axis((0, s), "ri_1")

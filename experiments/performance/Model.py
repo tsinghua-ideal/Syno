@@ -3,7 +3,7 @@ import importlib
 import logging
 import os
 import sys
-from typing import Callable, Dict, List, Tuple, Optional
+from typing import Callable, Dict, FrozenSet, List, Tuple, Optional
 
 import tvm
 from tvm import IRModule, relax, te
@@ -167,10 +167,38 @@ def substitute_kernels(relax_mod: IRModule, kernel_builder: Optional[Callable[[K
     relax_mod = relax.transform.CanonicalizeBindings()(relax_mod)
     return relax_mod
 
-def construct_kernel_builder(all_mappings: List[Dict[str, int]], generic_builder: Callable[[relax.BlockBuilder, relax.Var], relax.Var]) -> Callable[[KernelMetadata, relax.BlockBuilder, relax.Var], relax.Var]:
-    #TODO!!!: There are redundant mappings. We should generate functions for distict mappings, and call the functions.
-    # Use frozenset for hash.
+def construct_kernel_builder(all_mappings: List[Dict[str, int]], generic_weights_builder: Callable[[], List[relax.Constant]], generic_func_builder: Callable[[relax.BlockBuilder, relax.Var], relax.Var]) -> Callable[[KernelMetadata, relax.BlockBuilder, relax.Var], relax.Var]:
     def with_mappings(kernel_meta: KernelMetadata, bb: relax.BlockBuilder, data: relax.Var) -> relax.Var:
         mappings = all_mappings[kernel_meta.id]
-        return generic_builder(bb, data, **mappings)
+        weights = generic_weights_builder(**mappings)
+        return generic_func_builder(bb, data, *weights, **mappings)
+    return with_mappings
+
+# It seems Relax does not work with Function. It finds it hard to perform fusing passes.
+# But it seems Relax will coalesce identical te functions in the first place, so no need to do this.
+def _construct_kernel_builder(all_mappings: List[Dict[str, int]], generic_weights_builder: Callable[[], List[relax.Constant]], generic_func_builder: Callable[[relax.BlockBuilder, relax.Var], relax.Var]) -> Callable[[KernelMetadata, relax.BlockBuilder, relax.Var], relax.Var]:
+    # There are redundant mappings. We should generate functions for distict mappings, and call the functions.
+    # Use frozenset for hash.
+    built_functions: Dict[FrozenSet[Tuple[str, int]], relax.GlobalVar] = {}
+    def mappings_name(func_key: FrozenSet[Tuple[str, int]]) -> str:
+        def tuple_to_str(t: Tuple[str, int]) -> str:
+            variable, value = t
+            return f"{variable}_{value}"
+        return '_'.join(map(tuple_to_str, func_key))
+    def with_mappings(kernel_meta: KernelMetadata, bb: relax.BlockBuilder, data: relax.Var) -> relax.Var:
+        mappings = all_mappings[kernel_meta.id]
+        func_key = frozenset(mappings.items())
+        if func_key not in built_functions:
+            with bb.function(f"kas_kernel_{mappings_name(func_key)}", private=True):
+                inp = relax.Var("inp", kernel_meta.sinfo_input)
+                weights = generic_weights_builder(**mappings)
+                with bb.dataflow():
+                    out = generic_func_builder(bb, inp, *weights, **mappings)
+                    df_out = bb.emit_output(out)
+                built_function = bb.emit_func_output(df_out, params=[inp])
+                logging.info(f"Built function {built_function}")
+            built_functions[func_key] = built_function
+        else:
+            built_function = built_functions[func_key]
+        return bb.emit(relax.Call(built_function, [data]))
     return with_mappings

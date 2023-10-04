@@ -38,8 +38,9 @@ if __name__ == '__main__':
     # Print out the imported model.
     mod.show()
 
-    os.makedirs('model_relax', exist_ok=True)
-    with open(f'model_relax/{args.model}.py', 'w') as f:
+    model_module = f'model_relax/{args.model}.py'
+    os.makedirs(os.path.dirname(model_module), exist_ok=True)
+    with open(model_module, 'w') as f:
         f.writelines([
             "import tvm\n",
             "from tvm.script import ir as I\n",

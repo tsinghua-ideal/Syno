@@ -30,7 +30,9 @@ import importlib
 
 import tvm
 from tvm import relax, runtime, te, transform
+from tvm.relax.transform import MetaScheduleApplyDatabase
 from tvm.ir.module import IRModule
+from tvm.ir.transform import PassContext
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.target.target import Target
@@ -83,7 +85,7 @@ def _parse_args():
     )
     args.add_argument("--num-measurement-repeats", type=int, default=3)
     args.add_argument("--num-measurements", type=int, default=2)
-    args.add_argument("--results-file", type=str, default="./results.csv")
+    args.add_argument("--results-file", type=str, default=None)
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     if parsed.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
@@ -157,13 +159,16 @@ def main():
     # import the Relax model
     relax_mod, all_mappings, loaded_input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), ARGS.model)
     # construct kernel builder
-    kernel_builder = construct_kernel_builder(all_mappings, tvm_kernel_example.build)
+    kernel_builder = construct_kernel_builder(all_mappings, tvm_kernel_example.weights, tvm_kernel_example.build)
     relax_mod = substitute_kernels(relax_mod, kernel_builder)
     logging.info("After substitute_kernels:")
     relax_mod.show()
     # input()
 
     relax_mod = apply_opt_before_tuning(relax_mod, ARGS.target)
+    logging.info("After apply_opt_before_tuning:")
+    relax_mod.show()
+    # input()
 
     db = ms.relax_integration.tune_relax(
         mod=relax_mod,
@@ -175,12 +180,10 @@ def main():
         runner=get_runner(),
         work_dir=ARGS.work_dir,
     )
-    executable = ms.relax_integration.compile_relax(
-        db,
-        mod=relax_mod,
-        target=ARGS.target,
-        params=None,
-    )
+    with ARGS.target, db, PassContext(opt_level=3):
+        applied_mod = MetaScheduleApplyDatabase(enable_warning=False)(relax_mod)
+        executable = relax.build(applied_mod, exec_mode="compiled", target=ARGS.target)
+    executable.export_library("lib.so")
 
     input_name = "inp_0"
     input_dtype = "float32"

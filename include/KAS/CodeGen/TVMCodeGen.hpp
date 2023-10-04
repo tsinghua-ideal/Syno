@@ -75,9 +75,11 @@ class TVMCodeGen {
     std::map<Tensor, std::string> variables;
 
     void generateImports();
-    void generateArgs();
-    void generateAssertions();
+    void generateMappingsParams();
     void generateWeights();
+    void generateWeightsBuilder();
+    void generateBuilderArgs();
+    void generateAssertions();
     // DFS. Generates `build_subgraph_` functions for each subgraph.
     void generateSubgraph(const Tensor& tensor);
     void generateCalls();
