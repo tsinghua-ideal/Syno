@@ -128,7 +128,8 @@ class KernelSpecificTuner:
                 target=self.parent.target,
                 params=None,
             )
-        executable.export_library(os.path.join(self.working_dir, "kernels_tvm_tuned.so"))
+        from tvm.contrib.tar import tar
+        executable.export_library(os.path.join(self.working_dir, "kernels_tvm_tuned.tar.gz"), tar)
         return executable
 
     def measure(self, executable: relax.Executable) -> runtime.module.BenchmarkResult:
@@ -141,6 +142,7 @@ class KernelSpecificTuner:
             writer.writerow(["input_shape", self.parent.input_shape])
             writer.writerow(["target", self.parent.target])
             writer.writerow(["num_measurement_repeats", self.parent.num_measurement_repeats])
+            writer.writerow(["latency_mean", result.mean])
             for res in result.results:
                 writer.writerow([str(res)])
         return result
@@ -282,11 +284,12 @@ class MetaScheduleTuner:
 if __name__ == "__main__":
     tuner = MetaScheduleTuner(
         model="torchvision/resnet18",
-        target="llvm -num-cores 16",
+        # target="llvm -num-cores 16",
+        target="llvm -mtriple=aarch64-linux-gnu -mattr=+neon -num-cores 6",
     )
     kernels_tuner = tuner.get_kernel_specific_tuner(None, show=True)
     kernels_tuner.optimize_model_before_tuning(show=True)
-    kernels_tuner.tune(10)
+    kernels_tuner.tune(20000)
     executable = kernels_tuner.build()
     results = kernels_tuner.measure(executable)
     print("results:", results)

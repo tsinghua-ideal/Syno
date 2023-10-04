@@ -6,10 +6,7 @@ import sys
 from typing import Callable, Dict, FrozenSet, List, Tuple, Optional
 
 import tvm
-from tvm import IRModule, relax, te
-import numpy as np
-
-from KAS import KernelLoader
+from tvm import IRModule, relax
 
 
 @dataclass
