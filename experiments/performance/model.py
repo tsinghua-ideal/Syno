@@ -8,6 +8,8 @@ from typing import Callable, Dict, FrozenSet, List, Tuple, Optional
 import tvm
 from tvm import IRModule, relax
 
+from common import get_specialized_model_name
+
 
 @dataclass
 class KernelMetadata:
@@ -15,12 +17,13 @@ class KernelMetadata:
     sinfo_input: relax.StructInfo
     sinfo_output: relax.StructInfo
 
-def import_templated_model(working_dir: os.PathLike, model_name: str) -> Tuple[IRModule, List[Dict[str, int]], Tuple]:
+def import_templated_model(working_dir: os.PathLike, model_name: str, batch_size: int) -> Tuple[IRModule, List[Dict[str, int]], Tuple]:
     """Import an exported model. Returns the imported model, all mappings and the input shape."""
+    specialized_mode_name = get_specialized_model_name(model_name, batch_size)
     # import the Relax model
-    py_mod_name = f"model_relax_{model_name.replace('/', '_')}"
+    py_mod_name = f"model_relax_{specialized_mode_name.replace('/', '_').replace('=', '_')}"
     if py_mod_name not in sys.modules:
-        spec = importlib.util.spec_from_file_location(py_mod_name, os.path.join(working_dir, f"{model_name}.py"))
+        spec = importlib.util.spec_from_file_location(py_mod_name, os.path.join(working_dir, f"{specialized_mode_name}.py"))
         py_mod = importlib.util.module_from_spec(spec)
         sys.modules[py_mod_name] = py_mod
         spec.loader.exec_module(py_mod)

@@ -30,55 +30,9 @@ from tvm.ir.module import IRModule
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 
-from Model import import_templated_model, substitute_kernels, construct_kernel_builder
+from common import get_specialized_model_name
+from model import import_templated_model, substitute_kernels, construct_kernel_builder
 
-
-def _parse_args():
-    args = argparse.ArgumentParser()
-    args.add_argument(
-        "--model",
-        type=str,
-        default="ConvNet",
-    )
-    args.add_argument(
-        "--target",
-        type=str,
-        default="llvm -num-cores 16",
-    )
-    args.add_argument(
-        "--num-trials",
-        type=int,
-        default=10,
-    )
-    args.add_argument(
-        "--rpc-host",
-        type=str,
-        default="127.0.0.1",
-    )
-    args.add_argument(
-        "--rpc-port",
-        type=int,
-        default=9190,
-    )
-    args.add_argument(
-        "--rpc-key",
-        type=str,
-        default="jetson-orin-nano",
-    )
-    args.add_argument(
-        "--work-dir",
-        type=str,
-        default="./measurements",
-    )
-    args.add_argument(
-        "--rpc-timeout-sec",
-        type=int,
-        default=180,
-    )
-    args.add_argument("--num-measurement-repeats", type=int, default=3)
-    args.add_argument("--num-measurements", type=int, default=2)
-    args.add_argument("--results-file", type=str, default=None)
-    return args.parse_args()
 
 class KernelSpecificTuner:
     def __init__(self, parent: 'MetaScheduleTuner', working_dir: os.PathLike, relax_mod: IRModule) -> None:
@@ -153,6 +107,7 @@ class MetaScheduleTuner:
     def __init__(
         self,
         model: str,
+        batch_size: int,
         target: str,
         rpc_host: Optional[str] = "127.0.0.1",
         rpc_port: Optional[int] = 9190,
@@ -164,6 +119,7 @@ class MetaScheduleTuner:
     ) -> None:
         # Basic configurations.
         self.model_name = model
+        self.batch_size = batch_size
         self.target = tvm.target.Target(target)
         if self.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
             self.alloc_repeat = 3
@@ -184,13 +140,14 @@ class MetaScheduleTuner:
             ), "Please set all 'rpc_host', 'rpc_port' and 'rpc_key' to use PRC server"
             self.rpc_config = None
             self.workers = 1
-        self.working_dir = working_dir
+        self.specialized_dir_name = get_specialized_model_name(self.model_name, self.batch_size)
+        self.working_dir = os.path.join(working_dir, self.specialized_dir_name)
         os.makedirs(self.working_dir, exist_ok=True)
         self.num_measurement_repeats = num_measurement_repeats
         self.num_measurements = num_measurements
 
         # Load the model.
-        self.templated_mod, self.all_mappings, self.input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self.model_name)
+        self.templated_mod, self.all_mappings, self.input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self.model_name, self.batch_size)
 
         # Input shape for runtime.
         self.input_dtype = "float32"
@@ -208,7 +165,8 @@ class MetaScheduleTuner:
             working_dir = self.working_dir
             relax_mod = substitute_kernels(self.templated_mod, None)
         else:
-            working_dir = kernels_dir
+            working_dir = os.path.join(kernels_dir, "perf", self.specialized_dir_name)
+            os.makedirs(working_dir, exist_ok=True)
             global _TOTAL_KERNELS_SUBSTITUTED
             kernels_file = os.path.join(kernels_dir, "kernels_tvm.py")
             spec = importlib.util.spec_from_file_location(f"kas_tvm_kernels_mod_{_TOTAL_KERNELS_SUBSTITUTED}", kernels_file)
@@ -280,16 +238,69 @@ class MetaScheduleTuner:
             result = self._perform_measurement(executable.mod, dev, input_data)
         return result
 
+def _parse_args():
+    args = argparse.ArgumentParser()
+    args.add_argument(
+        "--model",
+        type=str,
+        default="torchvision/resnet18",
+    )
+    args.add_argument(
+        "--batch-size",
+        type=int,
+        default=32,
+    )
+    args.add_argument(
+        "--target",
+        type=str,
+        default="llvm -mtriple=aarch64-linux-gnu -mattr=+neon -num-cores=6",
+    )
+    args.add_argument(
+        "--kernels-dir",
+        type=str,
+        default=None,
+    )
+    args.add_argument(
+        "--num-trials",
+        type=int,
+        default=10000,
+    )
+    args.add_argument(
+        "--rpc-host",
+        type=str,
+        default="127.0.0.1",
+    )
+    args.add_argument(
+        "--rpc-port",
+        type=int,
+        default=9190,
+    )
+    args.add_argument(
+        "--rpc-key",
+        type=str,
+        default="jetson-orin-nano",
+    )
+    args.add_argument(
+        "--working-dir",
+        type=str,
+        default="./measurements",
+    )
+    return args.parse_args()
 
 if __name__ == "__main__":
+    args = _parse_args()
     tuner = MetaScheduleTuner(
-        model="torchvision/resnet18",
-        # target="llvm -num-cores 16",
-        target="llvm -mtriple=aarch64-linux-gnu -mattr=+neon -num-cores 6",
+        model=args.model,
+        batch_size=args.batch_size,
+        target=args.target,
+        rpc_host=args.rpc_host,
+        rpc_port=args.rpc_port,
+        rpc_key=args.rpc_key,
+        working_dir=args.working_dir,
     )
-    kernels_tuner = tuner.get_kernel_specific_tuner(None, show=True)
+    kernels_tuner = tuner.get_kernel_specific_tuner(args.kernels_dir, show=True)
     kernels_tuner.optimize_model_before_tuning(show=True)
-    kernels_tuner.tune(20000)
+    kernels_tuner.tune(args.num_trials)
     executable = kernels_tuner.build()
     results = kernels_tuner.measure(executable)
     print("results:", results)

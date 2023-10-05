@@ -7,6 +7,8 @@ from tvm.relax.frontend.torch import from_fx
 from KAS import Sampler
 from KAS.Placeholder import enable_export_for_placeholders, ExportType
 
+from common import get_specialized_model_name
+
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
@@ -38,7 +40,9 @@ if __name__ == '__main__':
     # Print out the imported model.
     mod.show()
 
-    model_module = f'model_relax/{args.model}.py'
+    specialized_model_name = get_specialized_model_name(args.model, args.batch_size)
+
+    model_module = f'model_relax/{specialized_model_name}.py'
     os.makedirs(os.path.dirname(model_module), exist_ok=True)
     with open(model_module, 'w') as f:
         f.writelines([

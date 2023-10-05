@@ -6,7 +6,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pard
 from tvm import relax
 import numpy as np
 
-from Model import KernelMetadata, import_templated_model, substitute_kernels
+from model import KernelMetadata, import_templated_model, substitute_kernels
 
 relax_mod, all_mappings, input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "model_relax"), "ConvNet")
 
