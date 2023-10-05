@@ -57,10 +57,30 @@ std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const Gr
     std::vector<const ShiftOp *> result;
     CountGenerateAttempts += interface.getDimensions().size();
     std::size_t countPlausible = 0;
+    constexpr int ShiftValue = 1;
     for (auto&& dim: plausible) {
         ++countPlausible;
+        if (dim.is(MergeR) || dim.is(Split)) {
+            // This is a reshape and shift pattern.
+            // We would like to see if the reshape is worth this Shift.
+            const Size *block = nullptr;
+            if (auto mergeR = dim.tryAs<MergeOp::Input>(); mergeR) {
+                block = &mergeR->size();
+            } else if (auto split = dim.tryAs<SplitOp::Input>(); split) {
+                block = &split->getOp()->outputRhs.size();
+            } else {
+                KAS_UNREACHABLE();
+            }
+            if (
+                boost::rational_cast<float>(block->lowerBoundEst(options.ctx)) / std::abs(ShiftValue) >
+                options.maximumValidReshapeShiftPattern
+            ) {
+                // It seems that the reshape RHS is too large, and Shift barely makes a difference compared to being placed underneath this reshape.
+                continue;
+            }
+        }
         ++CountSuccessfulGenerations;
-        result.emplace_back(store.get<ShiftOp>(dim, 1));
+        result.emplace_back(store.get<ShiftOp>(dim, ShiftValue));
     }
     CountDisallowedAttempts += interface.getDimensions().size() - countPlausible;
     return result;

@@ -65,7 +65,8 @@ class Sampler:
         dim_upper: int = 8,
         maximum_tensors: int = 2,
         maximum_reductions: int = 2,
-        max_flops=1e15,
+        max_flops: float = 1e15,
+        max_rdom_size_multiplier: int = 32,
         maximum_enumerations_per_var: int = 5,
         maximum_variables_in_size: int = 16,
         maximum_variables_powers_in_size: int = 16,
@@ -81,6 +82,7 @@ class Sampler:
         max_unfold_kernel_size: int = 30,
         minimum_unfold_ratio: float = 2.0,
         minimum_merge_ratio: float = 2.0,
+        maximum_valid_reshape_shift_pattern: float = 10.0,
         disallow_merge_input_and_weight: bool = False,
         disallow_tile: bool = True,
         max_expansion_repeat_multiplier: int = 10,
@@ -139,6 +141,8 @@ class Sampler:
             Maximum number of ReduceOp's.
         max_flops : float, optional
             Maximum number of floating point operations allowed in a kernel. This is a soft constraint, because we do not know the exact number of floating point operations in a kernel until we finalize it.
+        max_rdom_size_multiplier : int, optional
+            We allow for a matmul, times this multiplier at most in ReductionStage.
         maximum_enumerations_per_var : int, optional
             Maximum enumerations per variable. For example, if setting this to 5, then the power could be chosen from s ** (-2) to s ** 2. 
         maximum_variables_in_size : int, optional
@@ -171,6 +175,8 @@ class Sampler:
             Minimum ratio of the size of the input dimension to the parameter of UnfoldOp.
         minimum_merge_ratio : float, optional
             Minimum ratio of the size of the left input dimension to the right input dimension of MergeOp.
+        maximum_valid_reshape_shift_pattern : float, optional
+            When Shift coincides with a reshape with rather large RHS, this Shift is basically interchangeable with that reshape. For example, if this is set to 10, then a Shift by 1 on a Merge with block size 20 is interchangeable. We put Shift as close to output as possible in this case.
         disallow_merge_input_and_weight : bool, optional
             Merging input tensor and weight tensor via ExpandOp.
         disallow_tile : bool, optional
@@ -234,6 +240,7 @@ class Sampler:
             maximum_tensors=maximum_tensors,
             maximum_reductions=maximum_reductions,
             max_flops=max_flops,
+            max_rdom_size_multiplier=max_rdom_size_multiplier,
             maximum_enumerations_per_var=maximum_enumerations_per_var,
             maximum_variables_in_size=maximum_variables_in_size,
             maximum_variables_powers_in_size=maximum_variables_powers_in_size,
@@ -249,6 +256,7 @@ class Sampler:
             max_unfold_kernel_size=max_unfold_kernel_size,
             minimum_unfold_ratio=minimum_unfold_ratio,
             minimum_merge_ratio=minimum_merge_ratio,
+            maximum_valid_reshape_shift_pattern=maximum_valid_reshape_shift_pattern,
             disallow_merge_input_and_weight=disallow_merge_input_and_weight,
             disallow_tile=disallow_tile,
             max_expansion_repeat_multiplier=max_expansion_repeat_multiplier,

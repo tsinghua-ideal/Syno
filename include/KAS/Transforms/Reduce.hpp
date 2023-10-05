@@ -49,7 +49,8 @@ public:
         const BindingContext& ctx;
         std::size_t dimUpperBound;
         Size outputSize;
-        Size maxRDomSize;
+        Size maxRDomSizeBase;
+        std::size_t maxRDomSizeMultiplier;
         std::size_t maximumReductions;
     };
     static std::vector<const ReduceOp *> Generate(PrimitiveOpStore& store, const std::vector<const Reduce *>& current, const GenerateOptions& options);

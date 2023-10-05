@@ -36,7 +36,9 @@ public:
     }
 
     struct GenerateOptions {
+        const BindingContext& ctx;
         bool disallowShiftAboveUnfold;
+        float maximumValidReshapeShiftPattern;
     };
     KAS_STATISTICS_DEF(
         GenerateInvocations,

@@ -58,7 +58,7 @@ std::vector<const ReduceOp *> ReduceOp::Generate(PrimitiveOpStore& store, const 
     auto withinFLOPs = [&](const Size& size) {
         for (const ConcreteConsts& consts: ctx.getAllConsts()) {
             // This actually has nothing to do with FLOPs.
-            auto rate = (reductionSize * size / options.maxRDomSize).evalFraction<std::size_t>(consts);
+            auto rate = (reductionSize * size / options.maxRDomSizeBase).evalFraction<std::size_t>(consts) / options.maxRDomSizeMultiplier;
             if (rate > 1) {
                 return false;
             }

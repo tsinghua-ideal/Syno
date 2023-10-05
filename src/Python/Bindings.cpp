@@ -26,7 +26,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<SampleOptions>(m, "SampleOptions")
         .def(
-            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maximumEnumerationsPerVar, std::size_t maximumVariablesInSize, std::size_t maximumVariablesPowersInSize, bool requiresExactDivision, bool requiresOddKernelSizeInUnfold, std::string expressionOneTensor, std::string expressionTwoTensors, std::string expressionThreeTensors, std::string expressionFourTensors, std::size_t maximumFinalizations, bool allowWeightPermutation, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float minimumMergeRatio, bool disallowMergeInputAndWeight, bool disallowTile, std::size_t maxExpansionRepeatMultiplier, std::size_t maxExpansionMergeMultiplier, bool disallowDiscontinuousView, bool canonicalizeUnfoldOrder, bool disallowSplitLAboveUnfold, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumExpands, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
+            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maxRDomSizeMultiplier, std::size_t maximumEnumerationsPerVar, std::size_t maximumVariablesInSize, std::size_t maximumVariablesPowersInSize, bool requiresExactDivision, bool requiresOddKernelSizeInUnfold, std::string expressionOneTensor, std::string expressionTwoTensors, std::string expressionThreeTensors, std::string expressionFourTensors, std::size_t maximumFinalizations, bool allowWeightPermutation, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float minimumMergeRatio, float maximumValidReshapeShiftPattern, bool disallowMergeInputAndWeight, bool disallowTile, std::size_t maxExpansionRepeatMultiplier, std::size_t maxExpansionMergeMultiplier, bool disallowDiscontinuousView, bool canonicalizeUnfoldOrder, bool disallowSplitLAboveUnfold, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumExpands, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
                 return SampleOptions {
                     .seed = seed,
                     .depth = depth,
@@ -35,6 +35,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
                     .maximumTensors = maximumTensors,
                     .maximumReductions = maximumReductions,
                     .maxFLOPs = static_cast<std::size_t>(maxFLOPs),
+                    .maxRDomSizeMultiplier = maxRDomSizeMultiplier,
                     .maximumEnumerationsPerVar = maximumEnumerationsPerVar,
                     .maximumVariablesInSize = maximumVariablesInSize,
                     .maximumVariablesPowersInSize = maximumVariablesPowersInSize,
@@ -50,6 +51,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
                     .maxUnfoldKernelSize = maxUnfoldKernelSize,
                     .minimumUnfoldRatio = minimumUnfoldRatio,
                     .minimumMergeRatio = minimumMergeRatio,
+                    .maximumValidReshapeShiftPattern = maximumValidReshapeShiftPattern,
                     .disallowMergeInputAndWeight = disallowMergeInputAndWeight,
                     .disallowTile = disallowTile,
                     .maxExpansionRepeatMultiplier = maxExpansionRepeatMultiplier,
@@ -83,6 +85,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("maximum_tensors") = DefaultSampleOptions.maximumTensors,
             pybind11::arg("maximum_reductions") = DefaultSampleOptions.maximumReductions,
             pybind11::arg("max_flops") = static_cast<float>(DefaultSampleOptions.maxFLOPs),
+            pybind11::arg("max_rdom_size_multiplier") = DefaultSampleOptions.maxRDomSizeMultiplier,
             pybind11::arg("maximum_enumerations_per_var") = DefaultSampleOptions.maximumEnumerationsPerVar,
             pybind11::arg("maximum_variables_in_size") = DefaultSampleOptions.maximumVariablesInSize,
             pybind11::arg("maximum_variables_powers_in_size") = DefaultSampleOptions.maximumVariablesPowersInSize,
@@ -98,6 +101,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("max_unfold_kernel_size") = DefaultSampleOptions.maxUnfoldKernelSize,
             pybind11::arg("minimum_unfold_ratio") = DefaultSampleOptions.minimumUnfoldRatio,
             pybind11::arg("minimum_merge_ratio") = DefaultSampleOptions.minimumMergeRatio,
+            pybind11::arg("maximum_valid_reshape_shift_pattern") = DefaultSampleOptions.maximumValidReshapeShiftPattern,
             pybind11::arg("disallow_merge_input_and_weight") = DefaultSampleOptions.disallowMergeInputAndWeight,
             pybind11::arg("disallow_tile") = DefaultSampleOptions.disallowTile,
             pybind11::arg("max_expansion_repeat_multiplier") = DefaultSampleOptions.maxExpansionRepeatMultiplier,

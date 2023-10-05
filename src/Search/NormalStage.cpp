@@ -82,7 +82,9 @@ void NormalStage::guardGeneratedChildren() {
         // Shift^{-1}
         if (!inCriticalState && (options.maximumShifts == -1 || options.maximumShifts > existingOp<ShiftOp>())) {
             add(ShiftOp::Generate(store, interface, {
+                .ctx = ctx,
                 .disallowShiftAboveUnfold = options.disallowShiftAboveUnfold,
+                .maximumValidReshapeShiftPattern = options.maximumValidReshapeShiftPattern,
             }));
         }
         // Stride^{-1}

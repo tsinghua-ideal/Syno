@@ -39,6 +39,7 @@ struct SampleOptions {
     std::size_t maximumTensors = 2;
     std::size_t maximumReductions = 2;
     std::size_t maxFLOPs = std::numeric_limits<std::size_t>::max();
+    std::size_t maxRDomSizeMultiplier = 32;
 
     std::size_t maximumEnumerationsPerVar = 5;
     std::size_t maximumVariablesInSize = std::numeric_limits<std::size_t>::max();
@@ -59,6 +60,10 @@ struct SampleOptions {
 
     float minimumUnfoldRatio = 2.0f;
     float minimumMergeRatio = 2.0f;
+
+    // If Split, Merge coincide with Shift, it is very likely that they are exchangeable.
+    // Only if RHS of Split or Merge is comparatively small, Shift may make a difference when interchanged.
+    float maximumValidReshapeShiftPattern = 10.0f;
 
     // ExpandOp related.
     bool disallowMergeInputAndWeight = false;
