@@ -249,6 +249,7 @@ std::size_t RFactorSolver::getFLOPs(const Scheme& scheme, std::size_t overflow) 
         auto removedReductions = discoverer.removeReductions();
         if (removedReductions != reductionGroup.size()) {
             // It seems there are some other reductions that had better get reduced at the same time.
+            KAS_ASSERT(removedReductions > reductionGroup.size());
             // This is to say that this reduction scheme is actually invalid.
             // We only need to return infinity here.
             return Infinity;
@@ -502,7 +503,11 @@ void IRBuilder::rfactor(IR& ir, const BindingContext& ctx) const {
         auto solver = RFactorSolver(tensor, graph, ctx);
         // TODO!!! Add overflow.
         auto optimal = solver.optimalRFactorScheme();
-        solver.apply(optimal);
+        if (!optimal.has_value()) {
+            KAS_WARNING("RFactor failed for {}! reductions = [{}]", tensor.toString(ctx), fmt::join(tensor.reductions() | std::views::transform([&ctx](const Reduce *reduction) { return reduction->getBase().getDomain().toString(ctx); }), ", "));
+        } else {
+            solver.apply(*optimal);
+        }
     });
 }
 
@@ -647,9 +652,16 @@ void LayoutOptimizer::optimize(const Graph& graph, Tensor& tensor) const {
         }
         static std::pair<Priority, Priority> Split(Priority from) {
             auto serialized = from.serialized;
-            auto it = from.value.value();
-            auto lhs = Priority { serialized, from.serialized->insert(it, *it) };
-            return { std::move(lhs), std::move(from) };
+            if (from.value.has_value()) {
+                auto it = *from.value;
+                auto lhs = Priority { serialized, from.serialized->insert(it, *it) };
+                return { std::move(lhs), std::move(from) };
+            } else {
+                // Consider the special cases where canonicalization is broken.
+                // That is, we are performing SplitLikeOp on weights!
+                KAS_WARNING("Canonicalization is broken! Performing SplitLikeOp on weights!");
+                return { Empty(*serialized), Empty(*serialized) };
+            }
         }
         static Priority Merge(Priority lhs, Priority rhs) {
             return std::min(lhs, rhs);

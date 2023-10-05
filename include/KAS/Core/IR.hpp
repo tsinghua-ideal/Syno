@@ -151,8 +151,7 @@ private:
 public:
     // Never pass a view here!
     RFactorSolver(Tensor& tensor, const Graph& graph, const BindingContext& ctx);
-    std::optional<Scheme> optimalRFactorScheme(std::size_t overflow) const;
-    Scheme optimalRFactorScheme() const { return optimalRFactorScheme(Infinity).value(); }
+    std::optional<Scheme> optimalRFactorScheme(std::size_t overflow = Infinity) const;
     void apply(const Scheme& scheme);
 };
 

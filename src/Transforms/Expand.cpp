@@ -48,7 +48,15 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
             if (share->getOp()->output.type() != DimensionType::Merge) {
                 continue;
             }
-            // Yes, it is. But check if it exceeds the maximum.
+            // Yes, it is. But check if this the other input of Merge is also an Expand.
+            auto otherInputOfMerge = share->getOp()->output.as<MergeOp::Input>().getOther();
+            if (std::ranges::any_of(interface.getExpansions(), [&](const Expand *expand) {
+                return expand->output == otherInputOfMerge;
+            })) {
+                // This is ridiculous: we are getting the entire component from weights!
+                continue;
+            }
+            // Check if it exceeds the maximum.
             if (
                 options.maxExpansionMergeMultiplier &&
                 // Do not make expansions too large.
