@@ -57,6 +57,7 @@ def get_sampler(args, model) -> Sampler:
         "max_expansion_repeat_multiplier": args.kas_max_expansion_repeat_multiplier,
         "max_expansion_merge_multiplier": args.kas_max_expansion_merge_multiplier,
         "max_flops": max_placeholder_flops * args.batch_size,
+        "maximum_enumerations_per_var": args.kas_max_enumerations, 
         "save_path": args.kas_scheduler_cache_dir,
         "cuda": True,
         "autoscheduler": CodeGenOptions.AutoScheduler.Anderson2021,

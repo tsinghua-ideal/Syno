@@ -66,6 +66,7 @@ class Sampler:
         maximum_tensors: int = 2,
         maximum_reductions: int = 2,
         max_flops=1e15,
+        maximum_enumerations_per_var: int = 5,
         maximum_variables_in_size: int = 16,
         maximum_variables_powers_in_size: int = 16,
         requires_exact_division: bool = True,
@@ -138,6 +139,8 @@ class Sampler:
             Maximum number of ReduceOp's.
         max_flops : float, optional
             Maximum number of floating point operations allowed in a kernel. This is a soft constraint, because we do not know the exact number of floating point operations in a kernel until we finalize it.
+        maximum_enumerations_per_var : int, optional
+            Maximum enumerations per variable. For example, if setting this to 5, then the power could be chosen from s ** (-2) to s ** 2. 
         maximum_variables_in_size : int, optional
             Maximum number of variables in a size. For example, in `c^_1*H^2*W` has 3 variables.
         maximum_variables_powers_in_size : int, optional
@@ -231,6 +234,7 @@ class Sampler:
             maximum_tensors=maximum_tensors,
             maximum_reductions=maximum_reductions,
             max_flops=max_flops,
+            maximum_enumerations_per_var=maximum_enumerations_per_var,
             maximum_variables_in_size=maximum_variables_in_size,
             maximum_variables_powers_in_size=maximum_variables_powers_in_size,
             requires_exact_division=requires_exact_division,
