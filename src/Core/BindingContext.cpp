@@ -160,6 +160,9 @@ Size BindingContext::getSize(const std::string& name) const {
     return getSizeFromFactors(factors);
 }
 
+std::size_t BindingContext::getMaxEnumerationsPerVar() const {
+    return options.maximumEnumerationsPerVar;
+}
 std::size_t BindingContext::getMaxVariablesInSize() const {
     return options.maximumVariablesInSize;
 }

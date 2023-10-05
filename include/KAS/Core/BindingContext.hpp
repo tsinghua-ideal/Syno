@@ -46,6 +46,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PaddedConsts, unpadded, padded)
 class BindingContext {
 public:
     struct Options {
+        std::size_t maximumEnumerationsPerVar = 5;
         std::size_t maximumVariablesInSize = std::numeric_limits<std::size_t>::max();
         std::size_t maximumVariablesPowersInSize = std::numeric_limits<std::size_t>::max();
         bool requiresExactDivision = false;
@@ -104,6 +105,7 @@ public:
         return std::array { getSize(std::forward<Args>(args))... };
     }
 
+    std::size_t getMaxEnumerationsPerVar() const;
     std::size_t getMaxVariablesInSize() const;
     std::size_t getMaxVariablesPowersInSize() const;
     bool isSizeValid(const Size& size) const;

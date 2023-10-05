@@ -135,6 +135,7 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
 
     // Apply the specs to all variables, and the mappings to obtain concrete consts.
     ctx = BindingContext(contractedPrimarySpecs, contractedCoefficientSpecs, allMappings, {
+        .maximumEnumerationsPerVar = options.maximumEnumerationsPerVar,
         .maximumVariablesInSize = options.maximumVariablesInSize,
         .maximumVariablesPowersInSize = options.maximumVariablesPowersInSize,
         .requiresExactDivision = options.requiresExactDivision,

@@ -685,7 +685,7 @@ bool Allowance::withinAllowance(const Size& size) const {
 }
 
 Generator<Size> Allowance::enumerateSizes(const BindingContext& ctx) const {
-    constexpr Size::PowerType maxEnumerationsPerVar = 4;
+    const Size::PowerType maxEnumerationsPerVar = ctx.getMaxEnumerationsPerVar();
     auto primary = this->primary;
     for (std::size_t i = 0; i < ctx.getPrimaryCount(); ++i) {
         primary[i] = std::clamp(primary[i], static_cast<Size::PowerType>(0), maxEnumerationsPerVar);
@@ -703,11 +703,11 @@ Generator<Size> Allowance::enumerateSizes(const BindingContext& ctx) const {
             } else {
                 if (upper < maxEnumerationsPerVar / 2) {
                     lower = upper - maxEnumerationsPerVar + 1;
-                } else if (lower > -maxEnumerationsPerVar / 2 + 1) {
+                } else if (lower > maxEnumerationsPerVar / 2 - maxEnumerationsPerVar + 1) {
                     upper = lower + maxEnumerationsPerVar - 1;
                 } else {
                     upper = maxEnumerationsPerVar / 2;
-                    lower = -maxEnumerationsPerVar / 2 + 1;
+                    lower = maxEnumerationsPerVar / 2 - maxEnumerationsPerVar + 1;
                 }
             }
         }

@@ -168,7 +168,7 @@ void TVMOpLower::visit(const ShareOp& op) {
 void TVMOpLower::visit(const ShiftOp& op) {
     auto output = valueOf(op.output);
     auto shift = TVMConcreteSize::Literal(op.getShift());
-    assign(op.getInput(), output + shift);
+    assign(op.getInput(), (output + shift).floorMod(concretizer.concretize(op.output.size())));
 }
 void TVMOpLower::visit(const SplitOp& op) {
     auto outputLhs = valueOf(op.outputLhs);
