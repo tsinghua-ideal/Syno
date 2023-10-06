@@ -30,7 +30,7 @@ link_libraries(fmt::fmt-header-only)
 find_package(pybind11 CONFIG REQUIRED)
 
 # To disable Halide, change ON to OFF.
-option(KAS_WITH_HALIDE "Enable Halide. If not enabled, you cannot use tests." ON)
+option(KAS_WITH_HALIDE "Enable Halide. If not enabled, you cannot use tests." OFF)
 if(KAS_WITH_HALIDE)
     add_definitions(-DKAS_USE_HALIDE)
 

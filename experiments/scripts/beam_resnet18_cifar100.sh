@@ -1,0 +1,12 @@
+./run_tmux.sh 4 torch --kas-server-save-dir resnet18-cifar100-results/$(date '+%Y%m%d') \
+--kas-search-algo Beam \
+--model torchvision/resnet18 \
+--root ~/Datasets/TorchCache/ --dataset cifar100 --num-classes 100 \
+--sched cosine --epoch 50 --batch-size 512 --warmup-epochs 0 --cooldown-epochs 0 \
+--lr 0.4 --momentum 0.9 --weight-decay 0.001 \
+--kas-sampler-workers 64 --kas-num-virtual-evaluator 8 \
+--kas-reward-power 1 --kas-reward-trunc 0.1 \
+--kas-target accuracy --kas-max-flops-ratio 0.3 \
+--kas-depth 13 --kas-max-dim 14 --kas-max-shifts 3 --kas-max-finalizations 2 --kas-max-reductions 5 --kas-max-merges 2 --kas-max-splits 2 \
+--kas-inference-time-limit 300 \
+--compile
