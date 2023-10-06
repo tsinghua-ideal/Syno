@@ -16,12 +16,10 @@ class FCNet(KASModel):
             nn.Linear(64, 10)
         )
 
-    @staticmethod
-    def sample_input_shape():
+    def sample_input_shape(self, seq_len=None):
         return (1, 28, 28)
     
-    @staticmethod
-    def sampler_parameters():
+    def sampler_parameters(self, seq_len=None):
         return {
             'input_shape': '[N, C_in]',
             'output_shape': '[N, C_out]',

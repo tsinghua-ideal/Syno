@@ -3,6 +3,7 @@ import random
 import sys
 import torch
 from typing import Tuple, Optional, Union
+from transformers import GPT2Tokenizer
 from KAS import Sampler, Path
 from KAS.Bindings import CodeGenOptions
 from KAS.Placeholder import build_placeholder_mappings, remove_unsatisfied_placeholders
@@ -12,6 +13,7 @@ from .model import KASModel
 from .conv_net import ConvNet, SpeedyResNet
 from .fc_net import FCNet
 from .common import get_common_model
+from .gpt import GPTConfig, GPT
 
 
 def get_sampler(args, model) -> Sampler:
@@ -87,11 +89,17 @@ def get_model(
     # Create model instance
     if args.model.startswith("torchvision/"):
         model = get_common_model(args).cuda()
+    elif args.model.startswith("gpt/"):
+        config = GPT.get_default_config()
+        config.model_type = args.model[len("gpt/")]
+        config.vocab_size = GPT2Tokenizer.from_pretrained(args.gpt_tokenizer).vocab_size
+        config.block_size = args.gpt_seq_len
+        model = GPT(config)
     else:
         assert hasattr(sys.modules[__name__], args.model), f"Could not find model {args.model}"
         model_cls = getattr(sys.modules[__name__], args.model)
         model = model_cls().cuda()
-    flops, params = model.profile()
+    flops, params = model.profile(seq_len=args.gpt_seq_len)
     logging.info(
         f"Base model {args.model} has {flops / 1e9:.5f}GFLOPs (per batch) and {params / 1e6:.2f}M parameters"
     )
@@ -131,7 +139,7 @@ def get_model(
             compile=args.compile,
             batch_size=args.batch_size,
         )
-        flops_replaced, params_replaced = model.profile(batch_size=args.batch_size, force_update=True)
+        flops_replaced, params_replaced = model.profile(batch_size=args.batch_size, force_update=True, seq_len=args.gpt_seq_len)
         flops_base, params_base = model.profile(batch_size=args.batch_size, force_update=True, not_count_placeholder=True)
         logging.info(f"Replaced model {args.model} has {flops_replaced / 1e9:.5f}G FLOPs and {params_replaced / 1e6:.2f}M parameters")
         logging.info(f"Placeholder flops change {flops - flops_base:.2f} -> {flops_replaced - flops_base:.2f}")

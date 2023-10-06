@@ -2,6 +2,8 @@ import logging
 import sys
 import torch
 import torch.nn.functional as F
+from datasets import load_dataset, IterableDataset
+from transformers import GPT2Tokenizer
 from functools import partial
 from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10, CIFAR100, MNIST
@@ -109,3 +111,48 @@ def get_dataloader(args):
 
     return FuncDataloader(partial(get_batches, data_dict=train_dataset, key='train', batch_size=args.batch_size, crop_size=crop_size)), \
         FuncDataloader(partial(get_batches, data_dict=eval_dataset, key='eval', batch_size=args.batch_size, crop_size=crop_size))
+
+
+class ConstantLengthDataset(IterableDataset):
+    def __init__(self, tokenizer, dataset, infinite=False, seq_length=1024, num_of_sequences=1024, chars_per_token=3.6):
+        self.tokenizer = tokenizer
+        self.concat_token_id = tokenizer.bos_token_id
+        self.dataset = dataset
+        self.seq_length = seq_length
+        self.input_characters = seq_length * chars_per_token * num_of_sequences
+        self.epoch = 0
+        self.infinite = infinite
+
+    def __iter__(self):
+        iterator = iter(self.dataset)
+        more_examples = True
+        while more_examples:
+            buffer, buffer_len = [], 0
+            while True:
+                if buffer_len >= self.input_characters:
+                    break
+                try:
+                    buffer.append(next(iterator)["text"])
+                    buffer_len += len(buffer[-1])
+                except StopIteration:
+                    if self.infinite:
+                        iterator = iter(self.dataset)
+                        self.epoch += 1
+                    else:
+                        more_examples = False
+                        break
+            tokenized_inputs = self.tokenizer(buffer, truncation=False)["input_ids"]
+            all_token_ids = []
+            for tokenized_input in tokenized_inputs:
+                all_token_ids.extend(tokenized_input + [self.concat_token_id])
+            for i in range(0, len(all_token_ids), self.seq_length):
+                input_ids = all_token_ids[i : i + self.seq_length]
+                if len(input_ids) == self.seq_length:
+                    yield torch.tensor(input_ids)
+
+
+def get_gpt_dataloader(args):
+    dataset = load_dataset(str(args.dataset))
+    tokenizer = GPT2Tokenizer.from_pretrained(args.gpt_tokenizer)
+    return ConstantLengthDataset(tokenizer, dataset["train"], infinite=True, seq_length=args.gpt_seq_len), \
+        ConstantLengthDataset(tokenizer, dataset["test"], infinite=False, seq_length=args.gpt_seq_len)

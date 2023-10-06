@@ -30,12 +30,10 @@ class ConvNet(KASModel):
             nn.Linear(256, 10),
         )
 
-    @staticmethod
-    def sample_input_shape():
+    def sample_input_shape(self, seq_len=None):
         return (3, 32, 32)
     
-    @staticmethod
-    def sampler_parameters():
+    def sampler_parameters(self, seq_len=None):
          return {
             'input_shape': '[N, C_in, H, W]',
             'output_shape': '[N, C_out, H, W]',

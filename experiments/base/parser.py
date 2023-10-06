@@ -64,6 +64,7 @@ def arg_parse():
     parser.add_argument(
         "--weight-decay", type=float, default=1e-3, help="Weight decay (default: 0.05)"
     )
+    parser.add_argument("--grad-norm-clip", type=float, default=5.)
 
     # Scheduler parameters
     parser.add_argument(
@@ -309,6 +310,12 @@ def arg_parse():
         type=str,
         help="Path to test",
     )
+
+    # GPT related
+    parser.add_argument('--gpt-seq-len', default=1024, type=int)
+    parser.add_argument('--gpt-vocab-size', default=None, type=int)
+    parser.add_argument('--gpt-tokenizer', default='gpt2-large', type=str)
+    parser.add_argument('--gpt-max-iters', default=0, type=int)
 
     args = parser.parse_args()
 

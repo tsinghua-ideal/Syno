@@ -50,12 +50,10 @@ class CommonModel(KASModel):
         count = replace_conv2d_to_placeholder(self.model)
         logging.info(f"Replaced {count} Conv2D layers to Placeholder")
 
-    @staticmethod
-    def sample_input_shape():
+    def sample_input_shape(self, seq_len=None):
         return (3, 224, 224)
     
-    @staticmethod
-    def sampler_parameters():
+    def sampler_parameters(self, seq_len=None):
          return {
             'input_shape': '[N, C_in, H, W]',
             'output_shape': '[N, C_out, H, W]',

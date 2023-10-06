@@ -52,7 +52,7 @@ class KASModel(nn.Module):
                     if key in m._buffers:
                         m._buffers.pop(key)
 
-    def profile(self, batch_size=1, force_update=False, not_count_placeholder=False) -> Tuple[int, int]:
+    def profile(self, batch_size=1, force_update=False, not_count_placeholder=False, seq_len=None) -> Tuple[int, int]:
         if not (self.flops == 0 and self.params == 0) and not force_update:
             return self.flops, self.params
         
@@ -67,7 +67,7 @@ class KASModel(nn.Module):
             pass
         
         count_placeholder = count_placeholder_zero if not_count_placeholder else count_placeholder_non_zero
-        sample_input = torch.randn((batch_size, *self.sample_input_shape())).cuda()
+        sample_input = torch.randn((batch_size, *self.sample_input_shape(seq_len))).cuda()
         flops, params = thop.profile(self, inputs=(sample_input, ), verbose=False, report_missing=False, custom_ops={
             Placeholder: count_placeholder,
             LinearPlaceholder: count_placeholder,
@@ -76,12 +76,10 @@ class KASModel(nn.Module):
         flops = flops // batch_size
         return int(flops), int(params)
 
-    @staticmethod
-    def sample_input_shape():
+    def sample_input_shape(self, seq_len=None):
         assert False, 'Not implemented'
 
-    @staticmethod
-    def sampler_parameters():
+    def sampler_parameters(self, seq_len=None):
         assert False, 'Not implemented'
 
     def initialize_weights(self):

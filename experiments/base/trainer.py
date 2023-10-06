@@ -1,21 +1,28 @@
 import logging
 import torch
 import time
+from torch import nn
 from typing import Tuple, List
 from timm.utils import AverageMeter
+from transformers import GPT2Tokenizer
 
 from .loss import get_loss_func
-from .optim import get_optimizer
+from .optim import get_optimizer, get_gpt_optimizer
 from .sche import get_schedule
 from .models import KASModel
 
 
-def train(model, train_dataloader, val_dataloader, args) -> List[float]:
-    assert isinstance(model, KASModel)
+def torch_opt_on():
     torch.backends.cudnn.benchmark = True
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
-    assert torch.cuda.is_available(), 'CUDA is not supported.'
+
+
+def train(model, train_dataloader, val_dataloader, args) -> List[float]:
+    assert isinstance(model, KASModel)
+
+    torch_opt_on()
+    assert torch.cuda.is_available(), "CUDA is not supported."
     model.cuda()
     model.initialize_weights()
 
@@ -39,7 +46,7 @@ def train(model, train_dataloader, val_dataloader, args) -> List[float]:
 
             # Backward
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(parameters=model.parameters(), max_norm=5., norm_type=2)
+            torch.nn.utils.clip_grad_norm_(parameters=model.parameters(), max_norm=args.grad_norm_clip, norm_type=2)
             optimizer.step()
             optimizer.zero_grad(set_to_none=True)
 
@@ -88,3 +95,32 @@ def train(model, train_dataloader, val_dataloader, args) -> List[float]:
 
     logging.info(f'Training completed, accuracy: {max(val_accuracy)}')
     return val_accuracy
+
+
+def train_gpt(model: nn.Module, train_dataloader, args) -> List[float]:
+    assert torch.cuda.is_available(), "CUDA is not supported."
+    torch_opt_on()
+    model.cuda()
+
+    model.initialize_weights()
+    optimizer = get_gpt_optimizer(model, args)
+
+    num_iters = 0
+    model.train()
+    data_iterator = iter(train_dataloader)
+    while True:
+        try:
+            batch = next(data_iterator)
+        except StopIteration:
+            data_iterator = iter(train_dataloader)
+            batch = next(data_iterator)
+
+        batch = batch.cuda()
+        _, loss = model(batch, batch)
+        model.zero_grad(set_to_none=True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_norm_clip)
+        optimizer.step()
+
+        if args.gpt_max_iters > 0 and num_iters >= args.gpt_max_iters:
+            break
