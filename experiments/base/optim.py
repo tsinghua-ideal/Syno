@@ -30,8 +30,8 @@ def get_gpt_optimizer(model: nn.Module, args):
                                                 % (str(param_dict.keys() - union_params), )
 
     optim_groups = [
-        {"params": [param_dict[pn] for pn in sorted(list(decay))], "weight_decay": model.config.weight_decay},
+        {"params": [param_dict[pn] for pn in sorted(list(decay))], "weight_decay": args.weight_decay},
         {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0},
     ]
-    optimizer = torch.optim.AdamW(optim_groups, lr=model.config.learning_rate, betas=model.config.betas)
+    optimizer = torch.optim.AdamW(optim_groups, lr=args.lr, betas=(0.9, 0.95))
     return optimizer

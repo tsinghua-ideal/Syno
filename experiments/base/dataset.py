@@ -152,7 +152,8 @@ class ConstantLengthDataset(IterableDataset):
 
 
 def get_gpt_dataloader(args):
+    # TODO: add multiple workers
     dataset = load_dataset(str(args.dataset))
     tokenizer = GPT2Tokenizer.from_pretrained(args.gpt_tokenizer)
-    return ConstantLengthDataset(tokenizer, dataset["train"], infinite=True, seq_length=args.gpt_seq_len), \
-        ConstantLengthDataset(tokenizer, dataset["test"], infinite=False, seq_length=args.gpt_seq_len)
+    return ConstantLengthDataset(tokenizer, dataset["train"], infinite=True, seq_length=args.gpt_seq_len, num_of_sequences=args.batch_size), \
+        ConstantLengthDataset(tokenizer, dataset["test"], infinite=False, seq_length=args.gpt_seq_len, num_of_sequences=args.batch_size)
