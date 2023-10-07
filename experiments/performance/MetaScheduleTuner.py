@@ -71,17 +71,17 @@ class KernelSpecificTuner:
             work_dir=self.working_dir,
         )
 
-    def build(self) -> relax.Executable:
+    def build(self, show: bool = False) -> relax.Executable:
         if self.db is None:
             with transform.PassContext(opt_level=3):
                 executable = relax.build(self.relax_mod, target=self.parent.target)
         else:
-            executable = ms.relax_integration.compile_relax(
-                self.db,
-                mod=self.relax_mod,
-                target=self.parent.target,
-                params=None,
-            )
+            with self.parent.target, self.db, transform.PassContext(opt_level=3):
+                relax_mod = relax.transform.MetaScheduleApplyDatabase(enable_warning=True)(self.relax_mod)
+                if show:
+                    print("After applying tuning database:")
+                    relax_mod.show()
+                executable = relax.build(relax_mod, target=self.parent.target)
         from tvm.contrib.tar import tar
         executable.export_library(os.path.join(self.working_dir, "kernels_tvm_tuned.tar.gz"), tar)
         return executable
@@ -248,7 +248,7 @@ def _parse_args():
     args.add_argument(
         "--batch-size",
         type=int,
-        default=32,
+        default=1,
     )
     args.add_argument(
         "--target",
@@ -301,6 +301,6 @@ if __name__ == "__main__":
     kernels_tuner = tuner.get_kernel_specific_tuner(args.kernels_dir, show=True)
     kernels_tuner.optimize_model_before_tuning(show=True)
     kernels_tuner.tune(args.num_trials)
-    executable = kernels_tuner.build()
+    executable = kernels_tuner.build(show=True)
     results = kernels_tuner.measure(executable)
     print("results:", results)
