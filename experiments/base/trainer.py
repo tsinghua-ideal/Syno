@@ -19,6 +19,9 @@ def torch_opt_on():
 
 
 def train(model, train_dataloader, val_dataloader, args) -> List[float]:
+    if 'gpt' in args.model:
+        return train_gpt(model, train_dataloader, val_dataloader, args)
+
     assert isinstance(model, KASModel)
 
     torch_opt_on()
@@ -97,7 +100,7 @@ def train(model, train_dataloader, val_dataloader, args) -> List[float]:
     return val_accuracy
 
 
-def train_gpt(model: nn.Module, train_dataloader, args) -> List[float]:
+def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[float]:
     assert torch.cuda.is_available(), "CUDA is not supported."
     torch_opt_on()
     model.cuda()
@@ -117,6 +120,7 @@ def train_gpt(model: nn.Module, train_dataloader, args) -> List[float]:
 
         batch = batch.cuda()
         _, loss = model(batch, batch)
+        logging.info(f'Train loss: {loss.item()}')
         model.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_norm_clip)

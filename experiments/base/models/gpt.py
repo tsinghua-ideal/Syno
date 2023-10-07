@@ -141,7 +141,7 @@ class GPT(KASModel):
                 torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
 
         n_params = sum(p.numel() for p in self.transformer.parameters())
-        print("Number of parameters: %.2fM" % (n_params/1e6,))
+        # print("Number of parameters: %.2fM" % (n_params/1e6,))
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
@@ -154,8 +154,8 @@ class GPT(KASModel):
             torch.nn.init.zeros_(module.bias)
             torch.nn.init.ones_(module.weight)
 
-    def sample_input_shape(self, args):
-        return (args.gpt_seq_len, )
+    def sample_input_shape(self, seq_len):
+        return (seq_len, )
 
     def sampler_parameters(self, args=None):
         assert False, 'Not implemented'

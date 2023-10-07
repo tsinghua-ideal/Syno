@@ -315,7 +315,7 @@ def arg_parse():
     )
 
     # GPT related
-    parser.add_argument('--gpt-seq-len', default=1024, type=int)
+    parser.add_argument('--gpt-seq-len', default=None, type=int)
     parser.add_argument('--gpt-vocab-size', default=None, type=int)
     parser.add_argument('--gpt-tokenizer', default='gpt2-large', type=str)
     parser.add_argument('--gpt-max-iters', default=0, type=int)

@@ -92,21 +92,22 @@ def get_model(
         model = get_common_model(args).cuda()
     elif args.model.startswith("gpt/"):
         config = GPT.get_default_config()
-        config.model_type = args.model[len("gpt/")]
+        config.model_type = args.model[len("gpt/"):]
         config.vocab_size = GPT2Tokenizer.from_pretrained(args.gpt_tokenizer).vocab_size
         config.block_size = args.gpt_seq_len
         model = GPT(config)
     else:
         assert hasattr(sys.modules[__name__], args.model), f"Could not find model {args.model}"
         model_cls = getattr(sys.modules[__name__], args.model)
-        model = model_cls().cuda()
+        model = model_cls()
+    model = model.cuda()
     flops, params = model.profile(seq_len=args.gpt_seq_len)
-    logging.info(
-        f"Base model {args.model} has {flops / 1e9:.5f}GFLOPs (per batch) and {params / 1e6:.2f}M parameters"
-    )
+    logging.info(f"Base model {args.model} has {flops / 1e9:.5f} GFLOPs (per batch) and {params / 1e6:.2f}M parameters")
 
     # Build mapping for usages
-    sample_input = torch.randn((args.batch_size, *model.sample_input_shape())).cuda()
+    sample_input = torch.ones((args.batch_size, *model.sample_input_shape(args.gpt_seq_len))).cuda()
+    if args.gpt_seq_len:
+        sample_input = sample_input.long()
     build_placeholder_mappings(model, sample_input)
     count = remove_unsatisfied_placeholders(model)
     logging.info(f"Recovered {count} unsatisfied placeholders")

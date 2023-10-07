@@ -67,7 +67,9 @@ class KASModel(nn.Module):
             pass
         
         count_placeholder = count_placeholder_zero if not_count_placeholder else count_placeholder_non_zero
-        sample_input = torch.randn((batch_size, *self.sample_input_shape(seq_len))).cuda()
+        sample_input = torch.ones((batch_size, *self.sample_input_shape(seq_len))).cuda()
+        if seq_len:
+            sample_input = sample_input.long()
         flops, params = thop.profile(self, inputs=(sample_input, ), verbose=False, report_missing=False, custom_ops={
             Placeholder: count_placeholder,
             LinearPlaceholder: count_placeholder,

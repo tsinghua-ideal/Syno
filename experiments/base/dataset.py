@@ -77,6 +77,9 @@ class FuncDataloader():
 
 
 def get_dataloader(args):
+    if 'gpt' in args.model:
+        return get_gpt_dataloader(args)
+
     # Get tensors
     transform = transforms.Compose([transforms.ToTensor()])
     dataset_name = str(args.dataset).upper()
@@ -114,12 +117,13 @@ def get_dataloader(args):
 
 
 class ConstantLengthDataset(IterableDataset):
-    def __init__(self, tokenizer, dataset, infinite=False, seq_length=1024, num_of_sequences=1024, chars_per_token=3.6):
+    def __init__(self, tokenizer, dataset, infinite=False, seq_length=1024, chars_per_token=3.6):
         self.tokenizer = tokenizer
         self.concat_token_id = tokenizer.bos_token_id
         self.dataset = dataset
         self.seq_length = seq_length
-        self.input_characters = seq_length * chars_per_token * num_of_sequences
+        # TODO: fix factor and prefetch
+        self.input_characters = seq_length * chars_per_token * 128
         self.epoch = 0
         self.infinite = infinite
 
@@ -138,6 +142,7 @@ class ConstantLengthDataset(IterableDataset):
                     if self.infinite:
                         iterator = iter(self.dataset)
                         self.epoch += 1
+                        logging.info(f"Current epoch: {self.epoch}")
                     else:
                         more_examples = False
                         break
@@ -148,12 +153,13 @@ class ConstantLengthDataset(IterableDataset):
             for i in range(0, len(all_token_ids), self.seq_length):
                 input_ids = all_token_ids[i : i + self.seq_length]
                 if len(input_ids) == self.seq_length:
-                    yield torch.tensor(input_ids)
+                    yield torch.tensor(input_ids).unsqueeze(0)
 
 
 def get_gpt_dataloader(args):
     # TODO: add multiple workers
+    logging.info(f"Loading GPT dataset {args.dataset} ...")
     dataset = load_dataset(str(args.dataset))
     tokenizer = GPT2Tokenizer.from_pretrained(args.gpt_tokenizer)
-    return ConstantLengthDataset(tokenizer, dataset["train"], infinite=True, seq_length=args.gpt_seq_len, num_of_sequences=args.batch_size), \
-        ConstantLengthDataset(tokenizer, dataset["test"], infinite=False, seq_length=args.gpt_seq_len, num_of_sequences=args.batch_size)
+    return ConstantLengthDataset(tokenizer, dataset["train"], infinite=True, seq_length=args.gpt_seq_len), \
+        ConstantLengthDataset(tokenizer, dataset["test"], infinite=False, seq_length=args.gpt_seq_len)
