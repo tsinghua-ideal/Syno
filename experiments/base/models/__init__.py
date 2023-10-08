@@ -14,6 +14,7 @@ from .conv_net import ConvNet, SpeedyResNet
 from .fc_net import FCNet
 from .common import get_common_model
 from .gpt import GPTConfig, GPT
+from .manual_kernels import ManualImpl
 
 
 def get_sampler(args, model) -> Sampler:

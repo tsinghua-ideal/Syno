@@ -6,22 +6,23 @@ from KAS.Node import Path, Node
 
 from .tree import MCTSTree
 from .node import TreePath, TreeNode
-
+from base.models import ManualImpl
 
 class MCTSAlgorithm:
     # TODO: final node has non-consistent virtual loss
     virtual_loss_constant = 0.3
     leaf_parallelization_number = 3
-    exploration_weight = 4 * math.sqrt(2)
+    exploration_weight = math.sqrt(2)
     max_iterations = 3000
     max_final_iterations = 1000
-    b = 0.5
+    b = 0.3
     c_l = 10.0
     simulate_retry_period = 8e6
     flush_virtual_loss_period = 300  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
-    init_paths = [
-        "[Reduce(15279624404278695835), Reduce(15279624404278695835), Reduce(5554949874972922421), Share(13407255124659948266), Share(9989589238218518429), Share(7115518979934224784), Unfold(17471912453502755143), Unfold(18259170728696876205), Finalize(2546823606868399570)]",  # Conv2d
+    # initial kernels, see base/models/manual_kernels.py for a complete list
+    init_kernels = [
+        "Conv1d_shift1d",
     ]
 
     def __init__(self, sampler, args):
@@ -115,12 +116,15 @@ class MCTSAlgorithm:
         results = []
         
         if not self.preconditioned:
-            for path_sel in self.init_paths:
-                trial_path = TreePath.decode_str(path_sel)
-                logging.info(f"Injecting bootstrapping path {trial_path}...")
+            impl = ManualImpl(self.sampler)
+            for kernel_name in self.init_kernels:
+                assert hasattr(impl, kernel_name), f"{kernel_name} is not a valid kernel"
+                kernel = getattr(impl, kernel_name)()
+                trial_path = Path(kernel.convert_to_path(self.sampler))
+                logging.info(f"This MCTS is pre-conditioned on kernel {kernel_name} with path {trial_path}...")
                 trial_node = self.mcts.visit(trial_path, on_tree=False, put_in_tree=True)
                 path = Path(trial_path).serialize()
-                assert trial_node is not None
+                assert trial_node is not None, f"Kernel {kernel_name} is outside the search space!"
                 assert path not in self.path_to_meta_data
                 self.path_to_meta_data[path] = (list(trial_path.hierarchy), trial_node, trial_path)
                 results.append(path)

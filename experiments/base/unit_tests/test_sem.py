@@ -2,7 +2,7 @@
 Not finished test. 
 """
 
-import os, sys, json
+import os, sys, json, shutil
 import logging
 from argparse import Namespace
 import torch
@@ -14,6 +14,43 @@ if os.getcwd() not in sys.path:
 from base import log, parser, dataset, models, trainer
 
 from KAS import Assembler, Assembled, Path, Sampler, KernelLoader
+
+def Conv2d_simple(assembler) -> Assembled:
+    N, H, W, k, C_in, C_out = assembler.get_sizes(
+        "N", "H", "W", "k_1", "C_in", "C_out"
+    )
+    (
+        in_N,
+        in_H,
+        in_W,
+        in_C,
+        out_C,
+        w_in_C,
+        w_k_1,
+        w_k_2,
+    ) = assembler.make_dims_of_sizes(N, H, W, C_in, C_out, C_in, k, k)
+
+    main_H, windows_H = assembler.create_unfold(in_H, k)
+    main_W, windows_W = assembler.create_unfold(in_W, k)
+
+    shared_k_1 = assembler.create_share(windows_H, w_k_1)
+    shared_k_2 = assembler.create_share(windows_W, w_k_2)
+    shared_C_in = assembler.create_share(in_C, w_in_C)
+
+    in_N.output(0)
+    out_C.output(1)
+    main_H.output(2)
+    main_W.output(3)
+    shared_k_1.sum()
+    shared_k_2.sum()
+    shared_C_in.sum()
+
+    return assembler.assemble(
+        "conv",
+        "in_0 * in_1",
+        [in_N, in_C, in_H, in_W],
+        [out_C, w_in_C, w_k_1, w_k_2],
+    )
 
 def Conv2d_group_oas(assembler) -> Assembled:
     N, H, W, k_1, g, C_in, C_out = assembler.get_sizes(
@@ -115,9 +152,9 @@ def test_semantics(semantic_map) -> None:
     sampler = Sampler(**params)
     
     mappings = [{
-        "N": 4, 
-        "C_in": 4, 
-        "C_out": 8, 
+        "N": 2, 
+        "C_in": 64, 
+        "C_out": 128, 
         "H": 8,
         "W": 8
     }]
@@ -126,28 +163,41 @@ def test_semantics(semantic_map) -> None:
         models.placeholder.ConvPlaceholder(mapping["C_in"], mapping["C_out"], 3)
         for mapping in mappings
     ]
+    for pl in placeholders:
+        pl.cuda()
     
-    for test_kernel_func, referred_layer_func in semantic_map:
+    for test_kernel_func, weight_func, referred_layer_func in semantic_map:
         kernel = test_kernel_func(sampler.create_assembler())
-        kernel_packs = KernelLoader(sampler._realize(kernel, mappings, "test_samantics")).construct_kernel_packs()
+        kernel_packs = KernelLoader(sampler._realize(kernel, mappings, "test_semantics")).construct_kernel_packs()
         
         for mapping, placeholder, kernel_pack in zip(mappings, placeholders, kernel_packs):
             placeholder.reload(kernel_pack, args.compile)
             layer = referred_layer_func(mapping)
-            input = torch.rand((mapping["N"], mapping["C_in"], mapping["H"], mapping["W"]))
+            print("Weights0:", kernel_pack.weights[0])
+            print("Weights1:", layer.weight)
+            layer.weight = weight_func(kernel_pack.weights[0])
+            layer = layer.cuda()
+            input = torch.rand((mapping["N"], mapping["C_in"], mapping["H"], mapping["W"]), device="cuda")
             output_p = placeholder(input)
             output_l = layer(input)
             assert output_p.size() == output_l.size(), f"Size mismatch: {output_p.size()} != {output_l.size()}"
-            assert torch.all(output_p, output_l), f"Value mismatch: {output_p} != {output_l}"
+            assert torch.all(torch.abs(output_p - output_l) <= 0.03), f"Value mismatch: {output_p} != {output_l}, {torch.max(torch.abs(output_p - output_l))}"
 
 
 if __name__ == "__main__":
     log.setup(level=logging.INFO)
+    shutil.rmtree('.test-scheduler-cache')
     
     semantic_map = [
         (
             Conv2d_group_oas, 
-            lambda mapping: nn.Conv2d(mapping["C_in"], mapping["C_out"], kernel_size=3, padding=1, groups=2, bias=False)
+            lambda weight: nn.Parameter(torch.flatten(torch.permute(weight, (0, 4, 1, 2, 3, )), 0, 1)), 
+            lambda mapping: nn.Conv2d(mapping["C_in"], mapping["C_out"], kernel_size=3, padding=1, groups=32, bias=False)
+        ), 
+        (
+            Conv2d_simple, 
+            lambda weight: nn.Parameter(weight), 
+            lambda mapping: nn.Conv2d(mapping["C_in"], mapping["C_out"], kernel_size=3, padding=1, bias=False)
         )
     ]
     

@@ -9,7 +9,7 @@ from KAS import Placeholder
 class LinearPlaceholder(Placeholder):
     def __init__(self, in_features, out_features) -> None:
         super(LinearPlaceholder, self).__init__(
-            refered_layer=nn.Linear(in_features, out_features, bias=False),
+            referred_layer=nn.Linear(in_features, out_features, bias=False),
             mapping_func=LinearPlaceholder.mapping
         )
 
@@ -40,7 +40,7 @@ class ConvPlaceholder(Placeholder):
             assert len(kernel_size) == 2 and kernel_size[0] == kernel_size[1]
             kernel_size = kernel_size[0]
         super(ConvPlaceholder, self).__init__(
-            refered_layer=nn.Conv2d(in_features, out_features, kernel_size, bias=False, padding=kernel_size // 2),
+            referred_layer=nn.Conv2d(in_features, out_features, kernel_size, bias=False, padding=kernel_size // 2),
             mapping_func=ConvPlaceholder.mapping
         )
 
@@ -78,4 +78,4 @@ class ConvPlaceholder(Placeholder):
     def exclusion_condition(in_size, out_size) -> bool:
         n, c1, h, w = in_size
         n2, c2, h2, w2 = out_size
-        return (h < 4 or w < 4)
+        return not (h >= 4 and w >= 4 and c1 % 32 == 0 and c2 % 32 == 0)
