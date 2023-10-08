@@ -25,11 +25,11 @@ class ONNXKernelMark(torch.autograd.Function):
 
 
 class Placeholder(nn.Module):
-    def __init__(self, mappings: Dict = None, refered_layer: nn.Module = None, mapping_func=None) -> None:
+    def __init__(self, mappings: Dict = None, referred_layer: nn.Module = None, mapping_func=None) -> None:
         super(Placeholder, self).__init__()
-        assert mappings is not None or refered_layer is not None
+        assert mappings is not None or referred_layer is not None
         self.mappings = mappings
-        self.refered_layer = refered_layer
+        self.referred_layer = referred_layer
         self.mapping_func = mapping_func
         self.kernel = None
         self.flops = 0
@@ -55,18 +55,18 @@ class Placeholder(nn.Module):
 
     def forward(self, x) -> torch.Tensor:
         if self.export_type is not None:
-            assert self.refered_layer is not None
+            assert self.referred_layer is not None
             assert self.export_id is not None
             if self.export_type == ExportType.ONNX:
-                return ONNXKernelMark.apply(self.refered_layer(x), self.export_id)
+                return ONNXKernelMark.apply(self.referred_layer(x), self.export_id)
             elif self.export_type == ExportType.RELAX:
                 # This is a hack. There is no way to pass information to Relax, so we do this and run a transformation pass in Relax.
-                return torch.exp(self.refered_layer(x - self.export_id))
+                return torch.exp(self.referred_layer(x - self.export_id))
             else:
                 assert False, f'Unknown export type {self.export_type}'
 
         x_size = x.size()
-        out = self.refered_layer(x) if self.kernel is None else self.kernel(x)
+        out = self.referred_layer(x) if self.kernel is None else self.kernel(x)
         
         if self.build_mapping_mode:
             assert self.mapping_func is not None
@@ -81,7 +81,7 @@ def remove_unsatisfied_placeholders(net: nn.Module):
         if isinstance(child, Placeholder):
             if child.filtered_flag:
                 count += 1
-                setattr(net, name, child.refered_layer)
+                setattr(net, name, child.referred_layer)
         elif len(list(child.named_children())) > 0:
             count += remove_unsatisfied_placeholders(child)
     return count

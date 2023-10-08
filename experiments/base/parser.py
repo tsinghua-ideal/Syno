@@ -127,6 +127,9 @@ def arg_parse():
         "--kas-max-size-multiplier", default=1, type=int, help="KAS sampler multiplier for maximum reduce size. "
     )
     parser.add_argument(
+        "--kas-max-shift-rhs", default=10, type=int, help="KAS sampler maximum shift RHS size. "
+    )
+    parser.add_argument(
         "--kas-max-tensors", default=3, type=int, help="KAS sampler maximum tensors"
     )
     parser.add_argument(
@@ -242,7 +245,10 @@ def arg_parse():
         help="Maximum FLOPs ratio to be counted as reward",
     )
     parser.add_argument(
-        "--kas-reward-trunc", default=0, type=float, help="Reward lower bound"
+        "--kas-acc-lower-bound", default=0, type=float, help="Reward lower bound"
+    )
+    parser.add_argument(
+        "--kas-acc-upper-bound", default=1, type=float, help="Reward upper bound"
     )
     parser.add_argument(
         "--kas-reward-power", default=2, type=float, help="Reward power"

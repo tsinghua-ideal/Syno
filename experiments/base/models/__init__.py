@@ -14,6 +14,7 @@ from .conv_net import ConvNet, SpeedyResNet
 from .fc_net import FCNet
 from .common import get_common_model
 from .gpt import GPTConfig, GPT
+from .manual_kernels import ManualImpl
 
 
 def get_sampler(args, model) -> Sampler:
@@ -58,6 +59,7 @@ def get_sampler(args, model) -> Sampler:
         "maximum_finalizations": args.kas_max_finalizations,
         "max_expansion_repeat_multiplier": args.kas_max_expansion_repeat_multiplier,
         "max_expansion_merge_multiplier": args.kas_max_expansion_merge_multiplier,
+        "maximum_valid_reshape_shift_pattern": args.kas_max_shift_rhs,
         "max_flops": max_placeholder_flops * args.batch_size,
         "maximum_enumerations_per_var": args.kas_max_enumerations, 
         "max_rdom_size_multiplier": args.kas_max_size_multiplier, 

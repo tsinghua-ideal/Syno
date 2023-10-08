@@ -24,7 +24,7 @@ class KASModel(nn.Module):
         flops = []
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
             placeholder.reload(kernel_pack, False)
-            placeholder.refered_layer = None
+            placeholder.referred_layer = None
             placeholder.set_flops(kernel.get_flops(i))
             placeholder.set_params(sum(weight.numel() for weight in kernel_pack.weights) if hasattr(kernel_pack, 'weights') else 0)
             flops.append(kernel.get_flops(i))
@@ -37,7 +37,7 @@ class KASModel(nn.Module):
         
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
             placeholder.reload(kernel_pack, compile)
-            placeholder.refered_layer = None
+            placeholder.referred_layer = None
         
         return kernel.get_directory()
 
@@ -61,7 +61,7 @@ class KASModel(nn.Module):
             if m.kernel:
                 m.total_ops += torch.DoubleTensor([m.flops])
             else:
-                m.total_ops += m.refered_layer.total_ops
+                m.total_ops += m.referred_layer.total_ops
         
         def count_placeholder_zero(m: Placeholder, x, y):
             pass

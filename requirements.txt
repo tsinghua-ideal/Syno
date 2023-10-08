@@ -6,3 +6,5 @@ seaborn
 tqdm
 fmt
 nlohmann_json
+datasets
+transformers
