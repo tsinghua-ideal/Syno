@@ -274,7 +274,13 @@ class Sampler:
         self._seed = seed
         self._save_path = save_path
 
-        all_mappings = []
+        all_mappings = [{
+            "N": 4, 
+            "C_in": 4, 
+            "C_out": 8, 
+            "H": 8,
+            "W": 8
+        }]
         if net is not None:
             all_mappings = Sampler._extract_all_mappings(net)
 
