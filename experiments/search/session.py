@@ -19,7 +19,8 @@ class Session:
         self.args = args
         self.sampler = sampler
         self.reward_power: int = args.kas_reward_power
-        self.reward_trunc: float = args.kas_reward_trunc
+        self.reward_lower_bound: float = args.kas_acc_lower_bound
+        self.reward_upper_bound: float = args.kas_acc_lower_bound
         self.target: str = args.kas_target
         self.min_accuracy: float = args.kas_min_accuracy
         self.original_flops: int = args.original_flops
@@ -171,7 +172,7 @@ class Session:
                 reward = self.min_accuracy + \
                     max(0, 1.0 - (flops / self.original_flops) / self.max_flops_ratio) * (1 - self.min_accuracy)
             else:
-                reward = (max(accuracy, self.reward_trunc) - self.reward_trunc) / (1 - self.reward_trunc)
+                reward = (max(accuracy, self.reward_lower_bound) - self.reward_lower_bound) / (1 - self.reward_lower_bound) / self.reward_upper_bound
             reward = reward ** self.reward_power
         else:
             reward = -1
