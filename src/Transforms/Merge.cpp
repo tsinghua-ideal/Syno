@@ -68,8 +68,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Gr
 
     // Canonicalization. Manually handle SplitOp, StrideOp(s<B) and UnfoldOp(k<B).
     using T = DimensionTypeWithOrder;
-    std::vector<DimensionTypeWithOrder> disallows { T::ShareL, T::ShareR, T::Split, T::MergeR };
-    auto plausible = interface.filterOut(disallows);
+    auto plausible = interface.filterOut({ T::ShareL, T::ShareR, T::Split, T::MergeR });
 
     std::vector<const MergeOp *> res;
     auto checkThenAdd = [&options, &store, &res](const Dimension& dim, Size&& block) {

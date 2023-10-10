@@ -51,6 +51,7 @@ public:
     //
     struct GenerateOptions {
         const BindingContext& ctx;
+        Size totalOutputSize;
         std::size_t maximumTensors;
         std::size_t maxColorTags() const {
             return maximumTensors - 1;

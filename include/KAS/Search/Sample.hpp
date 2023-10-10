@@ -34,6 +34,7 @@ struct SampleOptions {
     using Seed = std::mt19937::result_type;
     Seed seed = 42;
     std::size_t depth = 10;
+    std::size_t maxChainLength = 5;
     std::size_t dimLowerBound = 1;
     std::size_t dimUpperBound = 8;
     std::size_t maximumTensors = 2;

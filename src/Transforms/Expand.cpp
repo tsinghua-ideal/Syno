@@ -35,7 +35,7 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
     if (!options.disallowMergeInputAndWeight) {
         allows.emplace_back(T::ShareL); // We later look for the Merge pattern.
     }
-    auto plausible = interface.filterIn(allows);
+    auto plausible = interface.filterIn(std::move(allows));
 
     std::vector<const ExpandOp *> res;
     CountGenerateAttempts += interface.getDimensions().size();

@@ -72,16 +72,19 @@ VisitedVertex MergeLikeVertex::visitAdjacent(MergeLikeOp::Branch branch) const {
 
 void Graph::Builder::visit(const Iterator& dim) {
     outputIterators.insert(&dim);
+    assignHeight(&dim, 0);
 }
 void Graph::Builder::visit(const Reduce& dim) {
     reduceIterators.insert(&dim);
     // Do not put ReduceOp is ops.
+    assignHeight(&dim, 1);
 }
 void Graph::Builder::visit(const RepeatLikeOp::Input& dim) {
     auto op = dim.getOp();
     parent = { op };
     match(op->output);
     ops.emplace(op);
+    assignHeight(&dim, acquireHeight(op->output) + 1);
 }
 void Graph::Builder::visit(const SplitLikeOp::Input& dim) {
     auto op = dim.getOp();
@@ -90,21 +93,35 @@ void Graph::Builder::visit(const SplitLikeOp::Input& dim) {
     parent = { std::make_pair(op, Order::Right) };
     match(op->outputRhs);
     ops.emplace(op);
+    assignHeight(&dim, std::max(acquireHeight(op->outputLhs), acquireHeight(op->outputRhs)) + 1);
 }
 void Graph::Builder::visit(const MergeLikeOp::Input& dim) {
     auto op = dim.getOp();
     parent = { op };
     match(op->output);
     ops.emplace(op);
+    assignHeight(&dim, acquireHeight(op->output) + 1);
 }
 void Graph::Builder::match(const Dimension& dim) {
-    auto [it, inserted] = dimMeta.try_emplace(dim, parent, ancestor);
+    auto [it, inserted] = dimMeta.try_emplace(dim, parent, ancestor, -1);
     if (!inserted) {
         // Visited before. Now propagate ancestor.
         it->second.ancestors.merges(ancestor);
     }
     // Since we need to propagate the ancestor all the way down, we always need to visit, no matter inserted or not.
     dim.accept(*this);
+}
+
+int Graph::Builder::acquireHeight(const Dimension& dim) const {
+    int result = dimMeta.at(dim).height;
+    KAS_ASSERT(result != -1);
+    return result;
+}
+
+void Graph::Builder::assignHeight(const Dimension& dim, int desired) {
+    int& height = dimMeta.at(dim).height;
+    KAS_ASSERT(height == -1 || height == desired);
+    height = desired;
 }
 
 Graph::Builder& Graph::Builder::addDimension(const Dimension& dim) {
@@ -201,6 +218,12 @@ const PrimitiveOp *Graph::getOpAbove(const Dimension& dim) const {
 
 Graph::CompactIndices Graph::getAncestors(const Dimension& dim) const {
     return dimMeta.at(dim).ancestors;
+}
+
+int Graph::getHeight(const Dimension& dim) const {
+    int result = dimMeta.at(dim).height;
+    KAS_ASSERT(result != -1);
+    return result;
 }
 
 ConstrainedGraph ConstrainedGraph::Builder::build() {

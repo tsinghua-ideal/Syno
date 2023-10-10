@@ -3,6 +3,7 @@
 
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Transforms/Stride.hpp"
+#include "KAS/Utils/Ranges.hpp"
 
 
 namespace kas {
@@ -50,12 +51,9 @@ std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const 
     std::vector<DimensionTypeWithOrder> disallows { ShareR, Unfold, Stride };
     if (options.disallowStrideAboveSplit) disallows.push_back(Split);
     if (options.disallowStrideAboveMergeR) disallows.push_back(MergeR);
-    std::vector<Dimension> plausible;
-    for (const auto& p: interface.filterOut(disallows)) {
-        plausible.emplace_back(p);
-    }
+    auto plausible = ranges::to<std::vector<Dimension>>(interface.filterOut(std::move(disallows)));
 
-    Allowance allowance { interface.getShape().totalSize(), options.ctx };
+    Allowance allowance { options.totalOutputSize, options.ctx };
 
     std::vector<const StrideOp *> result;
     CountGenerateAttempts += interface.getDimensions().size();
