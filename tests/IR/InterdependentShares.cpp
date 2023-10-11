@@ -5,7 +5,7 @@ namespace kas {
 
 TEST(ir_tests, interdependent_shares) {
     auto ctx = BindingContext({"N=1", "H=16", "W=16"}, {"S=2"});
-    BindingContext::DebugPublicCtx = &ctx;
+    ctx.debug();
     Forward::Factory factory { ctx };
     auto [sizeH, sizeW, sizeS] = factory.getSizes("H", "W", "S");
 

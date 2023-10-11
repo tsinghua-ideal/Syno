@@ -26,7 +26,7 @@ protected:
     Iterator itH { 0, sizeH }, itW { 1, sizeW }, itCH { 2, sizeC * sizeH };
     Dimension dimH { &itH }, dimW { &itW }, dimCH { &itCH };
     transforms_tests() {
-        BindingContext::DebugPublicCtx = &ctx;
+        ctx.debug();
     }
 };
 

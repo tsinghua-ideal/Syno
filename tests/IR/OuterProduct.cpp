@@ -5,7 +5,7 @@ namespace kas {
 
 TEST(ir_tests, outer_product) {
     auto ctx = BindingContext({"N=1", "H=16", "W=16"}, {"S=2"});
-    BindingContext::DebugPublicCtx = &ctx;
+    ctx.debug();
     Forward::Factory factory { ctx };
     auto [sizeN, sizeS] = factory.getSizes("N", "S");
 

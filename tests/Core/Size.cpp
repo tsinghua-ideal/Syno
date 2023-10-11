@@ -57,6 +57,14 @@ TEST_F(core_size_tests, divisors_HWC3) {
     }
 }
 
+TEST(core_size_tests_standalone, divisors_W) {
+    BindingContext ctx = BindingContext({"W=64:1"}, {"s=2:4", "g=32:4"});
+    auto [sizeW_over_s, sizeG] = ctx.getSizes("s^-1*W", "g");
+    std::unordered_set<Size> divisors;
+    std::ranges::move(sizeW_over_s.sampleDivisors(ctx), std::inserter(divisors, divisors.end()));
+    ASSERT_TRUE(divisors.contains(sizeG));
+}
+
 TEST_F(core_size_tests, allowance) {
     // Maximum occurences: H -> 2, W -> 2, c -> 2
     Allowance allowance = { sizeHWc, ctx };
