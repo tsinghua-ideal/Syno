@@ -30,6 +30,14 @@ Finalizability NormalStage::checkForFinalizableChildren(const CollectedFinalizab
     return Base::checkForFinalizableChildren(collected);
 }
 
+GraphHandle NormalStage::removeTooLongChains(const Graph& graph, const GraphHandle& interface) const {
+    std::vector<Dimension> result;
+    std::ranges::remove_copy_if(interface.getDimensions(), std::back_inserter(result), [&](const Dimension& dim) {
+        return graph.getHeight(dim) >= sampler.getOptions().maxChainLength;
+    });
+    return GraphHandle(std::move(result), interface.getExpansions());
+}
+
 void NormalStage::guardGeneratedChildren() {
     if (childrenGenerated) {
         return;
@@ -77,11 +85,13 @@ void NormalStage::guardGeneratedChildren() {
         }
     };
 
+    auto prospectiveInterface = removeTooLongChains(graph, interface);
+
     if (remainingDepth() > 0) {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}
         if (!inCriticalState && (options.maximumShifts == -1 || options.maximumShifts > existingOp<ShiftOp>())) {
-            add(ShiftOp::Generate(store, interface, {
+            add(ShiftOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
                 .disallowShiftAboveUnfold = options.disallowShiftAboveUnfold,
                 .maximumValidReshapeShiftPattern = options.maximumValidReshapeShiftPattern,
@@ -89,8 +99,9 @@ void NormalStage::guardGeneratedChildren() {
         }
         // Stride^{-1}
         if (!inCriticalState && (options.maximumStrides == -1 || options.maximumStrides > existingOp<StrideOp>())) {
-            add(StrideOp::Generate(store, interface, {
+            add(StrideOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
+                .totalOutputSize = interface.getShape().totalSize(),
                 .maxStridedDimSize = options.maxStridedDimSize,
                 .disallowStrideAboveSplit = options.disallowStrideAboveSplit,
                 .disallowStrideAboveMergeR = options.disallowStrideAboveMergeR,
@@ -101,7 +112,7 @@ void NormalStage::guardGeneratedChildren() {
         if (interface.getDimensions().size() > options.dimLowerBound) {
             // Split^{-1}
             if (options.maximumSplits == -1 || options.maximumSplits > existingOp<SplitOp>()) {
-                add(SplitOp::Generate(store, interface, {
+                add(SplitOp::Generate(store, prospectiveInterface, {
                     .graph = graph,
                     .disallowDiscontinuousView = options.disallowDiscontinuousView,
                     .disallowSplitLAboveUnfold = options.disallowSplitLAboveUnfold,
@@ -111,7 +122,7 @@ void NormalStage::guardGeneratedChildren() {
             }
             // Unfold^{-1}
             if (options.maximumUnfolds == -1 || options.maximumUnfolds > existingOp<UnfoldOp>()) {
-                add(UnfoldOp::Generate(store, interface, {
+                add(UnfoldOp::Generate(store, prospectiveInterface, {
                     .ctx = ctx,
                     .minimumRatio = options.minimumUnfoldRatio,
                     .maxUnfoldKernelSize = options.maxUnfoldKernelSize,
@@ -124,7 +135,7 @@ void NormalStage::guardGeneratedChildren() {
             }
             // Expand^{-1}
             if (options.maximumExpands == -1 || options.maximumExpands > existingOp<ExpandOp>()) {
-                add(ExpandOp::Generate(store, interface, {
+                add(ExpandOp::Generate(store, prospectiveInterface, {
                     .ctx = ctx,
                     .disallowMergeInputAndWeight = options.disallowMergeInputAndWeight,
                     .disallowTile = options.disallowTile,
@@ -138,7 +149,7 @@ void NormalStage::guardGeneratedChildren() {
         if (interface.getDimensions().size() < options.dimUpperBound) {
             // Merge^{-1}
             if (options.maximumMerges == -1 || options.maximumMerges > existingOp<MergeOp>()) {
-                add(MergeOp::Generate(store, interface, {
+                add(MergeOp::Generate(store, prospectiveInterface, {
                     .ctx = ctx,
                     .minimumRatio = options.minimumMergeRatio,
                     .disallowMergeWithLargeBlockAboveStride = options.disallowMergeWithLargeBlockAboveStride,
@@ -147,8 +158,9 @@ void NormalStage::guardGeneratedChildren() {
             }
             // Share^{-1}
             if (!inCriticalState && (options.maximumShares == -1 || options.maximumShares > existingOp<ShareOp>())) {
-                add(ShareOp::Generate(store, interface, {
+                add(ShareOp::Generate(store, prospectiveInterface, {
                     .ctx = ctx,
+                    .totalOutputSize = interface.getShape().totalSize(),
                     .maximumTensors = options.maximumTensors,
                 }));
             }

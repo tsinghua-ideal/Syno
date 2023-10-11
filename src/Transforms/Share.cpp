@@ -63,10 +63,9 @@ std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Gr
 
     // "Chained" Share.
     using enum DimensionTypeWithOrder;
-    std::vector<DimensionTypeWithOrder> disallows { ShareR, Split, Shift };
-    auto plausible = interface.filterOut(disallows);
+    auto plausible = interface.filterOut({ ShareR, Split, Shift });
 
-    Allowance allowance { Size::Product(interface.getShape()), options.ctx };
+    Allowance allowance { options.totalOutputSize, options.ctx };
     std::vector<const ShareOp *> result;
     CountGenerateAttempts += interface.getDimensions().size();
     std::size_t countPlausible = 0;

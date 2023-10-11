@@ -18,6 +18,8 @@ class NormalStage final: public AbstractStageBase<NormalStage> {
     void removeAllChildrenFromSlots();
     Finalizability checkForFinalizableChildren(const CollectedFinalizabilities& collected) const;
 
+    GraphHandle removeTooLongChains(const Graph& graph, const GraphHandle& interface) const;
+
     // This checks whether the nexts are evaluated. If not, it evaluates them.
     void guardGeneratedChildren();
 

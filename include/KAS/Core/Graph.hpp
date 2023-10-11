@@ -267,6 +267,7 @@ public:
     struct DimensionMetadata {
         OpAbove opAbove; // Op above each dimension.
         CompactIndices ancestors; // Dimension's of which this Dimension is a descendant.
+        int height; // Length of longest chain of primitives below this Dimension.
     };
 
     // Use Builder to construct a Graph.
@@ -285,6 +286,9 @@ public:
         void visit(const SplitLikeOp::Input& dim) override;
         void visit(const MergeLikeOp::Input& dim) override;
         void match(const Dimension& dim);
+
+        int acquireHeight(const Dimension& dim) const;
+        void assignHeight(const Dimension& dim, int desired);
 
     public:
         Builder& addDimension(const Dimension& dim);
@@ -398,6 +402,8 @@ public:
         }
         return ancestors;
     }
+
+    int getHeight(const Dimension& dim) const;
 
     template<typename Value>
     class AttributeMap {

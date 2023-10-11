@@ -104,8 +104,8 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Gr
     std::vector<DimensionTypeWithOrder> disallowsR { T::ShareR };
     if (options.disallowSplitRAboveUnfold) disallowsR.push_back(T::Unfold);
     if (options.disallowSplitRAboveStride) disallowsR.push_back(T::Stride);
-    auto plausibleL = interface.filterOut(disallowsL);
-    auto plausibleR = interface.filterOut(disallowsR);
+    auto plausibleL = interface.filterOut(std::move(disallowsL));
+    auto plausibleR = interface.filterOut(std::move(disallowsR));
 
     ReshapeCanonicalizer canonicalizer;
     options.graph.accept(canonicalizer);

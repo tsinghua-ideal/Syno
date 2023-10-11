@@ -61,6 +61,7 @@ class Sampler:
         fixed_io_pairs: List[Tuple[int, int]] = [],
         seed: int = 42,
         depth: int = 4,
+        max_chain_length: int = 5,
         dim_lower: int = 2,
         dim_upper: int = 8,
         maximum_tensors: int = 2,
@@ -131,6 +132,8 @@ class Sampler:
             The random seed provided to the C++ bindings.
         depth : int, optional
             The maximum number of primitives (excluding FinalizeOp) allowed in a kernel. This is effectively the depth of the search tree, because we add one primitive at one time.
+        max_chain_length : int, optional
+            The length of each chain of primitives are not allowed to exceed this number.
         dim_lower : int, optional
             Minimum number of dimensions in any phase of searching.
         dim_upper : int, optional
@@ -235,6 +238,7 @@ class Sampler:
         options = Bindings.SampleOptions(
             seed=seed,
             depth=depth,
+            max_chain_length=max_chain_length,
             dim_lower=dim_lower,
             dim_upper=dim_upper,
             maximum_tensors=maximum_tensors,

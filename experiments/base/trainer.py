@@ -112,6 +112,9 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
     num_iters = 0
     model.train()
     data_iterator = iter(train_dataloader)
+    metrics = {'loss': []}
+    start_time = time.time()
+    last_time = time.time()
     while True:
         try:
             batch = next(data_iterator)
@@ -121,11 +124,24 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
 
         batch = batch.cuda()
         _, loss = model(batch, batch)
-        logging.info(f'Train loss: {loss.item()}')
+
+        if time.time() - last_time > args.gpt_log_interval:
+            last_time = time.time()
+            value = loss.item()
+            metrics['loss'].append((time.time(), value))
+            logging.info(f"Train loss: {value}")
+
         model.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_norm_clip)
         optimizer.step()
 
         if args.gpt_max_iters > 0 and num_iters >= args.gpt_max_iters:
+            logging.info(f"Reaching max iterations {args.gpt_max_iters}, break")
             break
+        
+        if args.gpt_max_minutes > 0 and (time.time() - start_time) / 60 > args.gpt_max_minutes:
+            logging.info(f"Reaching max time limit {args.gpt_max_minutes} mins, break")
+            break
+    
+    return metrics

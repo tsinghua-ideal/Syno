@@ -61,8 +61,8 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
     std::vector<DimensionTypeWithOrder> disallowsR { ShareR };
     if (options.disallowUnfoldLAboveSplit) disallowsL.push_back(Split);
     if (options.disallowUnfoldLAboveShift) disallowsL.push_back(Shift);
-    auto plausibleL = interface.filterOut(disallowsL);
-    auto plausibleR = interface.filterOut(disallowsR);
+    auto plausibleL = interface.filterOut(std::move(disallowsL));
+    auto plausibleR = interface.filterOut(std::move(disallowsR));
 
     std::vector<const UnfoldOp *> result;
     const auto totalAttempts = interface.getDimensions().size() * (interface.getDimensions().size() - 1);

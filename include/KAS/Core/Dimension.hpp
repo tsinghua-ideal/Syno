@@ -329,13 +329,13 @@ public:
 
     Graph buildGraph() const;
 
-    auto filterOut(const std::vector<DimensionTypeWithOrder>& disallows) const {
-        return interface | std::views::filter([&](const Dimension& dim) {
+    auto filterOut(std::vector<DimensionTypeWithOrder> disallows) const {
+        return interface | std::views::filter([disallows=std::move(disallows)](const Dimension& dim) {
             return std::ranges::none_of(disallows, [&](auto disallow) { return dim.is(disallow); });
         });
     }
-    auto filterIn(const std::vector<DimensionTypeWithOrder>& allows) const {
-        return interface | std::views::filter([&](const Dimension& dim) {
+    auto filterIn(std::vector<DimensionTypeWithOrder> allows) const {
+        return interface | std::views::filter([allows=std::move(allows)](const Dimension& dim) {
             return std::ranges::any_of(allows, [&](auto allow) { return dim.is(allow); });
         });
     }
