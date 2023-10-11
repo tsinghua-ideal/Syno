@@ -130,6 +130,9 @@ def arg_parse():
         "--kas-max-size-multiplier", default=1, type=int, help="KAS sampler multiplier for maximum reduce size. "
     )
     parser.add_argument(
+        "--kas-max-chain-length", default=10, type=int, help="KAS sampler maximum primitive chain length. "
+    )
+    parser.add_argument(
         "--kas-max-shift-rhs", default=10, type=int, help="KAS sampler maximum shift RHS size. "
     )
     parser.add_argument(

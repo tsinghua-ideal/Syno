@@ -63,6 +63,7 @@ def get_sampler(args, model) -> Sampler:
         "max_flops": max_placeholder_flops * args.batch_size,
         "maximum_enumerations_per_var": args.kas_max_enumerations, 
         "maximum_variables_in_size": args.kas_max_variables_in_size, 
+        "max_chain_length": args.kas_max_chain_length, 
         "max_rdom_size_multiplier": args.kas_max_size_multiplier, 
         "save_path": args.kas_scheduler_cache_dir,
         "cuda": True,
