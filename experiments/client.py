@@ -95,7 +95,7 @@ def main():
                         )
                     else:
                         raise e
-                flops, params = model.profile(args.batch_size, args=args)
+                flops, params = model.profile(args.batch_size)
                 logging.debug(
                     f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
                 )

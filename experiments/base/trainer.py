@@ -18,7 +18,7 @@ def torch_opt_on():
     torch.backends.cudnn.allow_tf32 = True
 
 
-def train(model, train_dataloader, val_dataloader, args) -> List[float]:
+def train(model, train_dataloader, val_dataloader, args, init_weight=True) -> List[float]:
     if 'gpt' in args.model:
         return train_gpt(model, train_dataloader, val_dataloader, args)
 
@@ -27,7 +27,8 @@ def train(model, train_dataloader, val_dataloader, args) -> List[float]:
     torch_opt_on()
     assert torch.cuda.is_available(), "CUDA is not supported."
     model.cuda()
-    model.initialize_weights()
+    if init_weight:
+        model.initialize_weights()
 
     # Loss, optimizer and scheduler
     loss_func = get_loss_func(args)

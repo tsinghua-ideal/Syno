@@ -124,6 +124,9 @@ def arg_parse():
         "--kas-max-enumerations", default=5, type=int, help="KAS sampler maximum enumerations per variable. "
     )
     parser.add_argument(
+        "--kas-max-variables-in-size", default=3, type=int, help="KAS sampler maximum different variables per size. "
+    )
+    parser.add_argument(
         "--kas-max-size-multiplier", default=1, type=int, help="KAS sampler multiplier for maximum reduce size. "
     )
     parser.add_argument(

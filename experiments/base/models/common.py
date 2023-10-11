@@ -2,6 +2,7 @@ import logging
 from torch import nn
 from torchvision import models
 from typing import Optional
+import math
 
 from .model import KASModel
 from .placeholder import ConvPlaceholder
@@ -17,6 +18,13 @@ def replace_conv2d_filter(conv: nn.Conv2d) -> Optional[nn.Module]:
         return None
     if not same_padding(conv.kernel_size, conv.padding):
         return None
+    
+    width = math.gcd(conv.in_channels, conv.out_channels)
+    if width != min(conv.in_channels, conv.out_channels):
+        return None
+    if conv.groups > 1:
+        return None
+    
     if conv.stride == (1, 1):
         return ConvPlaceholder(conv.in_channels, conv.out_channels, conv.kernel_size)
     else:
@@ -57,8 +65,8 @@ class CommonModel(KASModel):
          return {
             'input_shape': '[N, C_in, H, W]',
             'output_shape': '[N, C_out, H, W]',
-            'primary_specs': ['N: 0', 'C_in: 2', 'C_out: 2', 'H: 2', 'W: 2'],
-            'coefficient_specs': ['k_1=3: 10', 'k_2=5: 2', 's=2: 10'],
+            'primary_specs': ['N: 0', 'C_in: 2', 'C_out: 4', 'H: 2', 'W: 2'],
+            'coefficient_specs': ['k_1=3: 6', 's=2: 4', 'g=32: 6'],
             'fixed_io_pairs': [(0, 0)],
         }
 
