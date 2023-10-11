@@ -8,7 +8,7 @@ TEST(ir_tests, pooled_conv) {
         {"N=1", "C_in=3", "C_out=16", "H=16", "W=16"},
         {"K=3", "S=2"}
     );
-    BindingContext::DebugPublicCtx = &ctx;
+    ctx.debug();
     Forward::Factory factory { ctx };
     auto [sizeN, sizeCin, sizeCout, sizeH, sizeW, sizeK, sizeS] = factory.getSizes("N", "C_in", "C_out", "H", "W", "K", "S");
 

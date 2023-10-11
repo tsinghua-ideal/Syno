@@ -15,7 +15,7 @@ TEST_F(semantics_tests, conv2d) {
         "C_out=" + std::to_string(c_out),
         "K=" + std::to_string(k),
     });
-    BindingContext::DebugPublicCtx = &ctx;
+    ctx.debug();
     Forward::Factory factory { ctx };
     auto [sizeN, sizeCin, sizeCout, sizeH, sizeW, sizeK] = factory.getSizes("N", "C_in", "C_out", "H", "W", "K");
 

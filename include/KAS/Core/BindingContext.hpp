@@ -119,6 +119,7 @@ public:
 
     // FOR DEBUG USAGE ONLY!
     static inline const BindingContext *DebugPublicCtx = nullptr;
+    void debug() const { DebugPublicCtx = this; }
     template<typename F>
     static std::string ApplyDebugPublicCtx(F&& f, auto&& self) {
         if (BindingContext::DebugPublicCtx) {

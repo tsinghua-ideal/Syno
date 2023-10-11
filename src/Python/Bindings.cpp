@@ -358,7 +358,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         )
         .def(
             "bind_debug_context", [](Sampler& self) {
-                BindingContext::DebugPublicCtx = &self.getBindingContext();
+                self.getBindingContext().debug();
             }
         );
 

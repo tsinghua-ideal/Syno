@@ -90,12 +90,8 @@ AbstractStage *StageStore::insert(std::size_t depth, std::unique_ptr<AbstractSta
 }
 
 StageStore::~StageStore() {
-    for (auto& bigBucket: bucketsOfStages) {
-        for (auto& bucket: bigBucket) {
-            for (auto stage: bucket) {
-                delete stage;
-            }
-        }
+    for (auto stage: bucketsOfStages | std::views::join | std::views::join) {
+        delete stage;
     }
 }
 
@@ -531,11 +527,20 @@ Sampler::Pruner::Pruner() {
                 });
                 newInbox.swap(inbox);
             }
+            const auto numTasks = newInbox.size();
             while (!newInbox.empty()) {
                 processing.emplace(newInbox.front());
                 newInbox.pop();
             }
             handleUpdates(processing);
+            {
+                std::unique_lock lock { mutex };
+                completed += numTasks;
+                if (clear()) {
+                    lock.unlock();
+                    cvCompleted.notify_all();
+                }
+            }
         }
     });
 }
@@ -543,8 +548,16 @@ Sampler::Pruner::Pruner() {
 void Sampler::Pruner::requestFinalizabilityUpdate(AbstractStage *stage, const AbstractStage *requestor) {
     std::unique_lock lock { mutex };
     inbox.emplace(stage);
+    ++committed;
     lock.unlock();
     cv.notify_one();
+}
+
+void Sampler::Pruner::sync() {
+    std::unique_lock lock { mutex };
+    cvCompleted.wait(lock, [this] {
+        return clear();
+    });
 }
 
 Sampler::Pruner::~Pruner() {

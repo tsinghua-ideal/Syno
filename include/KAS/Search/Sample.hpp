@@ -163,6 +163,11 @@ public:
     }
     AbstractStage *find(std::size_t depth, const GraphHandle& interface, std::unique_lock<std::recursive_mutex>& lock) const;
     AbstractStage *insert(std::size_t depth, std::unique_ptr<AbstractStage> stage, std::unique_lock<std::recursive_mutex>& lock);
+    void forEach(auto&& f) {
+        for (auto stage: bucketsOfStages | std::views::join | std::views::join) {
+            std::invoke(std::forward<decltype(f)>(f), stage);
+        }
+    }
     ~StageStore();
 };
 
@@ -240,10 +245,15 @@ public:
         std::condition_variable_any cv;
         std::queue<AbstractStage *> inbox;
         std::jthread thread;
+        std::size_t committed = 0;
+        std::size_t completed = 0;
+        bool clear() { return committed == completed; }
+        std::condition_variable cvCompleted;
         void handleUpdates(std::set<AbstractStage *>& updates);
     public:
         Pruner();
         void requestFinalizabilityUpdate(AbstractStage *stage, const AbstractStage *requestor);
+        void sync();
         ~Pruner();
     };
     class Expander {
