@@ -12,15 +12,17 @@ from base import log, parser, dataset, models, trainer
 
 from KAS import Path
 
+
 def train(
     args: Namespace,
+    model,
+    sampler,
     name: str,
     train_dataloader: dataset.FuncDataloader,
     val_dataloader: dataset.FuncDataloader,
-    test_run: bool
+    test_run: bool,
 ) -> None:
 
-    model, sampler = models.get_model(args, return_sampler=True)
     # logging.info(f"model verbose: {model}")
     impl = models.ManualImpl(sampler)
     assert hasattr(impl, name), f"{name} is not a valid kernel"
@@ -48,11 +50,8 @@ def train(
         Inspace = True
         message = "[Passed]"
 
-    result = {
-        "path": str(path),
-        "Inspace": Inspace
-    }
-    
+    result = {"path": str(path), "Inspace": Inspace}
+
     try:
         model.load_kernel(
             sampler, kernel, name=name, compile=args.compile, batch_size=args.batch_size
@@ -64,7 +63,7 @@ def train(
         result.update(
             {
                 "flops": flops,
-                "params": params, 
+                "params": params,
             }
         )
     except:
@@ -75,7 +74,7 @@ def train(
         accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
         print(f"Evaluation result: {flops} {params} {accuracy}")
         result["accuracy"] = accuracy
-        
+
     print(f"{message} {name}")
     return result
 
@@ -86,39 +85,43 @@ def test_semantic_conv2d(test_kernels, test_run) -> None:
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
     results = json.load(open("base/unit_tests/results.json"))
-    
+
+    model, sampler = models.get_model(args, return_sampler=True)
+
     for test_kernel in test_kernels:
         result = train(
             args,
+            model,
+            sampler,
             test_kernel,
             train_dataloader,
             val_dataloader,
-            test_run
+            test_run,
         )
         if test_kernel not in results:
             results[test_kernel] = result
         else:
             results[test_kernel].update(result)
-    
+
     json.dump(results, open("base/unit_tests/results.json", "w"), indent=4)
 
 
 if __name__ == "__main__":
     log.setup(level=logging.INFO)
-    
+
     test_kernels = [
         # "Conv2d_simple",
         # "Conv2d_dilation",
         # "Conv2d_group",
-        # "Conv2d_FC", 
-        "Conv2d_group_oas", 
+        # "Conv2d_FC",
+        # "Conv2d_group_oas",
         # "Conv2d_group_oas_same",
         # "Conv2d_group_oas_double",
         # "Conv2d_pool",
         # "Conv2d_pool1d",
-        # "Conv1d_shift1d",
-        # "Shift2d",
+        "Conv1d_shift1d",
+        "Shift2d",
     ]
     test_run = False
-    
+
     test_semantic_conv2d(test_kernels, test_run)
