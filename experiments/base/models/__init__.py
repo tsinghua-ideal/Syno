@@ -1,6 +1,6 @@
 import logging
 import random
-import sys
+import os, sys
 import torch
 from typing import Tuple, Optional, Union
 from transformers import GPT2Tokenizer
@@ -65,7 +65,7 @@ def get_sampler(args, model) -> Sampler:
         "maximum_variables_in_size": args.kas_max_variables_in_size, 
         "max_chain_length": args.kas_max_chain_length, 
         "max_rdom_size_multiplier": args.kas_max_size_multiplier, 
-        "save_path": args.kas_scheduler_cache_dir,
+        "save_path": os.path.join(args.kas_server_save_dir, args.kas_scheduler_cache_dir),
         "cuda": True,
         "autoscheduler": CodeGenOptions.AutoScheduler.Anderson2021,
         "num_worker_threads": args.kas_sampler_workers,

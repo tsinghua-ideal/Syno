@@ -66,8 +66,8 @@ def train(
                 "params": params,
             }
         )
-    except:
-        pass
+    except Exception as e:
+        logging.warning(e)
 
     if test_run:
         logging.info("Evaluating on real dataset ...")

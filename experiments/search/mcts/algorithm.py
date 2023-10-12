@@ -22,7 +22,7 @@ class MCTSAlgorithm:
 
     # initial kernels, see base/models/manual_kernels.py for a complete list
     init_kernels = [
-        "Conv1d_shift1d",
+        "Conv2d_pool",
     ]
 
     def __init__(self, sampler, args):
