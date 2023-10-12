@@ -143,9 +143,10 @@ class ManualImpl:
             w_in_C,
             w_k_1,
             w_k_2,
-            w_interm_out_C, 
+            w_interm_out_G,
+            w_interm_out_C_group, 
             out_C, 
-        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, g, C_out / g / r, C_in / g, k, k, C_out / r, C_out)
+        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, g, C_out / g / r, C_in / g, k, k, g, C_out / g / r, C_out)
         
         # Spatial dimensions
         main_H, windows_H = self.assembler.create_unfold(in_H, k)
@@ -162,9 +163,8 @@ class ManualImpl:
         
         tmp_dim = self.assembler.create_expand(C_out / g / r)
         out_C_group_masked = self.assembler.create_share(tmp_dim, out_C_group)
-        interm_C_out = self.assembler.create_merge(shared_G, out_C_group_masked)
-        
-        interm_C_out_contracted = self.assembler.create_share(interm_C_out, w_interm_out_C)
+        interm_G_contracted = self.assembler.create_share(shared_G, w_interm_out_G)
+        interm_C_out_group_contracted = self.assembler.create_share(out_C_group_masked, w_interm_out_C_group)
 
         in_N.output(0)
         out_C.output(1)
@@ -173,14 +173,15 @@ class ManualImpl:
         shared_k_1.sum()
         shared_k_2.sum()
         shared_C_in.sum()
-        interm_C_out_contracted.sum()
+        interm_G_contracted.sum()
+        interm_C_out_group_contracted.sum()
 
         return self.assembler.assemble(
             "conv",
             "in_0 * in_1 * in_2",
             [in_N, in_C, in_H, in_W, tmp_dim],
             [out_G, out_C_group, w_in_C, w_k_1, w_k_2],
-            [out_C, w_interm_out_C]
+            [out_C, w_interm_out_G, w_interm_out_C_group]
         )
     
     def Conv2d_group_oas_same(self) -> Assembled:

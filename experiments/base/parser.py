@@ -229,7 +229,7 @@ def arg_parse():
     )
     parser.add_argument(
         "--kas-server-save-dir",
-        default=None,
+        default=".",
         type=str,
         help="KAS server saving directory",
     )
