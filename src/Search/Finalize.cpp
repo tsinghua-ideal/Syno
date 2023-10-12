@@ -309,6 +309,14 @@ struct TopKFinalizations {
     struct Finalization {
         FinalizeOp tensors;
         double variance;
+        // Later manually assign this.
+        std::unique_ptr<TensorView> tensorView;
+        std::size_t flops = 0;
+        void build(const BindingContext& ctx, const FinalizeOp::TensorViewBuilder& tensorViewBuilder) {
+            KAS_ASSERT(!tensorView);
+            tensorView = tensorViewBuilder(tensors);
+            flops = tensorView->getFLOPs(ctx);
+        }
         Finalization(const BindingContext& ctx, auto&& tensors):
             tensors { std::forward<decltype(tensors)>(tensors) },
             variance { this->tensors.weightVariance(ctx) }
@@ -318,26 +326,43 @@ struct TopKFinalizations {
             if (count != 0) {
                 return count;
             }
+            std::weak_ordering var = std::weak_ordering::equivalent;
             if (variance < other.variance) {
-                return std::weak_ordering::less;
+                var = std::weak_ordering::less;
             } else if (variance > other.variance) {
-                return std::weak_ordering::greater;
-            } else {
-                return std::weak_ordering::equivalent;
+                var = std::weak_ordering::greater;
             }
+            if (var != 0) {
+                return var;
+            }
+            return flops <=> other.flops;
         }
     };
     const BindingContext& ctx;
-    std::size_t k;
+    const std::size_t k;
+    const FinalizeOp::TensorViewBuilder& tensorViewBuilder;
+    const std::size_t maxFLOPs;
     // Sorted by variance, from lowest to highest.
     std::vector<Finalization> topK;
 
-    TopKFinalizations(const BindingContext& ctx, std::size_t k):
-        ctx { ctx }, k { k } {}
+    TopKFinalizations(const BindingContext& ctx, std::size_t k, const FinalizeOp::TensorViewBuilder& tensorViewBuilder, std::size_t maxFLOPs):
+        ctx { ctx }, k { k }, tensorViewBuilder { tensorViewBuilder }, maxFLOPs { maxFLOPs } {}
     bool empty() const noexcept { return topK.empty(); }
     std::size_t size() const noexcept { return topK.size(); }
     void emplace(auto&& tensors) {
         Finalization f { ctx, std::forward<decltype(tensors)>(tensors) };
+
+        // If the top-k cannot accomodate this, no need to check whether the result is within FLOPs by building.
+        auto vacancy = std::lower_bound(topK.cbegin(), topK.cend(), f);
+        if (vacancy == topK.cend() && topK.size() >= k) {
+            return;
+        }
+        f.build(ctx, tensorViewBuilder);
+        if (f.flops > maxFLOPs) {
+            return;
+        }
+
+        // Start again, so we can compare FLOPs.
         auto it = std::lower_bound(topK.begin(), topK.end(), f);
         if (it != topK.end()) {
             topK.insert(it, std::move(f));
@@ -348,11 +373,11 @@ struct TopKFinalizations {
             topK.emplace_back(std::move(f));
         }
     }
-    std::vector<FinalizeOp> toResult() {
-        std::vector<FinalizeOp> result;
+    std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> toResult() {
+        std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> result;
         result.reserve(topK.size());
         for (auto& f: topK) {
-            result.emplace_back(std::move(f.tensors));
+            result.emplace_back(std::move(f.tensors), std::move(f.tensorView));
         }
         return result;
     }
@@ -360,7 +385,7 @@ struct TopKFinalizations {
 
 } // namespace
 
-std::vector<FinalizeOp> FinalizeOp::Generate(const GraphHandle& dimensionsAndExpansions, const Graph& graph, const GenerateOptions& options) {
+std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> FinalizeOp::Generate(const GraphHandle& dimensionsAndExpansions, const Graph& graph, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     const std::vector<Dimension>& interface = dimensionsAndExpansions.getDimensions();
@@ -372,7 +397,7 @@ std::vector<FinalizeOp> FinalizeOp::Generate(const GraphHandle& dimensionsAndExp
         return {};
     }
 
-    TopKFinalizations result { options.ctx, options.maximumFinalizations };
+    TopKFinalizations result { options.ctx, options.maximumFinalizations, options.tensorViewBuilder, options.maxFLOPs };
     auto addToResults = [&result, &expansions](std::vector<std::vector<Dimension>>&& tensors) {
         // Currently, we only allow expansions to be added to the input tensor.
         std::vector<Topmost> realTensors;

@@ -60,6 +60,7 @@ public:
     }
 
     struct GenerateOptions {
+        const BindingContext& ctx;
         const Graph& graph;
         bool disallowDiscontinuousView;
         bool disallowSplitLAboveUnfold;
@@ -73,6 +74,7 @@ public:
         CounteractedMerges,
         DisallowedDiscontinuousViews,
         UselessImmediateReductions,
+        InvalidProductSize,
         SuccessfulGenerations,
     )
     static std::vector<const SplitOp *> Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options);

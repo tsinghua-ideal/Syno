@@ -65,16 +65,20 @@ public:
         LegalFinalizations,
         UncanonicalWeight,
     )
+    using TensorViewBuilder = std::function<std::unique_ptr<TensorView>(const FinalizeOp& op)>;
     struct GenerateOptions {
         const BindingContext& ctx;
         const Shape& desired;
         std::size_t maximumTensors;
         std::size_t maximumFinalizations;
         bool allowWeightPermutation;
+        // For pruning.
+        TensorViewBuilder tensorViewBuilder;
+        std::size_t maxFLOPs;
     };
 
     static Generator<std::vector<std::vector<Dimension>>> AssignToWeights(const std::vector<ColoredDimension>& remaining, std::size_t maxWeights);
-    static std::vector<FinalizeOp> Generate(const GraphHandle& interface, const Graph& graph, const GenerateOptions& options);
+    static std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> Generate(const GraphHandle& interface, const Graph& graph, const GenerateOptions& options);
 };
 
 struct NextFinalizeSlot: Next {

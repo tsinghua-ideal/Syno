@@ -94,4 +94,8 @@ struct Match: Ts... { using Ts::operator()...; };
 template<typename... Ts>
 Match(Ts...) -> Match<Ts...>;
 
+struct Common {
+    static constexpr std::size_t MemoryPoolSize = 65536;
+};
+
 } // namespace kas
