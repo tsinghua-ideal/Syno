@@ -56,9 +56,14 @@ void NormalStage::guardGeneratedChildren() {
         .maximumTensors = options.maximumTensors,
         .maximumFinalizations = options.maximumFinalizations,
         .allowWeightPermutation = options.allowWeightPermutation,
-    }), [this](FinalizeOp& f) {
-        auto fin = getFinalize(&f);
-        return NextFinalizeSlot({Next::Type::Finalize, NextFinalizeSlot::GetKey(f.tensors)}, std::move(f), std::move(fin));
+        .tensorViewBuilder = [this](const FinalizeOp& op) {
+            return getFinalize(op);
+        },
+        .maxFLOPs = options.maxFLOPs,
+    }), [](std::pair<FinalizeOp, std::unique_ptr<TensorView>>& opAndTensorView) {
+        auto& [op, tensorView] = opAndTensorView;
+        auto key = NextFinalizeSlot::GetKey(op.tensors);
+        return NextFinalizeSlot({Next::Type::Finalize, key}, std::move(op), std::move(tensorView));
     });
     nextFinalizations.remove([&](const NextFinalizeSlot& slot) {
         return slot.tensorView->getFLOPs(ctx) > options.maxFLOPs;
@@ -189,9 +194,12 @@ void NormalStage::guardGeneratedChildren() {
     }
 }
 
-std::unique_ptr<TensorView> NormalStage::getFinalize(const FinalizeOp *op) const {
-    if (!op) return nullptr;
-    return op->buildTensorView(sampler.getFixedDimensions(), sampler.getExpressionForTensorNum(op->tensors.size()), sampler.getBindingContext());
+std::unique_ptr<TensorView> NormalStage::getFinalize(const FinalizeOp& op) const {
+    return op.buildTensorView(
+        sampler.getFixedDimensions(),
+        sampler.getExpressionForTensorNum(op.tensors.size()),
+        sampler.getBindingContext()
+    );
 }
 
 bool NormalStage::possibleToFinalizeByExperimenting() const {
@@ -309,9 +317,7 @@ std::optional<Node> NormalStage::getChildImpl(Next next) {
         if (next.type == Next::Type::Finalize) {
             auto slot = nextFinalizations.getSlot(next);
             if (!slot) return std::optional<Node>();
-            if (!slot->tensorView) {
-                slot->tensorView = getFinalize(&slot->finalization);
-            }
+            KAS_ASSERT(slot->tensorView);
             return std::optional<Node>(std::in_place, &sampler, slot->tensorView.get());
         }
         return Base::getChildImpl(next);

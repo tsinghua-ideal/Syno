@@ -23,7 +23,7 @@ class NormalStage final: public AbstractStageBase<NormalStage> {
     // This checks whether the nexts are evaluated. If not, it evaluates them.
     void guardGeneratedChildren();
 
-    std::unique_ptr<TensorView> getFinalize(const FinalizeOp *op) const;
+    std::unique_ptr<TensorView> getFinalize(const FinalizeOp& op) const;
 
     // If the required steps computed by possibleToFinalizeByExperimenting() is exactly the remaining depth, then we are in critical state.
     // In critical state, do not generate useless Ops.
