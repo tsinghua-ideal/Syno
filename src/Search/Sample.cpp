@@ -27,7 +27,6 @@ void SampleOptions::check() const {
     KAS_ASSERT(maxStridedDimSize > 1);
     KAS_ASSERT(maxUnfoldKernelSize > 1);
     KAS_ASSERT(minimumUnfoldRatio >= 1.0f);
-    KAS_ASSERT(minimumMergeRatio >= 1.0f);
     KAS_ASSERT(!requiresOddKernelSizeInUnfold || requiresExactDivision, "requiresOddKernelSizeInUnfold requires requiresExactDivision.");
     KAS_ASSERT(disallowSplitRAboveUnfold + disallowUnfoldLAboveSplit <= 1);
     KAS_ASSERT(disallowMergeWithLargeBlockAboveUnfold + disallowUnfoldLAboveMergeR <= 1);

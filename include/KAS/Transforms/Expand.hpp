@@ -47,6 +47,7 @@ public:
         const BindingContext& ctx;
         bool disallowMergeInputAndWeight;
         bool disallowTile;
+        bool disallowShareWeights;
         std::size_t maxExpansionRepeatMultiplier;
         std::size_t maxExpansionMergeMultiplier;
     };

@@ -82,10 +82,10 @@ class Sampler:
         max_strided_dim_size: int = 30,
         max_unfold_kernel_size: int = 30,
         minimum_unfold_ratio: float = 2.0,
-        minimum_merge_ratio: float = 2.0,
         maximum_valid_reshape_shift_pattern: float = 10.0,
         disallow_merge_input_and_weight: bool = False,
         disallow_tile: bool = True,
+        disallow_share_weights: bool = False,
         max_expansion_repeat_multiplier: int = 10,
         max_expansion_merge_multiplier: int = 128,
         disallow_discontinuous_view: bool = False,
@@ -176,14 +176,14 @@ class Sampler:
             Maximum size of the parameter of UnfoldOp.
         minimum_unfold_ratio : float, optional
             Minimum ratio of the size of the input dimension to the parameter of UnfoldOp.
-        minimum_merge_ratio : float, optional
-            Minimum ratio of the size of the left input dimension to the right input dimension of MergeOp.
         maximum_valid_reshape_shift_pattern : float, optional
             When Shift coincides with a reshape with rather large RHS, this Shift is basically interchangeable with that reshape. For example, if this is set to 10, then a Shift by 1 on a Merge with block size 20 is interchangeable. We put Shift as close to output as possible in this case.
         disallow_merge_input_and_weight : bool, optional
             Merging input tensor and weight tensor via ExpandOp.
         disallow_tile : bool, optional
             Generate ExpandOp above lhs of MergeOp.
+        disallow_share_weights : bool, optional
+            Use Expand to Share weights.
         max_expansion_repeat_multiplier : int, optional
             Maximum times of expansion in ExpandOp, for repeat.
         max_expansion_merge_multiplier : int, optional
@@ -259,10 +259,10 @@ class Sampler:
             max_strided_dim_size=max_strided_dim_size,
             max_unfold_kernel_size=max_unfold_kernel_size,
             minimum_unfold_ratio=minimum_unfold_ratio,
-            minimum_merge_ratio=minimum_merge_ratio,
             maximum_valid_reshape_shift_pattern=maximum_valid_reshape_shift_pattern,
             disallow_merge_input_and_weight=disallow_merge_input_and_weight,
             disallow_tile=disallow_tile,
+            disallow_share_weights=disallow_share_weights,
             max_expansion_repeat_multiplier=max_expansion_repeat_multiplier,
             max_expansion_merge_multiplier=max_expansion_merge_multiplier,
             disallow_discontinuous_view=disallow_discontinuous_view,

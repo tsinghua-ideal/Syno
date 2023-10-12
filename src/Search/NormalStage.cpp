@@ -139,6 +139,7 @@ void NormalStage::guardGeneratedChildren() {
                     .ctx = ctx,
                     .disallowMergeInputAndWeight = options.disallowMergeInputAndWeight,
                     .disallowTile = options.disallowTile,
+                    .disallowShareWeights = options.disallowShareWeights,
                     .maxExpansionRepeatMultiplier = options.maxExpansionRepeatMultiplier,
                     .maxExpansionMergeMultiplier = options.maxExpansionMergeMultiplier,
                 }));
@@ -151,7 +152,6 @@ void NormalStage::guardGeneratedChildren() {
             if (options.maximumMerges == -1 || options.maximumMerges > existingOp<MergeOp>()) {
                 add(MergeOp::Generate(store, prospectiveInterface, {
                     .ctx = ctx,
-                    .minimumRatio = options.minimumMergeRatio,
                     .disallowMergeWithLargeBlockAboveStride = options.disallowMergeWithLargeBlockAboveStride,
                     .disallowMergeWithLargeBlockAboveUnfold = options.disallowMergeWithLargeBlockAboveUnfold,
                 }));

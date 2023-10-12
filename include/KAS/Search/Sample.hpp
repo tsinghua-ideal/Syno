@@ -60,7 +60,6 @@ struct SampleOptions {
     std::size_t maxUnfoldKernelSize = 30;
 
     float minimumUnfoldRatio = 2.0f;
-    float minimumMergeRatio = 2.0f;
 
     // If Split, Merge coincide with Shift, it is very likely that they are exchangeable.
     // Only if RHS of Split or Merge is comparatively small, Shift may make a difference when interchanged.
@@ -69,6 +68,7 @@ struct SampleOptions {
     // ExpandOp related.
     bool disallowMergeInputAndWeight = false;
     bool disallowTile = true;
+    bool disallowShareWeights = false;
     std::size_t maxExpansionRepeatMultiplier = 10;
     std::size_t maxExpansionMergeMultiplier = 128;
 
