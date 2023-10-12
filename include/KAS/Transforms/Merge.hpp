@@ -43,7 +43,6 @@ public:
 
     struct GenerateOptions {
         const BindingContext& ctx;
-        float minimumRatio = 2.0f;
         bool disallowMergeWithLargeBlockAboveStride;
         // This canonicalization deviates a lot from original semantics. Enable with caution!
         bool disallowMergeWithLargeBlockAboveUnfold;

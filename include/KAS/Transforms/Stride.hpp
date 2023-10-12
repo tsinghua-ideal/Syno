@@ -50,6 +50,7 @@ public:
         GenerateAttempts,
         DisallowedAttempts,
         SizeTooLarge,
+        InvalidProductSize,
         SuccessfulGenerations,
     )
     static std::vector<const StrideOp *> Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options);

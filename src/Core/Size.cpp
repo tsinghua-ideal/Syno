@@ -276,7 +276,7 @@ Generator<Size> Size::sampleDivisors(const BindingContext& ctx) const {
             if (divisor == *this) {
                 co_return;
             }
-            if (ctx.isSizeValid(divisor)) {
+            if (ctx.isSizeValid(divisor) && ctx.isSizeValid(*this / divisor)) {
                 co_yield divisor;
             }
         }

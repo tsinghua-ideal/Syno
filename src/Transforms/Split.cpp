@@ -111,7 +111,7 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Gr
     options.graph.accept(canonicalizer);
 
     std::vector<const SplitOp *> result;
-    auto checkThenAdd = [&store, &canonicalizer, &result, disallowDiscontinuousView = options.disallowDiscontinuousView](const Dimension& dimL, const Dimension& dimR) {
+    auto checkThenAdd = [&store, &canonicalizer, &result, disallowDiscontinuousView = options.disallowDiscontinuousView, &ctx = options.ctx](const Dimension& dimL, const Dimension& dimR) {
         if (auto l = dimL.tryAs<MergeOp::Input>(); l) {
             if (auto r = dimR.tryAs<MergeOp::Input>(); r) {
                 if (l->getOp() == r->getOp()) {
@@ -139,6 +139,11 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Gr
                 ++CountUselessImmediateReductions;
                 return;
             }
+        }
+        // Check that the created size is valid.
+        if (auto product = dimL.size() * dimR.size(); !ctx.isSizeValid(product)) {
+            ++CountInvalidProductSize;
+            return;
         }
         ++CountSuccessfulGenerations;
         result.emplace_back(store.get<SplitOp>(dimL, dimR));

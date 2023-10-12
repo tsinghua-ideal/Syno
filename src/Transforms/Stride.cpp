@@ -59,9 +59,15 @@ std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const 
     CountGenerateAttempts += interface.getDimensions().size();
     for (Size stride: allowance.enumerateSizes(options.ctx)) {
         for (auto&& dim: plausible) {
+            auto product = dim.size() * stride;
             // Disallow too large strides.
-            if ((dim.size() * stride).upperBoundEst(options.ctx) > options.maxStridedDimSize) {
+            if (product.upperBoundEst(options.ctx) > options.maxStridedDimSize) {
                 ++CountSizeTooLarge;
+                continue;
+            }
+            // Check if product is valid.
+            if (!options.ctx.isSizeValid(product)) {
+                ++CountInvalidProductSize;
                 continue;
             }
             ++CountSuccessfulGenerations;
