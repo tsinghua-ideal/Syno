@@ -84,7 +84,15 @@ def test_semantic_conv2d(test_kernels, test_run) -> None:
 
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
-    results = json.load(open("base/unit_tests/results.json"))
+
+    result_file = "base/unit_tests/results.json"
+    os.makedirs(os.path.dirname(result_file), exist_ok=True)
+
+    if os.path.exists(result_file):
+        with open(result_file) as f:
+            results = json.load(f)
+    else:
+        results = {}
 
     model, sampler = models.get_model(args, return_sampler=True)
 
@@ -103,7 +111,8 @@ def test_semantic_conv2d(test_kernels, test_run) -> None:
         else:
             results[test_kernel].update(result)
 
-    json.dump(results, open("base/unit_tests/results.json", "w"), indent=4)
+    with open("base/unit_tests/results.json", "w") as f:
+        json.dump(results, f, indent=4)
 
 
 if __name__ == "__main__":
