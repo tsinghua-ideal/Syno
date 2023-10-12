@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <memory_resource>
 #include <tuple>
 #include <type_traits>
 #include <unordered_set>
@@ -37,6 +38,11 @@ struct PointeeEqual {
 template<PrimitiveOpImpl Op>
 struct OpStore {
     std::unordered_set<Pointer<Op>, OpHash<Op>, PointeeEqual<Op>> store;
+    std::pmr::unsynchronized_pool_resource pool { std::pmr::pool_options {
+        .max_blocks_per_chunk = Common::MemoryPoolSize,
+        .largest_required_pool_block = sizeof(Op),
+    }, std::pmr::new_delete_resource() };
+    std::pmr::polymorphic_allocator<Op> allocator { &pool };
     std::mutex mutex;
 };
 
@@ -91,24 +97,35 @@ public:
     PrimitiveOpStore(PrimitiveOpStore&&) = delete;
     template<PrimitiveOpImpl Op, typename... Args>
     const Op *get(Args&&... args) {
-        auto& [store, mutex] = stores.get<Op>();
+        auto& [store, _, allocator, mutex] = stores.get<Op>();
         static_assert(std::is_same_v<typename std::remove_reference_t<decltype(store)>::key_type, detail::Pointer<Op>>);
-        auto op = std::make_unique<Op>(std::forward<Args>(args)...);
         // Critical section here!
         {
             std::lock_guard lock { mutex };
-            auto [it, inserted] = store.insert(op.get());
-            if (!inserted) {
-                // Newly allocated op is automatically destroyed.
-                return *it;
+            auto op = allocator.template new_object<Op>(std::forward<Args>(args)...);
+            bool keep = false;
+            KAS_DEFER {
+                if (!keep) {
+                    allocator.template delete_object<Op>(op);
+                }
+            };
+            auto [it, inserted] = store.insert(op);
+            if (inserted) {
+                keep = true;
+                return op;
             }
-            return op.release();
+            // Newly allocated op automatically deleted by the deferred block.
+            return *it;
         }
     }
     ~PrimitiveOpStore() {
-        auto deleteOp = [](auto&& store) {
-            for (auto&& op: store.store) {
-                delete op;
+        auto deleteOp = [](auto&& storage) {
+            auto& [store, _, allocator, mutex] = storage;
+            std::lock_guard lock { mutex };
+            for (auto op: store) {
+                using Op = typename std::remove_cvref_t<decltype(*op)>;
+                auto mutableOp = const_cast<Op *>(op);
+                allocator.template delete_object<Op>(mutableOp);
             }
         };
         TupleForEach(stores.stores, deleteOp);
