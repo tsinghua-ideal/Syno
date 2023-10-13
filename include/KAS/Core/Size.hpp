@@ -28,10 +28,7 @@ concept SizeRange =
     std::convertible_to<std::ranges::range_value_t<R>, Size>;
 
 struct Size {
-    friend class BindingContext;
     friend class PaddingSolver;
-    friend class HalideGen;
-
 public:
     constexpr static std::size_t MAX_VARIABLES = 8;
     using PowerType = std::int8_t;
@@ -44,12 +41,23 @@ public:
     };
 
 private:
-    const std::size_t primaryCount;
-    const std::size_t coefficientCount;
+    // Use the first half to store primaryCount, and the second half to store coefficientCount.
+    using VariableCountType = std::uint8_t;
+    static_assert(std::is_unsigned_v<VariableCountType>);
+    static constexpr int HalfVariableCountType = std::numeric_limits<VariableCountType>::digits / 2;
+    static constexpr VariableCountType LowerVariableCountTypeMask = (1 << HalfVariableCountType) - 1;
+    const VariableCountType varCount;
+    static VariableCountType ToVariableCountType(std::size_t primaryCount, std::size_t coefficientCount) {
+        KAS_ASSERT(primaryCount <= MAX_VARIABLES && coefficientCount <= MAX_VARIABLES);
+        return static_cast<VariableCountType>((primaryCount << HalfVariableCountType) | coefficientCount);
+    }
     // Powers of large variables. Must be non-negative.
     ExprType primary;
     // Powers of small variables. Can be negative (when in denominator).
     ExprType coefficient;
+
+    std::size_t getPrimaryCount() const { return varCount >> HalfVariableCountType; }
+    std::size_t getCoefficientCount() const { return varCount & LowerVariableCountTypeMask; }
 
     template<std::integral ValueType, typename Consts>
     static boost::rational<ValueType> EvalFraction(std::size_t cnt, Consts&& consts, const Size::ExprType& powers) {
@@ -74,11 +82,16 @@ private:
     };
 
 public:
-    Size(std::size_t primaryCount, std::size_t coefficientCount);
+    Size(std::size_t primaryCount, std::size_t coefficientCount):
+        varCount { ToVariableCountType(primaryCount, coefficientCount) },
+        primary {},
+        coefficient {}
+    {
+        KAS_ASSERT(primaryCount <= MAX_VARIABLES && coefficientCount <= MAX_VARIABLES);
+    }
     template<typename Tp, typename Tc>
     Size(std::size_t primaryCount, std::size_t coefficientCount, Tp&& primary, Tc&& coefficient):
-        primaryCount { primaryCount },
-        coefficientCount { coefficientCount },
+        varCount { ToVariableCountType(primaryCount, coefficientCount) },
         primary { std::forward<Tp>(primary) },
         coefficient { std::forward<Tc>(coefficient) }
     {
@@ -92,8 +105,8 @@ public:
 
     template<std::integral ValueType, typename Tp, typename Tc>
     boost::rational<ValueType> evalFraction(Tp&& p, Tc&& c) const {
-        auto fractionP = EvalFraction<ValueType>(primaryCount, std::forward<Tp>(p), primary);
-        auto fractionC = EvalFraction<ValueType>(coefficientCount, std::forward<Tc>(c), coefficient);
+        auto fractionP = EvalFraction<ValueType>(getPrimaryCount(), std::forward<Tp>(p), primary);
+        auto fractionC = EvalFraction<ValueType>(getCoefficientCount(), std::forward<Tc>(c), coefficient);
         return fractionP * fractionC;
     };
     template<std::integral ValueType>
@@ -138,12 +151,12 @@ public:
         auto newSize = Size(*oi);
         auto& newPrimary = newSize.primary;
         auto& newCoefficient = newSize.coefficient;
-        const auto primaryCount = newSize.primaryCount;
-        const auto coefficientCount = newSize.coefficientCount;
+        const std::size_t primaryCount = newSize.getPrimaryCount();
+        const std::size_t coefficientCount = newSize.getCoefficientCount();
         ++oi;
         while (oi != std::ranges::end(operands)) {
             const auto& operand = *oi;
-            KAS_ASSERT(primaryCount == operand.primaryCount && coefficientCount == operand.coefficientCount);
+            KAS_ASSERT(primaryCount == operand.getPrimaryCount() && coefficientCount == operand.getCoefficientCount());
             for (std::size_t i = 0; i < primaryCount; ++i) {
                 newPrimary[i] += operand.primary[i];
             }
@@ -162,6 +175,10 @@ public:
     std::optional<Trait> testDividedBy(const Size& other);
     std::optional<Trait> canBeDividedBy(const Size& other) const;
     bool quotientIsLegal(const Size& other) const;
+
+    Size primaryPart() const;
+    Size coefficientPart() const;
+    Size toUsage() const;
 
     // Return divisors of this Size. Guarantee that for all consts, the divisor is realizable, and not equal to 1 or this.
     Generator<Size> sampleDivisors(const BindingContext& ctx) const;

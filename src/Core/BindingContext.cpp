@@ -46,11 +46,12 @@ void BindingContext::updateLookUpTables() {
 
 Size BindingContext::getSizeFromFactors(const std::vector<Parser::Factor>& factors) const {
     Size result(getPrimaryCount(), getCoefficientCount());
+    auto primary = result.getPrimary(), coefficient = result.getCoefficient();
     for (const auto& [name, power]: factors) {
         if (auto it = primaryLookUpTable.find(name); it != primaryLookUpTable.end())
-            result.primary[it->second] += power;
+            primary[it->second] += power;
         else if (auto it = coefficientLookUpTable.find(name); it != coefficientLookUpTable.end())
-            result.coefficient[it->second] += power;
+            coefficient[it->second] += power;
         else
             KAS_CRITICAL("Unknown variable name: {}", name);
     }
@@ -144,14 +145,14 @@ std::string BindingContext::getCoefficientAlias(std::size_t index) const {
 Size BindingContext::getSinglePrimaryVariableSize(std::size_t index) const {
     KAS_ASSERT(index >= 0 && index < getPrimaryCount());
     auto res = Size(getPrimaryCount(), getCoefficientCount());
-    res.primary[index] = 1;
+    res.getPrimary()[index] = 1;
     return res;
 }
 
 Size BindingContext::getSingleCoefficientVariableSize(std::size_t index) const {
     KAS_ASSERT(index >= 0 && index < getCoefficientCount());
     auto res = Size(getPrimaryCount(), getCoefficientCount());
-    res.coefficient[index] = 1;
+    res.getCoefficient()[index] = 1;
     return res;
 }
 
