@@ -383,6 +383,8 @@ public:
     // Includes ExpandOp.
     const PrimitiveOp *getOpAbove(const Dimension& dim) const;
     // Every Op, including ExpandOp, excluding ReduceOp.
+    // This is because there can be multiple identical ReduceOp's. You cannot tell the difference.
+    // To really figure out the ReduceOp's, you have to traverse reduceIterators.
     const std::set<const PrimitiveOp *>& getOps() const { return ops; }
     template<PrimitiveOpImpl Op>
     auto getOpsOfType() const {

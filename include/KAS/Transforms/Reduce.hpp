@@ -29,6 +29,7 @@ public:
     void accept(OpVisitor& visitor) const override { visitor.visit(*this); }
 
     const Reduce *getRaw(std::size_t multiplicity) const { return &reduces[multiplicity]; }
+    static const ReduceOp *FromRaw(const Reduce *raw) { return &dynamic_cast<const ReduceOp&>(raw->getBase()); }
     Dimension getInput(std::size_t multiplicity) const { return getRaw(multiplicity); }
 
     std::size_t getMultiplicity(const std::vector<Dimension>& interface) const;

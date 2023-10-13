@@ -52,7 +52,7 @@ std::size_t Arc::hash() const {
 Next Arc::toNext() const {
     return match<Next>(
         [&](const PrimitiveOp *op) -> Next {
-            return { Next::TypeOf(op->getType()), op->opHash() };
+            return Next::FromOp(op);
         },
         [&](const FinalizeOp *op) -> Next {
             return { Next::Type::Finalize, op->hash() };

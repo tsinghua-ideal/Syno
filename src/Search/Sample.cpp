@@ -413,7 +413,7 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
     // First, ReductionStage.
     {
         for (const Reduce *op: graph.getReduceIterators()) {
-            result.emplace_back(Next::Type::Reduce, op->getBase().pureHash());
+            result.emplace_back(Next::FromOp(ReduceOp::FromRaw(op)));
         }
     }
 
@@ -431,7 +431,7 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
                     if (addedV) return;
                     addedV = true;
                     self(self, v[RepeatLikeOp::Branch::Output]);
-                    result.emplace_back(Next::TypeOf(v.op.getType()), v.op.opHash());
+                    result.emplace_back(Next::FromOp(&v.op));
                 },
                 [&](const SplitLikeVertex& v, auto) {
                     bool& addedV = added[v];
@@ -439,14 +439,14 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
                     addedV = true;
                     self(self, v[SplitLikeOp::Branch::OutputLhs]);
                     self(self, v[SplitLikeOp::Branch::OutputRhs]);
-                    result.emplace_back(Next::TypeOf(v.op.getType()), v.op.opHash());
+                    result.emplace_back(Next::FromOp(&v.op));
                 },
                 [&](const MergeLikeVertex& v, auto) {
                     bool& addedV = added[v];
                     if (addedV) return;
                     addedV = true;
                     self(self, v[MergeLikeOp::Branch::Output]);
-                    result.emplace_back(Next::TypeOf(v.op.getType()), v.op.opHash());
+                    result.emplace_back(Next::FromOp(&v.op));
                 },
                 [](const ExpandVertex& v, auto) {
                     // Expand is left for later code to handle.
@@ -459,7 +459,7 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
         }
         // Do not forget to add expansions.
         for (const Expand *exp: handle.getExpansions()) {
-            result.emplace_back(Next::TypeOf<ExpandOp>(), dynamic_cast<const ExpandOp *>(exp)->opHash());
+            result.emplace_back(Next::FromOp(dynamic_cast<const ExpandOp *>(exp)));
         }
     }
 

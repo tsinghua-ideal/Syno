@@ -335,7 +335,7 @@ void GraphvizDFGGen::drawTensor(const Tensor& tensor) {
                 return Name(vertex.op);
             },
             [index](Direction type, const Dimension& dim) {
-                if (auto reduction = dim.tryAs<Reduce>(); reduction) {
+                if (auto reduction = dim.tryAs<Reduce>(); reduction && type == Direction::Down) {
                     return Name(*reduction);
                 }
                 return InterfaceName(dim, index, type);

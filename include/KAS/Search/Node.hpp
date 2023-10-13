@@ -53,6 +53,11 @@ struct Next {
     static Next FromOp(const Op *op) {
         return { TypeOf<Op>(), op->opHash() };
     }
+    template<typename Op>
+    requires(!PrimitiveOpImpl<Op> && std::derived_from<Op, PrimitiveOp>)
+    static Next FromOp(const Op *op) {
+        return { TypeOf(op->getType()), op->opHash() };
+    }
 
     // For Python.
     bool operator==(const Next& rhs) const noexcept = default;
