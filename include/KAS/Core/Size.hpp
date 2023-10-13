@@ -29,7 +29,6 @@ concept SizeRange =
 
 struct Size {
     friend class BindingContext;
-    friend struct LabeledSize;
     friend class PaddingSolver;
     friend class HalideGen;
 
@@ -236,26 +235,6 @@ public:
 
     // Solve all the inequalities and return the result.
     ConcreteConsts solve(const Size& inputSize, const Size& outputSize);
-};
-
-struct LabeledSize: public Size {
-    Trait trait;
-
-public:
-    LabeledSize(std::size_t primaryCount, std::size_t coefficientCount);
-    LabeledSize(const Size& size);
-
-    LabeledSize identity() const;
-
-    bool is1() const;
-    bool isLegalCoefficient() const;
-    bool isIllegalCoefficient() const;
-    bool isIndeterminedCoefficient() const;
-    bool isGeneral() const;
-
-    bool testDividedBy(const Size& other);
-    LabeledSize& operator*=(const LabeledSize& other);
-    LabeledSize operator*(const LabeledSize& other) const;
 };
 
 struct Allowance {

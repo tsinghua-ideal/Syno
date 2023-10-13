@@ -27,12 +27,8 @@ TEST_F(core_size_tests, arithmetics) {
 TEST_F(core_size_tests, trait) {
     auto sizeOneOverC = sizeC.identity();
     ASSERT_EQ(sizeOneOverC.getTrait(), Size::Trait::One);
-    ASSERT_EQ(LabeledSize { sizeC }.getTrait(), Size::Trait::Coefficient);
     auto trait = sizeOneOverC.testDividedBy(sizeC);
     ASSERT_EQ(trait.value(), Size::Trait::IllegalCoefficient);
-    LabeledSize ls { sizeOneOverC };
-    ASSERT_EQ(ls.getTrait(), Size::Trait::IllegalCoefficient);
-    ASSERT_EQ((ls * LabeledSize { sizeH }).getTrait(), Size::Trait::General);
 }
 
 TEST_F(core_size_tests, divisors_HWoverC) {
