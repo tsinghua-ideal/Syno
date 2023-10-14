@@ -69,9 +69,9 @@ def get_sampler(args, model) -> Sampler:
         "cuda": True,
         "autoscheduler": CodeGenOptions.AutoScheduler.Anderson2021,
         "num_worker_threads": args.kas_sampler_workers,
-        "requires_exact_division": False,
-        "requires_odd_kernel_size_in_unfold": False,
-        "minimum_unfold_ratio": 1.0,
+        "requires_exact_division": not args.kas_no_exact_division,
+        "requires_odd_kernel_size_in_unfold": not args.kas_enable_even_unfold,
+        "minimum_unfold_ratio": args.kas_min_unfold_ratio,
         "extra_options": {
             "beam_size": "32",
             "num_passes": "1",
@@ -139,8 +139,8 @@ def get_model(
                     logging.warning(f"Subpath {subpath} is not valid")
                     break
         model.load_kernel(
-            sampler,
             assembled,
+            sampler,
             args.kas_replace_placeholder,
             compile=args.compile,
             batch_size=args.batch_size,

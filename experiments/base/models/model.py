@@ -3,7 +3,7 @@ import torch
 import thop
 from collections import OrderedDict
 from torch import nn
-from typing import List, Tuple
+from typing import List, Tuple, Union, Optional
 from os import PathLike
 from KAS.Placeholder import Placeholder
 
@@ -16,10 +16,11 @@ class KASModel(nn.Module):
         self.flops = 0
         self.params = 0
     
-    def load_kernel(self, sampler: KAS.Sampler, node: KAS.Node, name: str=None, compile=False, batch_size=1) -> PathLike:
-        kernel = sampler.realize(self, node, name)
+    def load_kernel(self, node_or_dir: Union[KAS.Node, PathLike], sampler: Optional[KAS.Sampler]=None, name: str=None, compile=False, batch_size=1) -> PathLike:
+        assert isinstance(node_or_dir, PathLike) or (isinstance(node_or_dir, KAS.Node) and sampler)
+        kernel = sampler.realize(self, node_or_dir, name) if isinstance(node_or_dir, KAS.Node) else KAS.KernelLoader.from_directory(node_or_dir)
         kernel_packs = kernel.construct_kernel_packs()
-        placeholders = sampler._extract_placeholders(self)
+        placeholders = KAS.Sampler._extract_placeholders(self)
         assert len(placeholders) == kernel.get_count_placeholders(), f'Kernel {kernel} has {kernel.get_count_placeholders()} placeholders, but {len(placeholders)} placeholders are found in the model'
         flops = []
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):

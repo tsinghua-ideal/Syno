@@ -205,6 +205,18 @@ def arg_parse():
         help="KAS sampler maximum expansion multiplier",
     )
     parser.add_argument(
+        "--kas-no-exact-division", action="store_true", default=False, help="requires_exact_division=False"
+    )
+    parser.add_argument(
+        "--kas-enable-even-unfold", action="store_true", default=False, help="requires_odd_kernel_size_in_unfold=False"
+    )
+    parser.add_argument(
+        "--kas-min-unfold-ratio",
+        default=1.5,
+        type=float,
+        help="KAS sampler minimum ratio between unfold kernel and unfolded dimension. ",
+    )
+    parser.add_argument(
         "--kas-min-dim", default=1, type=int, help="KAS sampler minimum dimensions"
     )
     parser.add_argument(
@@ -214,6 +226,16 @@ def arg_parse():
         "--kas-scheduler-cache-dir",
         default=".scheduler-cache",
         help="KAS sampler saving directory",
+    )
+    parser.add_argument(
+        "--kas-send-cache-dir",
+        default=".send-cache",
+        help="KAS send directory",
+    )
+    parser.add_argument(
+        "--kas-client-cache-dir",
+        default=".client-cache",
+        help="KAS client cache directory",
     )
     parser.add_argument(
         "--kas-stats-interval",

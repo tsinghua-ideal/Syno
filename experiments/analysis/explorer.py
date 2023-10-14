@@ -20,4 +20,4 @@ if __name__ == '__main__':
     node = explorer.interactive()
     if node and node.is_final():
         print("Realizing the result {} from explorer...", node)
-        model.load_kernel(sampler, node, "trial")
+        model.load_kernel(node, sampler, "trial")
