@@ -102,4 +102,6 @@ public:
     std::string debugDescription() const;
 };
 
+using ReductionShapeView = AbstractShape<const std::vector<const Reduce *>&, [](const Reduce *r) -> const Size& { return r->size(); }>;
+
 } // namespace kas

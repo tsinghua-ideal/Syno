@@ -205,7 +205,7 @@ Size Sampler::getTotalOutputSize() const {
     Size result = outputShape.totalSize();
     if (!fixedDimensions.empty()) {
         using FixedDimensionsShapeView = AbstractShape<const std::vector<FixedDimension>&, [](const FixedDimension& fd) -> const Size& { return fd.dim.size(); }>;
-        result = result * FixedDimensionsShapeView { fixedDimensions }.totalSize();
+        result *= FixedDimensionsShapeView { fixedDimensions }.totalSize();
     }
     return result;
 }

@@ -38,6 +38,51 @@ GraphHandle NormalStage::removeTooLongChains(const Graph& graph, const GraphHand
     return GraphHandle(std::move(result), interface.getExpansions());
 }
 
+Size NormalStage::getAllowanceUsage(const Graph& graph) const {
+    struct Visitor: OpVisitor {
+        const BindingContext& ctx;
+        bool countCoefficientsInWeightsAsUsage;
+        Size result;
+        Visitor(const BindingContext& ctx, bool countCoefficientsInWeightsAsUsage = false):
+            ctx { ctx },
+            countCoefficientsInWeightsAsUsage { countCoefficientsInWeightsAsUsage },
+            result { Size::Identity(ctx) }
+        {}
+        void visit(const ExpandOp& op) override {}
+        void visit(const ReduceOp& op) override {}
+        void visit(const MergeOp& op) override {
+            // s^(a+b) <- s^a, s^b yields (|a|+|b|-|a+b|)/2
+            result *= (op.getBlock() * op.getGroup() / op.output.size()).sqrt();
+        }
+        void visit(const ShareOp& op) override {
+            if (countCoefficientsInWeightsAsUsage) {
+                result *= op.output.size().getAllowanceUsage();
+            } else {
+                // We must consider primary vars because they cannot be put in weights too many times.
+                result *= op.output.size().primaryPart().getAllowanceUsage();
+            }
+        }
+        void visit(const ShiftOp& op) override {}
+        void visit(const SplitOp& op) override {}
+        void visit(const StrideOp& op) override {
+            result *= op.getStride().getAllowanceUsage();
+        }
+        void visit(const UnfoldOp& op) override {}
+    };
+    Visitor v {
+        sampler.getBindingContext(),
+        sampler.getOptions().countCoefficientsInWeightsAsAllowanceUsage
+    };
+    for (const PrimitiveOp *op: graph.getOps()) {
+        op->accept(v);
+    }
+    const auto& reductions = graph.getReduceIterators();
+    if (!reductions.empty()) {
+        v.result *= ReductionShapeView(reductions).getAllowanceUsage();
+    }
+    return v.result;
+}
+
 void NormalStage::guardGeneratedChildren() {
     if (childrenGenerated) {
         return;
@@ -65,9 +110,6 @@ void NormalStage::guardGeneratedChildren() {
         auto key = NextFinalizeSlot::GetKey(op.tensors);
         return NextFinalizeSlot({Next::Type::Finalize, key}, std::move(op), std::move(tensorView));
     });
-    nextFinalizations.remove([&](const NextFinalizeSlot& slot) {
-        return slot.tensorView->getFLOPs(ctx) > options.maxFLOPs;
-    });
     nextFinalizations.checkHashCollisionAndRemove();
 
     std::vector<NextStageSlot> children;
@@ -91,6 +133,7 @@ void NormalStage::guardGeneratedChildren() {
     };
 
     auto prospectiveInterface = removeTooLongChains(graph, interface);
+    const auto allowance = Allowance { ctx, getAllowanceUsage(graph), options.countCoefficientsInWeightsAsAllowanceUsage };
 
     if (remainingDepth() > 0) {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
@@ -106,7 +149,7 @@ void NormalStage::guardGeneratedChildren() {
         if (!inCriticalState && (options.maximumStrides == -1 || options.maximumStrides > existingOp<StrideOp>())) {
             add(StrideOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
-                .totalOutputSize = interface.getShape().totalSize(),
+                .allowance = allowance,
                 .maxStridedDimSize = options.maxStridedDimSize,
                 .disallowStrideAboveSplit = options.disallowStrideAboveSplit,
                 .disallowStrideAboveMergeR = options.disallowStrideAboveMergeR,
@@ -158,6 +201,7 @@ void NormalStage::guardGeneratedChildren() {
             if (options.maximumMerges == -1 || options.maximumMerges > existingOp<MergeOp>()) {
                 add(MergeOp::Generate(store, prospectiveInterface, {
                     .ctx = ctx,
+                    .allowance = allowance,
                     .disallowMergeWithLargeBlockAboveStride = options.disallowMergeWithLargeBlockAboveStride,
                     .disallowMergeWithLargeBlockAboveUnfold = options.disallowMergeWithLargeBlockAboveUnfold,
                 }));
@@ -165,8 +209,7 @@ void NormalStage::guardGeneratedChildren() {
             // Share^{-1}
             if (!inCriticalState && (options.maximumShares == -1 || options.maximumShares > existingOp<ShareOp>())) {
                 add(ShareOp::Generate(store, prospectiveInterface, {
-                    .ctx = ctx,
-                    .totalOutputSize = interface.getShape().totalSize(),
+                    .allowance = allowance,
                     .maximumTensors = options.maximumTensors,
                 }));
             }

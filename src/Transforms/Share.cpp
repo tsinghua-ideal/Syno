@@ -65,7 +65,6 @@ std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Gr
     using enum DimensionTypeWithOrder;
     auto plausible = interface.filterOut({ ShareR, Split, Shift });
 
-    Allowance allowance { options.totalOutputSize, options.ctx };
     std::vector<const ShareOp *> result;
     CountGenerateAttempts += interface.getDimensions().size();
     std::size_t countPlausible = 0;
@@ -74,7 +73,7 @@ std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Gr
         // Since RHS will be a weight dim, we cannot make it data-discarding.
         if (color.isDataDiscarding()) continue;
         ++countPlausible;
-        if (!allowance.withinAllowance(dim.size())) {
+        if (!options.allowance.shareWithinAllowance(dim.size())) {
             ++CountAllowanceExceeded;
             continue;
         }

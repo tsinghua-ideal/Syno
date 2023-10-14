@@ -14,6 +14,7 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
         return;
     }
 
+    const auto& ctx = sampler.getBindingContext();
     const auto& options = sampler.getOptions();
 
     // First create the corresponding NormalStage.
@@ -44,10 +45,15 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
         return Reduce::LexicographicalLEQ(*lhs, *rhs);
     });
 
+    // Get Allowance.
+    Size currentReductionsUsage = reductions.empty() ? Size::Identity(ctx) : ReductionShapeView(reductions).getAllowanceUsage();
+    Allowance allowance { ctx, currentReductionsUsage, options.countCoefficientsInWeightsAsAllowanceUsage };
+
     std::vector<NextStageSlot> nextReductions;
     std::map<AbstractStage *, Finalizability> childrenFinalizabilities;
     for (auto op: ReduceOp::Generate(sampler.getOpStore(), reductions, {
         .ctx = sampler.getBindingContext(),
+        .allowance = allowance,
         .dimUpperBound = options.dimUpperBound,
         .outputSize = sampler.getTotalOutputSize(),
         .maxRDomSizeBase = sampler.getMaxRDomSize(),

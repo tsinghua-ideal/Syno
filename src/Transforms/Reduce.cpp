@@ -51,9 +51,8 @@ std::string ReduceOp::descendantsDescription(const BindingContext& ctx) const {
 std::vector<const ReduceOp *> ReduceOp::Generate(PrimitiveOpStore& store, const std::vector<const Reduce *>& current, const GenerateOptions& options) {
     const BindingContext& ctx = options.ctx;
 
-    using BaseShapeView = AbstractShape<const std::vector<const Reduce *>&, [](const Reduce *r) -> const Size& { return r->size(); }>;
-    const Size& outputSize = options.outputSize;
-    Size reductionSize = current.empty() ? outputSize.identity() : BaseShapeView(current).totalSize();
+    auto shape = ReductionShapeView(current);
+    Size reductionSize = current.empty() ? Size::Identity(ctx) : shape.totalSize();
 
     auto withinFLOPs = [&](const Size& size) {
         for (const ConcreteConsts& consts: ctx.getAllConsts()) {
@@ -66,12 +65,10 @@ std::vector<const ReduceOp *> ReduceOp::Generate(PrimitiveOpStore& store, const 
         return true;
     };
 
-    Allowance allowance = { outputSize * reductionSize, ctx };
-
     std::vector<const ReduceOp *> res;
-    for (Size size: allowance.enumerateSizes(ctx)) {
+    for (Size size: options.allowance.enumerateSizes()) {
         if (withinFLOPs(size)) {
-            // For simplicity, we only use Mean. TODO: Add more.
+            // For simplicity, we only use Sum. TODO: Add more.
             res.push_back(store.get<ReduceOp>(std::move(size), ReduceType::Sum));
         }
     }

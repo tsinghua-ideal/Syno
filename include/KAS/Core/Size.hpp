@@ -139,8 +139,10 @@ public:
     bool isLegalCoefficient() const;
     bool isGeneral() const;
 
-    int getPrimaryPowersSum() const;
+    static SizeLimitsUsage GetLimitsUsage(std::span<const PowerType> powers);
+    SizeLimitsUsage getLimitsUsage() const;
 
+    Size& operator*=(const Size& other);
     // The product of two Size's
     Size operator*(const Size& other) const;
     // The product of multiple Size's
@@ -176,14 +178,48 @@ public:
     std::optional<Trait> canBeDividedBy(const Size& other) const;
     bool quotientIsLegal(const Size& other) const;
 
+    Size sqrt() const;
+
     Size primaryPart() const;
     Size coefficientPart() const;
-    Size toUsage() const;
+    Size getAllowanceUsage() const;
 
-    // Return divisors of this Size. Guarantee that for all consts, the divisor is realizable, and not equal to 1 or this.
-    Generator<Size> sampleDivisors(const BindingContext& ctx) const;
-
-    // Excludes 1, including lowerBound and upperBound.
+    struct EnumerationOptions {
+        std::vector<std::size_t> basesIndices;
+        ExprType lowerBound;
+        ExprType upperBound;
+        SizeLimitsUsage limits;
+        // Compute baseIndices.
+        EnumerationOptions(const ExprType& lowerBound, const ExprType& upperBound, const SizeLimitsUsage& limits);
+        // Get the starting point, i.e., the lower bound.
+        ExprType begin() const;
+        // Checks if the given powers are within maxVarsInSize and maxVarsPowersInSize.
+        bool isValid(const ExprType& powers) const;
+    };
+    // We frequently need to sample Sizes.
+    // We would like to enumerate all the possible sizes, in a fashion similar to the way we increment binary numbers.
+    // For example, there are 5 variables in total. We would like to enumerate only certain variables, then a possible combination is
+    // basesIndices = { 1, 2, 4 }
+    // lowerBound = { 0, 0, 0, 0, 0 }
+    // upperBound = { 0, 1, 2, 0, 1 }
+    // We would like to enumerate
+    // 0, 0, 0, 0, 0
+    // 0, 1, 0, 0, 0
+    // 0, 0, 1, 0, 0
+    // 0, 1, 1, 0, 0
+    // 0, 0, 2, 0, 0
+    // 0, 1, 2, 0, 0
+    // 0, 0, 0, 0, 1
+    // 0, 1, 0, 0, 1
+    // 0, 0, 1, 0, 1
+    // 0, 1, 1, 0, 1
+    // 0, 0, 2, 0, 1
+    // 0, 1, 2, 0, 1
+    // which can be done by recursion.
+    // Moreover, the results are contrained by maxVarsInSize and maxVarsPowersInSize.
+    // If and only if this is successful, i.e., we have not reached upperBound, return true.
+    static bool EnumerateNext(ExprType& powers, const EnumerationOptions& options);
+    // Excluding 1, including lowerBound and upperBound.
     static Generator<Size> EnumerateSizes(const BindingContext& ctx, Size lowerBound, Size upperBound);
 
     bool operator==(const Size& other) const;
@@ -255,12 +291,17 @@ public:
 };
 
 struct Allowance {
-    Size::ExprType primary;
-    Size::ExprType coefficientLower;
-    Size::ExprType coefficientUpper;
-    Allowance(const Size& shape, const BindingContext& ctx);
-    bool withinAllowance(const Size& size) const;
-    Generator<Size> enumerateSizes(const BindingContext& ctx) const;
+    const BindingContext& ctx;
+    bool countSharedCoefficientsAsAllowanceUsage;
+    Size::ExprType primaryAllowance;
+    Size::ExprType coefficientAllowance;
+    Allowance(const BindingContext& ctx, const Size& currentUsage, bool countSharedCoefficientsAsAllowanceUsage);
+    // Counts primary vars, and optionally coefficient vars.
+    bool shareWithinAllowance(const Size& size) const;
+    // Excludes 1.
+    Generator<Size> enumerateSizes() const;
+    // Return divisors of this Size. Guarantee that for all consts, the divisor and the quotient are realizable, and not equal to 1 or this.
+    Generator<Size> enumerateDivisors(Size size) const;
 };
 
 } // namespace kas

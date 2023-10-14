@@ -105,7 +105,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Gr
     std::size_t countPlausible = 0;
     for (auto&& dim: plausible) {
         ++countPlausible;
-        for (Size sizeR: dim.size().sampleDivisors(options.ctx)) {
+        for (Size sizeR: options.allowance.enumerateDivisors(dim.size())) {
             checkThenAdd(dim, std::move(sizeR));
         }
     }
