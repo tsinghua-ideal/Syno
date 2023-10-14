@@ -5,7 +5,6 @@ from torch import nn
 from KAS import Placeholder
 
 
-# TODO: statistics for placeholder
 class LinearPlaceholder(Placeholder):
     def __init__(self, in_features, out_features) -> None:
         super(LinearPlaceholder, self).__init__(
@@ -15,23 +14,24 @@ class LinearPlaceholder(Placeholder):
 
     @staticmethod
     def impl(assembler):
-        N, C_in, C_out = assembler.get_sizes('N', 'C_in', 'C_out')
-        in_N, in_C, w_in_C, w_out_C = assembler.make_dims_of_sizes(N, C_in, C_in, C_out)
+        N, seq_len, C_in, C_out = assembler.get_sizes('N', 'seq_len', 'C_in', 'C_out')
+        in_N, in_seq_len, in_C, w_in_C, w_out_C = assembler.make_dims_of_sizes(N, seq_len, C_in, C_in, C_out)
         
         shared_C_in = assembler.create_share(in_C, w_in_C)
 
         in_N.output(0)
-        w_out_C.output(1)
+        in_seq_len.output(1)
+        w_out_C.output(2)
         shared_C_in.sum()
 
-        return assembler.assemble('linear', 'in_0 * in_1', [in_N, in_C], [w_in_C, w_out_C])
+        return assembler.assemble('linear', 'in_0 * in_1', [in_N, in_seq_len, in_C], [w_in_C, w_out_C])
 
     @staticmethod
     def mapping(in_size, out_size):
-        n, in_features = in_size
-        n2, out_features = out_size
-        assert n == n2
-        return {'N': n, 'C_in': in_features, 'C_out': out_features}
+        n, seq_len, in_features = in_size
+        n2, seq_len2, out_features = out_size
+        assert n == n2 and seq_len == seq_len2
+        return {'N': n, 'seq_len': seq_len, 'C_in': in_features, 'C_out': out_features}
 
 
 class ConvPlaceholder(Placeholder):

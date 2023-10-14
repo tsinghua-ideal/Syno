@@ -16,7 +16,7 @@ class KASModel(nn.Module):
         self.flops = 0
         self.params = 0
     
-    def load_kernel(self, sampler: KAS.Sampler, node: KAS.Node, name: str=None, compile=False, batch_size=1) -> PathLike:
+    def load_kernel(self, sampler: KAS.Sampler, node: KAS.Node, name: str=None, compile=False, batch_size=1, seq_len=None) -> PathLike:
         kernel = sampler.realize(self, node, name)
         kernel_packs = kernel.construct_kernel_packs()
         placeholders = sampler._extract_placeholders(self)
@@ -30,7 +30,7 @@ class KASModel(nn.Module):
             flops.append(kernel.get_flops(i))
         assert kernel.get_total_flops() == sum(flops), f'Kernel {kernel} has {kernel.get_total_flops()} flops, but {sum(flops)} flops are found in the model'
         
-        self.flops, self.params = self.profile(batch_size, force_update=True)
+        self.flops, self.params = self.profile(batch_size, force_update=True, seq_len=seq_len)
         
         if compile:
             torch._dynamo.reset()

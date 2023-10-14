@@ -19,8 +19,8 @@ from .manual_kernels import ManualImpl
 
 def get_sampler(args, model) -> Sampler:
     # FLOPs ratio
-    raw_flops, _ = model.profile(not_count_placeholder=True)
-    flops, _ = model.profile()
+    raw_flops, _ = model.profile(not_count_placeholder=True, seq_len=args.gpt_seq_len)
+    flops, _ = model.profile(seq_len=args.gpt_seq_len)
     max_flops = args.kas_max_flops_ratio * flops
     assert max_flops > raw_flops, f"Maximum FLOPs {max_flops} is smaller than raw FLOPs {raw_flops}"
     max_placeholder_flops = max_flops - raw_flops
@@ -144,9 +144,10 @@ def get_model(
             args.kas_replace_placeholder,
             compile=args.compile,
             batch_size=args.batch_size,
+            seq_len=args.gpt_seq_len
         )
         flops_replaced, params_replaced = model.profile(batch_size=args.batch_size, force_update=True, seq_len=args.gpt_seq_len)
-        flops_base, params_base = model.profile(batch_size=args.batch_size, force_update=True, not_count_placeholder=True)
+        flops_base, params_base = model.profile(batch_size=args.batch_size, force_update=True, not_count_placeholder=True, seq_len=args.gpt_seq_len)
         logging.info(f"Replaced model {args.model} has {flops_replaced / 1e9:.5f}G FLOPs and {params_replaced / 1e6:.2f}M parameters")
         logging.info(f"Placeholder flops change {flops - flops_base:.2f} -> {flops_replaced - flops_base:.2f}")
         logging.info(f"Placeholder params change {params - params_base:.2f} -> {params_replaced - params_base:.2f}")

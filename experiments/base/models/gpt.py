@@ -4,6 +4,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .model import KASModel
+from .placeholder import LinearPlaceholder
 
 
 class GPTConfig:
@@ -75,7 +76,7 @@ class Block(nn.Module):
         self.attn = CausalSelfAttention(config)
         self.ln_2 = nn.LayerNorm(config.n_embd)
         self.mlp = nn.ModuleDict(dict(
-            c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd),
+            c_fc    = LinearPlaceholder(config.n_embd, 4 * config.n_embd),
             c_proj  = nn.Linear(4 * config.n_embd, config.n_embd),
             act     = NewGELU(),
             dropout = nn.Dropout(config.resid_pdrop),
@@ -158,7 +159,13 @@ class GPT(KASModel):
         return (seq_len, )
 
     def sampler_parameters(self, args=None):
-        assert False, 'Not implemented'
+         return {
+            'input_shape': '[N, seq_len, C_in]',
+            'output_shape': '[N, seq_len, C_out]',
+            'primary_specs': ['N: 0', 'seq_len: 2', 'C_in: 2', 'C_out: 2'],
+            'coefficient_specs': ['k_1=3: 4', 's=2: 4', 'g=32: 8'],
+            'fixed_io_pairs': [(0, 0)],
+        }
 
     def initialize_weights(self):
         self.apply(self._init_weights)
