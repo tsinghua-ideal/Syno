@@ -85,25 +85,28 @@ def main():
             try:
                 try:
                     kernel_dir = model.load_kernel(
-                        sampler, node, compile=args.compile, batch_size=args.batch_size
+                        sampler, node, compile=args.compile, batch_size=args.batch_size, seq_len=args.gpt_seq_len
                     )
                 except Exception as e:
                     if args.compile:
                         logging.warning("torch compile error, falling back to non-compile version. ")
                         kernel_dir = model.load_kernel(
-                            sampler, node, compile=False, batch_size=args.batch_size
+                            sampler, node, compile=False, batch_size=args.batch_size, seq_len=args.gpt_seq_len
                         )
                     else:
                         raise e
-                flops, params = model.profile(args.batch_size)
+                flops, params = model.profile(args.batch_size, seq_len=args.gpt_seq_len)
                 logging.debug(
                     f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
                 )
 
                 logging.info("Evaluating on real dataset ...")
-                accuracy = max(
-                    trainer.train(model, train_dataloader, val_dataloader, args)
-                )
+                if "gpt" not in args.model:
+                    accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
+                else:
+                    accuracy = (5 - trainer.train_gpt(model, train_dataloader, val_dataloader, args)[-1][1]) / 5
+                    if accuracy <= 0:
+                        accuracy = -1
             except Exception as e:
                 if not "out of memory" in str(e):
                     raise e

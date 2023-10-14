@@ -20,7 +20,7 @@ class Session:
         self.sampler = sampler
         self.reward_power: int = args.kas_reward_power
         self.reward_lower_bound: float = args.kas_acc_lower_bound
-        self.reward_upper_bound: float = args.kas_acc_lower_bound
+        self.reward_upper_bound: float = args.kas_acc_upper_bound
         self.target: str = args.kas_target
         self.min_accuracy: float = args.kas_min_accuracy
         self.original_flops: int = args.original_flops
