@@ -6,6 +6,7 @@ import time
 import threading
 import queue
 import traceback
+import tarfile
 from KAS import KernelLoader, Sampler
 from KAS.Node import Path, Node
 from KAS.Statistics import Statistics
@@ -31,6 +32,7 @@ class Session:
         self.save_interval = args.kas_server_save_interval
         self.stats_interval = args.kas_stats_interval
         self.save_dir = args.kas_server_save_dir
+        self.cache_dir = args.kas_send_cache_dir
         self.last_save_time = time.time()
         self.last_stats_time = time.time()
         self.start_time = time.time()
@@ -229,6 +231,21 @@ class Session:
         self.waiting.add(new_sample)
         self.time_buffer[new_sample] = time.time()
         return new_sample
+    
+    def path_to_file(self, path: str) -> str:
+        node = self.sampler.visit(Path.deserialize(path))
+        kernel = self.sampler.realize(self, node)
+        directory = kernel.get_directory()
+        working_dir = os.path.join(self.cache_dir, path)
+        file_name = os.path.join(working_dir, "kernel.tar.gz")
+        os.makedirs(working_dir, exist_ok=True)
+        if not os.path.exists(file_name):
+            with tarfile.open(file_name, "w:gz") as tar:
+                tar.add(directory, "kernel_dir")
+                for x in tar.getnames():
+                    logging.debug("added the files %s" % x)
+            assert os.path.exists(file_name)
+        return file_name
 
     def clean_timeout_samples(self) -> None:
         # Clean timeout samples

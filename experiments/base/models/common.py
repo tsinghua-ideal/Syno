@@ -65,8 +65,8 @@ class CommonModel(KASModel):
          return {
             'input_shape': '[N, C_in, H, W]',
             'output_shape': '[N, C_out, H, W]',
-            'primary_specs': ['N: 0', 'C_in: 2', 'C_out: 4', 'H: 2', 'W: 2'],
-            'coefficient_specs': ['k_1=3: 4', 's=2: 4', 'g=32: 8'],
+            'primary_specs': ['N: 0', 'C_in: 2', 'C_out: 4', 'H: 0', 'W: 1'],
+            'coefficient_specs': ['k_1=3: 3', 's=2: 2', 'g=32: 4'],
             'fixed_io_pairs': [(0, 0)],
         }
 

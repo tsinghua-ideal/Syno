@@ -3,8 +3,10 @@ import logging
 import random
 import requests
 import time
-import sys
+import os, sys, shutil
+import tarfile
 from KAS import Path
+from typing import List, Dict, Tuple, Union
 
 from base import log, models, parser, dataset, trainer, mem
 
@@ -17,12 +19,29 @@ class Handler:
         self.session = requests.Session()
         # Allow localhost
         self.session.trust_env = False
+        self.cache_dir = args.kas_client_cache_dir
 
-    def sample(self):
+    def sample(self) -> str:
         logging.info(f"Get: {self.addr}/sample")
         j = self.session.get(f"{self.addr}/sample", timeout=self.timeout).json()
         assert "path" in j
         return j["path"]
+    
+    def fetch(self, path: str) -> str:
+        logging.info(f"Fetch: {self.addr}/fetch/{path}")
+        response = self.session.get(f"{self.addr}/fetch/{path}", timeout=self.timeout)
+        file_name = os.path.join(self.cache_dir, "kernel.tar.gz")
+        folder_name = os.path.join(self.cache_dir, "kernel_dir")
+        if os.path.exists(file_name):
+            os.remove(file_name)
+        if os.path.exists(folder_name):
+            shutil.rmtree(folder_name)
+        with open(file_name, mode='wb') as f:               
+            f.write(response.content)
+        with tarfile.open(file_name, 'r') as tar:
+            tar.extractall()
+        assert os.path.exists(folder_name)
+        return folder_name
 
     def reward(self, path, accuracy, flops, params, kernel_dir):
         message = f"{self.addr}/reward?path={path}&accuracy={accuracy}&flops={flops}&params={params}&kernel_dir={kernel_dir}"
@@ -33,7 +52,7 @@ class Handler:
 def main():
 
     logging.info("Preparing model ...")
-    model, sampler = models.get_model(args, return_sampler=True)
+    model = models.get_model(args, return_sampler=False)
 
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
@@ -67,7 +86,14 @@ def main():
                 break
 
             logging.info(f"Got a new path: {path}")
-            node = sampler.visit(Path.deserialize(path))
+            
+            while True:
+                try:
+                    kernel_directory = client.fetch(path)
+                    logging.debug(f"Fetched {path} in {kernel_directory}. ")
+                    break
+                except Exception as e:
+                    logging.debug(f"Fetching {path} failed because of {e}. Retrying......")
 
             # Mock evaluate
             if args.kas_mock_evaluate:
@@ -84,15 +110,11 @@ def main():
             # Load and evaluate on a dataset
             try:
                 try:
-                    kernel_dir = model.load_kernel(
-                        sampler, node, compile=args.compile, batch_size=args.batch_size, seq_len=args.gpt_seq_len
-                    )
+                    kernel_dir = model.load_kernel(kernel_directory, compile=args.compile, batch_size=args.batch_size, seq_len=args.gpt_seq_len)
                 except Exception as e:
                     if args.compile:
                         logging.warning("torch compile error, falling back to non-compile version. ")
-                        kernel_dir = model.load_kernel(
-                            sampler, node, compile=False, batch_size=args.batch_size, seq_len=args.gpt_seq_len
-                        )
+                        kernel_dir = model.load_kernel(kernel_directory, compile=False, batch_size=args.batch_size, seq_len=args.gpt_seq_len)
                     else:
                         raise e
                 flops, params = model.profile(args.batch_size, seq_len=args.gpt_seq_len)

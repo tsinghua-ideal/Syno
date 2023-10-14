@@ -5,19 +5,20 @@ import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from base import log, parser, models, mem
-from search import get_session
+from search import get_session, Session
 
 
 class Handler(BaseHTTPRequestHandler):
-    def __init__(self, session, *args):
+    def __init__(self, session: Session, *args):
         self.session = session
         super().__init__(*args)
 
     def do_GET(self):
         remote_ip = self.client_address[0]
         logging.info(f"Incoming GET request {self.path} from {remote_ip} ...")
-        func_name = urllib.parse.urlparse(self.path).path.split("/")[1]
-        getattr(self, func_name)()
+        request = urllib.parse.urlparse(self.path).path.split("/")
+        func_name = request[1]
+        getattr(self, func_name)(*request[1:])
 
     def do_POST(self):
         remote_ip = self.client_address[0]
@@ -41,7 +42,28 @@ class Handler(BaseHTTPRequestHandler):
             logging.debug(
                 f"Encountered BrokenPipeError while processing {response['path']}"
             )
-            self.session.update(response["path"], -1.0, int(1e9), int(1e9))
+            self.session.update(response["path"], -1.0, int(1e9), int(1e9), "EMPTY")
+    
+    def fetch(self, path: str):
+        """
+        Fetch a record. 
+        """
+        file_directory = self.session.path_to_file(path)
+        try:
+            self.send_response(200)
+            self.send_header("Content-type", "application/octet-stream")
+            self.end_headers()
+            with open(file_directory, 'rb') as f:
+                while True:
+                    file_data = f.read(32768) # use an appropriate chunk size
+                    if file_data is None or len(file_data) == 0:
+                        break
+                    self.wfile.write(file_data) 
+        except BrokenPipeError:
+            logging.debug(
+                f"Encountered BrokenPipeError while processing {path}"
+            )
+        
 
     def reward(self):
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)

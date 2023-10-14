@@ -32,7 +32,7 @@ if __name__ == "__main__":
             if path:
                 node = sampler.visit(Path.deserialize(path)).to_node()
                 model.load_kernel(
-                    sampler, node, compile=args.compile, batch_size=args.batch_size
+                    node, sampler, compile=args.compile, batch_size=args.batch_size
                 )
         except Exception as e:
             if not "out of memory" in str(e):

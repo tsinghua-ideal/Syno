@@ -54,7 +54,7 @@ def train(
 
     try:
         model.load_kernel(
-            sampler, kernel, name=name, compile=args.compile, batch_size=args.batch_size
+            kernel, sampler, name=name, compile=args.compile, batch_size=args.batch_size
         )
         flops, params = model.profile(args.batch_size)
         logging.info(
