@@ -17,7 +17,7 @@ class KASModel(nn.Module):
         self.params = 0
     
     def load_kernel(self, node_or_dir: Union[KAS.Node, PathLike], sampler: Optional[KAS.Sampler]=None, name: str=None, compile=False, batch_size=1, seq_len=None) -> PathLike:
-        assert isinstance(node_or_dir, PathLike) or (isinstance(node_or_dir, KAS.Node) and sampler)
+        assert isinstance(node_or_dir, str) or (isinstance(node_or_dir, KAS.Node) and sampler)
         kernel = sampler.realize(self, node_or_dir, name) if isinstance(node_or_dir, KAS.Node) else KAS.KernelLoader.from_directory(node_or_dir)
         kernel_packs = kernel.construct_kernel_packs()
         placeholders = KAS.Sampler._extract_placeholders(self)
