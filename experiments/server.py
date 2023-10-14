@@ -18,7 +18,7 @@ class Handler(BaseHTTPRequestHandler):
         logging.info(f"Incoming GET request {self.path} from {remote_ip} ...")
         request = urllib.parse.urlparse(self.path).path.split("/")
         func_name = request[1]
-        getattr(self, func_name)(*request[1:])
+        getattr(self, func_name)(*request[2:])
 
     def do_POST(self):
         remote_ip = self.client_address[0]
@@ -90,11 +90,11 @@ class Handler(BaseHTTPRequestHandler):
 def main():
 
     # Sampler
-    _, sampler = models.get_model(args, return_sampler=True)
+    model, sampler = models.get_model(args, return_sampler=True)
 
     # Get search session
     logging.info("Starting search session ...")
-    session = get_session(sampler, args)
+    session = get_session(sampler, model, args)
 
     # Start server
     logging.info(

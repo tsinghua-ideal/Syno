@@ -20,6 +20,7 @@ class Handler:
         # Allow localhost
         self.session.trust_env = False
         self.cache_dir = args.kas_client_cache_dir
+        os.makedirs(self.cache_dir, exist_ok=True)
 
     def sample(self) -> str:
         logging.info(f"Get: {self.addr}/sample")
@@ -39,7 +40,7 @@ class Handler:
         with open(file_name, mode='wb') as f:               
             f.write(response.content)
         with tarfile.open(file_name, 'r') as tar:
-            tar.extractall()
+            tar.extractall(self.cache_dir)
         assert os.path.exists(folder_name)
         return folder_name
 
@@ -98,6 +99,7 @@ def main():
             # Mock evaluate
             if args.kas_mock_evaluate:
                 logging.info("Mock evaluating ...")
+                time.sleep(10)
                 client.reward(
                     path,
                     -1 if random.random() < 0.5 else random.random(),

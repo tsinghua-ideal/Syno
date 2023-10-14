@@ -15,10 +15,11 @@ from KAS.Statistics import Statistics
 class Session:
     # TODO: add interface for deserializing from file
 
-    def __init__(self, sampler: Sampler, algo, args):
+    def __init__(self, sampler: Sampler, model, algo, args):
         # Parameters
         self.args = args
         self.sampler = sampler
+        self.model = model
         self.reward_power: int = args.kas_reward_power
         self.reward_lower_bound: float = args.kas_acc_lower_bound
         self.reward_upper_bound: float = args.kas_acc_lower_bound
@@ -165,7 +166,7 @@ class Session:
                 )
             
             # copying kernel dir
-            if kernel_dir not in ["EMPTY", "MOCK"]: 
+            if kernel_dir not in ["EMPTY", "MOCKPATH"]: 
                 shutil.copytree(kernel_dir, os.path.join(kernel_save_dir, "kernel_scheduler_dir"))
 
         # Update with reward
@@ -234,16 +235,16 @@ class Session:
     
     def path_to_file(self, path: str) -> str:
         node = self.sampler.visit(Path.deserialize(path))
-        kernel = self.sampler.realize(self, node)
+        kernel = self.sampler.realize(self.model, node)
         directory = kernel.get_directory()
-        working_dir = os.path.join(self.cache_dir, path)
+        working_dir = os.path.join(self.cache_dir, os.path.basename(directory))
         file_name = os.path.join(working_dir, "kernel.tar.gz")
         os.makedirs(working_dir, exist_ok=True)
         if not os.path.exists(file_name):
             with tarfile.open(file_name, "w:gz") as tar:
                 tar.add(directory, "kernel_dir")
                 for x in tar.getnames():
-                    logging.debug("added the files %s" % x)
+                    logging.debug("added file %s" % x)
             assert os.path.exists(file_name)
         return file_name
 
