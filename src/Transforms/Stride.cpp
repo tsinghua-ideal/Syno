@@ -53,11 +53,9 @@ std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const 
     if (options.disallowStrideAboveMergeR) disallows.push_back(MergeR);
     auto plausible = ranges::to<std::vector<Dimension>>(interface.filterOut(std::move(disallows)));
 
-    Allowance allowance { options.totalOutputSize, options.ctx };
-
     std::vector<const StrideOp *> result;
     CountGenerateAttempts += interface.getDimensions().size();
-    for (Size stride: allowance.enumerateSizes(options.ctx)) {
+    for (Size stride: options.allowance.enumerateSizes()) {
         for (auto&& dim: plausible) {
             auto product = dim.size() * stride;
             // Disallow too large strides.

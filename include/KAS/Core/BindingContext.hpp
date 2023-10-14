@@ -43,6 +43,8 @@ struct PaddedConsts {
 };
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PaddedConsts, unpadded, padded)
 
+struct SizeLimitsUsage;
+
 class BindingContext {
 public:
     struct Options {
@@ -50,6 +52,7 @@ public:
         std::size_t maximumVariablesInSize = std::numeric_limits<std::size_t>::max();
         std::size_t maximumVariablesPowersInSize = std::numeric_limits<std::size_t>::max();
         bool requiresExactDivision = false;
+        void check() const;
     };
 
 private:
@@ -108,6 +111,10 @@ public:
     std::size_t getMaxEnumerationsPerVar() const;
     std::size_t getMaxVariablesInSize() const;
     std::size_t getMaxVariablesPowersInSize() const;
+    SizeLimitsUsage getUsageLimits() const;
+    bool isUsageWinthinLimits(const SizeLimitsUsage& usage) const;
+    bool isUsageWinthinLimits(const Size& size) const;
+    bool isSizeLegalToSample(const Size& size) const;
     bool isSizeValid(const Size& size) const;
 
     std::vector<Size> getSizes(const std::vector<std::string>& names) const;
@@ -128,6 +135,17 @@ public:
             return "NO_PUBLIC_CONTEXT";
         }
     }
+};
+
+struct SizeLimitsUsage {
+    std::size_t varsInSize = 0;
+    std::size_t varsPowersInSize = 0;
+    SizeLimitsUsage& operator+=(const SizeLimitsUsage& rhs);
+    SizeLimitsUsage operator+(const SizeLimitsUsage& rhs) const;
+    SizeLimitsUsage& operator-=(const SizeLimitsUsage& rhs);
+    SizeLimitsUsage operator-(const SizeLimitsUsage& rhs) const;
+    // Whether within limits.
+    bool operator<=(const SizeLimitsUsage& rhs) const;
 };
 
 } // namespace kas

@@ -32,6 +32,12 @@ std::string PaddedConsts::toString(const BindingContext& ctx) const {
     );
 }
 
+void BindingContext::Options::check() const {
+    KAS_ASSERT(maximumEnumerationsPerVar >= 1);
+    KAS_ASSERT(maximumVariablesInSize >= 1);
+    KAS_ASSERT(maximumVariablesPowersInSize >= 1);
+}
+
 void BindingContext::updateLookUpTables() {
     auto getLookUpTable = [](const std::vector<Metadata>& metadata) {
         std::map<std::string, std::size_t> lookupTable;
@@ -46,11 +52,12 @@ void BindingContext::updateLookUpTables() {
 
 Size BindingContext::getSizeFromFactors(const std::vector<Parser::Factor>& factors) const {
     Size result(getPrimaryCount(), getCoefficientCount());
+    auto primary = result.getPrimary(), coefficient = result.getCoefficient();
     for (const auto& [name, power]: factors) {
         if (auto it = primaryLookUpTable.find(name); it != primaryLookUpTable.end())
-            result.primary[it->second] += power;
+            primary[it->second] += power;
         else if (auto it = coefficientLookUpTable.find(name); it != coefficientLookUpTable.end())
-            result.coefficient[it->second] += power;
+            coefficient[it->second] += power;
         else
             KAS_CRITICAL("Unknown variable name: {}", name);
     }
@@ -93,6 +100,7 @@ BindingContext::BindingContext(const ShapeSpecParser::NamedSpecs& primarySpecs, 
     applySpecs(primarySpecs, coefficientSpecs);
     KAS_ASSERT(!allMappings.empty());
     applyMappings(allMappings);
+    options.check();
 }
 
 BindingContext::BindingContext(const std::vector<std::string>& primarySpecs, const std::vector<std::string>& coefficientSpecs) {
@@ -101,7 +109,6 @@ BindingContext::BindingContext(const std::vector<std::string>& primarySpecs, con
     applySpecs(contractedPrimarySpecs, contractedCoefficientSpecs);
     applyMappings({{}}, true);
 }
-
 
 BindingContext::BindingContext(const std::vector<std::size_t>& primaryEstimates, const std::vector<std::size_t>& coefficientEstimates) {
     ShapeSpecParser::NamedSpecs primarySpecs, coefficientSpecs;
@@ -144,14 +151,14 @@ std::string BindingContext::getCoefficientAlias(std::size_t index) const {
 Size BindingContext::getSinglePrimaryVariableSize(std::size_t index) const {
     KAS_ASSERT(index >= 0 && index < getPrimaryCount());
     auto res = Size(getPrimaryCount(), getCoefficientCount());
-    res.primary[index] = 1;
+    res.getPrimary()[index] = 1;
     return res;
 }
 
 Size BindingContext::getSingleCoefficientVariableSize(std::size_t index) const {
     KAS_ASSERT(index >= 0 && index < getCoefficientCount());
     auto res = Size(getPrimaryCount(), getCoefficientCount());
-    res.coefficient[index] = 1;
+    res.getCoefficient()[index] = 1;
     return res;
 }
 
@@ -170,27 +177,35 @@ std::size_t BindingContext::getMaxVariablesPowersInSize() const {
     return options.maximumVariablesPowersInSize;
 }
 
+SizeLimitsUsage BindingContext::getUsageLimits() const {
+    return { options.maximumVariablesInSize, options.maximumVariablesPowersInSize };
+}
+
+bool BindingContext::isUsageWinthinLimits(const SizeLimitsUsage& usage) const {
+    return usage.varsInSize <= options.maximumVariablesInSize && usage.varsPowersInSize <= options.maximumVariablesPowersInSize;
+}
+
+bool BindingContext::isUsageWinthinLimits(const Size& size) const {
+    return isUsageWinthinLimits(size.getLimitsUsage());
+}
+
+bool BindingContext::isSizeLegalToSample(const Size& size) const {
+    auto trait = size.getTrait();
+    return trait
+        && *trait != Size::Trait::IllegalCoefficient && *trait != Size::Trait::One
+        && size.lowerBoundEst(*this) >= static_cast<std::size_t>(1);
+}
+
 bool BindingContext::isSizeValid(const Size& size) const {
-    int usedPrimaryVars = 0, primaryVarsPowers = 0;
-    int usedCoefficientVars = 0, coefficientVarsPowers = 0;
-    for (auto p: size.getPrimary()) {
-        usedPrimaryVars += p != 0;
-        primaryVarsPowers += std::abs(p);
-    }
-    for (auto c: size.getCoefficient()) {
-        usedCoefficientVars += c != 0;
-        coefficientVarsPowers += std::abs(c);
-    }
+    const bool withinLimits = isUsageWinthinLimits(size);
+    if (!withinLimits) return false;
     const bool divides =
         !options.requiresExactDivision ||
         std::ranges::all_of(
             getAllConsts(),
             [&](const ConcreteConsts& consts) { return size.isInteger(consts); }
         );
-    return
-        divides &&
-        usedPrimaryVars + usedCoefficientVars <= options.maximumVariablesInSize &&
-        primaryVarsPowers + coefficientVarsPowers <= options.maximumVariablesPowersInSize;
+    return divides;
 }
 
 std::vector<Size> BindingContext::getSizes(const std::vector<std::string>& names) const {
@@ -248,6 +263,30 @@ ConcreteConsts BindingContext::realizeConsts(const std::map<std::string, std::si
         consts.coefficient.emplace_back(static_cast<int>(concrete));
     }
     return consts;
+}
+
+SizeLimitsUsage& SizeLimitsUsage::operator+=(const SizeLimitsUsage& rhs) {
+    varsInSize += rhs.varsInSize;
+    varsPowersInSize += rhs.varsPowersInSize;
+    return *this;
+}
+SizeLimitsUsage SizeLimitsUsage::operator+(const SizeLimitsUsage& rhs) const {
+    auto result = *this;
+    result += rhs;
+    return result;
+}
+SizeLimitsUsage& SizeLimitsUsage::operator-=(const SizeLimitsUsage& rhs) {
+    varsInSize -= rhs.varsInSize;
+    varsPowersInSize -= rhs.varsPowersInSize;
+    return *this;
+}
+SizeLimitsUsage SizeLimitsUsage::operator-(const SizeLimitsUsage& rhs) const {
+    auto result = *this;
+    result -= rhs;
+    return result;
+}
+bool SizeLimitsUsage::operator<=(const SizeLimitsUsage& rhs) const {
+    return varsInSize <= rhs.varsInSize && varsPowersInSize <= rhs.varsPowersInSize;
 }
 
 } // namespace kas

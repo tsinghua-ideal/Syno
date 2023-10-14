@@ -342,7 +342,7 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx) {
                 // More stages enable schedulers to do more optimizations.
                 current = std::move(result);
             } else if (currentStages == resultStages) {
-                // TODO!!! Tie breaker.
+                // TODO: Tie breaker.
                 ++CountEqualFLOPs;
                 // KAS_WARNING("Equal FLOPs {} and stages {} for two contraction schemes!", optimal, currentStages);
             }
@@ -501,7 +501,7 @@ void IRBuilder::rfactor(IR& ir, const BindingContext& ctx) const {
     ir.topBottomForEach([&](Tensor& tensor) {
         if (!tensor.hasReduction()) return;
         auto solver = RFactorSolver(tensor, graph, ctx);
-        // TODO!!! Add overflow.
+        // TODO: Add overflow.
         auto optimal = solver.optimalRFactorScheme();
         if (!optimal.has_value()) {
             KAS_WARNING("RFactor failed for {}! reductions = [{}]", tensor.toString(ctx), fmt::join(tensor.reductions() | std::views::transform([&ctx](const Reduce *reduction) { return reduction->getBase().getDomain().toString(ctx); }), ", "));
