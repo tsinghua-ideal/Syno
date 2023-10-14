@@ -17,7 +17,7 @@ def get_gpt_optimizer(model: nn.Module, args):
             fpn = '%s.%s' % (mn, pn) if mn else pn
             if pn.endswith("bias"):
                 no_decay.add(fpn)
-            elif (pn.endswith("weight") and isinstance(m, whitelist_weight_modules)) or ("kernel.weights" in pn):
+            elif (pn.endswith("weight") and isinstance(m, whitelist_weight_modules)) or ("kernel" in pn and "weights" in pn):
                 decay.add(fpn)
             elif pn.endswith("weight") and isinstance(m, blacklist_weight_modules):
                 no_decay.add(fpn)

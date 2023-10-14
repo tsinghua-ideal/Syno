@@ -42,7 +42,7 @@ class MCTSAlgorithm:
         self.sample_num = 0
         self.time_stamp = time.time()
 
-        self.preconditioned = False
+        self.preconditioned = "gpt" in args.model
 
     def serialize(self):
         return self.mcts.serialize()

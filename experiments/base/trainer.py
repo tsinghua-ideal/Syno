@@ -112,7 +112,7 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
     num_iters = 0
     model.train()
     data_iterator = iter(train_dataloader)
-    metrics = {'loss': []}
+    losses = []
     start_time = time.time()
     last_time = time.time()
     while True:
@@ -128,7 +128,7 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
         if time.time() - last_time > args.gpt_log_interval:
             last_time = time.time()
             value = loss.item()
-            metrics['loss'].append((time.time(), value))
+            losses.append((time.time(), value))
             logging.info(f"Train loss: {value}")
 
         model.zero_grad(set_to_none=True)
@@ -144,4 +144,4 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
             logging.info(f"Reaching max time limit {args.gpt_max_minutes} mins, break")
             break
     
-    return metrics
+    return losses

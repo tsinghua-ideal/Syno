@@ -1,0 +1,12 @@
+./run_tmux.sh 1 torch \
+--kas-server-save-dir results/gpt-session-v20231015 \
+--kas-search-algo MCTS \
+--model gpt/gpt2 --batch-size 1 \
+--lr 3e-4 --weight-decay 0.1 --grad-norm-clip 1.0 \
+--dataset lm1b \
+--compile \
+--gpt-seq-len 2048 --gpt-tokenizer gpt2-large --gpt-max-iters 0 --gpt-max-minutes 1 \
+--kas-sampler-workers 64 --kas-num-virtual-evaluator 8 --kas-reward-power 4 \
+--kas-server-save-interval 1800 \
+--kas-server-port 7070 \
+--kas-max-flops-ratio 1.2
