@@ -28,11 +28,7 @@ concept SizeRange =
     std::convertible_to<std::ranges::range_value_t<R>, Size>;
 
 struct Size {
-    friend class BindingContext;
-    friend struct LabeledSize;
     friend class PaddingSolver;
-    friend class HalideGen;
-
 public:
     constexpr static std::size_t MAX_VARIABLES = 8;
     using PowerType = std::int8_t;
@@ -45,12 +41,23 @@ public:
     };
 
 private:
-    const std::size_t primaryCount;
-    const std::size_t coefficientCount;
+    // Use the first half to store primaryCount, and the second half to store coefficientCount.
+    using VariableCountType = std::uint8_t;
+    static_assert(std::is_unsigned_v<VariableCountType>);
+    static constexpr int HalfVariableCountType = std::numeric_limits<VariableCountType>::digits / 2;
+    static constexpr VariableCountType LowerVariableCountTypeMask = (1 << HalfVariableCountType) - 1;
+    const VariableCountType varCount;
+    static VariableCountType ToVariableCountType(std::size_t primaryCount, std::size_t coefficientCount) {
+        KAS_ASSERT(primaryCount <= MAX_VARIABLES && coefficientCount <= MAX_VARIABLES);
+        return static_cast<VariableCountType>((primaryCount << HalfVariableCountType) | coefficientCount);
+    }
     // Powers of large variables. Must be non-negative.
     ExprType primary;
     // Powers of small variables. Can be negative (when in denominator).
     ExprType coefficient;
+
+    std::size_t getPrimaryCount() const { return varCount >> HalfVariableCountType; }
+    std::size_t getCoefficientCount() const { return varCount & LowerVariableCountTypeMask; }
 
     template<std::integral ValueType, typename Consts>
     static boost::rational<ValueType> EvalFraction(std::size_t cnt, Consts&& consts, const Size::ExprType& powers) {
@@ -75,11 +82,16 @@ private:
     };
 
 public:
-    Size(std::size_t primaryCount, std::size_t coefficientCount);
+    Size(std::size_t primaryCount, std::size_t coefficientCount):
+        varCount { ToVariableCountType(primaryCount, coefficientCount) },
+        primary {},
+        coefficient {}
+    {
+        KAS_ASSERT(primaryCount <= MAX_VARIABLES && coefficientCount <= MAX_VARIABLES);
+    }
     template<typename Tp, typename Tc>
     Size(std::size_t primaryCount, std::size_t coefficientCount, Tp&& primary, Tc&& coefficient):
-        primaryCount { primaryCount },
-        coefficientCount { coefficientCount },
+        varCount { ToVariableCountType(primaryCount, coefficientCount) },
         primary { std::forward<Tp>(primary) },
         coefficient { std::forward<Tc>(coefficient) }
     {
@@ -93,8 +105,8 @@ public:
 
     template<std::integral ValueType, typename Tp, typename Tc>
     boost::rational<ValueType> evalFraction(Tp&& p, Tc&& c) const {
-        auto fractionP = EvalFraction<ValueType>(primaryCount, std::forward<Tp>(p), primary);
-        auto fractionC = EvalFraction<ValueType>(coefficientCount, std::forward<Tc>(c), coefficient);
+        auto fractionP = EvalFraction<ValueType>(getPrimaryCount(), std::forward<Tp>(p), primary);
+        auto fractionC = EvalFraction<ValueType>(getCoefficientCount(), std::forward<Tc>(c), coefficient);
         return fractionP * fractionC;
     };
     template<std::integral ValueType>
@@ -127,8 +139,10 @@ public:
     bool isLegalCoefficient() const;
     bool isGeneral() const;
 
-    int getPrimaryPowersSum() const;
+    static SizeLimitsUsage GetLimitsUsage(std::span<const PowerType> powers);
+    SizeLimitsUsage getLimitsUsage() const;
 
+    Size& operator*=(const Size& other);
     // The product of two Size's
     Size operator*(const Size& other) const;
     // The product of multiple Size's
@@ -139,12 +153,12 @@ public:
         auto newSize = Size(*oi);
         auto& newPrimary = newSize.primary;
         auto& newCoefficient = newSize.coefficient;
-        const auto primaryCount = newSize.primaryCount;
-        const auto coefficientCount = newSize.coefficientCount;
+        const std::size_t primaryCount = newSize.getPrimaryCount();
+        const std::size_t coefficientCount = newSize.getCoefficientCount();
         ++oi;
         while (oi != std::ranges::end(operands)) {
             const auto& operand = *oi;
-            KAS_ASSERT(primaryCount == operand.primaryCount && coefficientCount == operand.coefficientCount);
+            KAS_ASSERT(primaryCount == operand.getPrimaryCount() && coefficientCount == operand.getCoefficientCount());
             for (std::size_t i = 0; i < primaryCount; ++i) {
                 newPrimary[i] += operand.primary[i];
             }
@@ -164,10 +178,48 @@ public:
     std::optional<Trait> canBeDividedBy(const Size& other) const;
     bool quotientIsLegal(const Size& other) const;
 
-    // Return divisors of this Size. Guarantee that for all consts, the divisor is realizable, and not equal to 1 or this.
-    Generator<Size> sampleDivisors(const BindingContext& ctx) const;
+    Size sqrt() const;
 
-    // Excludes 1, including lowerBound and upperBound.
+    Size primaryPart() const;
+    Size coefficientPart() const;
+    Size getAllowanceUsage() const;
+
+    struct EnumerationOptions {
+        std::vector<std::size_t> basesIndices;
+        ExprType lowerBound;
+        ExprType upperBound;
+        SizeLimitsUsage limits;
+        // Compute baseIndices.
+        EnumerationOptions(const ExprType& lowerBound, const ExprType& upperBound, const SizeLimitsUsage& limits);
+        // Get the starting point, i.e., the lower bound.
+        ExprType begin() const;
+        // Checks if the given powers are within maxVarsInSize and maxVarsPowersInSize.
+        bool isValid(const ExprType& powers) const;
+    };
+    // We frequently need to sample Sizes.
+    // We would like to enumerate all the possible sizes, in a fashion similar to the way we increment binary numbers.
+    // For example, there are 5 variables in total. We would like to enumerate only certain variables, then a possible combination is
+    // basesIndices = { 1, 2, 4 }
+    // lowerBound = { 0, 0, 0, 0, 0 }
+    // upperBound = { 0, 1, 2, 0, 1 }
+    // We would like to enumerate
+    // 0, 0, 0, 0, 0
+    // 0, 1, 0, 0, 0
+    // 0, 0, 1, 0, 0
+    // 0, 1, 1, 0, 0
+    // 0, 0, 2, 0, 0
+    // 0, 1, 2, 0, 0
+    // 0, 0, 0, 0, 1
+    // 0, 1, 0, 0, 1
+    // 0, 0, 1, 0, 1
+    // 0, 1, 1, 0, 1
+    // 0, 0, 2, 0, 1
+    // 0, 1, 2, 0, 1
+    // which can be done by recursion.
+    // Moreover, the results are contrained by maxVarsInSize and maxVarsPowersInSize.
+    // If and only if this is successful, i.e., we have not reached upperBound, return true.
+    static bool EnumerateNext(ExprType& powers, const EnumerationOptions& options);
+    // Excluding 1, including lowerBound and upperBound.
     static Generator<Size> EnumerateSizes(const BindingContext& ctx, Size lowerBound, Size upperBound);
 
     bool operator==(const Size& other) const;
@@ -238,33 +290,18 @@ public:
     ConcreteConsts solve(const Size& inputSize, const Size& outputSize);
 };
 
-struct LabeledSize: public Size {
-    Trait trait;
-
-public:
-    LabeledSize(std::size_t primaryCount, std::size_t coefficientCount);
-    LabeledSize(const Size& size);
-
-    LabeledSize identity() const;
-
-    bool is1() const;
-    bool isLegalCoefficient() const;
-    bool isIllegalCoefficient() const;
-    bool isIndeterminedCoefficient() const;
-    bool isGeneral() const;
-
-    bool testDividedBy(const Size& other);
-    LabeledSize& operator*=(const LabeledSize& other);
-    LabeledSize operator*(const LabeledSize& other) const;
-};
-
 struct Allowance {
-    Size::ExprType primary;
-    Size::ExprType coefficientLower;
-    Size::ExprType coefficientUpper;
-    Allowance(const Size& shape, const BindingContext& ctx);
-    bool withinAllowance(const Size& size) const;
-    Generator<Size> enumerateSizes(const BindingContext& ctx) const;
+    const BindingContext& ctx;
+    bool countSharedCoefficientsAsAllowanceUsage;
+    Size::ExprType primaryAllowance;
+    Size::ExprType coefficientAllowance;
+    Allowance(const BindingContext& ctx, const Size& currentUsage, bool countSharedCoefficientsAsAllowanceUsage);
+    // Counts primary vars, and optionally coefficient vars.
+    bool shareWithinAllowance(const Size& size) const;
+    // Excludes 1.
+    Generator<Size> enumerateSizes() const;
+    // Return divisors of this Size. Guarantee that for all consts, the divisor and the quotient are realizable, and not equal to 1 or this.
+    Generator<Size> enumerateDivisors(Size size) const;
 };
 
 } // namespace kas

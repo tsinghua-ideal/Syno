@@ -25,7 +25,7 @@
 - [x] Generate object files, instead of static libraries. Then dynamically link the kernels instead of compiling C++ wrappers again and again.
 - [x] Add auto scheduler options to reduce tuning time.
 - [x] Add padding by padding variables that cannot be divided by their denominators.
-- [ ] Optimization: Early reduction to reduce FLOPs.
+- [x] Optimization: Early reduction to reduce FLOPs.
 - [x] Early reduction analysis is actually compulsory. Otherwise in autodiff settings, the RDom may be left unmentioned, causing Halide compile errors!
 - [x] Sum -> Avg.
 - [ ] Perform a trial to see if there are uncanonical case. (1 on weight)
@@ -35,7 +35,7 @@
 - [x] Add nested loops codegen for expression.
 - [x] Generate metadata along with kernels.
 - [x] Adjust the order of dimensions in weights for better cache locality.
-- [ ] TVM codegen.
+- [x] TVM codegen.
 - [x] PyTorch codegen.
 - [ ] Make padding algorithm primary-coefficient-ignorant.
 
@@ -63,7 +63,7 @@
 - [x] Redesign generation algorithm for each Op.
 - [x] Accept FLOPs constraints in Sampler, and generate ReduceOp's accordingly.
 - [x] If ShapeComplexity finds the stage is in critical state, do not generate unnecessary Op's.
-- [ ] Make `Allowance` depend on global invariant.
+- [x] Make `Allowance` depend on global invariant.
 
 ### Pruning
 
@@ -80,7 +80,7 @@
 
 ### Bindings
 
-- [ ] Enable Explorer to visit a path.
+- [x] Enable Explorer to visit a path.
 - [ ] Make Explorer more command line friendly.
 - [ ] Enable Explorer to print a tree.
 - [x] Report dead ends to Python.

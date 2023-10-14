@@ -47,6 +47,7 @@ struct SampleOptions {
     std::size_t maximumVariablesPowersInSize = std::numeric_limits<std::size_t>::max();
     bool requiresExactDivision = true;
     bool requiresOddKernelSizeInUnfold = true;
+    bool countCoefficientsInWeightsAsAllowanceUsage = false;
 
     std::string expressionOneTensor = "in_0";
     std::string expressionTwoTensors = "in_0 * in_1";

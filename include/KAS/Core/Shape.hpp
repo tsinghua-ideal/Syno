@@ -66,6 +66,12 @@ public:
         return Size::Product(*this);
     }
 
+    Size getAllowanceUsage() const {
+        return Size::Product(*this | std::views::transform([](const Size& size) {
+            return size.getAllowanceUsage();
+        }));
+    }
+
     template<typename ValueType>
     std::vector<ValueType> eval(const ConcreteConsts& consts) const {
         std::vector<ValueType> result;

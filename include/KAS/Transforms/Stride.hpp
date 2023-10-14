@@ -39,7 +39,7 @@ public:
 
     struct GenerateOptions {
         const BindingContext& ctx;
-        Size totalOutputSize;
+        const Allowance& allowance;
         // stride * outputDim.size() == inputDim.size() <= maxStridedDimSize. This should correspond to UnfoldOp::GenerateOptions::maxUnfoldKernelSize.
         std::size_t maxStridedDimSize = 30;
         bool disallowStrideAboveSplit;

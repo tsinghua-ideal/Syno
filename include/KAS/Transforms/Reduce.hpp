@@ -48,6 +48,7 @@ public:
 
     struct GenerateOptions {
         const BindingContext& ctx;
+        const Allowance& allowance;
         std::size_t dimUpperBound;
         Size outputSize;
         Size maxRDomSizeBase;

@@ -30,6 +30,7 @@ protected:
 public:
     MergeOp(const Dimension& output, const Size& block);
     const Size& getBlock() const { return minorSize; }
+    const Size& getGroup() const { return majorSize; }
     constexpr DimensionType getType() const noexcept override { return Type; }
     std::size_t initialHash() const noexcept override;
     void accept(OpVisitor& visitor) const override { visitor.visit(*this); }
@@ -43,6 +44,7 @@ public:
 
     struct GenerateOptions {
         const BindingContext& ctx;
+        const Allowance& allowance;
         bool disallowMergeWithLargeBlockAboveStride;
         // This canonicalization deviates a lot from original semantics. Enable with caution!
         bool disallowMergeWithLargeBlockAboveUnfold;

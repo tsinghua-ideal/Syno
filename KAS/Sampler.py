@@ -73,6 +73,7 @@ class Sampler:
         maximum_variables_powers_in_size: int = 16,
         requires_exact_division: bool = True,
         requires_odd_kernel_size_in_unfold: bool = True,
+        count_coefficients_in_weights_as_allowance_usage: bool = False,
         expression_one_tensor: str = "in_0",
         expression_two_tensors: str = "in_0 * in_1",
         expression_three_tensors: str = "in_0 * in_1 * in_2",
@@ -157,6 +158,8 @@ class Sampler:
         requires_odd_kernel_size_in_unfold : bool, optional
             Whether to require odd kernel size in UnfoldOp. For example, `Unfold H -> H, s` where `H=5`, `s=2` is not allowed if this is set to `True`.
             Note that this option must be enabled only if `requires_exact_division` is enabled. This is becase, well, you have to make sure a fraction is an integer before deciding whether it is odd or not.
+        count_coefficients_in_weights_as_allowance_usage : bool, optional
+            Primary variables in Share consume maxOccurrences. But whether coefficient variables are needed to be counted as well can be controlled.
         expression_one_tensor : bool, optional
             The blending operation that blends the input tensors. The ith input tensor is denoted by the identifier `in_i`. Allowed operations are `+`, `*` and `(`, `)`.
             In the case of 1 tensor, this can only be `in_0`.
@@ -250,6 +253,7 @@ class Sampler:
             maximum_variables_powers_in_size=maximum_variables_powers_in_size,
             requires_exact_division=requires_exact_division,
             requires_odd_kernel_size_in_unfold=requires_odd_kernel_size_in_unfold,
+            count_coefficients_in_weights_as_allowance_usage=count_coefficients_in_weights_as_allowance_usage,
             expression_one_tensor=expression_one_tensor,
             expression_two_tensors=expression_two_tensors,
             expression_three_tensors=expression_three_tensors,
