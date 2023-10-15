@@ -6,9 +6,7 @@ from functools import partial
 from typing import List, Union, Optional, Dict, Tuple, DefaultDict, Generator
 from time import time
 
-from KAS.Node import Path, Node, AbsolutePath
-from KAS.Sampler import Sampler
-from KAS.Bindings import Next, Arc
+from KAS import Path, Node, AbsolutePath, Sampler, Next, Arc
 
 from .avg_meter import AverageMeter
 

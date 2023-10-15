@@ -7,10 +7,7 @@ from collections import defaultdict
 from typing import List, Tuple, Optional, DefaultDict, Set, Union, Dict
 from tqdm import tqdm
 
-from KAS.Node import Node, Path
-from KAS.Sampler import Sampler
-from KAS.Bindings import Next, Arc
-from KAS.Utils import NextSerializer
+from KAS import Node, Path, Sampler, Next, Arc, NextSerializer
 
 from .node import TreeNode, TreePath, PseudoTreeNext, PseudoArc
 from .avg_meter import AverageMeter

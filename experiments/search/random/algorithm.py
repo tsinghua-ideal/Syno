@@ -1,4 +1,4 @@
-from KAS.Node import VisitedNode, Path
+from KAS import VisitedNode, Path
 
 
 class RandomAlgorithm:

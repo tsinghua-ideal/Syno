@@ -31,8 +31,9 @@ if __name__ == "__main__":
             model, sampler = models.get_model(args, return_sampler=True)
             if path:
                 node = sampler.visit(Path.deserialize(path)).to_node()
+                kernel_loader = sampler.realize(model, node)
                 model.load_kernel(
-                    node, sampler, compile=args.compile, batch_size=args.batch_size
+                    kernel_loader, compile=args.compile, batch_size=args.batch_size, seq_len=args.gpt_seq_len,
                 )
         except Exception as e:
             if not "out of memory" in str(e):

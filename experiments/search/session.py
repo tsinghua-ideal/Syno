@@ -7,9 +7,7 @@ import threading
 import queue
 import traceback
 import tarfile
-from KAS import KernelLoader, Sampler
-from KAS.Node import Path, Node
-from KAS.Statistics import Statistics
+from KAS import KernelLoader, Node, Path, Sampler, Statistics
 
 
 class Session:

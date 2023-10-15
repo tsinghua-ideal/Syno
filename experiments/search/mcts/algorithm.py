@@ -2,7 +2,7 @@ import time
 import math
 import logging
 from typing import Dict, List, Tuple, Optional
-from KAS.Node import Path, Node
+from KAS import Path, Node
 
 from .tree import MCTSTree
 from .node import TreePath, TreeNode

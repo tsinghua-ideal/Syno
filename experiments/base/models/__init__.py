@@ -4,8 +4,7 @@ import os, sys
 import torch
 from typing import Tuple, Optional, Union
 from transformers import GPT2Tokenizer
-from KAS import Sampler, Path
-from KAS.Bindings import CodeGenOptions
+from KAS import Sampler, Path, CodeGenOptions
 from KAS.Placeholder import build_placeholder_mappings, remove_unsatisfied_placeholders
 
 from . import placeholder
@@ -128,7 +127,8 @@ def get_model(
     if args.kas_replace_placeholder is not None:
         logging.info(f"Replacing kernel with {args.kas_replace_placeholder} ...")
         cls_name = args.kas_replace_placeholder.capitalize() + "Placeholder"
-        assembled = getattr(placeholder, cls_name).impl(sampler.create_assembler())
+        assembler = sampler.create_assembler()
+        assembled = getattr(placeholder, cls_name).impl(assembler)
         logging.debug(f"Assembled path: {assembled.convert_to_path(sampler)}")
         logging.debug(f"Assembled path (serialized): {Path(assembled.convert_to_path(sampler)).serialize()}")
         if sampler.visit(assembled.convert_to_path(sampler)) is None:
@@ -138,10 +138,9 @@ def get_model(
                 if sampler.visit(subpath) is None:
                     logging.warning(f"Subpath {subpath} is not valid")
                     break
+        kernel_loader = sampler.realize(model, assembled, args.kas_replace_placeholder)
         model.load_kernel(
-            assembled,
-            sampler,
-            args.kas_replace_placeholder,
+            kernel_loader,
             compile=args.compile,
             batch_size=args.batch_size,
             seq_len=args.gpt_seq_len

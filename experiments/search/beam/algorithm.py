@@ -1,8 +1,7 @@
 import logging
 import random
 from typing import List, Tuple, Dict
-from KAS.Sampler import Sampler
-from KAS.Node import Path
+from KAS import Path, Sampler
 
 
 class BeamAlgorithm:

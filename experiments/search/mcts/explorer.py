@@ -5,9 +5,7 @@ import math
 from tqdm import tqdm
 from time import time
 from typing import List, Callable
-from KAS.Bindings import Next
-from KAS.Node import Node
-from KAS.Utils import NextSerializer
+from KAS import Next, NextSerializer, Node
 
 from .node import TreePath
 from .tree import MCTSTree

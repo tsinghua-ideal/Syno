@@ -5,7 +5,7 @@ import requests
 import time
 import os, sys, shutil
 import tarfile
-from KAS import Path
+from KAS import Path, KernelLoader
 from typing import List, Dict, Tuple, Union
 
 from base import log, models, parser, dataset, trainer, mem
@@ -111,12 +111,13 @@ def main():
 
             # Load and evaluate on a dataset
             try:
+                kernel_loader = KernelLoader.from_directory(kernel_directory)
                 try:
-                    kernel_dir = model.load_kernel(kernel_directory, compile=args.compile, batch_size=args.batch_size, seq_len=args.gpt_seq_len)
+                    kernel_dir = model.load_kernel(kernel_loader, compile=args.compile, batch_size=args.batch_size, seq_len=args.gpt_seq_len)
                 except Exception as e:
                     if args.compile:
                         logging.warning("torch compile error, falling back to non-compile version. ")
-                        kernel_dir = model.load_kernel(kernel_directory, compile=False, batch_size=args.batch_size, seq_len=args.gpt_seq_len)
+                        kernel_dir = model.load_kernel(kernel_loader, compile=False, batch_size=args.batch_size, seq_len=args.gpt_seq_len)
                     else:
                         raise e
                 flops, params = model.profile(args.batch_size, seq_len=args.gpt_seq_len)

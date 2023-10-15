@@ -5,18 +5,18 @@ Not finished test.
 import os, sys, json
 import logging
 from argparse import Namespace
+from typing import List
+from KAS import Path, Sampler
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
 from base import log, parser, dataset, models, trainer
 
-from KAS import Path
-
 
 def train(
     args: Namespace,
-    model,
-    sampler,
+    model: models.KASModel,
+    sampler: Sampler,
     name: str,
     train_dataloader: dataset.FuncDataloader,
     val_dataloader: dataset.FuncDataloader,
@@ -52,9 +52,10 @@ def train(
 
     result = {"path": str(path), "Inspace": Inspace}
 
+    kernel_loader = sampler.realize(model, kernel, name)
     try:
         model.load_kernel(
-            kernel, sampler, name=name, compile=args.compile, batch_size=args.batch_size
+            kernel_loader, compile=args.compile, batch_size=args.batch_size, seq_len=args.gpt_seq_len,
         )
         flops, params = model.profile(args.batch_size)
         logging.info(
@@ -79,7 +80,7 @@ def train(
     return result
 
 
-def test_semantic_conv2d(test_kernels, test_run) -> None:
+def test_semantic_conv2d(test_kernels: List[str], test_run: bool) -> None:
     args = parser.arg_parse()
 
     logging.info("Loading dataset ...")
