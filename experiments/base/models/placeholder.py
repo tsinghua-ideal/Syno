@@ -14,24 +14,24 @@ class LinearPlaceholder(Placeholder):
 
     @staticmethod
     def impl(assembler):
-        N, seq_len, C_in, C_out = assembler.get_sizes('N', 'seq_len', 'C_in', 'C_out')
-        in_N, in_seq_len, in_C, w_in_C, w_out_C = assembler.make_dims_of_sizes(N, seq_len, C_in, C_in, C_out)
+        N, seq_len, H_in, H_out = assembler.get_sizes('N', 'seq_len', 'H_in', 's^2*H_in')
+        in_N, in_seq_len, in_H_in, w_H_in, w_H_out = assembler.make_dims_of_sizes(N, seq_len, H_in, H_in, H_out)
         
-        shared_C_in = assembler.create_share(in_C, w_in_C)
+        shared_H_in = assembler.create_share(in_H_in, w_H_in)
 
         in_N.output(0)
         in_seq_len.output(1)
-        w_out_C.output(2)
-        shared_C_in.sum()
+        w_H_out.output(2)
+        shared_H_in.sum()
 
-        return assembler.assemble('linear', 'in_0 * in_1', [in_N, in_seq_len, in_C], [w_in_C, w_out_C])
+        return assembler.assemble('linear', 'in_0 * in_1', [in_N, in_seq_len, in_H_in], [w_H_in, w_H_out])
 
     @staticmethod
     def mapping(in_size, out_size):
         n, seq_len, in_features = in_size
         n2, seq_len2, out_features = out_size
         assert n == n2 and seq_len == seq_len2
-        return {'N': n, 'seq_len': seq_len, 'C_in': in_features, 'C_out': out_features}
+        return {'N': n, 'seq_len': seq_len, 'H_in': in_features}
 
 
 class ConvPlaceholder(Placeholder):

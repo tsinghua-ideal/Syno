@@ -160,10 +160,10 @@ class GPT(KASModel):
 
     def sampler_parameters(self, args=None):
          return {
-            'input_shape': '[N, seq_len, C_in]',
-            'output_shape': '[N, seq_len, C_out]',
-            'primary_specs': ['N: 0', 'seq_len: 2', 'C_in: 2', 'C_out: 2'],
-            'coefficient_specs': ['k_1=3: 4', 's=2: 4', 'g=32: 8'],
+            'input_shape': '[N, seq_len, H_in]',
+            'output_shape': '[N, seq_len, s^2*H_in]',
+            'primary_specs': ['N: 0', 'seq_len: 2', 'H_in: 4'],
+            'coefficient_specs': ['k_1=3: 2', 'k_2=5: 2', 's=2: 3', 'g=32: 3'],
             'fixed_io_pairs': [(0, 0)],
         }
 
