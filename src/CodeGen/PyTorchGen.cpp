@@ -705,7 +705,7 @@ void PyTorchGen::generateSingle(const std::filesystem::path& outputPath, std::st
     std::ofstream file { outputPath };
     PaddedConsts consts;
     consts.unpadded = ctx.realizeConsts(mappings);
-    consts.padded = tensorView.computePadding(ctx, consts.unpadded);
+    consts.padded = tensorView.computePadding(ctx, graph, consts.unpadded);
     generatePrelude(file);
     generate(file, className, tensorView.getForwardAccess(), consts);
 }

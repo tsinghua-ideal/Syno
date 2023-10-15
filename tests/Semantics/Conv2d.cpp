@@ -89,8 +89,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     auto pytorchGen = PyTorchGen { ctx, tensorView };
     {
         std::ofstream file(fmt::format("./kernel_{0}/{0}.py", funcName));
-        pytorchGen.generatePrelude(file);
-        pytorchGen.generate(file, funcName, tensorView.getForwardAccess(), tensorView.computeConsts(ctx, mappings));
+        pytorchGen.generateSingle(fmt::format("./kernel_{0}/{0}.py", funcName), funcName, tensorView, mappings);
     }
     auto in_0 = new float[n][c_in][h][w]();
     auto in_1 = new float[c_out][c_in][k][k]();

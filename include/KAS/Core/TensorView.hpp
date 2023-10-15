@@ -125,10 +125,10 @@ public:
     const std::vector<const Reduce *>& getManipulations() const { return manipulations; }
 
     // Note that sometimes we need padding to make things work. Here we need to guarantee that all dimensions in the Graph are valid, so instead of padding tensors, we pad variables.
-    ConcreteConsts computePadding(const BindingContext& ctx, const ConcreteConsts& consts) const;
-    PaddedConsts computeConsts(const BindingContext& ctx, const std::map<std::string, std::size_t>& mappings) const {
+    ConcreteConsts computePadding(const BindingContext& ctx, const Graph& graph, const ConcreteConsts& consts) const;
+    PaddedConsts computeConsts(const BindingContext& ctx, const Graph& graph, const std::map<std::string, std::size_t>& mappings) const {
         auto unpaddedConsts = ctx.realizeConsts(mappings);
-        auto paddedConsts = computePadding(ctx, unpaddedConsts);
+        auto paddedConsts = computePadding(ctx, graph, unpaddedConsts);
         return { std::move(unpaddedConsts), std::move(paddedConsts) };
     }
 

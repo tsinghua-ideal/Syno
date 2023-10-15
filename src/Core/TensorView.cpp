@@ -107,36 +107,12 @@ std::string AbstractAccess::targetEntryToString() const {
     }
 }
 
-ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const ConcreteConsts& consts) const {
+ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const Graph& graph, const ConcreteConsts& consts) const {
     PaddingSolver sol { ctx, consts };
     // Find all merges.
-    struct visitor: public DimVisitor {
-        PaddingSolver& sol;
-        std::set<Dimension, Dimension::AddressLessThan> visited;
-        visitor(PaddingSolver& sol): sol(sol) {}
-        void visit(const RepeatLikeOp::Input& dim) override {
-            auto [_, inserted] = visited.insert(&dim);
-            if (inserted) dim.getOp()->output.accept(*this);
-        }
-        void visit(const SplitLikeOp::Input& dim) override {
-            auto [_, inserted] = visited.insert(&dim);
-            if (inserted) {
-                dim.getOp()->outputLhs.accept(*this);
-                dim.getOp()->outputRhs.accept(*this);
-            }
-        }
-        void visit(const MergeLikeOp::Input& dim) override {
-            auto [_, inserted] = visited.insert(&dim);
-            if (inserted) {
-                sol.addConstraint(dim.size());
-                dim.getOp()->output.accept(*this);
-            }
-        }
-        using DimVisitor::visit;
-    };
-    visitor v { sol };
-    for (const Dimension& dim: getUnderlyingTensors() | std::views::transform(&PureTensor::getDims) | std::views::join) {
-        dim.accept(v);
+    for (const MergeLikeOp *op: graph.getOpsOfType<MergeLikeOp>(DimensionType::Merge)) {
+        sol.addConstraint(op->getInputL().size());
+        sol.addConstraint(op->getInputR().size());
     }
     for (auto it: interface) {
         sol.addConstraint(it->size());
@@ -144,7 +120,7 @@ ConcreteConsts TensorView::computePadding(const BindingContext& ctx, const Concr
     for (auto it: manipulations) {
         sol.addConstraint(it->size());
     }
-    return sol.solve(Size::Product(getUnderlyingTensors() | std::views::transform(&PureTensor::getDims) | std::views::join | std::views::transform(&Dimension::size)), Size::Product(getInterfaceShape()));
+    return sol.solve(ShapeView(getUnderlyingTensors().at(0).getDims()).totalSize(), Size::Product(getInterfaceShape()));
 }
 
 std::size_t TensorView::getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const {

@@ -49,6 +49,7 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
         }
         KAS_WARNING("Overwriting existing generated kernel files: {}, due to collision!", dir);
     }
+    const Graph graph = tensorView.buildGraph();
     std::vector<std::size_t> validPlaceholdersIndices;
     std::vector<KernelMetadata::PlaceholderMetadata> validPlaceholders;
     std::map<ConcreteConsts, std::size_t> constsToValidPlaceholderIndex;
@@ -75,7 +76,7 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
             // This is a new kernel.
             validPlaceholdersIndices.emplace_back(validPlaceholders.size() - 1);
         }
-        consts.padded = tensorView.computePadding(ctx, consts.unpadded);
+        consts.padded = tensorView.computePadding(ctx, graph, consts.unpadded);
         constsDescription = consts.toString(ctx);
 
         auto concretizeInputTensors = [&](const ConcreteConsts& consts) {

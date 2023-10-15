@@ -156,7 +156,8 @@ public:
     template<bool DoInitialization = true, typename... InputInitializers>
     Realization performTrial(const std::map<std::string, std::size_t>& mappings, std::string_view funcName, bool createStaticLibrary, bool verbose, auto&& outputGradInitializer, InputInitializers&&... inputInitializers) const {
         auto unpaddedConsts = ctx.realizeConsts(mappings);
-        auto consts = tensorView.computePadding(ctx, unpaddedConsts);
+        const auto graph = tensorView.buildGraph();
+        auto consts = tensorView.computePadding(ctx, graph, unpaddedConsts);
         auto shapes = concretizeShapes(consts);
         auto forwardFuncName = fmt::format("{}_0", funcName);
         auto backwardFuncName = fmt::format("{}_0_grad", funcName);

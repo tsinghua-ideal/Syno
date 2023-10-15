@@ -98,7 +98,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Gr
         }
         if (options.disallowMergeWithLargeBlockAboveUnfold) {
             if (auto u = dim.tryAs<UnfoldOp::Input>(); u) {
-                if ((block / u->getOp()->outputRhs.size()).lowerBoundEst(options.ctx) > static_cast<std::size_t>(1)) {
+                if ((block / u->getDerivedOp<UnfoldOp>()->getWindow()).lowerBoundEst(options.ctx) > static_cast<std::size_t>(1)) {
                     ++CountDisallowedAboveUnfold;
                     return;
                 }
