@@ -172,6 +172,7 @@ public:
 
     Size operator^(PowerType power) const;
 
+    Size& operator/=(const Size& other);
     // The quotient of two Size's
     Size operator/(const Size& other) const;
     std::optional<Trait> testDividedBy(const Size& other);

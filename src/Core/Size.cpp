@@ -152,21 +152,21 @@ Size Size::operator^(PowerType power) const {
     return newSize;
 }
 
-Size Size::operator/(const Size &other) const {
+Size& Size::operator/=(const Size& other) {
     KAS_ASSERT(varCount == other.varCount);
-    auto newSize = Size(*this);
-    auto& newPrimary = newSize.primary;
-    auto& newCoefficient = newSize.coefficient;
     for (std::size_t i = 0; i < getPrimaryCount(); ++i) {
-        newPrimary[i] -= other.primary[i];
-        // Ensure that no primary variable is in denominator
-        // KAS_ASSERT(newPrimary[i] >= 0);
-        // But we actually do not need this! We can simply evaluate and see if the result fits.
+        primary[i] -= other.primary[i];
     }
     for (std::size_t i = 0; i < getCoefficientCount(); ++i) {
-        newCoefficient[i] -= other.coefficient[i];
+        coefficient[i] -= other.coefficient[i];
     }
-    return newSize;
+    return *this;
+}
+
+Size Size::operator/(const Size &other) const {
+    auto result = *this;
+    result /= other;
+    return result;
 }
 
 std::optional<Size::Trait> Size::testDividedBy(const Size& other) {

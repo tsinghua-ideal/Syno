@@ -28,12 +28,12 @@ void ReshapeGroup::addConsumption(const Size& consumption) {
     } else {
         ++merges;
     }
-    remainder = remainder / consumption;
+    remainder /= consumption;
 }
 
 void ReshapeGroup::addProvision(const Size& provision) {
     ++splits;
-    remainder = remainder * provision;
+    remainder *= provision;
 }
 
 bool ReshapeGroup::isLegal() const {
@@ -125,7 +125,7 @@ ReshapeGroups::Counts ReshapeGroups::count() const {
 
 auto ReshapeGroups::assignDesired(std::size_t indexDesired) const -> Generator<ReshapeGroups> {
     const Size& desiredSize = desired[indexDesired];
-    KAS_ASSERT(Size::GetLimitsUsage(desiredSize.getPrimary()).varsPowersInSize == 1, "Input dimension sizes must be a single primary variable! TODO: support other shapes.");
+    KAS_ASSERT(Size::GetLimitsUsage(desiredSize.getPrimary()).varsPowersInSize == 1, "Input dimension sizes must each contain one and only one primary variable! TODO: support other shapes.");
     std::size_t varId = std::numeric_limits<std::size_t>::max();
     for (std::size_t pId = 0; auto p: desiredSize.getPrimary()) {
         if (p == 1) {
