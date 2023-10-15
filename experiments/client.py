@@ -5,6 +5,7 @@ import requests
 import time
 import os, sys, shutil
 import tarfile
+import numpy as np
 from KAS import Path, KernelLoader
 from typing import List, Dict, Tuple, Union
 
@@ -44,14 +45,13 @@ class Handler:
         assert os.path.exists(folder_name)
         return folder_name
 
-    def reward(self, path, accuracy, flops, params, kernel_dir):
-        message = f"{self.addr}/reward?path={path}&accuracy={accuracy}&flops={flops}&params={params}&kernel_dir={kernel_dir}"
+    def reward(self, path, accuracy, flops, params, kernel_dir, loss):
+        message = f"{self.addr}/reward?path={path}&accuracy={accuracy}&flops={flops}&params={params}&kernel_dir={kernel_dir}&loss={loss}"
         logging.info("Post: " + message)
         self.session.post(message, timeout=self.timeout)
 
 
 def main():
-
     logging.info("Preparing model ...")
     model = models.get_model(args, return_sampler=False)
 
@@ -128,17 +128,23 @@ def main():
                 logging.info("Evaluating on real dataset ...")
                 if "gpt" not in args.model:
                     accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
+                    loss = 0
                 else:
-                    accuracy = (5 - trainer.train_gpt(model, train_dataloader, val_dataloader, args)[-1][1]) / 5
-                    if accuracy <= 0:
-                        accuracy = -1
+                    accuracy = 0
+                    losses = trainer.train_gpt(model, train_dataloader, val_dataloader, args)
+                    losses = list(map(lambda t: t[1], losses))
+                    assert len(losses) >= 1
+                    len_not_avg = max(int(len(losses) * 0.8), 1)
+                    loss = np.mean(losses[len_not_avg - 1:])
+                    logging.debug(f"Meaned loss of last 20%: {loss}")
+
             except Exception as e:
                 if not "out of memory" in str(e):
                     raise e
                 logging.warning(f"OOM when evaluating {path}, skipping ...")
                 model.remove_thop_hooks()
-                flops, params, accuracy, kernel_dir = 0, 0, -1, "EMPTY"
-            client.reward(path, accuracy, flops, params, kernel_dir)
+                flops, params, accuracy, kernel_dir, loss = 0, 0, -1, "EMPTY", args.gpt_max_loss
+            client.reward(path, accuracy, flops, params, kernel_dir, loss)
     except KeyboardInterrupt:
         logging.info("Interrupted by user, exiting ...")
 

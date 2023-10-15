@@ -355,6 +355,7 @@ def arg_parse():
     parser.add_argument('--gpt-max-iters', default=0, type=int)
     parser.add_argument('--gpt-max-minutes', default=0, type=float)
     parser.add_argument('--gpt-log-interval', default=10, type=int)
+    parser.add_argument('--gpt-max-loss', default=3, type=float)
 
     args = parser.parse_args()
 

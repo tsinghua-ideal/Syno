@@ -42,7 +42,7 @@ class Handler(BaseHTTPRequestHandler):
             logging.debug(
                 f"Encountered BrokenPipeError while processing {response['path']}"
             )
-            self.session.update(response["path"], -1.0, int(1e9), int(1e9), "EMPTY")
+            self.session.update(response["path"], -1.0, int(1e9), int(1e9), "EMPTY", None)
     
     def fetch(self, path: str):
         """
@@ -67,17 +67,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def reward(self):
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        path, accuracy, flops, nparams, kernel_dir = (
+        path, accuracy, flops, nparams, kernel_dir, loss = (
             params["path"][0],
             float(params["accuracy"][0]),
             int(params["flops"][0]),
             int(params["params"][0]),
-            params["kernel_dir"][0]
+            params["kernel_dir"][0],
+            float(params["loss"][0])
         )
-        logging.info(
-            f"Path received to /reward request: {path}, accuracy: {accuracy}, flops: {flops}, params: {nparams}, kernel_dir: {kernel_dir}"
-        )
-        self.session.update(path, accuracy, flops, nparams, kernel_dir)
+        logging.info(f"Path received to /reward request: {path}, accuracy: {accuracy}, flops: {flops}, params: {nparams}, kernel_dir: {kernel_dir}, loss: {loss}")
+        self.session.update(path, accuracy, flops, nparams, kernel_dir, loss)
         self.session.save(force=False)
         self.session.print_stats(force=False)
 

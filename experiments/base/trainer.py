@@ -143,5 +143,10 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
         if args.gpt_max_minutes > 0 and (time.time() - start_time) / 60 > args.gpt_max_minutes:
             logging.info(f"Reaching max time limit {args.gpt_max_minutes} mins, break")
             break
+        
+        # Pruning
+        if time.time() - start_time > 60 and loss.item() > args.gpt_max_loss:
+            logging.info(f"Prune loss (last item): {loss.item()}")
+            break
     
     return losses
