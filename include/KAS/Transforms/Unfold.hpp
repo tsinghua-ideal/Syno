@@ -50,6 +50,8 @@ public:
         GenerateInvocations,
         GenerateAttempts,
         DisallowedAttempts,
+        DoubleReduction,
+        EvenKernelSize,
         KernelAbsolutelyTooLarge,
         KernelRelativelyTooLarge,
         CanonicalizedUnfoldChains,

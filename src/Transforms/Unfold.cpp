@@ -72,6 +72,10 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
         for (auto&& dimR: plausibleR) {
             if (dimL == dimR) continue;
             ++countPlausible;
+            if (dimL.is(DimensionType::Reduce) && dimR.is(DimensionType::Reduce)) {
+                ++CountDoubleReduction;
+                continue;
+            }
             const Size& kernelSize = dimR.size();
             // Optionally require that the kernel size is odd.
             // A precondition is that we are sure that all the fractions evaluate to integers.
@@ -83,6 +87,7 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
                     return kernelSizeValue.numerator() % 2 == 0; // even
                 })
             ) {
+                ++CountEvenKernelSize;
                 continue;
             }
             // First check whether the kernel is small enough.
@@ -107,7 +112,6 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
                     }
                 }
             }
-            // Maybe we should rule out even sized kernels? TODO.
             ++CountSuccessfulGenerations;
             result.emplace_back(store.get<UnfoldOp>(dimL, dimR));
         }
