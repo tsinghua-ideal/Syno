@@ -133,7 +133,7 @@ def arg_parse():
         "--kas-max-chain-length", default=10, type=int, help="KAS sampler maximum primitive chain length. "
     )
     parser.add_argument(
-        "--kas-max-shift-rhs", default=10, type=int, help="KAS sampler maximum shift RHS size. "
+        "--kas-max-shift-rhs", default=5, type=int, help="KAS sampler maximum shift RHS size. "
     )
     parser.add_argument(
         "--kas-max-tensors", default=3, type=int, help="KAS sampler maximum tensors"

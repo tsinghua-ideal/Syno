@@ -83,7 +83,7 @@ class Sampler:
         max_strided_dim_size: int = 30,
         max_unfold_kernel_size: int = 30,
         minimum_unfold_ratio: float = 2.0,
-        maximum_valid_reshape_shift_pattern: float = 10.0,
+        maximum_valid_reshape_shift_pattern: float = 5.0,
         disallow_merge_input_and_weight: bool = False,
         disallow_tile: bool = True,
         disallow_share_weights: bool = False,

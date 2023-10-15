@@ -35,6 +35,8 @@ public:
         return output == other.output && shift == other.shift;
     }
 
+    static bool ExceedsMaxValidReshapeShiftPattern(const Size& block, int shift, const BindingContext& ctx, float maximumValidReshapeShiftPattern);
+
     struct GenerateOptions {
         const BindingContext& ctx;
         bool disallowShiftAboveUnfold;
@@ -44,6 +46,7 @@ public:
         GenerateInvocations,
         GenerateAttempts,
         DisallowedAttempts,
+        ExceedsMaxValidReshapeShiftPattern,
         SuccessfulGenerations,
     )
     static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const GraphHandle& outputShape, const GenerateOptions& options);

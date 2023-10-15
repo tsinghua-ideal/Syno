@@ -64,7 +64,7 @@ struct SampleOptions {
 
     // If Split, Merge coincide with Shift, it is very likely that they are exchangeable.
     // Only if RHS of Split or Merge is comparatively small, Shift may make a difference when interchanged.
-    float maximumValidReshapeShiftPattern = 10.0f;
+    float maximumValidReshapeShiftPattern = 5.0f;
 
     // ExpandOp related.
     bool disallowMergeInputAndWeight = false;
@@ -89,7 +89,8 @@ struct SampleOptions {
     bool disallowUnfoldLAboveSplit = true;
 
     // Canonicalization rule set 2: at most one is true, but since this rule is too aggressive, we disable them by default.
-    bool disallowMergeWithLargeBlockAboveUnfold = false;
+    // Time to get AGGRESSIVE!
+    bool disallowMergeWithLargeBlockAboveUnfold = true;
     bool disallowUnfoldLAboveMergeR = false;
 
     // Canonicalization rule set 3: at most one is true. Since this rule perfectly preserves semantics, you'd better set exactly one of them to true.

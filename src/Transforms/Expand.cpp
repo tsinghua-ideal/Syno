@@ -107,11 +107,30 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
                 continue;
             }
         } else {
-            auto otherInputOfMerge = dim.as<MergeOp::Input>().getOther();
+            const auto& dimMerge = dim.as<MergeOp::Input>();
+            auto otherInputOfMerge = dimMerge.getOther();
             // Check if the other is undesired.
             if (expandedDims.contains(otherInputOfMerge)) {
                 continue;
             }
+
+            // Certain cases are redundant.
+            Dimension outputDim = dimMerge.getOp()->output;
+            if (outputDim.is(DimensionType::Merge)) {
+                // This must be a tile.
+                if (options.disallowTile) {
+                    continue;
+                }
+                // Get the bottommost output dim.
+                while (outputDim.is(DimensionType::Merge)) {
+                    outputDim = outputDim.as<MergeOp::Input>().getOp()->output;
+                }
+            }
+            if (outputDim.type() == DimensionType::Iterator) {
+                // Data replication.
+                continue;
+            }
+
             if (
                 options.maxExpansionRepeatMultiplier &&
                 // Do not make expansions too large.

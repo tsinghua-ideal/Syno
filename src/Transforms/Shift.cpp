@@ -46,6 +46,10 @@ ShiftOp::Values ShiftOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for ShiftOp: input = {}, output = {}", input, output);
 }
 
+bool ShiftOp::ExceedsMaxValidReshapeShiftPattern(const Size& block, int shift, const BindingContext& ctx, float maximumValidReshapeShiftPattern) {
+    return boost::rational_cast<float>(block.lowerBoundEst(ctx)) / std::abs(shift) > maximumValidReshapeShiftPattern;
+}
+
 std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
@@ -60,22 +64,17 @@ std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const Gr
     constexpr int ShiftValue = 1;
     for (auto&& dim: plausible) {
         ++countPlausible;
-        if (dim.is(MergeR) || dim.is(Split)) {
+        if (auto split = dim.tryAs<SplitOp::Input>(); split) {
             // This is a reshape and shift pattern.
             // We would like to see if the reshape is worth this Shift.
-            const Size *block = nullptr;
-            if (auto mergeR = dim.tryAs<MergeOp::Input>(); mergeR) {
-                block = &mergeR->size();
-            } else if (auto split = dim.tryAs<SplitOp::Input>(); split) {
-                block = &split->getOp()->outputRhs.size();
-            } else {
-                KAS_UNREACHABLE();
-            }
-            if (
-                boost::rational_cast<float>(block->lowerBoundEst(options.ctx)) / std::abs(ShiftValue) >
+            if (ExceedsMaxValidReshapeShiftPattern(
+                split->getDerivedOp<SplitOp>()->getBlock(),
+                ShiftValue,
+                options.ctx,
                 options.maximumValidReshapeShiftPattern
-            ) {
+            )) {
                 // It seems that the reshape RHS is too large, and Shift barely makes a difference compared to being placed underneath this reshape.
+                ++CountExceedsMaxValidReshapeShiftPattern;
                 continue;
             }
         }

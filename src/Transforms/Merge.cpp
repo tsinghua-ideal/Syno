@@ -72,10 +72,16 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Gr
 
     std::vector<const MergeOp *> res;
     auto checkThenAdd = [&options, &store, &res](const Dimension& dim, Size&& block) {
-        if (auto split = dim.tryAs<SplitOp::Input>(); split) {
-            if (split->getOp()->outputRhs.size() == block) {
-                ++CountConteractedSplits;
-                return; // This is pointless!
+        if (auto shift = dim.tryAs<ShiftOp::Input>(); shift) {
+            // Perform the same check as in ShiftOp.
+            if (ShiftOp::ExceedsMaxValidReshapeShiftPattern(
+                block,
+                shift->getDerivedOp<ShiftOp>()->getShift(),
+                options.ctx,
+                options.maximumValidReshapeShiftPattern
+            )) {
+                ++CountExceedsMaxValidReshapeShiftPattern;
+                return;
             }
         }
         if (auto r = dim.tryAs<Reduce>(); r) {
@@ -84,7 +90,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Gr
         }
         if (options.disallowMergeWithLargeBlockAboveStride) {
             if (auto s = dim.tryAs<StrideOp::Input>(); s) {
-                if ((block / s->getDerivedOp<StrideOp>()->getStride()).lowerBoundEst(options.ctx) > static_cast<std::size_t>(1)) {
+                if ((block / s->getDerivedOp<StrideOp>()->getStride()).lowerBoundEst(options.ctx) >= static_cast<std::size_t>(1)) {
                     ++CountDisallowedAboveStride;
                     return;
                 }

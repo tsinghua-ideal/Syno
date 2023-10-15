@@ -204,6 +204,7 @@ void NormalStage::guardGeneratedChildren() {
                     .allowance = allowance,
                     .disallowMergeWithLargeBlockAboveStride = options.disallowMergeWithLargeBlockAboveStride,
                     .disallowMergeWithLargeBlockAboveUnfold = options.disallowMergeWithLargeBlockAboveUnfold,
+                    .maximumValidReshapeShiftPattern = options.maximumValidReshapeShiftPattern,
                 }));
             }
             // Share^{-1}

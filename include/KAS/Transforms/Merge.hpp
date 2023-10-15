@@ -48,12 +48,13 @@ public:
         bool disallowMergeWithLargeBlockAboveStride;
         // This canonicalization deviates a lot from original semantics. Enable with caution!
         bool disallowMergeWithLargeBlockAboveUnfold;
+        float maximumValidReshapeShiftPattern;
     };
     KAS_STATISTICS_DEF(
         GenerateInvocations,
         GenerateAttempts,
         DisallowedAttempts,
-        ConteractedSplits,
+        ExceedsMaxValidReshapeShiftPattern,
         UselessImmediateReductions,
         BlockRelativelyTooLarge,
         DisallowedAboveStride,
