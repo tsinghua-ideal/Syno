@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KAS/Core/Expand.hpp"
+#include "KAS/Core/Graph.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Utils/Statistics.hpp"
 
@@ -42,6 +43,8 @@ public:
     std::string descendantsDescription(const BindingContext& ctx) const final override {
         return fmt::format("-> {}", output.descendantsDescription(ctx));
     }
+
+    static Graph::DimensionSet GetSharedWeightDims(const Graph& graph);
 
     struct GenerateOptions {
         const BindingContext& ctx;

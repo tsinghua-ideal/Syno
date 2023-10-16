@@ -10,6 +10,23 @@ GraphHandle ExpandOp::applyToInterface(const GraphHandle& interface) const {
     return interface.moveToExpansions(this);
 }
 
+Graph::DimensionSet ExpandOp::GetSharedWeightDims(const Graph& graph) {
+    Graph::DimensionSet result;
+    for (const Expand *expand: graph.getOpsOfType<ExpandOp>()) {
+        if (auto share = expand->output.tryAs<ShareOp::Input>(); share) {
+            // May be a chain of ShareOp.
+            if (share->getOp()->output.is(DimensionType::Share)) {
+                // OK, it is.
+                while (share != nullptr) {
+                    result.emplace(share->getOther());
+                    share = share->getOp()->output.tryAs<ShareOp::Input>();
+                }
+            }
+        }
+    }
+    return result;
+}
+
 std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 

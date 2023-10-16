@@ -93,6 +93,21 @@ bool FinalizeOp::FitIntoWeights(const std::vector<Dimension>& current, const Wei
     ) + 1 <= options.maximumTensors;
 }
 
+bool FinalizeOp::hasRedundantWeights(const Graph::DimensionSet& sharedWeightDims) const {
+    return std::ranges::any_of(
+        tensors | std::views::drop(1), // only weights.
+        [&](const Topmost& tensor) {
+            return std::ranges::all_of(
+                tensor.getDimensions(),
+                [&](const Dimension& dim) {
+                    // All dims of this weight are shared among weights.
+                    return sharedWeightDims.contains(dim);
+                }
+            );
+        }
+    );
+}
+
 std::size_t FinalizeOp::Distance(const std::vector<Dimension>& current, const Shape& desired, const ShapeComplexity::DistanceOptions& options) {
     int strideDist = 0;
 
@@ -126,7 +141,7 @@ std::size_t FinalizeOp::Distance(const std::vector<Dimension>& current, const Sh
             .remainingMerges = options.remainingMerges,
             .remainingSplits = options.remainingSplits,
             .remainingUnfolds = options.remainingUnfolds - strideDist,
-            .remainingExpands = options.remainingExpands,
+            .remainingExpands = options.remainingExpands, // TODO! Expand can also eliminate data-discarding Ops.
             .overflow = std::min(minimumComplexity, options.overflow), // In either cases, we do not need to further compute.
         });
         minimumComplexity = std::min(minimumComplexity, trial);
@@ -339,18 +354,22 @@ struct TopKFinalizations {
         }
     };
     const BindingContext& ctx;
+    const Graph::DimensionSet& sharedWeightDims;
     const std::size_t k;
     const FinalizeOp::TensorViewBuilder& tensorViewBuilder;
     const std::size_t maxFLOPs;
     // Sorted by variance, from lowest to highest.
     std::vector<Finalization> topK;
 
-    TopKFinalizations(const BindingContext& ctx, std::size_t k, const FinalizeOp::TensorViewBuilder& tensorViewBuilder, std::size_t maxFLOPs):
-        ctx { ctx }, k { k }, tensorViewBuilder { tensorViewBuilder }, maxFLOPs { maxFLOPs } {}
+    TopKFinalizations(const BindingContext& ctx, const Graph::DimensionSet& sharedWeightDims, std::size_t k, const FinalizeOp::TensorViewBuilder& tensorViewBuilder, std::size_t maxFLOPs):
+        ctx { ctx }, sharedWeightDims { sharedWeightDims }, k { k }, tensorViewBuilder { tensorViewBuilder }, maxFLOPs { maxFLOPs } {}
     bool empty() const noexcept { return topK.empty(); }
     std::size_t size() const noexcept { return topK.size(); }
     void emplace(auto&& tensors) {
         Finalization f { ctx, std::forward<decltype(tensors)>(tensors) };
+        if (f.tensors.hasRedundantWeights(sharedWeightDims)) {
+            return;
+        }
 
         // If the top-k cannot accomodate this, no need to check whether the result is within FLOPs by building.
         auto vacancy = std::lower_bound(topK.cbegin(), topK.cend(), f);
@@ -397,7 +416,9 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> FinalizeOp::Gene
         return {};
     }
 
-    TopKFinalizations result { options.ctx, options.maximumFinalizations, options.tensorViewBuilder, options.maxFLOPs };
+    const Graph::DimensionSet sharedWeightDims = ExpandOp::GetSharedWeightDims(graph);
+
+    TopKFinalizations result { options.ctx, sharedWeightDims, options.maximumFinalizations, options.tensorViewBuilder, options.maxFLOPs };
     auto addToResults = [&result, &expansions](std::vector<std::vector<Dimension>>&& tensors) {
         // Currently, we only allow expansions to be added to the input tensor.
         std::vector<Topmost> realTensors;

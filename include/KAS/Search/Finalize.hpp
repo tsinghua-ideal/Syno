@@ -56,6 +56,8 @@ public:
 
     static bool FitIntoWeights(const std::vector<Dimension>& current, const WeightOptions& options);
 
+    bool hasRedundantWeights(const Graph::DimensionSet& sharedWeightDims) const;
+
     static std::size_t Distance(const std::vector<Dimension>& current, const Shape& desired, const ShapeComplexity::DistanceOptions& options);
 
     KAS_STATISTICS_DEF(

@@ -43,4 +43,8 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 
+TEST_F(transforms_tests, shift_reshape_pattern) {
+    ASSERT_TRUE(ShiftOp::ExceedsMaxValidReshapeShiftPattern(sizeH, 1, ctx, 5.0f));
+}
+
 } // namespace kas
