@@ -27,7 +27,7 @@ class MCTSTree:
         c_l: float = 20,
         policy: str = "update-descent",
         max_final_iterations: int = 1000,
-        simulate_retry_period: float = 60
+        simulate_retry_period: float = 60,
     ) -> None:
         self._treenode_store: Dict[Node, TreeNode] = dict()
         self._path_store: Dict[Node, Path] = dict()
@@ -123,7 +123,7 @@ class MCTSTree:
             )
             if self.virtual_loss_count[tree_node] < 0:
                 self.virtual_loss_count[tree_node] = 0
-                logging.warn("Error: Virtual loss go below 0! ")
+                logging.warn("Virtual loss go below 0! ")
             if next.key == 0:
                 break
             tree_node = tree_node.get_child(next.key, on_tree=True)
@@ -138,7 +138,7 @@ class MCTSTree:
             )
             if self.virtual_loss_count[tree_node] < 0:
                 self.virtual_loss_count[tree_node] = 0
-                logging.warn("Error: Virtual loss go below 0! ")
+                logging.warn("Virtual loss go below 0! ")
 
     def visit(
         self, path: TreePath, on_tree: bool = True, put_in_tree: bool = False
@@ -293,7 +293,7 @@ class MCTSTree:
         assert not leaf_expanded.failed_recently
         if leaf_expanded.is_final():
             return [(tree_path, leaf_expanded) for _ in range(self.leaf_num)]
-        
+
         leaf_expanded._node.expand(3)
 
         sample_times = self.leaf_num * self._max_final_iterations
@@ -302,17 +302,23 @@ class MCTSTree:
             f"Getting estimates for path({tree_path}) with {sample_times} samples ..."
         )
         path, dangling_type = tree_path.to_path()
-        final_nodes = self._sampler.random_final_nodes_with_prefix(path, sample_times, type=dangling_type, steps=2)
+        final_nodes = self._sampler.random_final_nodes_with_prefix(
+            path, sample_times, type=dangling_type, steps=2
+        )
         final_nodes = list(set([(est.path, est.to_node()) for est in final_nodes]))
         logging.info(
             f"Got {len(final_nodes)} final nodes ({sample_times} samples) for path({tree_path})"
         )
-        
-        final_nodes = list(filter(
-            lambda x: not (x[1] in self._treenode_store and self._treenode_store[x[1]].filtered),
-            final_nodes,
-        ))
-        
+
+        final_nodes = list(
+            filter(
+                lambda x: not (
+                    x[1] in self._treenode_store and self._treenode_store[x[1]].filtered
+                ),
+                final_nodes,
+            )
+        )
+
         if len(final_nodes) < self.leaf_num or leaf_expanded.is_dead_end():
             logging.info(f"Simulation from {tree_path} failed, flushing failure time. ")
             leaf_expanded.flush_failure_time()
@@ -333,8 +339,10 @@ class MCTSTree:
         """
 
         # check input types
-        assert isinstance(reward, float)
-        assert isinstance(path_to_trial, TreePath)
+        assert isinstance(reward, float), f"reward={reward} is not a floating number."
+        assert isinstance(
+            path_to_trial, TreePath
+        ), f"path_to_trial={path_to_trial} is not a TreePath."
         # assert 0.0 <= reward <= 1.0
         logging.debug("Back propagation start")
         path = receipt
@@ -421,7 +429,10 @@ class MCTSTree:
                             0
                         ]
                         assert mid_child is not None
-                        child_node = self.touch(src_node._node.get_child_from_arc(arc), path=self._path_store[src_node._node].concat(nxt))
+                        child_node = self.touch(
+                            src_node._node.get_child_from_arc(arc),
+                            path=self._path_store[src_node._node].concat(nxt),
+                        )
                         if (
                             mark_ancestors(child_node, tgt_node, arc_pool)
                             and not updated_flag
@@ -464,7 +475,10 @@ class MCTSTree:
                             0
                         ]
                         assert mid_child is not None
-                        child_node = self.touch(src_node._node.get_child_from_arc(arc), path=self._path_store[src_node._node].concat(nxt))
+                        child_node = self.touch(
+                            src_node._node.get_child_from_arc(arc),
+                            path=self._path_store[src_node._node].concat(nxt),
+                        )
                         if child_node in ancestors and not updated_flag:
                             potential_children[mid_child].add(child_node)
                             edge_buffer[mid_child].add(nxt.key)
@@ -537,7 +551,10 @@ class MCTSTree:
                         continue
                     mid_child = mid_child[0]
                     assert src_node._node in self._path_store, src_node._node
-                    child_node = self.touch(src_node._node.get_child_from_arc(arc), path=self._path_store[src_node._node].concat(nxt))
+                    child_node = self.touch(
+                        src_node._node.get_child_from_arc(arc),
+                        path=self._path_store[src_node._node].concat(nxt),
+                    )
                     if child_node.is_dead_end():
                         arc_pool.add(arc)
                         continue
@@ -552,7 +569,7 @@ class MCTSTree:
 
         attempt_to_node(self.tree_root, final_node, set(arcs))
 
-    def touch(self, node: Node, path: Path=None) -> TreeNode:
+    def touch(self, node: Node, path: Path = None) -> TreeNode:
         """
         Initialize node if not exist in store
         """
@@ -626,7 +643,7 @@ class MCTSTree:
     ##########################
     #      I/O support
     ##########################
-    
+
     def serialize(self) -> Dict:
         """Serialize the tree and return a dict."""
         logging.debug("Serializing ......")
@@ -712,13 +729,13 @@ class MCTSTree:
         task_queue = queue.Queue(maxsize=len(nodes))
         for i in range(num_nodes):
             task_queue.put(i)
-        
+
         def consumer():
             while True:
                 try:
                     index = task_queue.get_nowait()
                     node = nodes[index]
-                    
+
                     father = self._treenode_store[node]
                     underlying_node = father._node
 
@@ -726,11 +743,19 @@ class MCTSTree:
                     node_serial["index"] = index
                     node_serial["node_verbose"] = underlying_node.__repr__()
                     assert underlying_node in self._path_store, underlying_node
-                    assert underlying_node.is_dead_end() or self._sampler.visit(self._path_store[underlying_node]).to_node() == underlying_node
+                    assert (
+                        underlying_node.is_dead_end()
+                        or self._sampler.visit(
+                            self._path_store[underlying_node]
+                        ).to_node()
+                        == underlying_node
+                    )
                     node_serial["path"] = self._path_store[underlying_node].serialize()
                     node_serial["father"] = {}
                     node_serial["father"]["state"] = father.state_dict
-                    node_serial["father"]["virtual_loss"] = self.virtual_loss_count[father]
+                    node_serial["father"]["virtual_loss"] = self.virtual_loss_count[
+                        father
+                    ]
                     if father.is_final():
                         node_serial["father"]["filtered"] = father.filtered
                         node_serial["father"]["reward"] = father.reward
@@ -738,7 +763,9 @@ class MCTSTree:
                     for next, mid_child, _ in father.get_children():
                         assert isinstance(next, Next.Type)
                         next_serial = self.next_serializer.serialize_type(next)
-                        children_states: Dict[PseudoTreeNext, Tuple[List, Dict[str, Dict]]] = {}
+                        children_states: Dict[
+                            PseudoTreeNext, Tuple[List, Dict[str, Dict]]
+                        ] = {}
                         for n, _, e in mid_child.get_children():
                             arc = underlying_node.get_arc_from_handle(Next(next, n))
                             assert arc is not None
@@ -760,7 +787,7 @@ class MCTSTree:
                     node_list[index] = node_serial
                 except queue.Empty:
                     return
-        
+
         threads = [threading.Thread(target=consumer) for _ in range(16)]
         for thread in threads:
             thread.start()
@@ -772,7 +799,7 @@ class MCTSTree:
             for ty in self.g_rave.keys()
             if isinstance(ty, Next.Type)
         }
-        
+
         assert all(n is not None for n in node_list)
 
         packed_args = dict(

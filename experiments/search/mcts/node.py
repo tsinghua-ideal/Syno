@@ -168,7 +168,7 @@ class TreeNode:
 
         # conditional members
         if node.is_final():
-            self.reward: float = -1
+            self.reward: float = -1.0
             self.filtered: bool = False
         if self._is_mid:
             self.edge_states: DefaultDict[int, AverageMeter] = defaultdict(
@@ -324,7 +324,7 @@ class TreeNode:
             is_fully_in_tree -> is_dead_end -> is_final
             reveal_new_children -> get_unrevealed_children -> get_children -> get_child -> is_dead_end -> is_final
         """
-        Tp = math.floor(T**self._tree._b)
+        Tp = math.floor(T ** self._tree._b)
         # print(f"Got Tp={Tp}, child_count={self.children_count(on_tree=True, filter_exhausted=filter_exhausted)}, i {'am' if self.is_fully_in_tree() else 'am not'} fully in tree")
         while Tp > self.children_count(
             on_tree=True,
@@ -571,7 +571,12 @@ class TreeNode:
                 return None
             if child not in self._tree._treenode_store:
                 if auto_initialize:
-                    self._tree.touch(child, path=self._tree._path_store[self._node].concat(Next(self._type, next)))
+                    self._tree.touch(
+                        child,
+                        path=self._tree._path_store[self._node].concat(
+                            Next(self._type, next)
+                        ),
+                    )
                 else:
                     return None
             return self._tree._treenode_store[child], self.edge_states[next]

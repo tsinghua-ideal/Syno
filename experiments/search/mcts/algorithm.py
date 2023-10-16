@@ -8,17 +8,17 @@ from .tree import MCTSTree
 from .node import TreePath, TreeNode
 from base.models import ManualImpl
 
+
 class MCTSAlgorithm:
-    # TODO: final node has non-consistent virtual loss
-    virtual_loss_constant = 0.3
-    leaf_parallelization_number = 3
+    virtual_loss_constant = 1.0
+    leaf_parallelization_number = 1
     exploration_weight = math.sqrt(2)
     max_iterations = 3000
     max_final_iterations = 1000
     b = 0.3
     c_l = 10.0
-    simulate_retry_period = 8e6
-    flush_virtual_loss_period = 300  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
+    simulate_retry_period = 1e9
+    flush_virtual_loss_period = 0  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
     # initial kernels, see base/models/manual_kernels.py for a complete list
     init_kernels = [
@@ -34,10 +34,12 @@ class MCTSAlgorithm:
             self.b,
             self.c_l,
             max_final_iterations=self.max_final_iterations,
-            simulate_retry_period=self.simulate_retry_period
+            simulate_retry_period=self.simulate_retry_period,
         )
         self.sampler = sampler
-        self.path_to_meta_data = dict()
+        self.path_toupd: Dict[
+            Node, Tuple[TreePath, List[TreePath]]
+        ] = dict()  # trial node to meta data
 
         self.sample_num = 0
         self.time_stamp = time.time()
@@ -53,7 +55,10 @@ class MCTSAlgorithm:
 
     def update(self, path: Path, reward):
         serialized_path = path.serialize()
-        leaf_tree_paths, tree_node, tree_path = self.path_to_meta_data[serialized_path]
+        tree_node = self.mcts.visit(path, on_tree=False)
+        assert tree_node, path
+
+        tree_path, leaf_tree_paths = self.path_toupd.pop(tree_node.to_node())
 
         logging.info(f"Updating path: {serialized_path}, reward: {reward}")
         tree_node.reward = reward
@@ -68,7 +73,7 @@ class MCTSAlgorithm:
                     receipt=leaf_tree_path, reward=reward, path_to_trial=tree_path
                 )
 
-    def launch_new_iteration(self) -> Dict[str, Tuple[TreePath, TreeNode, TreePath]]:
+    def launch_new_iteration(self) -> List[Tuple[TreePath, TreeNode, TreePath]]:
         logging.info("Launching new iteration ...")
         start_time = time.time()
 
@@ -76,17 +81,19 @@ class MCTSAlgorithm:
         if rollout is None:
             return None
 
-        results = dict()
+        results = []
         assert len(rollout) > 0
         leaf_tree_path, trials = rollout
         for trial_path, trial_node in trials:
             assert trial_node.is_final()
             if trial_node.reward < 0:
                 # Unevaluated
-                results[Path(trial_path).serialize()] = (
-                    leaf_tree_path,
-                    trial_node,
-                    trial_path,
+                results.append(
+                    (
+                        leaf_tree_path,
+                        trial_node,
+                        trial_path,
+                    )
                 )
             else:
                 # Already evaluated, back propagate
@@ -101,7 +108,7 @@ class MCTSAlgorithm:
         return results
 
     def sample(self):
-        
+
         if (
             self.flush_virtual_loss_period > 0
             and time.time() - self.time_stamp > self.flush_virtual_loss_period
@@ -111,22 +118,33 @@ class MCTSAlgorithm:
             for k in list(self.mcts.virtual_loss_count.keys()):
                 self.mcts.virtual_loss_count[k] = 0
             logging.debug("Virtual losses cleared. ")
-            
+
         n_iterations = 0
         results = []
-        
+
         if not self.preconditioned:
             impl = ManualImpl(self.sampler)
             for kernel_name in self.init_kernels:
-                assert hasattr(impl, kernel_name), f"{kernel_name} is not a valid kernel"
+                assert hasattr(
+                    impl, kernel_name
+                ), f"{kernel_name} is not a valid kernel"
                 kernel = getattr(impl, kernel_name)()
-                trial_path = Path(kernel.convert_to_path(self.sampler))
-                logging.info(f"This MCTS is pre-conditioned on kernel {kernel_name} with path {trial_path}...")
-                trial_node = self.mcts.visit(trial_path, on_tree=False, put_in_tree=True)
+                trial_path = TreePath(kernel.convert_to_path(self.sampler))
+                logging.info(
+                    f"This MCTS is pre-conditioned on kernel {kernel_name} with path {trial_path}..."
+                )
+                trial_node = self.mcts.visit(
+                    trial_path, on_tree=False, put_in_tree=True
+                )
                 path = Path(trial_path).serialize()
-                assert trial_node is not None, f"Kernel {kernel_name} is outside the search space!"
-                assert path not in self.path_to_meta_data
-                self.path_to_meta_data[path] = (list(trial_path.hierarchy), trial_node, trial_path)
+                assert (
+                    trial_node is not None
+                ), f"Kernel {kernel_name} is outside the search space!"
+                assert trial_node.to_node() not in self.path_toupd
+                hierarchy = list(trial_path.hierarchy)
+                self.path_toupd[trial_node.to_node()] = (trial_path, hierarchy)
+                for path_to_hierarchy in hierarchy:
+                    self.mcts._increment_virtual_loss(path_to_hierarchy, 1)
                 results.append(path)
             self.preconditioned = True
 
@@ -138,15 +156,11 @@ class MCTSAlgorithm:
             elif iteration_results is None:
                 return "end"
 
-            for path, (
-                leaf_tree_path,
-                trial_node,
-                trial_path,
-            ) in iteration_results.items():
-                if path not in self.path_to_meta_data:
-                    self.path_to_meta_data[path] = ([], trial_node, trial_path)
-                    results.append(path)
-                self.path_to_meta_data[path][0].append(leaf_tree_path)
+            for leaf_tree_path, trial_node, trial_path in iteration_results:
+                if trial_node.to_node() not in self.path_toupd:
+                    self.path_toupd[trial_node.to_node()] = (trial_path, [])
+                    results.append(Path(trial_path).serialize())
+                self.path_toupd[trial_node.to_node()][1].append(leaf_tree_path)
 
         self.sample_num += 1
 

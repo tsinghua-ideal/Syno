@@ -74,7 +74,9 @@ def test_mcts(backprop_prob=0.5):
             mcts.remove(receipt, node[1])
 
     for k, v in mcts.virtual_loss_count.items():
-        assert k.is_final() or k.is_dead_end() or v == 0, f"Virtual loss count for {k} is {v}"
+        assert (
+            k.is_final() or k.is_dead_end() or v == 0
+        ), f"Virtual loss count for {k} is {v}"
 
     # Test serialize
     print("Testing serialization and deserialization. ")

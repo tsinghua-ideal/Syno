@@ -49,7 +49,9 @@ def test_tree_explorer():
     for k, v in mcts.virtual_loss_count.items():
         # if not (k.is_final() or k.is_dead_end() or v == 0):
         #     print(f"{k}: {v}")
-        assert k.is_final() or k.is_dead_end() or v == 0, f"Virtual loss count for {k} is {v}"
+        assert (
+            k.is_final() or k.is_dead_end() or v == 0
+        ), f"Virtual loss count for {k} is {v}"
 
     # json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
 
