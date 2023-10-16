@@ -26,6 +26,8 @@ class Session:
         self.original_flops: int = args.original_flops
         self.max_flops_ratio: float = args.kas_max_flops_ratio
         self.evaluate_time_limit = args.kas_evaluate_time_limit
+        # Also the limit for the first minute training
+        self.max_loss = args.gpt_max_loss
 
         # Configs
         self.save_interval = args.kas_server_save_interval
@@ -112,7 +114,7 @@ class Session:
         self.algo.deserialize(state)
         logging.info("Successfully loaded session. ")
 
-    def update(self, path, accuracy, flops, params, kernel_dir):
+    def update(self, path, accuracy, flops, params, kernel_dir, loss):
         # No receiving timeout kernels
         if path in self.timeout_samples:
             logging.debug(f"{path} is removed due to timeout...")
@@ -126,15 +128,28 @@ class Session:
         path = Path.deserialize(path)
         node = self.sampler.visit(path)
 
+        if self.target == "loss":
+            assert loss is not None
+        else:
+            loss = 0
+
         # Save into directory
         if self.save_dir:
             os.makedirs(self.save_dir, exist_ok=True)
-            acc_str = (
-                ("0" * max(0, 5 - len(f"{int(accuracy * 10000)}")))
-                + f"{int(accuracy * 10000)}"
-                if accuracy >= 0
-                else "ERROR"
-            )
+            if self.target == "loss":
+                acc_str = (
+                    ("0" * max(0, 5 - len(f"{int(loss * 1000)}")))
+                    + f"{int(loss * 1000)}"
+                    if loss > 0
+                    else "ERROR"
+                )
+            else:
+                acc_str = (
+                    ("0" * max(0, 5 - len(f"{int(accuracy * 10000)}")))
+                    + f"{int(accuracy * 10000)}"
+                    if accuracy >= 0
+                    else "ERROR"
+                )
             hash_str = f"{ctypes.c_size_t(hash(path)).value}"
             kernel_save_dir = os.path.join(self.save_dir, "_".join([acc_str, hash_str]))
             os.makedirs(kernel_save_dir, exist_ok=True)
@@ -158,6 +173,7 @@ class Session:
                         "params": params,
                         "kernel_dir": kernel_dir,
                         "time": time.time() - self.start_time,
+                        "loss": loss
                     },
                     f,
                     indent=2,
@@ -168,7 +184,12 @@ class Session:
                 shutil.copytree(kernel_dir, os.path.join(kernel_save_dir, "kernel_scheduler_dir"))
 
         # Update with reward
-        if accuracy > 0:
+        if self.target == "loss":
+            reward = max((self.max_loss - loss), 0) / self.max_loss
+            reward = reward ** self.reward_power
+            if loss >= self.max_loss:
+                reward = -1
+        elif accuracy > 0:
             if self.target == "flops" and accuracy >= self.min_accuracy:
                 reward = self.min_accuracy + \
                     max(0, 1.0 - (flops / self.original_flops) / self.max_flops_ratio) * (1 - self.min_accuracy)
