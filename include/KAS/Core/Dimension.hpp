@@ -157,10 +157,10 @@ public:
     // Color related.
     const Color& getColor() const { return inner->getColor(); }
     enum class Origin {
-        Unfold,
+        UnfoldOrExpand,
         Input,
         Weight,
-        BothPossible,
+        InputOrWeight,
     };
     Origin deduceOrigin() const;
 
@@ -492,8 +492,8 @@ struct fmt::formatter<kas::Dimension::Origin>: formatter<string_view> {
         using namespace std::string_view_literals;
         case kas::Dimension::Origin::Input: name = "Input"sv; break;
         case kas::Dimension::Origin::Weight: name = "Weight"sv; break;
-        case kas::Dimension::Origin::Unfold: name = "Unfold"sv; break;
-        case kas::Dimension::Origin::BothPossible: name = "BothPossible"sv; break;
+        case kas::Dimension::Origin::UnfoldOrExpand: name = "UnfoldOrExpand"sv; break;
+        case kas::Dimension::Origin::InputOrWeight: name = "InputOrWeight"sv; break;
         }
         return formatter<string_view>::format(name, ctx);
     }

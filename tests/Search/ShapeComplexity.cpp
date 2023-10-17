@@ -12,8 +12,7 @@ TEST_F(search_tests, shape_complexity) {
         .ctx = ctx,
         .remainingMerges = 0,
         .remainingSplits = 0,
-        .remainingUnfolds = 0,
-        .remainingExpands = 0,
+        .remainingUnfoldsAndExpands = 0,
         .overflow = 1,
     };
 
@@ -24,7 +23,7 @@ TEST_F(search_tests, shape_complexity) {
     ASSERT_EQ(ShapeComplexity::Compute(desired, {N, H * W}, options), 1);
 
     ASSERT_EQ(ShapeComplexity::Compute(desired, {N, H, W, k_1}, options), ShapeComplexity::Infinity);
-    options.remainingUnfolds = 1;
+    options.remainingUnfoldsAndExpands = 1;
     ASSERT_EQ(ShapeComplexity::Compute(desired, {N, H, W, k_1}, options), 1);
 
     ASSERT_EQ(ShapeComplexity::Compute(desired, {N, H, W / k_1, k_1}, options), ShapeComplexity::Infinity);

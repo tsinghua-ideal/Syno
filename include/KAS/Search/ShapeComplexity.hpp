@@ -9,11 +9,7 @@ struct DistanceOptions {
     const BindingContext& ctx;
     int remainingMerges;
     int remainingSplits;
-    int remainingUnfolds;
-    int remainingExpands;
-    int remainingUnfoldsAndExpands() const {
-        return remainingUnfolds + remainingExpands;
-    }
+    int remainingUnfoldsAndExpands;
     std::size_t overflow;
 };
 

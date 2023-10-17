@@ -118,17 +118,17 @@ std::size_t FinalizeOp::Distance(const std::vector<Dimension>& current, const Sh
         case Dimension::Origin::Input:
             mustBeInput.emplace_back(dim.size());
             break;
-        case Dimension::Origin::BothPossible:
+        case Dimension::Origin::InputOrWeight:
             canBeWeight.emplace_back(dim.size());
             break;
-        case Dimension::Origin::Unfold:
+        case Dimension::Origin::UnfoldOrExpand:
             ++strideDist; // We need an Unfold to eliminate this.
             break;
         default:
             KAS_CRITICAL("Dimension origin {} not allowed in FinalizeOp::Distance()!", origin);
         }
     }
-    if (strideDist > options.remainingUnfolds) {
+    if (strideDist > options.remainingUnfoldsAndExpands) {
         return ShapeComplexity::Infinity; // Early stop.
     }
 
@@ -140,8 +140,7 @@ std::size_t FinalizeOp::Distance(const std::vector<Dimension>& current, const Sh
             .ctx = options.ctx,
             .remainingMerges = options.remainingMerges,
             .remainingSplits = options.remainingSplits,
-            .remainingUnfolds = options.remainingUnfolds - strideDist,
-            .remainingExpands = options.remainingExpands, // TODO! Expand can also eliminate data-discarding Ops.
+            .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - strideDist,
             .overflow = std::min(minimumComplexity, options.overflow), // In either cases, we do not need to further compute.
         });
         minimumComplexity = std::min(minimumComplexity, trial);
@@ -465,7 +464,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> FinalizeOp::Gene
                 if (fragments.used[i]) continue;
                 const auto& cDim = interface[i];
                 auto origin = cDim.deduceOrigin();
-                if (origin != Dimension::Origin::Weight && origin != Dimension::Origin::BothPossible) {
+                if (origin != Dimension::Origin::Weight && origin != Dimension::Origin::InputOrWeight) {
                     ++CountUncanonicalWeight;
                     return;
                 }
@@ -478,7 +477,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> FinalizeOp::Gene
         for (std::size_t i = 0; i < interface.size(); ++i) {
             auto&& dim = interface[i];
             auto origin = dim.deduceOrigin();
-            if (origin != Dimension::Origin::Input && origin != Dimension::Origin::BothPossible) {
+            if (origin != Dimension::Origin::Input && origin != Dimension::Origin::InputOrWeight) {
                 continue;
             }
             if (dim.size() == desiredDimSize && fragments.canAccept(i)) {

@@ -277,8 +277,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
         .ctx = ctx,
         .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
         .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),
-        .remainingUnfolds = remaining(options.maximumUnfolds, Next::Type::Unfold),
-        .remainingExpands = remaining(options.maximumExpands, Next::Type::Expand),
+        .remainingUnfoldsAndExpands = remaining(options.maximumUnfolds, Next::Type::Unfold) + remaining(options.maximumExpands, Next::Type::Expand),
         .overflow = remainingDepth(),
     });
     if (distance > remainingDepth()) {

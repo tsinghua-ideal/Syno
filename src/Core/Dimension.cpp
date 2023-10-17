@@ -19,11 +19,11 @@ Dimension::Origin Dimension::deduceOrigin() const {
         // As required by canonicalization, rhs of ShareOp is not allowed to be further transformed and must be weight.
         return Origin::Weight;
     } else if (color.isDataDiscarding()) {
-        return Origin::Unfold;
+        return Origin::UnfoldOrExpand;
     } else {
         switch (type()) {
         case DimensionType::Iterator:
-            return Origin::BothPossible;
+            return Origin::InputOrWeight;
         case DimensionType::Reduce:
         case DimensionType::Shift:
         case DimensionType::Stride:

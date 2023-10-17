@@ -275,7 +275,7 @@ std::size_t Compute(const Shape& desired, const std::vector<Size>& current, cons
                 return std::nullopt;
             }
             const auto finalCounts = groups.finalCount();
-            if (finalCounts.unfoldsAndExpands > options.remainingUnfoldsAndExpands() || finalCounts.merges() > options.remainingMerges) {
+            if (finalCounts.unfoldsAndExpands > options.remainingUnfoldsAndExpands || finalCounts.merges() > options.remainingMerges) {
                 return std::nullopt;
             }
             return finalCounts.steps();
