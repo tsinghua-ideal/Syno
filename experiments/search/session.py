@@ -34,6 +34,7 @@ class Session:
         self.stats_interval = args.kas_stats_interval
         self.save_dir = args.kas_server_save_dir
         self.cache_dir = args.kas_send_cache_dir
+        self.evaluation_result_dir = args.kas_node_cache_dir
         self.last_save_time = time.time()
         self.last_stats_time = time.time()
         self.start_time = time.time()
@@ -44,6 +45,8 @@ class Session:
         self.timeout_samples = set()
 
         self.time_buffer = dict()
+        
+        self.load_lock=False
 
         # Algorithm
         # Required to implement:
@@ -80,6 +83,14 @@ class Session:
         self.last_stats_time = time.time()
 
     def save(self, force=True):
+        
+        logging.info(f"Saving evaluation result into {self.evaluation_result_dir}")
+        node_list = self.algo.dump_eval_result()
+        os.makedirs(self.evaluation_result_dir, exist_ok=True)
+        for node in node_list:
+            with open(os.path.join(self.evaluation_result_dir, node["key"]+".json"), "w") as f:
+                json.dump(node, f, indent=4)
+        
         if self.save_dir is None:
             return
 
@@ -103,6 +114,20 @@ class Session:
             logging.info(f"Saving failed. {e} {traceback.format_exc()}")
     
         self.last_save_time = time.time()
+    
+    def fast_update(self):
+        if not os.path.exists(self.evaluation_result_dir):
+            return
+        
+        self.load_lock = True
+        
+        node_files = os.listdir(self.evaluation_result_dir)
+        for node_file in node_files:
+            with open(os.path.join(self.evaluation_result_dir, node_file)) as f:
+                node = json.load(f)
+            self.algo.load_eval_result(node["path"], node["reward"])
+        
+        self.load_lock = False
 
     def load(self):
         if not os.path.exists(self.save_dir):
@@ -110,9 +135,11 @@ class Session:
             return
 
         # load state
+        self.load_lock = True
         state = json.load(open(os.path.join(self.save_dir, "state.json")))
         self.algo.deserialize(state)
         logging.info("Successfully loaded session. ")
+        self.load_lock = False
 
     def update(self, path, accuracy, flops, params, kernel_dir, loss):
         # No receiving timeout kernels

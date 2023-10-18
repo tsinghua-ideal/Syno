@@ -238,6 +238,11 @@ def arg_parse():
         help="KAS client cache directory",
     )
     parser.add_argument(
+        "--kas-node-cache-dir",
+        default=".node-cache",
+        help="KAS evaluation result cache directory",
+    )
+    parser.add_argument(
         "--kas-stats-interval",
         default=600,
         type=int,

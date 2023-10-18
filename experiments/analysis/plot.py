@@ -29,6 +29,8 @@ if __name__ == "__main__":
                 continue
             if "ERROR" in kernel_dir:
                 continue
+            if "cache" in kernel_dir:
+                continue
             files = list(os.listdir(kernel_dir))
             assert "graph.dot" in files and "loop.txt" in files and "meta.json" in files
 

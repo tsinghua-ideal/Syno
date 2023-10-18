@@ -73,14 +73,18 @@ def main():
             # Request a new kernel
             logging.info("Requesting a new kernel ...")
             while True:
-                path = client.sample()
-                if path == "retry":
-                    logging.info(
-                        f"No path returned, retrying in {args.kas_retry_interval} second(s) ..."
-                    )
-                    time.sleep(args.kas_retry_interval)
-                    continue
-                break
+                try:
+                    path = client.sample()
+                    if path == "retry":
+                        logging.info(
+                            f"No path returned, retrying in {args.kas_retry_interval} second(s) ..."
+                        )
+                        time.sleep(args.kas_retry_interval)
+                        continue
+                    break
+                except Exception as e:
+                    logging.info(f"Sample failed because of {e}, retrying")
+                    time.sleep(10)
 
             if path == "end":
                 logging.info("Exhausted search space, exiting ...")
@@ -105,7 +109,8 @@ def main():
                     -1 if random.random() < 0.5 else random.random(),
                     random.randint(int(1e6), int(1e7)),
                     random.randint(int(1e6), int(1e7)),
-                    "MOCKPATH"
+                    "MOCKPATH", 
+                    0
                 )
                 continue
 

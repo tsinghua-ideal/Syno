@@ -10,15 +10,15 @@ from base.models import ManualImpl
 
 
 class MCTSAlgorithm:
-    virtual_loss_constant = 1.0
-    leaf_parallelization_number = 1
-    exploration_weight = math.sqrt(2)
+    virtual_loss_constant = 0.3
+    leaf_parallelization_number = 3
+    exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
     max_final_iterations = 1000
-    b = 0.3
+    b = 0.5
     c_l = 10.0
     simulate_retry_period = 1e9
-    flush_virtual_loss_period = 0  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
+    flush_virtual_loss_period = 600  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
     # initial kernels, see base/models/manual_kernels.py for a complete list
     init_kernels = [
@@ -50,8 +50,24 @@ class MCTSAlgorithm:
         return self.mcts.serialize()
 
     def deserialize(self, serialized_dict):
-        self.preconditioned = True
+        # self.preconditioned = True
         self.mcts.deserialize(serialized_dict, self.sampler, keep_dead_state=False)
+        
+    def dump_eval_result(self):
+        return self.mcts.get_eval_results()
+    
+    def load_eval_result(self, path_serialized, reward):
+        path = Path.deserialize(path_serialized)
+        node = self.mcts.visit(
+            path, on_tree=False, put_in_tree=True
+        )
+        if node is None:
+            return
+        hierarchy = list(path.hierarchy)
+        self.path_toupd[node.to_node()] = (TreePath(path), hierarchy)
+        for path_to_hierarchy in hierarchy:
+            self.mcts._increment_virtual_loss(path_to_hierarchy, 1)
+        self.update(path, reward)
 
     def update(self, path: Path, reward):
         serialized_path = path.serialize()

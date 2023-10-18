@@ -20,6 +20,7 @@ def get_session(sampler, model, args):
     session = Session(sampler, model, algo, args)
     if args.kas_resume:
         session.load()
+    session.fast_update()
 
     # Return session
     return session

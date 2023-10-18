@@ -814,6 +814,34 @@ class MCTSTree:
         # self.garbage_collect(keep_tree_node=True)
         logging.debug("Serialized.")
         return j
+    
+    def get_eval_results(self) -> List:
+        """Serialize the tree and return a dict."""
+        logging.debug("Serializing ......")
+
+        node_list = []
+        nodes = list(self._treenode_store.keys())
+
+        # dump father"s n, q
+        # dump children"s n, q, filtered
+        for i, n in enumerate(tqdm(nodes)):
+            father = self._treenode_store[n]
+            if not father.is_final() or father.filtered or father.reward == -1:
+                continue
+            
+            underlying_node = father._node
+
+            assert underlying_node in self._path_store, underlying_node
+            node_serial = {
+                "key": str(hash(self._path_store[underlying_node].serialize())),
+                "path": self._path_store[underlying_node].serialize(),
+                "reward": father.reward
+            }
+
+            node_list.append(node_serial)
+            
+        logging.debug("Serialized.")
+        return node_list
 
     @staticmethod
     def deserialize(
@@ -821,6 +849,7 @@ class MCTSTree:
         sampler: Sampler,
         keep_virtual_loss: bool = False,
         keep_dead_state: bool = False,
+        only_load_final: bool = False
     ) -> "MCTSTree":
         """Deserialize a serialized tree and return a Tree object"""
         logging.debug("Deserializing ......")
@@ -841,6 +870,8 @@ class MCTSTree:
             underlying_node = tree._sampler.visit(path)
             # assert underlying_node is not None, Path.deserialize(node_serial["path"])
             if underlying_node is None:
+                continue
+            if only_load_final and not underlying_node.is_final():
                 continue
             underlying_node = underlying_node.to_node()
             assert underlying_node.__repr__() == node_serial["node_verbose"]
