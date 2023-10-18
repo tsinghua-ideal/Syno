@@ -238,8 +238,8 @@ def arg_parse():
         help="KAS client cache directory",
     )
     parser.add_argument(
-        "--kas-node-cache-dir",
-        default=".node-cache",
+        "--kas-node-cache-dirs",
+        default=".node-cache.txt",
         help="KAS evaluation result cache directory",
     )
     parser.add_argument(

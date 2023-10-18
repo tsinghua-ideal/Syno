@@ -63,10 +63,13 @@ class MCTSAlgorithm:
         )
         if node is None:
             return
-        hierarchy = list(path.hierarchy)
-        self.path_toupd[node.to_node()] = (TreePath(path), hierarchy)
-        for path_to_hierarchy in hierarchy:
-            self.mcts._increment_virtual_loss(path_to_hierarchy, 1)
+        for leaf_path in path.hierarchy:
+            n = self.mcts.visit(leaf_path, on_tree=False, put_in_tree=True)
+            if n.N == 0:
+                break
+            
+        self.path_toupd[node.to_node()] = (TreePath(path), [leaf_path])
+        self.mcts._increment_virtual_loss(leaf_path, 1)
         self.update(path, reward)
 
     def update(self, path: Path, reward):

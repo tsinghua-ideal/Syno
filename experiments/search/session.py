@@ -34,7 +34,7 @@ class Session:
         self.stats_interval = args.kas_stats_interval
         self.save_dir = args.kas_server_save_dir
         self.cache_dir = args.kas_send_cache_dir
-        self.evaluation_result_dir = args.kas_node_cache_dir
+        self.evaluation_result_file = args.kas_node_cache_dirs
         self.last_save_time = time.time()
         self.last_stats_time = time.time()
         self.start_time = time.time()
@@ -83,14 +83,6 @@ class Session:
         self.last_stats_time = time.time()
 
     def save(self, force=True):
-        
-        logging.info(f"Saving evaluation result into {self.evaluation_result_dir}")
-        node_list = self.algo.dump_eval_result()
-        os.makedirs(self.evaluation_result_dir, exist_ok=True)
-        for node in node_list:
-            with open(os.path.join(self.evaluation_result_dir, node["key"]+".json"), "w") as f:
-                json.dump(node, f, indent=4)
-        
         if self.save_dir is None:
             return
 
@@ -116,16 +108,62 @@ class Session:
         self.last_save_time = time.time()
     
     def fast_update(self):
-        if not os.path.exists(self.evaluation_result_dir):
+        if not os.path.exists(self.evaluation_result_file):
             return
         
         self.load_lock = True
         
-        node_files = os.listdir(self.evaluation_result_dir)
-        for node_file in node_files:
-            with open(os.path.join(self.evaluation_result_dir, node_file)) as f:
-                node = json.load(f)
-            self.algo.load_eval_result(node["path"], node["reward"])
+        with open(self.evaluation_result_file) as f:
+            dirs = [l[:-1] for l in f.readlines()]
+        
+        kernels = []
+        for directory in dirs:
+            for kernel_fmt in os.listdir(directory):
+                kernel_dir = os.path.join(directory, kernel_fmt)
+                if not os.path.isdir(kernel_dir):
+                    continue
+                if "ERROR" in kernel_dir:
+                    continue
+                if "cache" in kernel_dir:
+                    continue
+                files = list(os.listdir(kernel_dir))
+                assert "graph.dot" in files and "loop.txt" in files and "meta.json" in files
+
+                meta_path = os.path.join(kernel_dir, "meta.json")
+                with open(meta_path, "r") as f:
+                    meta = json.load(f)
+
+                kernels.append(
+                    (
+                        meta["time"],
+                        meta["path"],
+                        meta["accuracy"],
+                        meta["loss"],
+                        meta["flops"],
+                        meta["params"],
+                    )
+                )
+        kernels = sorted(kernels, key=lambda x: x[0])
+        
+        for kernel in kernels:
+            path, accuracy, loss, flops, params = kernel[1], kernel[2], kernel[3], kernel[4], kernel[5]
+            # Update with reward
+            if self.target == "loss":
+                reward = max((self.max_loss - loss), 0) / self.max_loss
+                reward = reward ** self.reward_power
+                if loss >= self.max_loss:
+                    reward = -1
+            elif accuracy > 0:
+                if self.target == "flops" and accuracy >= self.min_accuracy:
+                    reward = self.min_accuracy + \
+                        max(0, 1.0 - (flops / self.original_flops) / self.max_flops_ratio) * (1 - self.min_accuracy)
+                else:
+                    reward = (max(accuracy, self.reward_lower_bound) - self.reward_lower_bound) / (1 - self.reward_lower_bound) / self.reward_upper_bound
+                reward = reward ** self.reward_power
+            else:
+                reward = -1
+                
+            self.algo.load_eval_result(path, reward)
         
         self.load_lock = False
 
