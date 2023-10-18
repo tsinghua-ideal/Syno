@@ -8,8 +8,9 @@
 namespace kas {
 
 struct ReshapeBlockNeighbors {
-    const MergeOp *left = nullptr;
-    const MergeOp *right = nullptr;
+    using Side = std::variant<std::monostate, const MergeOp *, const Reduce *>; // nullptr is not allowed.
+    Side left;
+    Side right;
     using Self = ReshapeBlockNeighbors;
     auto separatedBy(const MergeOp *separator) const -> std::pair<Self, Self>;
     auto isAdjacentTo(const Self& rhs) const -> bool;
@@ -62,7 +63,6 @@ public:
     struct GenerateOptions {
         const BindingContext& ctx;
         const Graph& graph;
-        bool disallowDiscontinuousView;
         bool disallowSplitLAboveUnfold;
         bool disallowSplitRAboveUnfold;
         bool disallowSplitRAboveStride;
@@ -71,9 +71,7 @@ public:
         GenerateInvocations,
         GenerateAttempts,
         DisallowedAttempts,
-        CounteractedMerges,
-        DisallowedDiscontinuousViews,
-        UselessImmediateReductions,
+        CounteractedMergesAndReduces,
         InvalidProductSize,
         SuccessfulGenerations,
     )

@@ -17,8 +17,15 @@ auto ReshapeBlockNeighbors::separatedBy(const MergeOp *separator) const -> std::
 };
 
 auto ReshapeBlockNeighbors::isAdjacentTo(const Self& rhs) const -> bool {
-    // They originate from the very same MergeOp.
-    return right && rhs.left && right == rhs.left;
+    return (
+        // They originate from the very same MergeOp.
+        std::holds_alternative<const MergeOp *>(right) && std::holds_alternative<const MergeOp *>(rhs.left)
+        && std::get<const MergeOp *>(right) == std::get<const MergeOp *>(rhs.left)
+    ) || (
+        // Or they are commutative reductions. Actually we should check whether the reductions are commutative.
+        // But we only have sum reduction for the time being.
+        std::holds_alternative<const Reduce *>(right) && std::holds_alternative<const Reduce *>(rhs.left)
+    );
 }
 
 auto ReshapeBlockNeighbors::combinedWith(const Self& rhs) const -> Self {
@@ -30,8 +37,8 @@ auto ReshapeCanonicalizer::transform(const Iterator&) const -> Adjacent {
     return {};
 }
 
-auto ReshapeCanonicalizer::transform(const Reduce&) const -> Adjacent {
-    return {};
+auto ReshapeCanonicalizer::transform(const Reduce& reduction) const -> Adjacent {
+    return { &reduction, &reduction };
 }
 
 auto ReshapeCanonicalizer::transform(const RepeatLikeOp::Input&) const -> Adjacent {
@@ -111,34 +118,13 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Gr
     options.graph.accept(canonicalizer);
 
     std::vector<const SplitOp *> result;
-    auto checkThenAdd = [&store, &canonicalizer, &result, disallowDiscontinuousView = options.disallowDiscontinuousView, &ctx = options.ctx](const Dimension& dimL, const Dimension& dimR) {
-        if (auto l = dimL.tryAs<MergeOp::Input>(); l) {
-            if (auto r = dimR.tryAs<MergeOp::Input>(); r) {
-                if (l->getOp() == r->getOp()) {
-                    if (l->getOrder() == Order::Left && r->getOrder() == Order::Right) {
-                        // They are just the same merge!
-                        ++CountCounteractedMerges;
-                        return;
-                    } else if (disallowDiscontinuousView && l->getOrder() == Order::Right && r->getOrder() == Order::Left) {
-                        // This is a discontinuous view.
-                        ++CountDisallowedDiscontinuousViews;
-                        return;
-                    }
-                }
-            }
-        }
+    auto checkThenAdd = [&store, &canonicalizer, &result, &ctx = options.ctx](const Dimension& dimL, const Dimension& dimR) {
         // Perform canonicalization for reshape.
         if (canonicalizer.at(dimL).isAdjacentTo(canonicalizer.at(dimR))) {
             // They are redundant!
-            ++CountCounteractedMerges;
+            // Because the split dimensions are merged or reduced.
+            ++CountCounteractedMergesAndReduces;
             return;
-        }
-        if (auto l = dimL.tryAs<Reduce>(); l) {
-            if (auto r = dimR.tryAs<Reduce>(); r) {
-                // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
-                ++CountUselessImmediateReductions;
-                return;
-            }
         }
         // Check that the created size is valid.
         if (auto product = dimL.size() * dimR.size(); !ctx.isSizeValid(product)) {

@@ -75,9 +75,6 @@ struct SampleOptions {
 
     // Below are canonicalization options.
 
-    // This option makes Split-Merge only be able to do views.
-    bool disallowDiscontinuousView = false;
-
     // This option requires UnfoldOp chain to be in a specific order.
     bool canonicalizeUnfoldOrder = true;
 

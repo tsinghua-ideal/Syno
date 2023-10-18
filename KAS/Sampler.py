@@ -89,7 +89,6 @@ class Sampler:
         disallow_share_weights: bool = False,
         max_expansion_repeat_multiplier: int = 10,
         max_expansion_merge_multiplier: int = 128,
-        disallow_discontinuous_view: bool = False,
         canonicalize_unfold_order: bool = True,
         maximum_expands: int = -1,
         maximum_merges: int = -1,
@@ -191,8 +190,6 @@ class Sampler:
             Maximum times of expansion in ExpandOp, for repeat.
         max_expansion_merge_multiplier : int, optional
             Maximum times of expansion in ExpandOp, for merge.
-        disallow_discontinuous_view : bool, optional
-            We know that `Split s*k -> s, k` along with `Merge s, k -> s*k` is meaningless, but what if `Split s*k -> s, k` along with `Merge k, s -> s*k`? It seems meaningless either. Set this argument to true to disallow this.
         canonicalize_unfold_order : bool, optional
             Make chained UnfoldOp's appear in ascending parameter order.
         maximum_expands : int, optional
@@ -269,7 +266,6 @@ class Sampler:
             disallow_share_weights=disallow_share_weights,
             max_expansion_repeat_multiplier=max_expansion_repeat_multiplier,
             max_expansion_merge_multiplier=max_expansion_merge_multiplier,
-            disallow_discontinuous_view=disallow_discontinuous_view,
             canonicalize_unfold_order=canonicalize_unfold_order,
             maximum_expands=maximum_expands,
             maximum_merges=maximum_merges,

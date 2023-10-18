@@ -61,6 +61,7 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
     std::vector<DimensionTypeWithOrder> disallowsR { ShareR };
     if (options.disallowUnfoldLAboveSplit) disallowsL.push_back(Split);
     if (options.disallowUnfoldLAboveShift) disallowsL.push_back(Shift);
+    if (options.disallowUnfoldLAboveMergeR) disallowsL.push_back(MergeR);
     auto plausibleL = interface.filterOut(std::move(disallowsL));
     auto plausibleR = interface.filterOut(std::move(disallowsR));
 
@@ -105,7 +106,7 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
             // Canonicalize unfold chains, requiring that UnfoldOp's with smaller kernels be first built.
             if (options.canonicalizeUnfoldOrder) {
                 if (auto nextUnfold = dimL.tryAs<UnfoldOp::Input>(); nextUnfold) {
-                    auto quotient = kernelSize / nextUnfold->getOp()->outputRhs.size();
+                    auto quotient = kernelSize / nextUnfold->getDerivedOp<UnfoldOp>()->getWindow();
                     if (quotient.lowerBoundEst(options.ctx) < static_cast<std::size_t>(1)) {
                         ++CountCanonicalizedUnfoldChains;
                         continue;

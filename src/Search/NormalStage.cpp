@@ -163,7 +163,6 @@ void NormalStage::guardGeneratedChildren() {
                 add(SplitOp::Generate(store, prospectiveInterface, {
                     .ctx = ctx,
                     .graph = graph,
-                    .disallowDiscontinuousView = options.disallowDiscontinuousView,
                     .disallowSplitLAboveUnfold = options.disallowSplitLAboveUnfold,
                     .disallowSplitRAboveUnfold = options.disallowSplitRAboveUnfold,
                     .disallowSplitRAboveStride = options.disallowSplitRAboveStride,
