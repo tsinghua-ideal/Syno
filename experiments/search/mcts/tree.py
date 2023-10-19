@@ -26,8 +26,10 @@ class MCTSTree:
         b: float = 0.5,
         c_l: float = 20,
         policy: str = "update-descent",
-        max_final_iterations: int = 1000,
+        max_final_iterations: Tuple[int, int, int] = (10, 1.5, 3000), # (a, b, c) s.t. sample num = a * (b ** (max_depth - depth))
         simulate_retry_period: float = 60,
+        sample_retry_times: int = 5, 
+        max_depth: int = 16,
     ) -> None:
         self._treenode_store: Dict[Node, TreeNode] = dict()
         self._path_store: Dict[Node, Path] = dict()
@@ -43,6 +45,8 @@ class MCTSTree:
         self._policy = policy
         self._max_final_iterations = max_final_iterations
         self._simulate_retry_period = simulate_retry_period
+        self._sample_retry_times = sample_retry_times
+        self._max_depth = max_depth
         assert policy in ["update-all", "update-descent"]
         random.seed(sampler._seed)
 
@@ -71,42 +75,42 @@ class MCTSTree:
 
     def _increment_virtual_loss(self, path: TreePath, delta: int = 1) -> None:
         assert delta > 0
-        logging.debug(f"increment virtual loss by {delta} of {path}")
+        # logging.debug(f"increment virtual loss by {delta} of {path}")
         tree_node = self.tree_root
         self.virtual_loss_count[tree_node] += delta
-        logging.debug(
-            f"increment virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] - delta} -> {self.virtual_loss_count[tree_node]}"
-        )
+        # logging.debug(
+        #     f"increment virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] - delta} -> {self.virtual_loss_count[tree_node]}"
+        # )
         for next in path:
             tree_node = tree_node.get_child(next.type, on_tree=True)
             if tree_node is None:
-                logging.debug(f"stopped at {next.type}")
+                # logging.debug(f"stopped at {next.type}")
                 break
             tree_node, _ = tree_node
             self.virtual_loss_count[tree_node] += delta
-            logging.debug(
-                f"increment virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] - delta} -> {self.virtual_loss_count[tree_node]}"
-            )
+            # logging.debug(
+            #     f"increment virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] - delta} -> {self.virtual_loss_count[tree_node]}"
+            # )
             if next.key == 0:
                 break
             tree_node = tree_node.get_child(next.key, on_tree=True)
             if tree_node is None:
-                logging.debug(f"stopped at {next.key}")
+                # logging.debug(f"stopped at {next.key}")
                 break
             tree_node, _ = tree_node
             self.virtual_loss_count[tree_node] += delta
-            logging.debug(
-                f"increment virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] - delta} -> {self.virtual_loss_count[tree_node]}"
-            )
+            # logging.debug(
+            #     f"increment virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] - delta} -> {self.virtual_loss_count[tree_node]}"
+            # )
 
     def _decrement_virtual_loss(self, path: TreePath, delta: int = 1) -> None:
         assert delta > 0
-        logging.debug(f"decrement virtual loss by {delta} of {path}")
+        # logging.debug(f"decrement virtual loss by {delta} of {path}")
         tree_node = self.tree_root
         self.virtual_loss_count[tree_node] -= delta
-        logging.debug(
-            f"decrement virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] + delta} -> {self.virtual_loss_count[tree_node]}"
-        )
+        # logging.debug(
+        #     f"decrement virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] + delta} -> {self.virtual_loss_count[tree_node]}"
+        # )
         if self.virtual_loss_count[tree_node] < 0:
             self.virtual_loss_count[tree_node] = 0
             logging.warn("Virtual loss go below 0! ")
@@ -114,13 +118,13 @@ class MCTSTree:
             tree_node = tree_node.get_child(next.type, on_tree=True)
             # assert tree_node is not None
             if tree_node is None:
-                logging.debug(f"stopped at {next.type}")
+                # logging.debug(f"stopped at {next.type}")
                 break
             tree_node, _ = tree_node
             self.virtual_loss_count[tree_node] -= delta
-            logging.debug(
-                f"decrement virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] + delta} -> {self.virtual_loss_count[tree_node]}"
-            )
+            # logging.debug(
+            #     f"decrement virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] + delta} -> {self.virtual_loss_count[tree_node]}"
+            # )
             if self.virtual_loss_count[tree_node] < 0:
                 self.virtual_loss_count[tree_node] = 0
                 logging.warn("Virtual loss go below 0! ")
@@ -129,13 +133,13 @@ class MCTSTree:
             tree_node = tree_node.get_child(next.key, on_tree=True)
             # assert tree_node is not None
             if tree_node is None:
-                logging.debug(f"stopped at {next.key}")
+                # logging.debug(f"stopped at {next.key}")
                 break
             tree_node, _ = tree_node
             self.virtual_loss_count[tree_node] -= delta
-            logging.debug(
-                f"decrement virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] + delta} -> {self.virtual_loss_count[tree_node]}"
-            )
+            # logging.debug(
+            #     f"decrement virtual loss by {delta} at {tree_node}, virtual loss count: {self.virtual_loss_count[tree_node] + delta} -> {self.virtual_loss_count[tree_node]}"
+            # )
             if self.virtual_loss_count[tree_node] < 0:
                 self.virtual_loss_count[tree_node] = 0
                 logging.warn("Virtual loss go below 0! ")
@@ -288,26 +292,40 @@ class MCTSTree:
         return next, leaf
 
     def simulate(
-        self, tree_path: TreePath, leaf_expanded: TreeNode
+        self, tree_path: TreePath, leaf_expanded: TreeNode, max_final_iterations: int=None
     ) -> Optional[Tuple[TreePath, TreeNode]]:
-        assert not leaf_expanded.failed_recently
+        # assert not leaf_expanded.failed_recently
         if leaf_expanded.is_final():
             return [(tree_path, leaf_expanded) for _ in range(self.leaf_num)]
 
-        leaf_expanded._node.expand(3)
+        # leaf_expanded._node.expand(3)
+        
+        if max_final_iterations is None:
+            a, b, c = self._max_final_iterations
+            left_depth = self._max_depth - len(tree_path) + 1
+            max_final_iterations = int(a * (b ** left_depth) + c)
 
-        sample_times = self.leaf_num * self._max_final_iterations
+        sample_times = self.leaf_num * max_final_iterations
         assert sample_times > 0
         logging.info(
             f"Getting estimates for path({tree_path}) with {sample_times} samples ..."
         )
         path, dangling_type = tree_path.to_path()
-        final_nodes = self._sampler.random_final_nodes_with_prefix(
-            path, sample_times, type=dangling_type, steps=2
-        )
+        final_nodes = []
+        nodes_set = set()
+        for trial_attempt in range(self._sample_retry_times):
+            trials = self._sampler.random_final_nodes_with_prefix(
+                path, sample_times, type=dangling_type, steps=2
+            )
+            for trial in trials:
+                if trial.to_node() not in nodes_set:
+                    nodes_set.add(trial.to_node())
+                    final_nodes.append(trial)
+            if len(final_nodes) >= self.leaf_num:
+                break
         final_nodes = list(set([(est.path, est.to_node()) for est in final_nodes]))
         logging.info(
-            f"Got {len(final_nodes)} final nodes ({sample_times} samples) for path({tree_path})"
+            f"Got {len(final_nodes)} final nodes ({sample_times} samples) for path({tree_path}) after {trial_attempt+1} attempts. "
         )
 
         final_nodes = list(
@@ -863,7 +881,7 @@ class MCTSTree:
                 if keep_dead_state:
                     path = Path.deserialize(node_serial["path"])
                     underlying_node = tree._sampler.visit(path)
-                    father = tree.touch(underlying_node, path=path)
+                    father = tree.touch(underlying_node.to_node(), path=path)
                     father.set_dead()
                 continue
             path = Path.deserialize(node_serial["path"])

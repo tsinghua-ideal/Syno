@@ -245,7 +245,7 @@ commands.md
 *.nsys-rep
 
 # Scheduler cache
-.*-cache
+.*-cache*
 
 # Results
 experiments/*results

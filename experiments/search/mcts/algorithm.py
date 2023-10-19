@@ -14,15 +14,16 @@ class MCTSAlgorithm:
     leaf_parallelization_number = 3
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
-    max_final_iterations = 1000
+    max_final_iterations = (10, 1.5, 3000)
     b = 0.5
     c_l = 10.0
-    simulate_retry_period = 1e9
+    simulate_retry_period = 300
+    sample_retry_times = 5
     flush_virtual_loss_period = 600  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
     # initial kernels, see base/models/manual_kernels.py for a complete list
     init_kernels = [
-        "Conv2d_group_oas",
+        # "Conv2d_group_oas",
     ]
 
     def __init__(self, sampler, args):
@@ -35,6 +36,8 @@ class MCTSAlgorithm:
             self.c_l,
             max_final_iterations=self.max_final_iterations,
             simulate_retry_period=self.simulate_retry_period,
+            sample_retry_times=self.sample_retry_times,
+            max_depth=args.kas_depth,
         )
         self.sampler = sampler
         self.path_toupd: Dict[
@@ -79,7 +82,7 @@ class MCTSAlgorithm:
 
         tree_path, leaf_tree_paths = self.path_toupd.pop(tree_node.to_node())
 
-        logging.info(f"Updating path: {serialized_path}, reward: {reward}")
+        logging.info(f"Updating path: {leaf_tree_paths} ({tree_path}), reward: {reward}")
         tree_node.reward = reward
 
         # Back propagate

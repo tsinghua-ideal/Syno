@@ -45,8 +45,6 @@ class Session:
         self.timeout_samples = set()
 
         self.time_buffer = dict()
-        
-        self.load_lock=False
 
         # Algorithm
         # Required to implement:
@@ -70,6 +68,8 @@ class Session:
 
         # Prefetcher for final node
         self.num_prefetch = args.kas_num_virtual_evaluator
+    
+    def start_prefetcher(self):
         if self.num_prefetch > 0:
             self.prefetched = queue.Queue(maxsize=self.num_prefetch)
             self.prefetcher = threading.Thread(target=self.prefetcher_main)
@@ -111,7 +111,7 @@ class Session:
         if not os.path.exists(self.evaluation_result_file):
             return
         
-        self.load_lock = True
+        logging.info(f"Fast updating with files in {self.evaluation_result_file}")
         
         with open(self.evaluation_result_file) as f:
             dirs = [l[:-1] for l in f.readlines()]
@@ -146,6 +146,7 @@ class Session:
         kernels = sorted(kernels, key=lambda x: x[0])
         
         for kernel in kernels:
+            logging.info(f"Fast updating with {kernel[1]}")
             path, accuracy, loss, flops, params = kernel[1], kernel[2], kernel[3], kernel[4], kernel[5]
             # Update with reward
             if self.target == "loss":
@@ -164,8 +165,6 @@ class Session:
                 reward = -1
                 
             self.algo.load_eval_result(path, reward)
-        
-        self.load_lock = False
 
     def load(self):
         if not os.path.exists(self.save_dir):
@@ -173,11 +172,9 @@ class Session:
             return
 
         # load state
-        self.load_lock = True
         state = json.load(open(os.path.join(self.save_dir, "state.json")))
         self.algo.deserialize(state)
         logging.info("Successfully loaded session. ")
-        self.load_lock = False
 
     def update(self, path, accuracy, flops, params, kernel_dir, loss):
         # No receiving timeout kernels

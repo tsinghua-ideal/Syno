@@ -21,6 +21,7 @@ def get_session(sampler, model, args):
     if args.kas_resume:
         session.load()
     session.fast_update()
+    session.start_prefetcher()
 
     # Return session
     return session

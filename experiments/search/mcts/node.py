@@ -163,6 +163,7 @@ class TreeNode:
 
         # temporal buffer
         self._simulate_attempt_time: float = 0
+        self._failed_budget: float = 5
 
         self.l_rave: DefaultDict[PseudoArc, AverageMeter] = defaultdict(AverageMeter)
 
@@ -761,6 +762,10 @@ class TreeNode:
 
     def flush_failure_time(self) -> None:
         self._simulate_attempt_time = time()
+        if self._failed_budget == 0:
+            logging.debug(f"{self} has failed for too many times! It is marked dead. ")
+            self.set_dead()
+        self._failed_budget = self._failed_budget - 1
 
     def __repr__(self) -> str:
         if self._is_mid:
