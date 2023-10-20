@@ -56,7 +56,7 @@ std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const Gr
     using enum DimensionTypeWithOrder;
     std::vector<DimensionTypeWithOrder> disallows { Reduce, ShareR, Shift };
     if (options.disallowShiftAboveUnfold) disallows.push_back(Unfold);
-    auto plausible = interface.filterOut(std::move(disallows));
+    auto plausible = interface.filterOut(disallows);
 
     std::vector<const ShiftOp *> result;
     CountGenerateAttempts += interface.getDimensions().size();
@@ -64,7 +64,16 @@ std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const Gr
     constexpr int ShiftValue = 1;
     for (auto&& dim: plausible) {
         ++countPlausible;
-        if (auto split = dim.tryAs<SplitOp::Input>(); split) {
+        Dimension peek = dim;
+        if (auto share = dim.tryAs<ShareOp::Input>(); share) {
+            // Canonicalization requires us to go beyond Share.
+            peek = share->getOp()->output;
+            if (std::ranges::any_of(disallows, [&](auto disallow) { return peek.is(disallow); })) {
+                // TODO: we are duplicating filterOut. Make peek more formalized.
+                continue;
+            }
+        }
+        if (auto split = peek.tryAs<SplitOp::Input>(); split) {
             // This is a reshape and shift pattern.
             // We would like to see if the reshape is worth this Shift.
             if (ExceedsMaxValidReshapeShiftPattern(
