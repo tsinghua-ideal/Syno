@@ -160,6 +160,7 @@ class TreeNode:
         self._not_dead: bool = False
         self._exhausted: bool = False
         self._isin_tree: bool = False
+        self._virtual_loss: int = 0
 
         # temporal buffer
         self._simulate_attempt_time: float = 0
