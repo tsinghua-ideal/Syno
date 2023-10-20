@@ -218,7 +218,7 @@ public:
 
     // The following APIs can be provided for Python bindings.
     std::optional<Node> visit(const std::vector<Next>& path);
-    // The path is intended to visit a TensorView, but it may fail, in which case we rely on the search algorithm to penalize it.
+    // The path is intended to visit a FinalStage, but it may fail, in which case we rely on the search algorithm to penalize it.
     std::optional<std::pair<std::vector<Next>, Node>> randomNodeWithPrefix(const std::vector<Next>& prefix);
     // Visit multiple final nodes.
     std::vector<std::pair<std::vector<Next>, Node>>
@@ -230,16 +230,19 @@ public:
     void sortAllExpansionsAndWeightDimensions(std::vector<Topmost>& tensors) const;
     // This calls the above two functions. Then you can use these tensors to build a GraphHandle.
     void convertTensorsToSearchableForm(std::vector<Topmost>& tensors) const;
-    // This cannot figure out Finalize.
-    static std::vector<const PrimitiveOp *> ConvertGraphHandleToOps(const Graph& graph, const GraphHandle& handle);
-    // This cannot figure out Finalize.
-    static std::vector<Next> ConvertGraphHandleToPath(const GraphHandle& handle);
-    // This in effect calls ConvertGraphHandleToPath, then adds a Finalize to it.
-    static std::vector<Next> ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors);
     // A convenience method.
-    std::vector<Next> convertTensorViewToPath(const TensorView& tensorView) const;
+    std::vector<Topmost> convertTensorViewToSearchableTensors(const TensorView& tensorView) const;
+    static Next ConvertSearchableTensorsToFinalNext(const std::vector<Topmost>& tensors);
 
-    std::optional<std::vector<Arc>> convertPathToArcs(const std::vector<Next>& path);
+    // This cannot figure out Finalize.
+    static std::vector<const PrimitiveOp *> ConvertGraphToOps(const Graph& graph);
+    static std::vector<Next> ConvertOpsToNexts(const std::vector<const PrimitiveOp *>& ops);
+    std::vector<Arc> convertOpsToArcs(const std::vector<const PrimitiveOp *>& ops) const;
+
+    // For Forward.
+    static std::vector<Next> ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors);
+    // Convenience.
+    std::vector<Next> convertTensorViewToPath(const TensorView& tensorView) const;
 
     class Pruner {
         std::mutex mutex;

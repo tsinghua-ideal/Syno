@@ -112,10 +112,13 @@ public:
     int existingOp() const { return existingOps[Next::TypeOf<Op>()]; }
 
     // The state.
-    Finalizability getFinalizability() const {
+    inline Finalizability getFinalizability() const {
         if (isFinalizabilityDetermined()) {
             // Fast path. Here we do not need to acquire the lock.
             // This is because once the state is determined, it will never change.
+            // You may ask: hey, what if we read a value of a stage that has not been fully initialized yet, in which case `state` may be an arbitrary value?
+            // Think about it. How did you obtain this stage at all? You must have synchronized with a predecessor of this stage, which created this stage.
+            // So this fast path is thread-safe.
             return state;
         }
         Lock lock = acquireLock();

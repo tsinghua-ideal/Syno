@@ -202,21 +202,43 @@ Node Node::getChildFromArc(Arc arc) const {
 }
 
 std::vector<Next> Node::getPossiblePath() const {
-    return match<std::vector<Next>>(
+    std::optional<Next> finalNext;
+    AbstractStage *stage = match<AbstractStage *>(
         [](AbstractStage *stage) {
-            return Sampler::ConvertGraphHandleToPath(stage->getInterface());
+            return stage;
         },
         [&](FinalStage *stage) {
-            return sampler->convertTensorViewToPath(stage->value);
+            const NextFinalizeSlot& slot = stage->getSlot();
+            finalNext = slot;
+            return &stage->parent;
         }
     );
+    const Graph graph = stage->getInterface().buildGraph();
+    auto result = Sampler::ConvertOpsToNexts(Sampler::ConvertGraphToOps(graph));
+    if (finalNext) {
+        result.emplace_back(*finalNext);
+    }
+    return result;
 }
 
 std::vector<Arc> Node::getComposingArcs() const {
-    auto possiblePath = getPossiblePath();
-    auto arcs = sampler->convertPathToArcs(possiblePath);
-    KAS_ASSERT(arcs, "This node is a dead end, so the composing arcs do not exist.");
-    return std::move(*arcs);
+    std::optional<Arc> finalArc;
+    AbstractStage *stage = match<AbstractStage *>(
+        [](AbstractStage *stage) {
+            return stage;
+        },
+        [&](FinalStage *stage) {
+            const NextFinalizeSlot& slot = stage->getSlot();
+            finalArc = { sampler, &slot.finalization };
+            return &stage->parent;
+        }
+    );
+    const Graph graph = stage->getInterface().buildGraph();
+    auto result = sampler->convertOpsToArcs(Sampler::ConvertGraphToOps(graph));
+    if (finalArc) {
+        result.emplace_back(*finalArc);
+    }
+    return result;
 }
 
 void Node::expandSync(int layers) const {
