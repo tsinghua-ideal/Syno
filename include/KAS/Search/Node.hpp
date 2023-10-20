@@ -14,6 +14,7 @@
 #include "KAS/Transforms/Transforms.hpp"
 #include "KAS/Utils/Hash.hpp"
 #include "KAS/Utils/Ranges.hpp"
+#include "KAS/Utils/Threads.hpp"
 
 namespace kas {
 
@@ -136,15 +137,30 @@ public:
 
     template<typename T>
     const T *as() const {
-        return std::get<const T *>(inner);
+        if constexpr (std::derived_from<T, PrimitiveOp>) {
+            return &dynamic_cast<const T&>(*std::get<const PrimitiveOp *>(inner));
+        } else {
+            return std::get<const T *>(inner);
+        }
     }
     template<typename T>
     const T *tryAs() const {
-        return std::holds_alternative<const T *>(inner) ? std::get<const T *>(inner) : nullptr;
+        if constexpr (std::derived_from<T, PrimitiveOp>) {
+            if (!std::holds_alternative<const PrimitiveOp *>(inner)) return nullptr;
+            return dynamic_cast<const T *>(std::get<const PrimitiveOp *>(inner));
+        } else {
+            if (!std::holds_alternative<const T *>(inner)) return nullptr;
+            return std::get<const T *>(inner);
+        }
     }
 
     bool operator==(const Arc& rhs) const;
     std::size_t hash() const;
+    struct Hash {
+        std::size_t operator()(const Arc& arc) const {
+            return arc.hash();
+        }
+    };
     Next toNext() const;
     std::string toString() const;
 };
@@ -319,6 +335,7 @@ class AbstractStage;
 class ReductionStage;
 class NormalStage;
 class FinalStage;
+struct LatticeTask;
 
 class Node {
     friend struct Next;
@@ -410,6 +427,7 @@ public:
     std::vector<Next> getPossiblePath() const;
     std::vector<Arc> getComposingArcs() const;
     void expandSync(int layers) const;
+    void expandWithArcs(ThreadPool<LatticeTask>& expander, const std::vector<Arc>& arcs) const;
     void expandToSync(Node target) const;
     void expand(int layers) const;
     std::optional<std::string> getChildDescription(Next next) const;
@@ -417,6 +435,11 @@ public:
     bool isDeadEnd() const;
     bool discoveredFinalDescendant() const;
     std::string toString() const;
+};
+
+struct LatticeTask {
+    Node node;
+    std::vector<Arc> arcs;
 };
 
 }

@@ -111,7 +111,10 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     countMutexesInLayer { MutexCountFromNumWorkers(numWorkerThreads) },
     mutexes(options.depth + 1),
     pruner {},
-    expander { numWorkerThreads }
+    expander { numWorkerThreads },
+    latticeExpander { numWorkerThreads, [](ThreadPool<LatticeTask>& expander, LatticeTask task) {
+        task.node.expandWithArcs(expander, task.arcs);
+    } }
 {
     KAS_ASSERT(numWorkerThreads > 0);
     for (auto& mutexes: this->mutexes) {

@@ -252,9 +252,62 @@ void Node::expandSync(int layers) const {
     );
 }
 
+void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const std::vector<Arc>& arcs) const {
+    // First guard that the children are generated.
+    countChildren();
+
+    // Then continue.
+    for (std::size_t index = 0; const Arc& arc: arcs) {
+        if (!canAcceptArc(arc)) continue;
+        auto child = getChildFromArc(arc);
+        std::vector<Arc> remainingArcs = arcs;
+        remainingArcs.erase(remainingArcs.begin() + index);
+        expander.add(LatticeTask { child, std::move(remainingArcs) });
+        ++index;
+    }
+}
+
 void Node::expandToSync(Node target) const {
-    // If the target is a TensorView, we only need to expand to its predecessor.
-    // TODO!!!
+    if (*this == target) {
+        return;
+    }
+    std::vector<Arc> remainingReductions, remainingOthers;
+    {
+        auto bottomArcs = ranges::to<std::unordered_set<Arc, Arc::Hash>>(match<std::vector<Arc>>(
+            [&](AbstractStage *) { return getComposingArcs(); },
+            [](FinalStage *) -> std::vector<Arc> { KAS_UNREACHABLE(); }
+        ));
+        auto topArcs = ranges::to<std::unordered_set<Arc, Arc::Hash>>(target.match<std::vector<Arc>>(
+            [&](AbstractStage *) { return target.getComposingArcs(); },
+            // If the target is a TensorView, we only need to expand to its predecessor.
+            [&](FinalStage *stage) -> std::vector<Arc> { return Node(sampler, &stage->parent).getComposingArcs(); }
+        ));
+        std::size_t removed = 0;
+        for (const Arc& arc: topArcs) {
+            if (bottomArcs.contains(arc)) {
+                ++removed;
+            } else {
+                if (arc.tryAs<ReduceOp>()) {
+                    remainingReductions.emplace_back(arc);
+                } else {
+                    remainingOthers.emplace_back(arc);
+                }
+            }
+        }
+        KAS_ASSERT(removed == bottomArcs.size());
+    }
+    auto& expander = sampler->getLatticeExpander();
+    Node normalBottom = *this;
+    if (!remainingReductions.empty()) {
+        expander.add(LatticeTask { *this, remainingReductions });
+        for (const Arc& arc: remainingReductions) {
+            normalBottom = normalBottom.getChildFromArc(arc);
+        }
+    }
+    if (!remainingOthers.empty()) {
+        expander.add(LatticeTask { normalBottom, remainingOthers });
+    }
+    expander.sync();
 }
 
 void Node::expand(int layers) const {

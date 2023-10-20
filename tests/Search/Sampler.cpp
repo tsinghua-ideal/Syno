@@ -24,6 +24,9 @@ TEST_F(search_tests, sampler) {
             } else {
                 ++failedReconstruction;
             }
+            fmt::print("Expanding lattice... ");
+            sampler.visit({})->expandToSync(node);
+            fmt::print("Done.\n");
         }
         if (randomLeaves.empty()) {
             fmt::print("Trial {} failed.\n", i);

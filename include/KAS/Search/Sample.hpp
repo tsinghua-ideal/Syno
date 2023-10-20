@@ -288,10 +288,12 @@ private:
     std::vector<std::vector<std::recursive_mutex>> mutexes;
     Pruner pruner;
     Expander expander;
+    ThreadPool<LatticeTask> latticeExpander;
 public:
     std::recursive_mutex& getMutex(std::size_t depth, const GraphHandle& interface);
     Pruner& getPruner() { return pruner; }
     Expander& getExpander() { return expander; }
+    ThreadPool<LatticeTask>& getLatticeExpander() { return latticeExpander; }
 };
 
 } // namespace kas

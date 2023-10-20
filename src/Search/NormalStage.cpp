@@ -367,7 +367,7 @@ std::optional<Node> NormalStage::getChildImpl(Next next) {
 }
 
 bool NormalStage::canAcceptArcImpl(Arc arc) {
-    if (auto ptr = arc.tryAs<PrimitiveOp>(); ptr && ptr->getType() == DimensionType::Reduce) {
+    if (auto ptr = arc.tryAs<ReduceOp>(); ptr) {
         // We have left ReductionStage.
         return false;
     }
