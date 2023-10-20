@@ -62,12 +62,12 @@ PYBIND11_MODULE(kas_runtime, m) {
         );
 #else
     pybind11::class_<LoaderArgs>(m, "LoaderArgs")
-        .def(pybind11::init([](std::filesystem::path, std::string, bool, std::size_t, std::size_t, std::vector<std::size_t>) {
+        .def(pybind11::init([](std::filesystem::path, std::string, bool, std::size_t, std::size_t, std::vector<std::size_t>) -> LoaderArgs {
             throw std::runtime_error("KAS is not built with Halide. To use LoaderArgs, please rebuild KAS with Halide.");
         }));
 
     pybind11::class_<Loader>(m, "Loader")
-        .def(pybind11::init([](LoaderArgs) {
+        .def(pybind11::init([](LoaderArgs) -> Loader {
             throw std::runtime_error("KAS is not built with Halide. To use Loader, please rebuild KAS with Halide.");
         }));
 #endif
