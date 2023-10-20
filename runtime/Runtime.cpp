@@ -24,8 +24,12 @@ std::vector<at::Tensor *> ConvertArgsToTensors(pybind11::args& args) {
 
 #else
 
+namespace kas {
+
 struct LoaderArgs {};
 struct Loader {};
+
+} // namespace kas
 
 #endif
 
