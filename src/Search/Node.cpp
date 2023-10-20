@@ -253,10 +253,7 @@ void Node::expandSync(int layers) const {
 }
 
 void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const std::vector<Arc>& arcs) const {
-    // For some reason we have to know whether the next stage is a deadend or not.
-    // That is to say we have to expand our children!
-    // So, as you wish :(.
-    expand(4);
+    expand(2);
     // Continue.
     if (arcs.empty()) return;
     std::size_t success = 0;

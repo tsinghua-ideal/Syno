@@ -566,14 +566,16 @@ class MCTSTree:
                 if src_node._node.can_accept_arc(arc):
                     nxt = arc.to_next()
                     mid_child = src_node.get_child(nxt.type, auto_initialize=True)
-                    assert mid_child is not None
+                    if mid_child is None:
+                        continue
                     mid_child = mid_child[0]
                     assert src_node._node in self._path_store, src_node._node
                     child_node = self.touch(
                         src_node._node.get_child_from_arc(arc),
                         path=self._path_store[src_node._node].concat(nxt),
                     )
-                    assert not child_node.is_dead_end()
+                    if child_node.is_dead_end():
+                        continue
                     if attempt_to_node(child_node, tgt_node, new_arc_pool):
                         updated.add((src_node, nxt.type))
                         updated.add((mid_child, arc))
