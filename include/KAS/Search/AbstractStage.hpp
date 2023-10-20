@@ -39,19 +39,12 @@ public:
     using Mutex = std::recursive_mutex;
     using Lock = std::unique_lock<Mutex>;
 protected:
-    [[nodiscard]] Lock acquireLock() const {
-        return Lock { mutex };
-    }
-    [[nodiscard]] Lock tryAcquireLock() const {
-        return Lock { mutex, std::try_to_lock };
-    }
+    [[nodiscard]] Lock acquireLock() const { return Lock { mutex }; }
+    [[nodiscard]] Lock tryAcquireLock() const { return Lock { mutex, std::try_to_lock }; }
 private:
     Lock initialLock;
     Mutex& mutex;
-    Lock obtainInitialLock() {
-        KAS_ASSERT(initialLock.owns_lock(), "Initial lock has already been obtained.");
-        return std::move(initialLock);
-    }
+    Lock obtainInitialLock();
 
     // Parents of this Stage.
     std::vector<AbstractStage *> parents;
@@ -60,20 +53,7 @@ private:
     bool isFinalizabilityDetermined() const { return state != Finalizability::Maybe; }
 
     std::atomic<int> expandedLayers = 0;
-    bool tryExpandingMoreLayers(int layers) {
-        // If layers > expandedLayers, actually perform the expansion.
-        // Otherwise, ignore.
-        while (true) {
-            int existingExpandedLayers = expandedLayers;
-            if (layers <= existingExpandedLayers) {
-                return false;
-            }
-            if (expandedLayers.compare_exchange_weak(existingExpandedLayers, layers)) {
-                break;
-            }
-        }
-        return true;
-    }
+    bool tryExpandingMoreLayers(int layers);
 
 protected:
     Sampler& sampler;
@@ -89,35 +69,12 @@ protected:
 
     // When the finalizability is determined, call parents to update their finalizability.
     // When in construction, this function does not call the update. Otherwise, update is called.
-    void determineFinalizability(Finalizability yesOrNo, bool propagate) {
-        KAS_ASSERT(!isFinalizabilityDetermined(), "Finalizability has already been determined.");
-        switch (yesOrNo) {
-        case Finalizability::Yes:
-            --CountFinalizabilityMaybe;
-            ++CountFinalizabilityYes;
-            state = Finalizability::Yes;
-            break;
-        case Finalizability::No:
-            --CountFinalizabilityMaybe;
-            ++CountFinalizabilityNo;
-            state = Finalizability::No;
-            break;
-        default:
-            KAS_CRITICAL("Invalid Finalizability.");
-        }
-        if (propagate) {
-            for (auto parent: parents) {
-                parent->requestFinalizabilityUpdate(this);
-            }
-        }
-    }
+    void determineFinalizability(Finalizability yesOrNo, bool propagate);
 
     // Node pointers. We are searching bottom-up, so the children are actually closer to the input tensor.
     NextSlotStore nextSlotStore;
 
-    void requestFinalizabilityUpdate(const AbstractStage *requestor) {
-        sampler.getPruner().requestFinalizabilityUpdate(this, requestor);
-    }
+    void requestFinalizabilityUpdate(const AbstractStage *requestor);
 
 public:
     KAS_STATISTICS_DEF(
@@ -135,67 +92,11 @@ public:
         FinalizabilityNo,
     )
     // Create a root stage.
-    AbstractStage(Sampler& sampler, GraphHandle interface, Lock lock):
-        initialLock { [&]() -> Lock {
-            if (!lock.owns_lock()) {
-                return Lock { sampler.getMutex(0, interface) };
-            } else {
-                return std::move(lock);
-            }
-        }() },
-        mutex { *initialLock.mutex() },
-        parents {},
-        sampler { sampler },
-        interface(std::move(interface)),
-        depth { 0 },
-        existingOps {}
-    {
-        ++CountCreations;
-        ++CountFinalizabilityMaybe;
-    }
+    AbstractStage(Sampler &sampler, GraphHandle interface, Lock lock);
     // Create a non-root stage.
-    AbstractStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> optionalDeltaOp, Lock lock):
-        initialLock { [&]() -> Lock {
-            if (!lock.owns_lock()) {
-                return Lock { creator.sampler.getMutex(creator.depth + static_cast<std::size_t>(optionalDeltaOp.has_value()), interface) };
-            } else {
-                return std::move(lock);
-            }
-        }() },
-        mutex { *initialLock.mutex() },
-        parents { &creator },
-        sampler { creator.sampler },
-        interface(std::move(interface)),
-        depth { creator.depth + static_cast<std::size_t>(optionalDeltaOp.has_value()) },
-        existingOps { creator.existingOps }
-    {
-        ++CountCreations;
-        ++CountFinalizabilityMaybe;
-        if (optionalDeltaOp) {
-            Next::Type deltaOp = *optionalDeltaOp;
-            existingOps[deltaOp] += 1;
-            switch (deltaOp) {
-            case Next::Type::Reduce: ++CountChildrenReduce; break;
-            case Next::Type::Expand: ++CountChildrenExpand; break;
-            case Next::Type::Shift: ++CountChildrenShift; break;
-            case Next::Type::Stride: ++CountChildrenStride; break;
-            case Next::Type::Split: ++CountChildrenSplit; break;
-            case Next::Type::Unfold: ++CountChildrenUnfold; break;
-            case Next::Type::Merge: ++CountChildrenMerge; break;
-            case Next::Type::Share: ++CountChildrenShare; break;
-            default: KAS_UNREACHABLE();
-            }
-        }
-    }
-    Lock addParent(AbstractStage& parent) {
-        Lock lock = acquireLock();
-        parents.emplace_back(&parent);
-        return lock;
-    }
-    void addParent(AbstractStage& parent, Lock& lock) {
-        KAS_ASSERT(lock.owns_lock());
-        parents.emplace_back(&parent);
-    }
+    AbstractStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> optionalDeltaOp, Lock lock);
+    Lock addParent(AbstractStage &parent);
+    void addParent(AbstractStage &parent, Lock &lock);
 
     // Disallow copy or move.
     AbstractStage(const AbstractStage&) = delete;
@@ -205,20 +106,19 @@ public:
     std::size_t getDepth() const { return depth; }
 
     // Compute from Sampler.
-    std::size_t remainingDepth() const {
-        const std::size_t maxDepth = sampler.getOptions().depth;
-        KAS_ASSERT(maxDepth >= depth);
-        return maxDepth - depth;
-    }
+    std::size_t remainingDepth() const;
 
     template<PrimitiveOpImpl Op>
     int existingOp() const { return existingOps[Next::TypeOf<Op>()]; }
 
     // The state.
-    Finalizability getFinalizability() const {
+    inline Finalizability getFinalizability() const {
         if (isFinalizabilityDetermined()) {
             // Fast path. Here we do not need to acquire the lock.
             // This is because once the state is determined, it will never change.
+            // You may ask: hey, what if we read a value of a stage that has not been fully initialized yet, in which case `state` may be an arbitrary value?
+            // Think about it. How did you obtain this stage at all? You must have synchronized with a predecessor of this stage, which created this stage.
+            // So this fast path is thread-safe.
             return state;
         }
         Lock lock = acquireLock();
@@ -235,9 +135,7 @@ public:
     virtual Node toNode() = 0;
 
     // Python.
-    std::size_t hash() const {
-        return std::hash<GraphHandle>{}(interface);
-    }
+    std::size_t hash() const;
     virtual std::size_t countChildren() = 0;
     virtual std::vector<Next> getChildrenHandles() = 0;
     virtual std::vector<Arc> getChildrenArcs() = 0;
@@ -246,20 +144,10 @@ public:
     virtual std::vector<std::optional<Node>> getChildren(const std::vector<Next>& nexts) = 0;
     virtual bool canAcceptArc(Arc arc) = 0;
     virtual Node getChild(Arc arc) = 0;
-    std::string description() const {
-        return interface.description(sampler.getBindingContext());
-    }
+    std::string description() const;
 
-    void expand(int layers) {
-        if (tryExpandingMoreLayers(layers)) {
-            sampler.getExpander().expand(toNode(), layers);
-        }
-    }
-    void expandSync(int layers) {
-        if (tryExpandingMoreLayers(layers)) {
-            sampler.getExpander().expandSync(toNode(), layers);
-        }
-    }
+    void expand(int layers);
+    void expandSync(int layers);
 
     virtual ~AbstractStage() = default;
 };

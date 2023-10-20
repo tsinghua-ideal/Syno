@@ -37,7 +37,7 @@ TEST(serach_misc_tests, size_equals_one) {
         .getChild(Next(Next::TypeOf<ShareOp>(), 10573079388359089061ul)).value()
         .getChild(Next(Next::TypeOf<ExpandOp>(), 9719963751023831356ul)).value()
         .getChild(Next(Next::Type::Finalize, 7705279065707787209ul)).value();
-    fmt::print("Node {}:\n{}\n", node.toString(), GraphvizDFGGen::Print(node.asFinal()->getSubgraphs(), ctx));
+    fmt::print("Node {}:\n{}\n", node.toString(), GraphvizDFGGen::Print(node.asFinalStage()->value.getSubgraphs(), ctx));
     ASSERT_TRUE(!root.isDeadEnd());
     StatisticsCollector::PrintSummary(std::cout);
 }

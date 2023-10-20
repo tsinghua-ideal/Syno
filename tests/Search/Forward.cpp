@@ -60,7 +60,7 @@ TEST_F(search_tests, forward) {
         fmt::print("Got child. BTW, it is {}.\n", old.getChildDescription(next).value());
     }
     ASSERT_EQ(
-        node.asFinal()->printNestedLoopsForAll(ctx),
+        node.asFinalStage()->value.printNestedLoopsForAll(ctx),
         tensorView.printNestedLoopsForAll(ctx)
     );
 }

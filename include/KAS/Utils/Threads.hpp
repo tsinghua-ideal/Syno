@@ -107,6 +107,10 @@ public:
         cvReady.wait(lock, [this] { return completed == submitted; });
         return completed - currentCompleted;
     }
+    void sync() {
+        std::unique_lock lock { mutex };
+        cvReady.wait(lock, [this] { return completed == submitted; });
+    }
 
     template<typename S>
     void pushResult(S&& result) {
@@ -148,6 +152,7 @@ public:
     using Super::addMultiple;
     using Super::addSync;
     using Super::addMultipleSync;
+    using Super::sync;
     using Super::pushResult;
     using Super::emplaceResult;
     using Super::dumpResults;
@@ -180,6 +185,7 @@ public:
     std::size_t addMultipleSync(std::size_t count) {
         return Super::addMultipleSync(Repeat(count));
     }
+    using Super::sync;
     using Super::pushResult;
     using Super::emplaceResult;
     using Super::dumpResults;

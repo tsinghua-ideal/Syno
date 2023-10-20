@@ -14,6 +14,7 @@
 #include "KAS/Transforms/Transforms.hpp"
 #include "KAS/Utils/Hash.hpp"
 #include "KAS/Utils/Ranges.hpp"
+#include "KAS/Utils/Threads.hpp"
 
 namespace kas {
 
@@ -136,15 +137,30 @@ public:
 
     template<typename T>
     const T *as() const {
-        return std::get<const T *>(inner);
+        if constexpr (std::derived_from<T, PrimitiveOp>) {
+            return &dynamic_cast<const T&>(*std::get<const PrimitiveOp *>(inner));
+        } else {
+            return std::get<const T *>(inner);
+        }
     }
     template<typename T>
     const T *tryAs() const {
-        return std::holds_alternative<const T *>(inner) ? std::get<const T *>(inner) : nullptr;
+        if constexpr (std::derived_from<T, PrimitiveOp>) {
+            if (!std::holds_alternative<const PrimitiveOp *>(inner)) return nullptr;
+            return dynamic_cast<const T *>(std::get<const PrimitiveOp *>(inner));
+        } else {
+            if (!std::holds_alternative<const T *>(inner)) return nullptr;
+            return std::get<const T *>(inner);
+        }
     }
 
     bool operator==(const Arc& rhs) const;
     std::size_t hash() const;
+    struct Hash {
+        std::size_t operator()(const Arc& arc) const {
+            return arc.hash();
+        }
+    };
     Next toNext() const;
     std::string toString() const;
 };
@@ -318,7 +334,8 @@ using NextSlotStore = GenericNextSlotStore<NextStageSlot>;
 class AbstractStage;
 class ReductionStage;
 class NormalStage;
-class TensorView;
+class FinalStage;
+struct LatticeTask;
 
 class Node {
     friend struct Next;
@@ -332,7 +349,7 @@ class Node {
         Final = 2, // Finalization performed.
     };
     // This corresponds to the three types.
-    std::variant<ReductionStage *, NormalStage *, TensorView *> inner;
+    std::variant<ReductionStage *, NormalStage *, FinalStage *> inner;
     Type type() const noexcept {
         return static_cast<Type>(inner.index());
     }
@@ -340,14 +357,14 @@ class Node {
     requires
         std::convertible_to<std::invoke_result_t<FR, ReductionStage *>, R> &&
         std::convertible_to<std::invoke_result_t<FN, NormalStage *>, R> &&
-        std::convertible_to<std::invoke_result_t<FF, TensorView *>, R>
+        std::convertible_to<std::invoke_result_t<FF, FinalStage *>, R>
     R match(FR&& fr, FN&& fn, FF&& ff) const {
         return std::visit([&](auto arg) -> R {
             if constexpr (std::is_same_v<decltype(arg), ReductionStage *>) {
                 return fr(arg);
             } else if constexpr (std::is_same_v<decltype(arg), NormalStage *>) {
                 return fn(arg);
-            } else if constexpr (std::is_same_v<decltype(arg), TensorView *>) {
+            } else if constexpr (std::is_same_v<decltype(arg), FinalStage *>) {
                 return ff(arg);
             } else {
                 KAS_UNREACHABLE();
@@ -357,14 +374,14 @@ class Node {
     template<typename R, typename FS, typename FF>
     requires
         std::convertible_to<std::invoke_result_t<FS, AbstractStage *>, R> &&
-        std::convertible_to<std::invoke_result_t<FF, TensorView *>, R>
+        std::convertible_to<std::invoke_result_t<FF, FinalStage *>, R>
     R match(FS&& fs, FF&& ff) const {
         return std::visit([&](auto arg) -> R {
             if constexpr (std::is_same_v<decltype(arg), ReductionStage *>) {
                 return fs(arg);
             } else if constexpr (std::is_same_v<decltype(arg), NormalStage *>) {
                 return fs(arg);
-            } else if constexpr (std::is_same_v<decltype(arg), TensorView *>) {
+            } else if constexpr (std::is_same_v<decltype(arg), FinalStage *>) {
                 return ff(arg);
             } else {
                 KAS_UNREACHABLE();
@@ -377,8 +394,8 @@ public:
         sampler { sampler }, inner { rStage } {}
     Node(Sampler *sampler, NormalStage *nStage):
         sampler { sampler }, inner { nStage } {}
-    Node(Sampler *sampler, TensorView *kernel):
-        sampler { sampler }, inner { kernel } {}
+    Node(Sampler *sampler, FinalStage *fStage):
+        sampler { sampler }, inner { fStage } {}
 
     // For Python.
     bool operator==(const Node& rhs) const;
@@ -388,9 +405,7 @@ public:
     // For convenience.
     std::strong_ordering operator<=>(const Node& rhs) const = default;
 
-    AbstractStage *tryAsStage() const;
-    NormalStage *asNormalStage() const;
-    TensorView *asFinal() const;
+    FinalStage *asFinalStage() const;
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& directory, const std::string& name) const;
     // Obtain the mappings from Sampler, and do not solve the paddings. We only want to estimate the FLOPs.
     std::size_t estimateTotalFLOPsAsFinal() const;
@@ -412,12 +427,19 @@ public:
     std::vector<Next> getPossiblePath() const;
     std::vector<Arc> getComposingArcs() const;
     void expandSync(int layers) const;
+    void expandWithArcs(ThreadPool<LatticeTask>& expander, const std::vector<Arc>& arcs) const;
+    void expandToSync(Node target) const;
     void expand(int layers) const;
     std::optional<std::string> getChildDescription(Next next) const;
     bool isFinal() const { return type() == Type::Final; }
     bool isDeadEnd() const;
     bool discoveredFinalDescendant() const;
     std::string toString() const;
+};
+
+struct LatticeTask {
+    Node node;
+    std::vector<Arc> arcs;
 };
 
 }

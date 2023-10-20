@@ -43,7 +43,6 @@ sys.setdlopenflags(old_flags)
 del old_flags
 
 from .Assembler import Assembled, Assembler
-from .Explorer import Explorer
 from .KernelPack import KernelPack, KernelLoader
 from .Node import Next, Path, AbsolutePath, Arc, Node, VisitedNode, MockNodeMetadata, MockNode, MockVisitedNode
 from .Placeholder import Placeholder

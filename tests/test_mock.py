@@ -1,6 +1,6 @@
 import KAS
 
-from KAS import Explorer, Next, MockNodeMetadata, MockNode, MockSampler
+from KAS import Next, MockNodeMetadata, MockNode, MockSampler
 
 
 def test_mock_sampler():

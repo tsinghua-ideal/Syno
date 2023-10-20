@@ -15,9 +15,9 @@
 
 namespace kas {
 
-std::unique_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending, const BindingContext& ctx) const {
+TensorView FinalizeOp::buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending, const BindingContext& ctx) const {
     if (fixed.empty()) {
-        return std::make_unique<TensorView>(tensors, std::move(blending), ctx);
+        return TensorView { tensors, std::move(blending), ctx };
     }
     std::vector<Topmost> tensors;
     std::ranges::copy(this->tensors, std::back_inserter(tensors));
@@ -26,7 +26,7 @@ std::unique_ptr<TensorView> FinalizeOp::buildTensorView(const std::vector<FixedD
         // Given the fact that fixed is sorted.
         inputTensor.insert(inputTensor.begin() + index, dim);
     }
-    return std::make_unique<TensorView>(tensors, std::move(blending), ctx);
+    return TensorView { tensors, std::move(blending), ctx };
 }
 
 bool FinalizeOp::operator==(const FinalizeOp& rhs) const noexcept {
@@ -324,12 +324,12 @@ struct TopKFinalizations {
         FinalizeOp tensors;
         double variance;
         // Later manually assign this.
-        std::unique_ptr<TensorView> tensorView;
+        std::unique_ptr<FinalStage> stage;
         std::size_t flops = 0;
-        void build(const BindingContext& ctx, const FinalizeOp::TensorViewBuilder& tensorViewBuilder) {
-            KAS_ASSERT(!tensorView);
-            tensorView = tensorViewBuilder(tensors);
-            flops = tensorView->getFLOPs(ctx);
+        void build(const BindingContext& ctx, const FinalizeOp::FinalStageBuilder& finalStageBuilder) {
+            KAS_ASSERT(!stage);
+            stage = finalStageBuilder(tensors);
+            flops = stage->value.getFLOPs(ctx);
         }
         Finalization(const BindingContext& ctx, auto&& tensors):
             tensors { std::forward<decltype(tensors)>(tensors) },
@@ -355,13 +355,13 @@ struct TopKFinalizations {
     const BindingContext& ctx;
     const Graph::DimensionSet& sharedWeightDims;
     const std::size_t k;
-    const FinalizeOp::TensorViewBuilder& tensorViewBuilder;
+    const FinalizeOp::FinalStageBuilder& finalStageBuilder;
     const std::size_t maxFLOPs;
     // Sorted by variance, from lowest to highest.
     std::vector<Finalization> topK;
 
-    TopKFinalizations(const BindingContext& ctx, const Graph::DimensionSet& sharedWeightDims, std::size_t k, const FinalizeOp::TensorViewBuilder& tensorViewBuilder, std::size_t maxFLOPs):
-        ctx { ctx }, sharedWeightDims { sharedWeightDims }, k { k }, tensorViewBuilder { tensorViewBuilder }, maxFLOPs { maxFLOPs } {}
+    TopKFinalizations(const BindingContext& ctx, const Graph::DimensionSet& sharedWeightDims, std::size_t k, const FinalizeOp::FinalStageBuilder& finalStageBuilder, std::size_t maxFLOPs):
+        ctx { ctx }, sharedWeightDims { sharedWeightDims }, k { k }, finalStageBuilder { finalStageBuilder }, maxFLOPs { maxFLOPs } {}
     bool empty() const noexcept { return topK.empty(); }
     std::size_t size() const noexcept { return topK.size(); }
     void emplace(auto&& tensors) {
@@ -375,7 +375,7 @@ struct TopKFinalizations {
         if (vacancy == topK.cend() && topK.size() >= k) {
             return;
         }
-        f.build(ctx, tensorViewBuilder);
+        f.build(ctx, finalStageBuilder);
         if (f.flops > maxFLOPs) {
             return;
         }
@@ -391,11 +391,11 @@ struct TopKFinalizations {
             topK.emplace_back(std::move(f));
         }
     }
-    std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> toResult() {
-        std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> result;
+    std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> toResult() {
+        std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> result;
         result.reserve(topK.size());
         for (auto& f: topK) {
-            result.emplace_back(std::move(f.tensors), std::move(f.tensorView));
+            result.emplace_back(std::move(f.tensors), std::move(f.stage));
         }
         return result;
     }
@@ -403,7 +403,7 @@ struct TopKFinalizations {
 
 } // namespace
 
-std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> FinalizeOp::Generate(const GraphHandle& dimensionsAndExpansions, const Graph& graph, const GenerateOptions& options) {
+std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Generate(const GraphHandle& dimensionsAndExpansions, const Graph& graph, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     const std::vector<Dimension>& interface = dimensionsAndExpansions.getDimensions();
@@ -417,7 +417,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> FinalizeOp::Gene
 
     const Graph::DimensionSet sharedWeightDims = ExpandOp::GetSharedWeightDims(graph);
 
-    TopKFinalizations result { options.ctx, sharedWeightDims, options.maximumFinalizations, options.tensorViewBuilder, options.maxFLOPs };
+    TopKFinalizations result { options.ctx, sharedWeightDims, options.maximumFinalizations, options.finalStageBuilder, options.maxFLOPs };
     auto addToResults = [&result, &expansions](std::vector<std::vector<Dimension>>&& tensors) {
         // Currently, we only allow expansions to be added to the input tensor.
         std::vector<Topmost> realTensors;

@@ -111,7 +111,10 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     countMutexesInLayer { MutexCountFromNumWorkers(numWorkerThreads) },
     mutexes(options.depth + 1),
     pruner {},
-    expander { numWorkerThreads }
+    expander { numWorkerThreads },
+    latticeExpander { numWorkerThreads, [](ThreadPool<LatticeTask>& expander, LatticeTask task) {
+        task.node.expandWithArcs(expander, task.arcs);
+    } }
 {
     KAS_ASSERT(numWorkerThreads > 0);
     for (auto& mutexes: this->mutexes) {
@@ -404,16 +407,24 @@ void Sampler::convertTensorsToSearchableForm(std::vector<Topmost>& tensors) cons
     sortAllExpansionsAndWeightDimensions(tensors);
 }
 
-std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
-    std::vector<Next> result;
-    // To obtain the path, we need to follow the 3 stages of searching.
+std::vector<Topmost> Sampler::convertTensorViewToSearchableTensors(const TensorView& tensorView) const {
+    auto tensors = ranges::to<std::vector<Topmost>>(tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent));
+    convertTensorsToSearchableForm(tensors);
+    return tensors;
+}
 
-    const Graph graph = handle.buildGraph();
+Next Sampler::ConvertSearchableTensorsToFinalNext(const std::vector<Topmost>& tensors) {
+    return Next { Next::Type::Finalize, NextFinalizeSlot::GetKey(tensors) };
+}
+
+std::vector<const PrimitiveOp *> Sampler::ConvertGraphToOps(const Graph& graph) {
+    std::vector<const PrimitiveOp *> result;
+    // To obtain the path, we need to follow the 3 stages of searching.
 
     // First, ReductionStage.
     {
         for (const Reduce *op: graph.getReduceIterators()) {
-            result.emplace_back(Next::FromOp(ReduceOp::FromRaw(op)));
+            result.emplace_back(ReduceOp::FromRaw(op));
         }
     }
 
@@ -431,7 +442,7 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
                     if (addedV) return;
                     addedV = true;
                     self(self, v[RepeatLikeOp::Branch::Output]);
-                    result.emplace_back(Next::FromOp(&v.op));
+                    result.emplace_back(&v.op);
                 },
                 [&](const SplitLikeVertex& v, auto) {
                     bool& addedV = added[v];
@@ -439,14 +450,14 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
                     addedV = true;
                     self(self, v[SplitLikeOp::Branch::OutputLhs]);
                     self(self, v[SplitLikeOp::Branch::OutputRhs]);
-                    result.emplace_back(Next::FromOp(&v.op));
+                    result.emplace_back(&v.op);
                 },
                 [&](const MergeLikeVertex& v, auto) {
                     bool& addedV = added[v];
                     if (addedV) return;
                     addedV = true;
                     self(self, v[MergeLikeOp::Branch::Output]);
-                    result.emplace_back(Next::FromOp(&v.op));
+                    result.emplace_back(&v.op);
                 },
                 [](const ExpandVertex& v, auto) {
                     // Expand is left for later code to handle.
@@ -454,47 +465,44 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
             );
         };
         // We need to generate Next's in canonical order of ShareOp! We need to add ShareOp::IsSharedDimensionCanonical(). TODO.
-        for (const Dimension& dim: handle.getAllDimensions()) {
+        for (const Dimension& dim: graph.getTopmost().getAllDimensions()) {
             dfs(dfs, dim);
         }
         // Do not forget to add expansions.
-        for (const Expand *exp: handle.getExpansions()) {
-            result.emplace_back(Next::FromOp(dynamic_cast<const ExpandOp *>(exp)));
+        for (const Expand *exp: graph.getTopmost().getExpansions()) {
+            result.emplace_back(dynamic_cast<const ExpandOp *>(exp));
         }
     }
+
+    KAS_ASSERT(result.size() == graph.getOps().size() + graph.getReduceIterators().size());
 
     return result;
 }
 
+std::vector<Next> Sampler::ConvertOpsToNexts(const std::vector<const PrimitiveOp *>& ops) {
+    return ranges::to<std::vector<Next>>(ops | std::views::transform(&Next::FromOp<PrimitiveOp>));
+}
+
+std::vector<Arc> Sampler::convertOpsToArcs(const std::vector<const PrimitiveOp *>& ops) const {
+    return ranges::to<std::vector<Arc>>(ops | std::views::transform([this](const PrimitiveOp *op) {
+        return Arc { this, op };
+    }));
+}
+
 std::vector<Next> Sampler::ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors) {
     auto handle = GraphHandle::FromInterfaces(tensors);
-    auto result = ConvertGraphHandleToPath(handle);
+    auto result = ConvertOpsToNexts(ConvertGraphToOps(handle.buildGraph()));
 
     // We have now done the previous two stages.
     // Finally, Finalize.
-    result.emplace_back(Next::Type::Finalize, NextFinalizeSlot::GetKey(tensors));
+    result.emplace_back(ConvertSearchableTensorsToFinalNext(tensors));
 
     return result;
 }
 
 std::vector<Next> Sampler::convertTensorViewToPath(const TensorView& tensorView) const {
-    auto tensors = ranges::to<std::vector<Topmost>>(tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent));
-    convertTensorsToSearchableForm(tensors);
+    auto tensors = convertTensorViewToSearchableTensors(tensorView);
     return ConvertSearchableTensorsToPath(tensors);
-}
-
-std::optional<std::vector<Arc>> Sampler::convertPathToArcs(const std::vector<Next>& path) {
-    std::vector<Arc> result;
-    Node n { this, rootStage };
-    for (const auto& next: path) {
-        auto nextArc = n.getArcFromHandle(next);
-        if (!nextArc) {
-            return std::nullopt;
-        }
-        result.emplace_back(*nextArc);
-        n = n.getChildFromArc(*nextArc);
-    }
-    return std::optional<std::vector<Arc>>(std::in_place, std::move(result));
 }
 
 void Sampler::Pruner::handleUpdates(std::set<AbstractStage *>& updates) {

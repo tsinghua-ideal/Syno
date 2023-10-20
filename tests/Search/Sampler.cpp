@@ -13,17 +13,20 @@ TEST_F(search_tests, sampler) {
     for (int i = 0; i < trials; ++i) {
         auto randomLeaves = sampler.randomFinalNodesWithPrefix({}, 32);
         for (const auto& [_, node]: randomLeaves) {
-            auto path = sampler.convertTensorViewToPath(*node.asFinal());
+            auto path = sampler.convertTensorViewToPath(node.asFinalStage()->value);
             auto reconstructedNode = sampler.visit(path);
             if (reconstructedNode.has_value()) {
                 ASSERT_EQ(
-                    node.asFinal()->printNestedLoopsForAll(ctx),
-                    reconstructedNode->asFinal()->printNestedLoopsForAll(ctx)
+                    node.asFinalStage()->value.printNestedLoopsForAll(ctx),
+                    reconstructedNode->asFinalStage()->value.printNestedLoopsForAll(ctx)
                 );
                 ++successfulReconstruction;
             } else {
                 ++failedReconstruction;
             }
+            fmt::print("Expanding lattice... ");
+            sampler.visit({})->expandToSync(node);
+            fmt::print("Done.\n");
         }
         if (randomLeaves.empty()) {
             fmt::print("Trial {} failed.\n", i);
@@ -34,7 +37,7 @@ TEST_F(search_tests, sampler) {
         auto randomLeafIndex = std::uniform_int_distribution<std::size_t>(0, randomLeaves.size() - 1)(rng);
         auto [_, node] = randomLeaves[randomLeafIndex];
         ++successes;
-        auto& tensorView = *node.asFinal();
+        auto& tensorView = node.asFinalStage()->value;
 
         auto r = tensorView.getUnderlyingTensors() | std::ranges::views::transform([&](const auto& tensor) { return tensor.shapeToString(ctx); });
         std::cout << fmt::format("Input Shape: {}", fmt::join(r, ", ")) << std::endl;

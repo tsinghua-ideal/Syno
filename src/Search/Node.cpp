@@ -82,8 +82,8 @@ bool Node::operator==(const Node& rhs) const {
         [&](NormalStage *nStage) { // Because we have uniquified them.
             return nStage == std::get<NormalStage *>(rhs.inner);
         },
-        [&](TensorView *tensor) {
-            return *tensor == *std::get<TensorView *>(rhs.inner);
+        [&](FinalStage *fStage) { // Because it is uniquely determined by the previous stage.
+            return fStage == std::get<FinalStage *>(rhs.inner);
         }
     );
 }
@@ -101,36 +101,18 @@ std::size_t Node::hash() const {
     return h;
 }
 
-AbstractStage *Node::tryAsStage() const {
-    return match<AbstractStage *>(
-        [](AbstractStage *stage) {
-            return stage;
-        },
-        [](TensorView *tensor) -> AbstractStage * {
-            return nullptr;
-        }
-    );
-}
-
-NormalStage *Node::asNormalStage() const {
-    return std::get<NormalStage *>(inner);
-}
-
-TensorView *Node::asFinal() const {
-    return std::get<TensorView *>(inner);
+FinalStage *Node::asFinalStage() const {
+    return std::get<FinalStage *>(inner);
 }
 
 std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& directory, const std::string& name) const {
-    auto final = asFinal();
-    if (!final) {
-        return nullptr;
-    }
-    return std::make_unique<Kernel>(sampler->getBindingContext(), *final, allMappings, std::move(options), directory, name);
+    auto final = asFinalStage();
+    return std::make_unique<Kernel>(sampler->getBindingContext(), final->value, allMappings, std::move(options), directory, name);
 }
 
 std::size_t Node::estimateTotalFLOPsAsFinal() const {
-    auto final = asFinal();
-    return final->getFLOPs(sampler->getBindingContext());
+    auto final = asFinalStage();
+    return final->value.getFLOPs(sampler->getBindingContext());
 }
 
 void Node::generateGraphviz(const std::filesystem::path& path, const std::string& name) const {
@@ -144,62 +126,62 @@ void Node::generateGraphviz(const std::filesystem::path& path, const std::string
             GraphvizGen gen { nStage->getInterface().getRaw(), ctx };
             gen.generate(path, name);
         },
-        [&](TensorView *) -> void {
+        [&](FinalStage *) -> void {
             generateGraphvizAsFinal(path, name);
         }
     );
 }
 
 void Node::generateGraphvizAsFinal(const std::filesystem::path& path, const std::string& name) const {
-    auto final = asFinal();
-    GraphvizGen gen { *final, sampler->getBindingContext() };
+    auto final = asFinalStage();
+    GraphvizGen gen { final->value, sampler->getBindingContext() };
     gen.generate(path, name);
 }
 
 std::string Node::getNestedLoopsAsFinal() const {
-    auto final = asFinal();
-    return final->printNestedLoopsForAll(sampler->getBindingContext());
+    auto final = asFinalStage();
+    return final->value.printNestedLoopsForAll(sampler->getBindingContext());
 }
 
 std::size_t Node::countChildren() const {
     return match<std::size_t>(
         [](AbstractStage *stage) { return stage->countChildren(); },
-        [](TensorView *tensor) { return 0; }
+        [](FinalStage *stage) { return 0; }
     );
 }
 
 std::vector<Next> Node::getChildrenHandles() const {
     return match<std::vector<Next>>(
         [](AbstractStage *stage) { return stage->getChildrenHandles(); },
-        [](TensorView *tensor) { return std::vector<Next>{}; }
+        [](FinalStage *stage) { return std::vector<Next>{}; }
     );
 }
 
 std::vector<Arc> Node::getChildrenArcs() const {
     return match<std::vector<Arc>>(
         [](AbstractStage *stage) { return stage->getChildrenArcs(); },
-        [](TensorView *tensor) { return std::vector<Arc>{}; }
+        [](FinalStage *stage) { return std::vector<Arc>{}; }
     );
 }
 
 std::optional<Arc> Node::getArcFromHandle(Next next) const {
     return match<std::optional<Arc>>(
         [&](AbstractStage *stage) { return stage->getArcFromHandle(next); },
-        [](TensorView *tensor) -> std::optional<Arc> { return std::nullopt; }
+        [](FinalStage *stage) -> std::optional<Arc> { return std::nullopt; }
     );
 }
 
 std::optional<Node> Node::getChild(Next next) const {
     return match<std::optional<Node>>(
         [&](AbstractStage *stage) { return stage->getChild(next); },
-        [](TensorView *tensor) -> std::optional<Node> { return std::nullopt; }
+        [](FinalStage *stage) -> std::optional<Node> { return std::nullopt; }
     );
 }
 
 std::vector<std::optional<Node>> Node::getChildren(const std::vector<Next>& nexts) const {
     return match<std::vector<std::optional<Node>>>(
         [&](AbstractStage *stage) { return stage->getChildren(nexts); },
-        [&](TensorView *tensor) {
+        [&](FinalStage *stage) {
             return std::vector<std::optional<Node>>(nexts.size());
         }
     );
@@ -208,33 +190,55 @@ std::vector<std::optional<Node>> Node::getChildren(const std::vector<Next>& next
 bool Node::canAcceptArc(Arc arc) const {
     return match<bool>(
         [&](AbstractStage *stage) { return stage->canAcceptArc(arc); },
-        [](TensorView *tensor) -> bool { return false; }
+        [](FinalStage *stage) -> bool { return false; }
     );
 }
 
 Node Node::getChildFromArc(Arc arc) const {
     return match<Node>(
         [&](AbstractStage *stage) { return stage->getChild(arc); },
-        [](TensorView *tensor) -> Node { KAS_UNREACHABLE(); }
+        [](FinalStage *stage) -> Node { KAS_UNREACHABLE(); }
     );
 }
 
 std::vector<Next> Node::getPossiblePath() const {
-    return match<std::vector<Next>>(
+    std::optional<Next> finalNext;
+    AbstractStage *stage = match<AbstractStage *>(
         [](AbstractStage *stage) {
-            return Sampler::ConvertGraphHandleToPath(stage->getInterface());
+            return stage;
         },
-        [&](TensorView *tensorView) {
-            return sampler->convertTensorViewToPath(*tensorView);
+        [&](FinalStage *stage) {
+            const NextFinalizeSlot& slot = stage->getSlot();
+            finalNext = slot;
+            return &stage->parent;
         }
     );
+    const Graph graph = stage->getInterface().buildGraph();
+    auto result = Sampler::ConvertOpsToNexts(Sampler::ConvertGraphToOps(graph));
+    if (finalNext) {
+        result.emplace_back(*finalNext);
+    }
+    return result;
 }
 
 std::vector<Arc> Node::getComposingArcs() const {
-    auto possiblePath = getPossiblePath();
-    auto arcs = sampler->convertPathToArcs(possiblePath);
-    KAS_ASSERT(arcs, "This node is a dead end, so the composing arcs do not exist.");
-    return std::move(*arcs);
+    std::optional<Arc> finalArc;
+    AbstractStage *stage = match<AbstractStage *>(
+        [](AbstractStage *stage) {
+            return stage;
+        },
+        [&](FinalStage *stage) {
+            const NextFinalizeSlot& slot = stage->getSlot();
+            finalArc = { sampler, &slot.finalization };
+            return &stage->parent;
+        }
+    );
+    const Graph graph = stage->getInterface().buildGraph();
+    auto result = sampler->convertOpsToArcs(Sampler::ConvertGraphToOps(graph));
+    if (finalArc) {
+        result.emplace_back(*finalArc);
+    }
+    return result;
 }
 
 void Node::expandSync(int layers) const {
@@ -242,10 +246,68 @@ void Node::expandSync(int layers) const {
         [&](AbstractStage *stage) {
             stage->expandSync(layers);
         },
-        [](TensorView *) -> void {
+        [](FinalStage *) -> void {
             return;
         }
     );
+}
+
+void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const std::vector<Arc>& arcs) const {
+    // First guard that the children are generated.
+    countChildren();
+
+    // Then continue.
+    for (std::size_t index = 0; const Arc& arc: arcs) {
+        if (!canAcceptArc(arc)) continue;
+        auto child = getChildFromArc(arc);
+        std::vector<Arc> remainingArcs = arcs;
+        remainingArcs.erase(remainingArcs.begin() + index);
+        expander.add(LatticeTask { child, std::move(remainingArcs) });
+        ++index;
+    }
+}
+
+void Node::expandToSync(Node target) const {
+    if (*this == target) {
+        return;
+    }
+    std::vector<Arc> remainingReductions, remainingOthers;
+    {
+        auto bottomArcs = ranges::to<std::unordered_set<Arc, Arc::Hash>>(match<std::vector<Arc>>(
+            [&](AbstractStage *) { return getComposingArcs(); },
+            [](FinalStage *) -> std::vector<Arc> { KAS_UNREACHABLE(); }
+        ));
+        auto topArcs = ranges::to<std::unordered_set<Arc, Arc::Hash>>(target.match<std::vector<Arc>>(
+            [&](AbstractStage *) { return target.getComposingArcs(); },
+            // If the target is a TensorView, we only need to expand to its predecessor.
+            [&](FinalStage *stage) -> std::vector<Arc> { return Node(sampler, &stage->parent).getComposingArcs(); }
+        ));
+        std::size_t removed = 0;
+        for (const Arc& arc: topArcs) {
+            if (bottomArcs.contains(arc)) {
+                ++removed;
+            } else {
+                if (arc.tryAs<ReduceOp>()) {
+                    remainingReductions.emplace_back(arc);
+                } else {
+                    remainingOthers.emplace_back(arc);
+                }
+            }
+        }
+        KAS_ASSERT(removed == bottomArcs.size());
+    }
+    auto& expander = sampler->getLatticeExpander();
+    Node normalBottom = *this;
+    if (!remainingReductions.empty()) {
+        expander.add(LatticeTask { *this, remainingReductions });
+        for (const Arc& arc: remainingReductions) {
+            normalBottom = normalBottom.getChildFromArc(arc);
+        }
+    }
+    if (!remainingOthers.empty()) {
+        expander.add(LatticeTask { normalBottom, remainingOthers });
+    }
+    expander.sync();
 }
 
 void Node::expand(int layers) const {
@@ -253,7 +315,7 @@ void Node::expand(int layers) const {
         [&](AbstractStage *stage) {
             stage->expand(layers);
         },
-        [](TensorView *) -> void {
+        [](FinalStage *) -> void {
             return;
         }
     );
@@ -266,7 +328,7 @@ std::optional<std::string> Node::getChildDescription(Next next) const {
             if (!arc) return std::nullopt;
             return arc->toString();
         },
-        [](TensorView *tensor) -> std::string {
+        [](FinalStage *stage) -> std::string {
             KAS_UNREACHABLE();
         }
     );
@@ -275,22 +337,21 @@ std::optional<std::string> Node::getChildDescription(Next next) const {
 bool Node::isDeadEnd() const {
     return match<bool>(
         [](AbstractStage *stage) { return stage->getFinalizability() == Finalizability::No; },
-        [](TensorView *tensor) { return false; }
+        [](FinalStage *stage) { return false; }
     );
 }
 
 bool Node::discoveredFinalDescendant() const {
     return match<bool>(
         [](AbstractStage *stage) { return stage->getFinalizability() == Finalizability::Yes; },
-        [](TensorView *tensor) { return true; }
+        [](FinalStage *stage) { return true; }
     );
 }
 
 std::string Node::toString() const {
-    const BindingContext& ctx = sampler->getBindingContext();
     return match<std::string>(
         [](AbstractStage *stage) { return stage->description(); },
-        [&](TensorView *tensor) { return tensor->description(ctx); }
+        [](FinalStage *stage) { return stage->description(); }
     );
 }
 
