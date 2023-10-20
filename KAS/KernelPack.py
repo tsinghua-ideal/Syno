@@ -2,6 +2,7 @@ import logging
 import itertools
 import importlib
 import os
+import tarfile
 import torch
 import torch.nn.functional as F
 import torch.utils.cpp_extension
@@ -134,6 +135,12 @@ class KernelLoader:
     @staticmethod
     def from_directory(directory: os.PathLike) -> 'KernelLoader':
         return KernelLoader(Bindings.Kernel(directory))
+
+    def archive_to(self, file: os.PathLike, overwrite: bool = True) -> None:
+        os.makedirs(os.path.dirname(file), exist_ok=True)
+        if not os.path.exists(file) or overwrite:
+            with tarfile.open(file, "w:gz") as tar:
+                tar.add(self.get_directory(), "kernel_dir")
 
     def get_name(self) -> str:
         return self._kernel.get_name()
