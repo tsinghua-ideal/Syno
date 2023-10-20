@@ -253,35 +253,31 @@ void Node::expandSync(int layers) const {
 }
 
 void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const std::vector<Arc>& arcs) const {
-    if (arcs.empty()) {
-        // Seems like we can stop here? The answer is no.
-        // For some reason we have to know whether the next stage is a deadend or not.
-        // That is to say we have to expand our children!
-        // So, as you wish :(.
-        for (const Next& next: getChildrenHandles()) {
-            auto child = getChild(next);
-            if (child) {
-                child->countChildren();
-            }
+    // For some reason we have to know whether the next stage is a deadend or not.
+    // That is to say we have to expand our children!
+    // So, as you wish :(.
+    for (Next next: getChildrenHandles()) {
+        auto child = getChild(next);
+        if (child) {
+            child->countChildren();
         }
-    } else {
-        // First guard that the children are generated.
-        countChildren();
-        std::size_t success = 0;
-        for (std::size_t index = 0; const Arc& arc: arcs) {
-            if (!canAcceptArc(arc)) {
-                ++index;
-                continue;
-            }
-            auto child = getChildFromArc(arc);
-            std::vector<Arc> remainingArcs = arcs;
-            remainingArcs.erase(remainingArcs.begin() + index);
-            expander.add(LatticeTask { child, std::move(remainingArcs) });
-            ++success;
-            ++index;
-        }
-        KAS_ASSERT(success > 0);
     }
+    // Continue.
+    if (arcs.empty()) return;
+    std::size_t success = 0;
+    for (std::size_t index = 0; const Arc& arc: arcs) {
+        if (!canAcceptArc(arc)) {
+            ++index;
+            continue;
+        }
+        auto child = getChildFromArc(arc);
+        std::vector<Arc> remainingArcs = arcs;
+        remainingArcs.erase(remainingArcs.begin() + index);
+        expander.add(LatticeTask { child, std::move(remainingArcs) });
+        ++success;
+        ++index;
+    }
+    KAS_ASSERT(success > 0);
 }
 
 void Node::expandToSync(Node target) const {
