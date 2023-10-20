@@ -101,14 +101,14 @@ void NormalStage::guardGeneratedChildren() {
         .maximumTensors = options.maximumTensors,
         .maximumFinalizations = options.maximumFinalizations,
         .allowWeightPermutation = options.allowWeightPermutation,
-        .tensorViewBuilder = [this](const FinalizeOp& op) {
+        .finalStageBuilder = [this](const FinalizeOp& op) {
             return getFinalize(op);
         },
         .maxFLOPs = options.maxFLOPs,
-    }), [](std::pair<FinalizeOp, std::unique_ptr<TensorView>>& opAndTensorView) {
-        auto& [op, tensorView] = opAndTensorView;
+    }), [](std::pair<FinalizeOp, std::unique_ptr<FinalStage>>& opAndStage) {
+        auto& [op, stage] = opAndStage;
         auto key = NextFinalizeSlot::GetKey(op.tensors);
-        return NextFinalizeSlot({Next::Type::Finalize, key}, std::move(op), std::move(tensorView));
+        return NextFinalizeSlot({Next::Type::Finalize, key}, std::move(op), std::move(stage));
     });
     nextFinalizations.checkHashCollisionAndRemove();
 
@@ -238,12 +238,12 @@ void NormalStage::guardGeneratedChildren() {
     }
 }
 
-std::unique_ptr<TensorView> NormalStage::getFinalize(const FinalizeOp& op) const {
-    return op.buildTensorView(
+std::unique_ptr<FinalStage> NormalStage::getFinalize(const FinalizeOp& op) {
+    return std::make_unique<FinalStage>(*this, op.buildTensorView(
         sampler.getFixedDimensions(),
         sampler.getExpressionForTensorNum(op.tensors.size()),
         sampler.getBindingContext()
-    );
+    ));
 }
 
 bool NormalStage::possibleToFinalizeByExperimenting() const {
@@ -360,8 +360,7 @@ std::optional<Node> NormalStage::getChildImpl(Next next) {
         if (next.type == Next::Type::Finalize) {
             auto slot = nextFinalizations.getSlot(next);
             if (!slot) return std::optional<Node>();
-            KAS_ASSERT(slot->tensorView);
-            return std::optional<Node>(std::in_place, &sampler, slot->tensorView.get());
+            return std::optional<Node>(std::in_place, &sampler, slot->nextStage.get());
         }
         return Base::getChildImpl(next);
     });

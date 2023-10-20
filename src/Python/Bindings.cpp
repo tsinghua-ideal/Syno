@@ -251,6 +251,10 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("layers")
         )
         .def(
+            "expand_to", &Node::expandToSync,
+            pybind11::arg("target")
+        )
+        .def(
             "expand_async", &Node::expand,
             pybind11::arg("layers")
         )

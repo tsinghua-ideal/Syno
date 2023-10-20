@@ -404,16 +404,14 @@ void Sampler::convertTensorsToSearchableForm(std::vector<Topmost>& tensors) cons
     sortAllExpansionsAndWeightDimensions(tensors);
 }
 
-std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
-    std::vector<Next> result;
+std::vector<const PrimitiveOp *> Sampler::ConvertGraphHandleToOps(const Graph& graph, const GraphHandle& handle) {
+    std::vector<const PrimitiveOp *> result;
     // To obtain the path, we need to follow the 3 stages of searching.
-
-    const Graph graph = handle.buildGraph();
 
     // First, ReductionStage.
     {
         for (const Reduce *op: graph.getReduceIterators()) {
-            result.emplace_back(Next::FromOp(ReduceOp::FromRaw(op)));
+            result.emplace_back(ReduceOp::FromRaw(op));
         }
     }
 
@@ -431,7 +429,7 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
                     if (addedV) return;
                     addedV = true;
                     self(self, v[RepeatLikeOp::Branch::Output]);
-                    result.emplace_back(Next::FromOp(&v.op));
+                    result.emplace_back(&v.op);
                 },
                 [&](const SplitLikeVertex& v, auto) {
                     bool& addedV = added[v];
@@ -439,14 +437,14 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
                     addedV = true;
                     self(self, v[SplitLikeOp::Branch::OutputLhs]);
                     self(self, v[SplitLikeOp::Branch::OutputRhs]);
-                    result.emplace_back(Next::FromOp(&v.op));
+                    result.emplace_back(&v.op);
                 },
                 [&](const MergeLikeVertex& v, auto) {
                     bool& addedV = added[v];
                     if (addedV) return;
                     addedV = true;
                     self(self, v[MergeLikeOp::Branch::Output]);
-                    result.emplace_back(Next::FromOp(&v.op));
+                    result.emplace_back(&v.op);
                 },
                 [](const ExpandVertex& v, auto) {
                     // Expand is left for later code to handle.
@@ -459,11 +457,17 @@ std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
         }
         // Do not forget to add expansions.
         for (const Expand *exp: handle.getExpansions()) {
-            result.emplace_back(Next::FromOp(dynamic_cast<const ExpandOp *>(exp)));
+            result.emplace_back(dynamic_cast<const ExpandOp *>(exp));
         }
     }
 
     return result;
+}
+
+std::vector<Next> Sampler::ConvertGraphHandleToPath(const GraphHandle& handle) {
+    const Graph graph = handle.buildGraph();
+    auto ops = ConvertGraphHandleToOps(graph, handle);
+    return ranges::to<std::vector<Next>>(ops | std::views::transform(&Next::FromOp<PrimitiveOp>));
 }
 
 std::vector<Next> Sampler::ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors) {

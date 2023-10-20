@@ -4,11 +4,7 @@
 #include <utility>
 #include <vector>
 
-#include "KAS/Core/BindingContext.hpp"
-#include "KAS/Core/Colors.hpp"
-#include "KAS/Core/Dimension.hpp"
-#include "KAS/Core/Graph.hpp"
-#include "KAS/Core/TensorView.hpp"
+#include "KAS/Search/FinalStage.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/ShapeComplexity.hpp"
 #include "KAS/Utils/Coroutine.hpp"
@@ -38,7 +34,7 @@ public:
         tensors { std::forward<decltype(tensors)>(tensors) }
     {}
     // Pass in sorted fixed dimensions.
-    std::unique_ptr<TensorView> buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending, const BindingContext& ctx) const;
+    TensorView buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending, const BindingContext& ctx) const;
     bool operator==(const FinalizeOp& rhs) const noexcept;
     std::size_t hash() const noexcept;
     std::size_t count() const noexcept { return tensors.size(); }
@@ -67,7 +63,7 @@ public:
         LegalFinalizations,
         UncanonicalWeight,
     )
-    using TensorViewBuilder = std::function<std::unique_ptr<TensorView>(const FinalizeOp& op)>;
+    using FinalStageBuilder = std::function<std::unique_ptr<FinalStage>(const FinalizeOp& op)>;
     struct GenerateOptions {
         const BindingContext& ctx;
         const Shape& desired;
@@ -75,17 +71,17 @@ public:
         std::size_t maximumFinalizations;
         bool allowWeightPermutation;
         // For pruning.
-        TensorViewBuilder tensorViewBuilder;
+        FinalStageBuilder finalStageBuilder;
         std::size_t maxFLOPs;
     };
 
     static Generator<std::vector<std::vector<Dimension>>> AssignToWeights(const std::vector<ColoredDimension>& remaining, std::size_t maxWeights);
-    static std::vector<std::pair<FinalizeOp, std::unique_ptr<TensorView>>> Generate(const GraphHandle& interface, const Graph& graph, const GenerateOptions& options);
+    static std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> Generate(const GraphHandle& interface, const Graph& graph, const GenerateOptions& options);
 };
 
 struct NextFinalizeSlot: Next {
     FinalizeOp finalization;
-    std::unique_ptr<TensorView> tensorView;
+    std::unique_ptr<FinalStage> nextStage;
     template<TopmostRange TR>
     static std::size_t GetKey(TR&& tensors) { return std::hash<std::vector<Topmost>>{}(tensors); }
     Arc toArc(const Sampler *sampler) const { return Arc(sampler, &finalization); }

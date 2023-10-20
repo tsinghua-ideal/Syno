@@ -231,6 +231,8 @@ public:
     // This calls the above two functions. Then you can use these tensors to build a GraphHandle.
     void convertTensorsToSearchableForm(std::vector<Topmost>& tensors) const;
     // This cannot figure out Finalize.
+    static std::vector<const PrimitiveOp *> ConvertGraphHandleToOps(const Graph& graph, const GraphHandle& handle);
+    // This cannot figure out Finalize.
     static std::vector<Next> ConvertGraphHandleToPath(const GraphHandle& handle);
     // This in effect calls ConvertGraphHandleToPath, then adds a Finalize to it.
     static std::vector<Next> ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors);
