@@ -547,6 +547,7 @@ class MCTSTree:
 
     def update_lrave(self, final_node: TreeNode, arcs: Set[Arc], reward: float) -> None:
         assert isinstance(final_node, TreeNode), f"{final_node} is not TreeNode!"
+        self._root.expand_to(final_node.to_node())
 
         def attempt_to_node(
             src_node: TreeNode, tgt_node: TreeNode, arc_pool: Set[Arc]

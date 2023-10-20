@@ -59,17 +59,18 @@ class MCTSAlgorithm:
     def dump_eval_result(self):
         return self.mcts.get_eval_results()
     
-    def load_eval_result(self, path_serialized, reward):
+    def load_eval_result(self, path_serialized, reward, leaf_path=None):
         path = Path.deserialize(path_serialized)
         node = self.mcts.visit(
             path, on_tree=False, put_in_tree=True
         )
         if node is None:
             return
-        for leaf_path in path.hierarchy:
-            n = self.mcts.visit(leaf_path, on_tree=False, put_in_tree=True)
-            if n.N == 0:
-                break
+        if leaf_path is None:
+            for leaf_path in path.hierarchy:
+                n = self.mcts.visit(leaf_path, on_tree=False, put_in_tree=True)
+                if n.N == 0:
+                    break
             
         self.path_toupd[node.to_node()] = (TreePath(path), [leaf_path])
         self.mcts._increment_virtual_loss(leaf_path, 1)
