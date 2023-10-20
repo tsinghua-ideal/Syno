@@ -6,8 +6,9 @@ import time
 import threading
 import queue
 import traceback
-import tarfile
 from KAS import KernelLoader, Node, Path, Sampler, Statistics
+
+from analysis import SearchSpaceExplorer
 
 
 class Session:
@@ -68,13 +69,15 @@ class Session:
 
         # Prefetcher for final node
         self.num_prefetch = args.kas_num_virtual_evaluator
-    
+
+        self.search_space_explorer = SearchSpaceExplorer(model, sampler)
+
     def start_prefetcher(self):
         if self.num_prefetch > 0:
             self.prefetched = queue.Queue(maxsize=self.num_prefetch)
             self.prefetcher = threading.Thread(target=self.prefetcher_main)
             self.prefetcher.start()
-    
+
     def print_stats(self, force=True):
         if not force and time.time() - self.last_stats_time < self.stats_interval:
             return
@@ -320,13 +323,7 @@ class Session:
         directory = kernel.get_directory()
         working_dir = os.path.join(self.cache_dir, os.path.basename(directory))
         file_name = os.path.join(working_dir, "kernel.tar.gz")
-        os.makedirs(working_dir, exist_ok=True)
-        if not os.path.exists(file_name):
-            with tarfile.open(file_name, "w:gz") as tar:
-                tar.add(directory, "kernel_dir")
-                for x in tar.getnames():
-                    logging.debug("added file %s" % x)
-            assert os.path.exists(file_name)
+        kernel.archive_to(file_name, overwrite=False)
         return file_name
 
     def clean_timeout_samples(self) -> None:

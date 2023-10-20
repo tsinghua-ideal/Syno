@@ -1,23 +1,37 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import itertools
+import os
 import re
-from typing import Dict, Generic, List, Optional, Tuple, TypeVar, Union
+from torch import nn
+from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar, Union
+import urllib.parse
+
+from KAS import Sampler
 
 
 @dataclass
-class Predicate:
+class AbstractPredicate:
     """
     A predicate represents a function of the explorer.
     """
     name: str
     help_message: str = ""
-    # Other args of the corresponding function. None means no default value, and str means default value.
-    additional_args: Tuple[Optional[str], ...] = tuple()
+    # Other args of the corresponding function. str means default value.
+    additional_args: Tuple[str, ...] = tuple()
     can_work_if_state_invalid: bool = False
 
 @dataclass
-class Child:
+class AbstractResponse:
+    """
+    A response of a predicate.
+    """
+    message: str
+    next_state: Optional[List[str]] = None
+    returned_file: Optional[str] = None
+
+@dataclass
+class AbstractChild:
     """
     A child of a state.
     """
@@ -32,17 +46,30 @@ class AbstractExplorer(ABC, Generic[T]):
     Abstract explorer class. Note that this class shall be stateless.
     Basically a state machine, it is just that this class only defines the transition table. The state is T. For a simple explorer, the state can be the current node in the tree. An explorer abstracts a DAG.
     You must implement the abstract methods.
-    You can also add your own methods, by filling them in available_custom_predicates(). They should return Union[str, Tuple[str, List[str]]], that is, the message and optionally the next state.
+    You can also add your own methods, by filling them in available_custom_predicates(). They should return AbstractResponse.
     """
 
     @abstractmethod
-    def __init__(self):
+    def __init__(self, model: nn.Module, sampler: Sampler):
         """
         Add your own data structures. Sampler for example.
         DO NOT KEEP ANY STATE!
         ANY ATRRIBUTES SHALL BE IMMUTABLE!
         """
-        pass
+        self._model = model
+        self._sampler = sampler
+
+    @property
+    def model(self) -> nn.Module:
+        return self._model
+
+    @property
+    def sampler(self) -> Sampler:
+        return self._sampler
+
+    @property
+    def working_dir(self) -> os.PathLike:
+        return os.path.join(self.sampler._save_path, "explorer")
 
     @abstractmethod
     def state_of(self, current_path: List[str]) -> Optional[T]:
@@ -52,7 +79,7 @@ class AbstractExplorer(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def children(self, state: T) -> List[Child]:
+    def children(self, state: T) -> List[AbstractChild]:
         """
         Return the children of the current state.
         The children can be optionally grouped by labels.
@@ -67,13 +94,13 @@ class AbstractExplorer(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def available_custom_predicates(self) -> Tuple[Predicate, ...]:
+    def available_custom_predicates(self) -> Tuple[AbstractPredicate, ...]:
         """
         Return the custom predicates that can be used in the explorer.
         """
         pass
 
-    def execute(self, state: Optional[T], predicate: str, args: List[str]) -> Union[str, Tuple[str, List[str]]]:
+    def execute(self, state: Optional[T], predicate: str, args: List[str]) -> AbstractResponse:
         """
         Apply the predicate to the current state.
         Can return the next state.
@@ -168,18 +195,86 @@ class AbstractExplorer(ABC, Generic[T]):
                     # print help
                     print(self.help_message())
                 else:
-                    result = self.execute(state, predicate, args)
-                    if isinstance(result, str):
-                        print(result)
-                    else:
-                        message, new_path = result
-                        print(message)
-                        current_path = new_path
-            except KeyboardInterrupt:
-                print("KeyboardInterrupt")
-                return
-            except EOFError:
-                print("EOF")
-                return
-            except Exception as e:
-                print(f"Exception raised: {e}")
+                    response = self.execute(state, predicate, args)
+                    print(response.message)
+                    current_path = response.next_state or current_path
+                    if response.returned_file:
+                        print(f"Generated file: {response.returned_file}")
+            except AssertionError as e:
+                print(f"Assertion failed: {e}")
+
+    def serve(self, request: Any, host: str) -> Any:
+        """
+        Serve a request.
+        ```typescript
+        type Request = {
+            state: string[],
+            predicate: string,
+            args: string[],
+        };
+        type Predicate = {
+            name: string,
+            additional_args: string[],
+        };
+        type Child = {
+            value: string,
+            caption: string,
+            label?: string,
+        };
+        type Response = {
+            state: string[],
+            valid: boolean,
+            info: string,
+            children: string[],
+            message: string,
+            download_url?: string,
+            available_predicates?: Predicate[], // Only if predicate is "help"
+            help_message?: string, // Only if predicate is "help"
+        };
+        ```
+        """
+        state_str, predicate, args = request["state"], request["predicate"], request["args"]
+        resp = {}
+
+        # Execute command.
+        if predicate == "help":
+            resp["message"] = "Welcome to Explorer."
+            resp["available_predicates"] = [
+                {
+                    "name": p.name,
+                    "additional_args": p.additional_args,
+                }
+                for p in self.available_custom_predicates()
+            ]
+            resp["help_message"] = self.help_message()
+        else:
+            try:
+                response = self.execute(self.state_of(state_str), predicate, args)
+                resp["message"] = response.message
+                if response.next_state:
+                    state_str = response.next_state
+                if response.returned_file:
+                    resp["download_url"] = urllib.parse.urljoin(host, f"explorer_files/{response.returned_file}")
+            except AssertionError as e:
+                resp["message"] = f"Assertion failed: {e}"
+
+        # State info.
+        resp["state"] = state_str
+        state = self.state_of(state_str)
+        if state is not None:
+            resp["valid"] = True
+            resp["info"] = self.info(state)
+            resp["children"] = [
+                {
+                    "value": child.value,
+                    "caption": child.caption,
+                    "label": child.label,
+                }
+                for child in self.children(state)
+            ]
+        else:
+            resp["valid"] = False
+            resp["info"] = "This node does not exist."
+            resp["children"] = []
+
+        return resp
