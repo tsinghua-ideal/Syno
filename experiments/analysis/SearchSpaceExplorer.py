@@ -1,24 +1,24 @@
 import os
 import tempfile
+from torch import nn
 from typing import List, Optional, Tuple, Union
 
 from KAS import NextSerializer, Node, Path, Sampler, Statistics, VisitedNode
 
-from AbstractExplorer import AbstractExplorer, Child as AbstractChild, Predicate as AbstractPredicate
+from AbstractExplorer import AbstractChild, AbstractExplorer, AbstractPredicate, AbstractResponse
 
 
 EXPLORER_TEMP_ID = 0
 
 class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
-    def __init__(self, sampler: Sampler):
-        super().__init__()
-        self._sampler = sampler
+    def __init__(self, model: nn.Module, sampler: Sampler):
+        super().__init__(model, sampler)
         self._serializer = NextSerializer()
 
     def state_of(self, current_path: List[str]) -> Optional[VisitedNode]:
         abstract_path = [self._serializer.deserialize_next(handle) for handle in current_path]
         path = Path(abstract_path)
-        return self._sampler.visit(path)
+        return self.sampler.visit(path)
 
     def children(self, state: VisitedNode) -> List[AbstractChild]:
         handles = state.get_children_handles()
@@ -47,36 +47,36 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         AbstractPredicate("goto", "Go to the given serialized path. Example: `goto 1234_5678`.", (""), can_work_if_state_invalid=True),
         AbstractPredicate("composing", "Print the composing arcs of the current node."),
         AbstractPredicate("statistics", "Print statistics of the sampler.", can_work_if_state_invalid=True),
-        # TODO: Add realize.
+        AbstractPredicate("realize", "Realize the current node."),
     )
 
     def available_custom_predicates(self) -> Tuple[AbstractPredicate, ...]:
         return SearchSpaceExplorer.custom_predicates
 
-    def expand(self, state: VisitedNode, depth: str) -> Union[str, Tuple[str, List[str]]]:
+    def expand(self, state: VisitedNode, depth: str) -> AbstractResponse:
         depth = int(depth)
         assert depth > 0, f"Depth must be positive, but got {depth}."
         state.expand(depth)
-        return f"Expanded {depth} layers from current node."
+        return AbstractResponse(f"Expanded {depth} layers from current node.")
 
     def graphviz(self, state: VisitedNode) -> Union[str, Tuple[str, List[str]]]:
         # Create a temporary file.
         global EXPLORER_TEMP_ID
-        file_name = os.path.join(tempfile.gettempdir(), f"kas_preview_{EXPLORER_TEMP_ID}.dot")
+        file_name = os.path.join(tempfile.gettempdir(), f"search_space_explorer_preview_{EXPLORER_TEMP_ID}.dot")
         EXPLORER_TEMP_ID += 1
         state.generate_graphviz(file_name, "preview")
         with open(file_name, "r") as f:
             result = f.read()
         # Delete the temporary file.
         os.remove(file_name)
-        return result
+        return AbstractResponse(result)
 
     def goto(self, state: Optional[VisitedNode], serialized_path: str) -> Union[str, Tuple[str, List[str]]]:
         path = Path.deserialize(serialized_path)
-        return f"Going to {path}.", [self._serializer.serialize_next(next) for next in path]
+        return AbstractResponse(f"Going to {path}.", next_state=[self._serializer.serialize_next(next) for next in path])
 
     def composing(self, state: VisitedNode) -> Union[str, Tuple[str, List[str]]]:
-        return (
+        return AbstractResponse(
             "Composing arcs:\n" +
             "".join(
                 f"\t{arc}\n"
@@ -85,4 +85,13 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         )
 
     def statistics(self, state: Optional[VisitedNode]) -> Union[str, Tuple[str, List[str]]]:
-        return Statistics.Summary()
+        return AbstractResponse(Statistics.Summary())
+
+    def realize(self, state: VisitedNode) -> Union[str, Tuple[str, List[str]]]:
+        kernel_loader = self.sampler.realize(self.model, state)
+        global EXPLORER_TEMP_ID
+        filename = f"search_space_explorer_{EXPLORER_TEMP_ID}.tar.gz"
+        path = os.path.join(self.working_dir, filename)
+        EXPLORER_TEMP_ID += 1
+        kernel_loader.archive_to(path)
+        return AbstractResponse(f"Realized to {filename}.", returned_file=filename)

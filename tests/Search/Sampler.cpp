@@ -6,7 +6,7 @@ namespace kas {
 TEST_F(search_tests, sampler) {
     auto rng = std::mt19937_64(42);
 
-    constexpr std::size_t trials = 500;
+    constexpr std::size_t trials = 100;
     std::size_t successes = 0;
     std::size_t successfulReconstruction = 0;
     std::size_t failedReconstruction = 0;

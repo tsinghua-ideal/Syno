@@ -253,18 +253,23 @@ void Node::expandSync(int layers) const {
 }
 
 void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const std::vector<Arc>& arcs) const {
-    // First guard that the children are generated.
-    countChildren();
-
-    // Then continue.
+    expand(2);
+    // Continue.
+    if (arcs.empty()) return;
+    std::size_t success = 0;
     for (std::size_t index = 0; const Arc& arc: arcs) {
-        if (!canAcceptArc(arc)) continue;
+        if (!canAcceptArc(arc)) {
+            ++index;
+            continue;
+        }
         auto child = getChildFromArc(arc);
         std::vector<Arc> remainingArcs = arcs;
         remainingArcs.erase(remainingArcs.begin() + index);
         expander.add(LatticeTask { child, std::move(remainingArcs) });
+        ++success;
         ++index;
     }
+    KAS_ASSERT(success > 0);
 }
 
 void Node::expandToSync(Node target) const {
@@ -308,6 +313,7 @@ void Node::expandToSync(Node target) const {
         expander.add(LatticeTask { normalBottom, remainingOthers });
     }
     expander.sync();
+    sampler->getExpander().sync();
 }
 
 void Node::expand(int layers) const {
@@ -352,6 +358,13 @@ std::string Node::toString() const {
     return match<std::string>(
         [](AbstractStage *stage) { return stage->description(); },
         [](FinalStage *stage) { return stage->description(); }
+    );
+}
+
+std::string Node::debugToGraphviz() const {
+    return match<std::string>(
+        [&](AbstractStage *stage) { return GraphvizGen(stage->getInterface().getRaw(), sampler->getBindingContext()).print("preview"); },
+        [&](FinalStage *stage) { return GraphvizGen(stage->value, sampler->getBindingContext()).print("preview"); }
     );
 }
 

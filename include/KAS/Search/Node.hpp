@@ -435,6 +435,9 @@ public:
     bool isDeadEnd() const;
     bool discoveredFinalDescendant() const;
     std::string toString() const;
+
+    // For debugging.
+    std::string debugToGraphviz() const;
 };
 
 struct LatticeTask {

@@ -545,7 +545,7 @@ class MCTSTree:
         for type in update_types:
             self.g_rave[type].update(reward)
 
-    def update_lrave(self, final_node: TreeNode, arcs: Set[Arc], reward: float) -> None:
+    def update_lrave(self, final_node: TreeNode, arcs: List[Arc], reward: float) -> None:
         assert isinstance(final_node, TreeNode), f"{final_node} is not TreeNode!"
         self._root.expand_to(final_node.to_node())
         
