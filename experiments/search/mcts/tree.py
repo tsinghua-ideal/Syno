@@ -548,45 +548,50 @@ class MCTSTree:
     def update_lrave(self, final_node: TreeNode, arcs: Set[Arc], reward: float) -> None:
         assert isinstance(final_node, TreeNode), f"{final_node} is not TreeNode!"
         self._root.expand_to(final_node.to_node())
+        
+        attempt_record: Dict[TreeNode, Tuple[bool, Set[Arc]]]=dict()
 
-        def attempt_to_node(
-            src_node: TreeNode, tgt_node: TreeNode, arc_pool: Set[Arc]
+        def find_lattice(
+            src_node: TreeNode, arc_pool: Set[Arc]
         ) -> bool:
             """
-            Attempt to reach tgt_node from src_node with arcs in arc_pool
+            Attempt to reach final_node from src_node with arcs in arc_pool
             """
-            if src_node == tgt_node:
+            if src_node == final_node:
                 return True
-
-            updated: Set[Tuple[TreeNode, Union[Next.Type, Arc]]] = set()
-
-            for arc in list(arc_pool):
-                if src_node._node.can_accept_arc(arc):
-                    arc_pool.remove(arc)
-                    nxt = arc.to_next()
-                    mid_child = src_node.get_child(nxt.type, auto_initialize=True)
-                    if mid_child is None:
+            
+            if src_node not in attempt_record:
+                updated: Set[Tuple[TreeNode, Union[Next.Type, Arc]]] = set()
+                for arc in list(arc_pool):
+                    if src_node._node.can_accept_arc(arc):
+                        arc_pool.remove(arc)
+                        nxt = arc.to_next()
+                        mid_child = src_node.get_child(nxt.type, auto_initialize=True)
+                        if mid_child is None:
+                            arc_pool.add(arc)
+                            continue
+                        mid_child = mid_child[0]
+                        assert src_node._node in self._path_store, src_node._node
+                        child_node = self.touch(
+                            src_node._node.get_child_from_arc(arc),
+                            path=self._path_store[src_node._node].concat(nxt),
+                        )
+                        if child_node.is_dead_end():
+                            arc_pool.add(arc)
+                            continue
+                        if find_lattice(child_node, arc_pool):
+                            updated.add((src_node, nxt.type))
+                            updated.add((mid_child, arc))
                         arc_pool.add(arc)
-                        continue
-                    mid_child = mid_child[0]
-                    assert src_node._node in self._path_store, src_node._node
-                    child_node = self.touch(
-                        src_node._node.get_child_from_arc(arc),
-                        path=self._path_store[src_node._node].concat(nxt),
-                    )
-                    if child_node.is_dead_end():
-                        arc_pool.add(arc)
-                        continue
-                    if attempt_to_node(child_node, tgt_node, arc_pool):
-                        updated.add((src_node, nxt.type))
-                        updated.add((mid_child, arc))
-                    arc_pool.add(arc)
 
-            for node, nxt in updated:
-                node.update_lrave(reward, nxt)
-            return len(updated) > 0
+                for node, nxt in updated:
+                    node.update_lrave(reward, nxt)
+                attempt_record[src_node] = (len(updated) > 0, arc_pool)
+            
+            assert arc_pool == attempt_record[src_node][1]
+            return attempt_record[src_node][0]
 
-        attempt_to_node(self.tree_root, final_node, set(arcs))
+        find_lattice(self.tree_root, set(arcs))
 
     def touch(self, node: Node, path: Path = None) -> TreeNode:
         """
