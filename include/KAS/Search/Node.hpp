@@ -5,6 +5,7 @@
 #include <ranges>
 #include <string>
 #include <type_traits>
+#include <unordered_set>
 #include <variant>
 
 #include <fmt/core.h>
@@ -401,6 +402,11 @@ public:
     bool operator==(const Node& rhs) const;
     // For Python.
     std::size_t hash() const;
+    struct Hash {
+        std::size_t operator()(const Node& node) const {
+            return node.hash();
+        }
+    };
 
     // For convenience.
     std::strong_ordering operator<=>(const Node& rhs) const = default;
@@ -427,7 +433,7 @@ public:
     std::vector<Next> getPossiblePath() const;
     std::vector<Arc> getComposingArcs() const;
     void expandSync(int layers) const;
-    void expandWithArcs(ThreadPool<LatticeTask>& expander, const std::vector<Arc>& arcs) const;
+    void expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& task) const;
     void expandToSync(Node target) const;
     void expand(int layers) const;
     std::optional<std::string> getChildDescription(Next next) const;
@@ -440,7 +446,16 @@ public:
     std::string debugToGraphviz() const;
 };
 
+class LatticePool {
+    std::size_t depth;
+    std::vector<std::pair<std::mutex, std::unordered_set<Node, Node::Hash>>> nodesPools;
+public:
+    LatticePool(std::size_t depth);
+    bool add(std::size_t remainingArcs, Node node);
+};
+
 struct LatticeTask {
+    LatticePool& pool;
     Node node;
     std::vector<Arc> arcs;
 };

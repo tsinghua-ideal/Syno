@@ -156,7 +156,7 @@ bool ReductionStage::canAcceptArcImpl(Arc arc) {
             if (op->getType() == DimensionType::Reduce) {
                 // We have to manually find if this is in the search space.
                 auto newInterface = op->applyToInterface(getInterface());
-                Lock lock = Lock { sampler.getMutex(depth + 1, newInterface) };
+                Lock lock = Lock { sampler.getMutex(getNextMutexIndex(true, newInterface)) };
                 return sampler.getStageStore().find(depth + 1, newInterface, lock) != nullptr;
             } else {
                 return nStage->canAcceptArc(arc);

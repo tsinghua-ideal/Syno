@@ -170,6 +170,8 @@ public:
     ~StageStore();
 };
 
+struct MutexIndex;
+
 class Sampler final {
     std::mt19937 rng;
     template<typename T>
@@ -290,7 +292,7 @@ private:
     Expander expander;
     ThreadPool<LatticeTask> latticeExpander;
 public:
-    std::recursive_mutex& getMutex(std::size_t depth, const GraphHandle& interface);
+    std::recursive_mutex& getMutex(MutexIndex index);
     Pruner& getPruner() { return pruner; }
     Expander& getExpander() { return expander; }
     ThreadPool<LatticeTask>& getLatticeExpander() { return latticeExpander; }

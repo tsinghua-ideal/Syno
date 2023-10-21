@@ -252,7 +252,8 @@ void Node::expandSync(int layers) const {
     );
 }
 
-void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const std::vector<Arc>& arcs) const {
+void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& task) const {
+    const auto& arcs = task.arcs;
     expand(2);
     // Continue.
     if (arcs.empty()) return;
@@ -265,7 +266,9 @@ void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const std::vector<A
         auto child = getChildFromArc(arc);
         std::vector<Arc> remainingArcs = arcs;
         remainingArcs.erase(remainingArcs.begin() + index);
-        expander.add(LatticeTask { child, std::move(remainingArcs) });
+        if (task.pool.add(remainingArcs.size(), child)) {
+            expander.add(LatticeTask { task.pool, child, std::move(remainingArcs) });
+        }
         ++success;
         ++index;
     }
@@ -303,14 +306,15 @@ void Node::expandToSync(Node target) const {
     }
     auto& expander = sampler->getLatticeExpander();
     Node normalBottom = *this;
+    LatticePool poolBottom { remainingReductions.size() }, poolTop { remainingOthers.size() };
     if (!remainingReductions.empty()) {
-        expander.add(LatticeTask { *this, remainingReductions });
+        expander.add(LatticeTask { poolBottom, *this, remainingReductions });
         for (const Arc& arc: remainingReductions) {
             normalBottom = normalBottom.getChildFromArc(arc);
         }
     }
     if (!remainingOthers.empty()) {
-        expander.add(LatticeTask { normalBottom, remainingOthers });
+        expander.add(LatticeTask { poolTop, normalBottom, remainingOthers });
     }
     expander.sync();
     sampler->getExpander().sync();
@@ -366,6 +370,14 @@ std::string Node::debugToGraphviz() const {
         [&](AbstractStage *stage) { return GraphvizGen(stage->getInterface().getRaw(), sampler->getBindingContext()).print("preview"); },
         [&](FinalStage *stage) { return GraphvizGen(stage->value, sampler->getBindingContext()).print("preview"); }
     );
+}
+
+LatticePool::LatticePool(std::size_t depth):
+    depth { depth }, nodesPools(depth) {}
+bool LatticePool::add(std::size_t remainingArcs, Node node) {
+    auto& [mutex, pool] = nodesPools[remainingArcs];
+    std::scoped_lock lock { mutex };
+    return pool.insert(node).second;
 }
 
 } // namespace kas

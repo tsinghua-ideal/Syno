@@ -53,7 +53,7 @@ void AbstractStage::requestFinalizabilityUpdate(const AbstractStage *requestor) 
 AbstractStage::AbstractStage(Sampler &sampler, GraphHandle interface, Lock lock):
     initialLock{ [&]() -> Lock {
         if (!lock.owns_lock()) {
-            return Lock { sampler.getMutex(0, interface) };
+            return Lock { sampler.getMutex(AbstractStage::GetRootMutexIndex(interface)) };
         } else {
             return std::move(lock);
         }
@@ -72,7 +72,7 @@ AbstractStage::AbstractStage(Sampler &sampler, GraphHandle interface, Lock lock)
 AbstractStage::AbstractStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> optionalDeltaOp, Lock lock):
     initialLock { [&]() -> Lock {
         if (!lock.owns_lock()) {
-            return Lock { creator.sampler.getMutex(creator.depth + static_cast<std::size_t>(optionalDeltaOp.has_value()), interface) };
+            return Lock { creator.sampler.getMutex(creator.getNextMutexIndex(optionalDeltaOp.has_value(), interface)) };
         } else {
             return std::move(lock);
         }

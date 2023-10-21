@@ -113,7 +113,7 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     pruner {},
     expander { numWorkerThreads },
     latticeExpander { numWorkerThreads, [](ThreadPool<LatticeTask>& expander, LatticeTask task) {
-        task.node.expandWithArcs(expander, task.arcs);
+        task.node.expandWithArcs(expander, task);
     } }
 {
     KAS_ASSERT(numWorkerThreads > 0);
@@ -643,8 +643,8 @@ Sampler::Expander::~Expander() {
     }
 }
 
-std::recursive_mutex& Sampler::getMutex(std::size_t depth, const GraphHandle& interface) {
-    return mutexes[depth][std::hash<GraphHandle>{}(interface) % countMutexesInLayer];
+std::recursive_mutex& Sampler::getMutex(MutexIndex index) {
+    return mutexes[index.depth][index.hash % countMutexesInLayer];
 }
 
 } // namespace kas

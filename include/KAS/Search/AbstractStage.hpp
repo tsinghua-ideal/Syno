@@ -29,6 +29,13 @@ inline Finalizability& operator+=(Finalizability& a, const Finalizability& b) {
     return a;
 }
 
+struct MutexIndex {
+    // layerIndex
+    std::size_t depth;
+    // hash % mutexCount == mutexIndex
+    std::size_t hash;
+};
+
 // A thread-safe data structure for Nodes. Only immutable members are allowed. Mutable members are stored in AbstractStageBase.
 class AbstractStage {
     template<typename DerivedStageType>
@@ -146,6 +153,16 @@ public:
     virtual Node getChild(Arc arc) = 0;
     std::string description() const;
 
+    inline MutexIndex getMutexIndex() const {
+        return { .depth = depth, .hash = std::hash<GraphHandle>{}(interface) };
+    }
+    inline MutexIndex getNextMutexIndex(bool hasOp, const GraphHandle& interface) const {
+        return { .depth = depth + static_cast<std::size_t>(hasOp), .hash = std::hash<GraphHandle>{}(interface) };
+    }
+    static inline MutexIndex GetRootMutexIndex(const GraphHandle& interface) {
+        return { .depth = 0, .hash = std::hash<GraphHandle>{}(interface) };
+    }
+
     void expand(int layers);
     void expandSync(int layers);
 
@@ -262,8 +279,8 @@ protected:
     std::pair<ChildStageType *, Lock> getNextOp(const PrimitiveOp *op) {
         // When this gets called, we are holding the lock of this stage.
         StageStore& store = sampler.getStageStore();
-        auto newInterface = op->applyToInterface(interface);
-        Lock lock = std::unique_lock { sampler.getMutex(depth + 1, newInterface) };
+        GraphHandle newInterface = op->applyToInterface(interface);
+        Lock lock = std::unique_lock { sampler.getMutex(getNextMutexIndex(true, newInterface)) };
         if (AbstractStage *found = store.find(depth + 1, newInterface, lock); found) {
             found->addParent(*this, lock);
             auto childStage = dynamic_cast<ChildStageType *>(found);
