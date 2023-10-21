@@ -18,7 +18,11 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
     def state_of(self, current_path: List[str]) -> Optional[VisitedNode]:
         abstract_path = [self._serializer.deserialize_next(handle) for handle in current_path]
         path = Path(abstract_path)
-        return self.sampler.visit(path)
+        node = self.sampler.visit(path)
+        node.expand(1)
+        if node.is_dead_end():
+            return None
+        return node
 
     def children(self, state: VisitedNode) -> List[AbstractChild]:
         handles = state.get_children_handles()
@@ -62,14 +66,13 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
     def graphviz(self, state: VisitedNode) -> Union[str, Tuple[str, List[str]]]:
         # Create a temporary file.
         global EXPLORER_TEMP_ID
-        file_name = os.path.join(tempfile.gettempdir(), f"search_space_explorer_preview_{EXPLORER_TEMP_ID}.dot")
+        filename = f"search_space_explorer_{EXPLORER_TEMP_ID}.dot"
+        path = os.path.join(self.working_dir, filename)
         EXPLORER_TEMP_ID += 1
-        state.generate_graphviz(file_name, "preview")
-        with open(file_name, "r") as f:
+        state.generate_graphviz(path, "preview")
+        with open(path, "r") as f:
             result = f.read()
-        # Delete the temporary file.
-        os.remove(file_name)
-        return AbstractResponse(result)
+        return AbstractResponse(f"Generated graphviz file {filename}.", returned_file=filename)
 
     def goto(self, state: Optional[VisitedNode], serialized_path: str) -> Union[str, Tuple[str, List[str]]]:
         path = Path.deserialize(serialized_path)

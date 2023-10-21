@@ -5,7 +5,6 @@ import os
 import re
 from torch import nn
 from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar, Union
-import urllib.parse
 
 from KAS import Sampler
 
@@ -225,7 +224,7 @@ class AbstractExplorer(ABC, Generic[T]):
             state: string[],
             valid: boolean,
             info: string,
-            children: string[],
+            children: Child[],
             message: string,
             download_url?: string,
             available_predicates?: Predicate[], // Only if predicate is "help"
@@ -242,11 +241,13 @@ class AbstractExplorer(ABC, Generic[T]):
             resp["available_predicates"] = [
                 {
                     "name": p.name,
-                    "additional_args": p.additional_args,
+                    "additional_args": list(p.additional_args),
                 }
                 for p in self.available_custom_predicates()
             ]
             resp["help_message"] = self.help_message()
+        elif predicate == "":
+            resp["message"] = ""
         else:
             try:
                 response = self.execute(self.state_of(state_str), predicate, args)
@@ -254,7 +255,7 @@ class AbstractExplorer(ABC, Generic[T]):
                 if response.next_state:
                     state_str = response.next_state
                 if response.returned_file:
-                    resp["download_url"] = urllib.parse.urljoin(host, f"explorer_files/{response.returned_file}")
+                    resp["download_url"] = f"explorer_files/{response.returned_file}"
             except AssertionError as e:
                 resp["message"] = f"Assertion failed: {e}"
 
