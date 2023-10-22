@@ -6,6 +6,7 @@ from KAS import Path, Node
 
 from .tree import MCTSTree
 from .node import TreePath, TreeNode
+from .MCTSExplorer import MCTSExplorer
 from base.models import ManualImpl
 
 
@@ -26,7 +27,7 @@ class MCTSAlgorithm:
         # "Conv2d_group_oas",
     ]
 
-    def __init__(self, sampler, args):
+    def __init__(self, sampler, model, args):
         self.mcts = MCTSTree(
             sampler,
             self.virtual_loss_constant,
@@ -40,6 +41,7 @@ class MCTSAlgorithm:
             max_depth=args.kas_depth,
         )
         self.sampler = sampler
+        self.explorer = MCTSExplorer(model, sampler, self.mcts)
         self.path_toupd: Dict[
             Node, Tuple[TreePath, List[TreePath]]
         ] = dict()  # trial node to meta data

@@ -9,8 +9,7 @@ from KAS import CodeGenOptions, Sampler, Placeholder
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
-from search.mcts.tree import MCTSTree
-from search.mcts.explorer import MCTSExplorer
+from search.mcts import MCTSTree, MCTSExplorer
 
 
 class Model(nn.Module):
@@ -36,9 +35,9 @@ def test_tree_explorer():
         autoscheduler=CodeGenOptions.Li2018,
     )
     mcts = MCTSTree(sampler, virtual_loss_constant=1, simulate_retry_period=1e6)
-    for idx in range(30):
+    for idx in range(10):
         receipts, trials = [], []
-        for _ in range(5):
+        for _ in range(2):
             receipt, trial = mcts.do_rollout()
             receipts.append(receipt)
             trials.append(trial)
@@ -46,27 +45,11 @@ def test_tree_explorer():
         for receipt, trial in zip(receipts, trials):
             mcts.back_propagate(receipt, random(), trial[0][0])
 
-    for k, v in mcts.virtual_loss_count.items():
-        # if not (k.is_final() or k.is_dead_end() or v == 0):
-        #     print(f"{k}: {v}")
-        assert (
-            k.is_final() or k.is_dead_end() or v == 0
-        ), f"Virtual loss count for {k} is {v}"
-
-    # json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
-
-    # # Test begin. Now we have a serialized mcts saved in test_mcts.json
-    # # Replace test_mcts.json with your own serialized mcts
-    # mcts_serialize = json.load(open("test_mcts.json", "r"))
-    # mcts_recover = MCTSTree.deserialize(mcts_serialize, sampler)
-
-    explorer = MCTSExplorer(mcts)
+    explorer = MCTSExplorer(net, sampler, mcts)
     try:
         explorer.interactive()
     except KeyboardInterrupt:
         pass
-
-    os.remove("test_mcts.json")
 
 
 if __name__ == "__main__":

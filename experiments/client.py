@@ -95,10 +95,10 @@ def main():
             while True:
                 try:
                     kernel_directory = client.fetch(path)
-                    logging.debug(f"Fetched {path} in {kernel_directory}. ")
+                    logging.info(f"Fetched {path} in {kernel_directory}. ")
                     break
                 except Exception as e:
-                    logging.debug(f"Fetching {path} failed because of {e}. Retrying......")
+                    logging.info(f"Fetching {path} failed because of {e}. Retrying......")
 
             # Mock evaluate
             if args.kas_mock_evaluate:
@@ -126,7 +126,7 @@ def main():
                     else:
                         raise e
                 flops, params = model.profile(args.batch_size, seq_len=args.gpt_seq_len)
-                logging.debug(
+                logging.info(
                     f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
                 )
 
@@ -141,7 +141,7 @@ def main():
                     assert len(losses) >= 1
                     len_not_avg = max(int(len(losses) * 0.8), 1)
                     loss = np.mean(losses[len_not_avg - 1:])
-                    logging.debug(f"Meaned loss of last 20%: {loss}")
+                    logging.info(f"Meaned loss of last 20%: {loss}")
 
             except Exception as e:
                 if not "out of memory" in str(e):
@@ -155,7 +155,7 @@ def main():
 
 
 if __name__ == "__main__":
-    log.setup()
+    log.setup(logging.INFO)
 
     args = parser.arg_parse()
 

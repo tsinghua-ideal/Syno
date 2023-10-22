@@ -105,7 +105,7 @@ def get_dataloader(args):
     batch_normalize_images = partial(batch_normalize_images, mean=mean, std=std)
     train_dataset['images'] = batch_normalize_images(train_dataset['images'])
     eval_dataset['images']  = batch_normalize_images(eval_dataset['images'])
-    logging.debug(f'Std: {std}, mean: {mean}')
+    logging.info(f'Std: {std}, mean: {mean}')
 
     # Padding
     assert train_dataset['images'].shape[-1] == train_dataset['images'].shape[-2], 'Images must be square'

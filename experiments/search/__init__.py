@@ -15,7 +15,7 @@ def get_session(sampler, model, args):
     ), f"Could not find search algorithm {args.kas_search_algo}"
     logging.info(f"Using search algorithm {args.kas_search_algo}")
     algo_cls = getattr(sys.modules[__name__], algo_cls_name)
-    algo = algo_cls(sampler, args)
+    algo = algo_cls(sampler, model, args)
 
     session = Session(sampler, model, algo, args)
     if args.kas_resume:

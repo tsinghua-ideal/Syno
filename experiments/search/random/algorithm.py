@@ -5,7 +5,7 @@ class RandomAlgorithm:
     max_iterations = 2000
     max_final_iterations = 100000
 
-    def __init__(self, sampler, args):
+    def __init__(self, sampler, model, args):
         self.sampler = sampler
         self.sampled_paths = set()
 

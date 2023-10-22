@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple, Union
 
 from KAS import NextSerializer, Node, Path, Sampler, Statistics, VisitedNode
 
-from .AbstractExplorer import AbstractChild, AbstractExplorer, AbstractPredicate, AbstractResponse
+from KAS.AbstractExplorer import AbstractChild, AbstractExplorer, AbstractPredicate, AbstractResponse
 
 
 EXPLORER_TEMP_ID = 0

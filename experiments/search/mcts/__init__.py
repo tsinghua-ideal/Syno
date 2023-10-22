@@ -1,3 +1,3 @@
 from .algorithm import MCTSAlgorithm
-from .explorer import MCTSExplorer
+from .MCTSExplorer import MCTSExplorer
 from .tree import MCTSTree

@@ -10,7 +10,7 @@ class BeamAlgorithm:
     expand_async_layers = 2
     noise_weight = 0.6
 
-    def __init__(self, sampler: Sampler, args):
+    def __init__(self, sampler: Sampler, model, args):
         self.sampler = sampler
 
         # Heap
