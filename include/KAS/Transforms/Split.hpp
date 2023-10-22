@@ -75,7 +75,7 @@ public:
         InvalidProductSize,
         SuccessfulGenerations,
     )
-    static std::vector<const SplitOp *> Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options);
+    static std::vector<const SplitOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<SplitOp>);

@@ -58,7 +58,7 @@ std::pair<bool, CompactColor> ShareOp::transformColor(CompactColor fro1, Compact
     return { !(fro1 & fro2), fro1 | fro2 };
 }
 
-std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
+std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // "Chained" Share.

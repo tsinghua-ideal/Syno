@@ -77,22 +77,6 @@ std::string FinalizeOp::description(const BindingContext& ctx) const {
     return Topmost::Description(tensors, ctx);
 }
 
-bool FinalizeOp::FitIntoWeights(const std::vector<Dimension>& current, const WeightOptions& options) {
-    if (current.empty()) {
-        return true;
-    }
-    if (options.maximumTensors == 1) {
-        return current.empty();
-    }
-    // The number of weights can be as small as greates the number of tags in ShareR's.
-    return std::ranges::max(
-        current
-        | std::views::transform([](const Dimension& dim) {
-            return dim.getColor().size();
-        })
-    ) + 1 <= options.maximumTensors;
-}
-
 bool FinalizeOp::hasRedundantWeights(const Graph::DimensionSet& sharedWeightDims) const {
     return std::ranges::any_of(
         tensors | std::views::drop(1), // only weights.
@@ -108,21 +92,24 @@ bool FinalizeOp::hasRedundantWeights(const Graph::DimensionSet& sharedWeightDims
     );
 }
 
-std::size_t FinalizeOp::Distance(const std::vector<Dimension>& current, const Shape& desired, const ShapeComplexity::DistanceOptions& options) {
+std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& current, const Shape& desired, const ShapeComplexity::DistanceOptions& options) {
     int strideDist = 0;
 
-    std::vector<Size> mustBeInput, canBeWeight;
-    for (const Dimension& dim: current) {
+    std::vector<std::pair<Size, int>> mustBeInput, canBeWeight;
+    for (const auto& [dim, remainingLength]: current) {
         auto origin = dim.deduceOrigin();
         switch (origin) {
         case Dimension::Origin::Input:
-            mustBeInput.emplace_back(dim.size());
+            mustBeInput.emplace_back(dim.size(), remainingLength);
             break;
         case Dimension::Origin::InputOrWeight:
-            canBeWeight.emplace_back(dim.size());
+            canBeWeight.emplace_back(dim.size(), remainingLength);
             break;
         case Dimension::Origin::UnfoldOrExpand:
             ++strideDist; // We need an Unfold to eliminate this.
+            if (remainingLength <= 0) {
+                return ShapeComplexity::Infinity;
+            }
             break;
         default:
             KAS_CRITICAL("Dimension origin {} not allowed in FinalizeOp::Distance()!", origin);
@@ -134,7 +121,7 @@ std::size_t FinalizeOp::Distance(const std::vector<Dimension>& current, const Sh
 
     // Then, experimentally finalize.
     std::size_t minimumComplexity = ShapeComplexity::Infinity;
-    std::vector<Size> newCurrent = mustBeInput;
+    std::vector<std::pair<Size, int>> newCurrent = mustBeInput;
     auto recursion = [&](const auto& self, std::size_t trialIndex) -> void {
         auto trial = ShapeComplexity::Compute(desired, newCurrent, {
             .ctx = options.ctx,

@@ -35,7 +35,7 @@ struct ReshapeGroups {
     static constexpr int NoGroup = -1;
 
     const Shape& desired;
-    const std::vector<Size>& current;
+    const std::vector<std::pair<Size, int>>& current;
 
     std::vector<ReshapeGroup> groups;
 
@@ -43,7 +43,7 @@ struct ReshapeGroups {
     std::vector<int> currentToGroupId;
     int vacantCurrents;
 
-    ReshapeGroups(const Shape& desired, const std::vector<Size>& current);
+    ReshapeGroups(const Shape& desired, const std::vector<std::pair<Size, int>>& current);
 
     void createGroup(std::size_t indexDesired, std::size_t indexCurrent);
     void createGroup(std::size_t indexCurrent);
@@ -80,6 +80,6 @@ struct ReshapeGroups {
 
 constexpr std::size_t Infinity = std::numeric_limits<std::size_t>::max();
 
-std::size_t Compute(const Shape& desired, const std::vector<Size>& current, const DistanceOptions& options);
+std::size_t Compute(const Shape& desired, const std::vector<std::pair<Size, int>>& current, const DistanceOptions& options);
 
 } // namespace kas::ShapeComplexity

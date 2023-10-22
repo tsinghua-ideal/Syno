@@ -217,6 +217,7 @@ public:
     // Taking fixed dimensions into account.
     Size getTotalOutputSize() const;
     Size getMaxRDomSize() const;
+    int remainingChainLength(const Graph& graph, const Dimension& dim) const;
 
     // The following APIs can be provided for Python bindings.
     std::optional<Node> visit(const std::vector<Next>& path);
