@@ -257,7 +257,7 @@ void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& 
     expand(2);
     // Continue.
     if (arcs.empty()) return;
-    std::size_t success = 0;
+    [[maybe_unused]] std::size_t success = 0;
     for (std::size_t index = 0; const Arc& arc: arcs) {
         if (!canAcceptArc(arc)) {
             ++index;
@@ -272,7 +272,8 @@ void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& 
         ++success;
         ++index;
     }
-    KAS_ASSERT(success > 0);
+    // Due to maxEnumerations, we cannot guarantee that this is a lattice.
+    // KAS_ASSERT(success > 0);
 }
 
 void Node::expandToSync(Node target) const {
