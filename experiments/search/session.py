@@ -125,8 +125,6 @@ class Session:
                 kernel_dir = os.path.join(directory, kernel_fmt)
                 if not os.path.isdir(kernel_dir):
                     continue
-                if "ERROR" in kernel_dir:
-                    continue
                 if "cache" in kernel_dir:
                     continue
                 files = list(os.listdir(kernel_dir))
@@ -245,7 +243,7 @@ class Session:
                 )
             
             # copying kernel dir
-            if kernel_dir not in ["EMPTY", "MOCKPATH"]: 
+            if kernel_dir not in ["EMPTY", "MOCKPATH"] and os.path.isdir(kernel_dir): 
                 shutil.copytree(kernel_dir, os.path.join(kernel_save_dir, "kernel_scheduler_dir"))
 
         # Update with reward

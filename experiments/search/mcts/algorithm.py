@@ -14,10 +14,10 @@ class MCTSAlgorithm:
     leaf_parallelization_number = 3
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
-    max_final_iterations = (10, 1.5, 3000)
+    max_final_iterations = (8, 1.5, 1000)
     b = 0.5
     c_l = 10.0
-    simulate_retry_period = 300
+    simulate_retry_period = 1e9
     sample_retry_times = 5
     flush_virtual_loss_period = 600  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
@@ -77,9 +77,10 @@ class MCTSAlgorithm:
         self.update(path, reward)
 
     def update(self, path: Path, reward):
-        serialized_path = path.serialize()
-        tree_node = self.mcts.visit(path, on_tree=False)
-        assert tree_node, path
+        tree_node = self.mcts.visit(TreePath(path), on_tree=False)
+        if tree_node is None:
+            logging.warn(f"{path} is not in our space. Skipping")
+            return
 
         tree_path, leaf_tree_paths = self.path_toupd.pop(tree_node.to_node())
 

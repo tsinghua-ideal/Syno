@@ -57,6 +57,8 @@ class MCTSTree:
         self.leaf_num = leaf_num
 
         self.next_serializer = NextSerializer()
+        
+        self.simulate_time_ema = 0
 
         # HACK
         tree_node = self.tree_root
@@ -299,6 +301,7 @@ class MCTSTree:
         
         if max_final_iterations is None:
             a, b, c = self._max_final_iterations
+            a *= math.exp(-self.simulate_time_ema / 60)
             left_depth = self._max_depth - len(tree_path) + 1
             max_final_iterations = int(a * (b ** left_depth) + c)
 
@@ -311,9 +314,11 @@ class MCTSTree:
         final_nodes = []
         nodes_set = set()
         for trial_attempt in range(self._sample_retry_times):
+            start = time.time()
             trials = self._sampler.random_final_nodes_with_prefix(
                 path, sample_times, type=dangling_type, steps=2
             )
+            self.simulate_time_ema += time.time() - start
             for trial in trials:
                 if trial.to_node() not in nodes_set:
                     nodes_set.add(trial.to_node())
@@ -336,8 +341,10 @@ class MCTSTree:
 
         if len(final_nodes) < self.leaf_num or leaf_expanded.is_dead_end():
             logging.info(f"Simulation from {tree_path} failed, flushing failure time. ")
-            leaf_expanded.flush_failure_time()
+            leaf_expanded.set_dead()
             return None
+        
+        self.simulate_time_ema /= 2
 
         final_nodes = [
             (TreePath(path), self.touch(node, path=path))
@@ -629,7 +636,7 @@ class MCTSTree:
 
         if len(children) == 0:
             if node.is_fully_in_tree():
-                node.flush_failure_time()
+                node.set_dead()
             else:
                 assert node.reveal_new_children()
             logging.debug("Selection failed. ")
