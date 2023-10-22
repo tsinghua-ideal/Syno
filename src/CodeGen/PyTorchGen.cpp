@@ -403,7 +403,8 @@ void PyTorchGen::SubgraphGen::OpLower::visit(const ShareOp& op) {
 }
 void PyTorchGen::SubgraphGen::OpLower::visit(const ShiftOp& op) {
     const auto [input, inputIndex] = getSingleInput(op);
-    printer.writeLn("{0} = torch.roll({0}, {1}, {2})", name, -op.getShift(), inputIndex);
+    KAS_ASSERT(op.getShift() == 1, "Only shift by 1 is supported, because we alternate shift direction.");
+    printer.writeLn("{0} = torch.roll({0}, self.shift_direction, {1})", name, inputIndex);
     interface[inputIndex] = op.output;
 }
 void PyTorchGen::SubgraphGen::OpLower::visit(const SplitOp& op) {
@@ -661,9 +662,11 @@ void PyTorchGen::generate(std::ostream& outputStream, std::string_view className
 
     printer.writeLn("class {}(torch.nn.Module):", className);
     printer.indent([&] {
-        printer.writeLn("def __init__(self):");
+        printer.writeLn("def __init__(self, i):");
         printer.indent([&] {
             printer.writeLn("super().__init__()");
+            printer.writeLn("self.id = i");
+            printer.writeLn("self.shift_direction = (self.id % 2) * 2 - 1");
             if (ir.inputTensors.size() == 1) {
                 return;
             }

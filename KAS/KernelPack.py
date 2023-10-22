@@ -211,7 +211,7 @@ class KernelLoader:
                 logging.debug(f"FLOPs: {self.get_flops(i)}")
                 valid_i = self.get_valid_placeholder_index(i)
                 kernel_name = f"{kernel_name_prefix}_{valid_i}"
-                kernel_packs.append(getattr(kernels, kernel_name)().to(device))
+                kernel_packs.append(getattr(kernels, kernel_name)(i).to(device))
             return kernel_packs
 
         loader = Bindings.Loader(self._get_loader_args())
