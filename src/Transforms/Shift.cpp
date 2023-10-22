@@ -50,7 +50,7 @@ bool ShiftOp::ExceedsMaxValidReshapeShiftPattern(const Size& block, int shift, c
     return boost::rational_cast<float>(block.lowerBoundEst(ctx)) / std::abs(shift) > maximumValidReshapeShiftPattern;
 }
 
-std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
+std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     using enum DimensionTypeWithOrder;

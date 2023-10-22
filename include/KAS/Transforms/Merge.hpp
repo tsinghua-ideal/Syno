@@ -61,7 +61,7 @@ public:
         DisallowedAboveUnfold,
         SuccessfulGenerations,
     )
-    static std::vector<const MergeOp *> Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options);
+    static std::vector<const MergeOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<MergeOp>);

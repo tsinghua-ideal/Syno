@@ -262,6 +262,17 @@ public:
 
     ShapeView getShape() const { return ShapeView(interface); }
 
+    auto filterOut(std::vector<DimensionTypeWithOrder> disallows) const {
+        return interface | std::views::filter([disallows=std::move(disallows)](const Dimension& dim) {
+            return std::ranges::none_of(disallows, [&](auto disallow) { return dim.is(disallow); });
+        });
+    }
+    auto filterIn(std::vector<DimensionTypeWithOrder> allows) const {
+        return interface | std::views::filter([allows=std::move(allows)](const Dimension& dim) {
+            return std::ranges::any_of(allows, [&](auto allow) { return dim.is(allow); });
+        });
+    }
+
     // E.g., [[H]@Merge0]{[k]@Merge1}, where the braces mean expansions.
     std::string description(const BindingContext& ctx) const;
     template<TopmostRange R>
@@ -328,17 +339,6 @@ public:
     GraphHandle substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const;
 
     Graph buildGraph() const;
-
-    auto filterOut(std::vector<DimensionTypeWithOrder> disallows) const {
-        return interface | std::views::filter([disallows=std::move(disallows)](const Dimension& dim) {
-            return std::ranges::none_of(disallows, [&](auto disallow) { return dim.is(disallow); });
-        });
-    }
-    auto filterIn(std::vector<DimensionTypeWithOrder> allows) const {
-        return interface | std::views::filter([allows=std::move(allows)](const Dimension& dim) {
-            return std::ranges::any_of(allows, [&](auto allow) { return dim.is(allow); });
-        });
-    }
 
     // FOR DEBUG USAGE ONLY!
     using Topmost::debugDescription;

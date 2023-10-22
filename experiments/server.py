@@ -110,7 +110,7 @@ class Handler(BaseHTTPRequestHandler):
         explorer = params["explorer"][0]
         if explorer == "search_space":
             explorer = self.session.search_space_explorer
-        elif explorer == "algo":
+        elif explorer == "algorithm":
             explorer = self.session.algo.explorer
         else:
             raise ValueError(f"Unknown explorer: {explorer}")

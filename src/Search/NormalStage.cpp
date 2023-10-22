@@ -30,12 +30,12 @@ Finalizability NormalStage::checkForFinalizableChildren(const CollectedFinalizab
     return Base::checkForFinalizableChildren(collected);
 }
 
-GraphHandle NormalStage::removeTooLongChains(const Graph& graph, const GraphHandle& interface) const {
+Topmost NormalStage::removeTooLongChains(const Graph& graph, const GraphHandle& interface) const {
     std::vector<Dimension> result;
     std::ranges::remove_copy_if(interface.getDimensions(), std::back_inserter(result), [&](const Dimension& dim) {
-        return graph.getHeight(dim) >= sampler.getOptions().maxChainLength;
+        return sampler.remainingChainLength(graph, dim) <= 0;
     });
-    return GraphHandle(std::move(result), interface.getExpansions());
+    return Topmost(std::move(result), interface.getExpansions());
 }
 
 Size NormalStage::getAllowanceUsage(const Graph& graph) const {
@@ -251,28 +251,27 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
 
     const SampleOptions& options = sampler.getOptions();
     const BindingContext& ctx = sampler.getBindingContext();
+    const Graph graph = interface.buildGraph();
 
-    std::vector<Dimension> onlyWeights, weightsExcluded;
+    std::vector<std::pair<Dimension, int>> current;
     for (const Dimension& dim: interface.getDimensions()) {
-        if (dim.deduceOrigin() == Dimension::Origin::Weight) {
-            onlyWeights.emplace_back(dim);
-        } else {
-            weightsExcluded.emplace_back(dim);
+        const auto origin = dim.deduceOrigin();
+        int remainingLength = sampler.remainingChainLength(graph, dim);
+        KAS_ASSERT(remainingLength >= 0);
+        if (origin != Dimension::Origin::Weight) {
+            if (origin == Dimension::Origin::UnfoldOrExpand && remainingLength <= 0) {
+                ++CountShapeDeviatesTooMuch;
+                return false;
+            }
+            current.emplace_back(dim, remainingLength);
         }
-    }
-
-    if (!FinalizeOp::FitIntoWeights(onlyWeights, {
-        .maximumTensors = options.maximumTensors,
-    })) {
-        ++CountTooManyWeights;
-        return false;
     }
 
     auto remaining = [&](int maximum, Next::Type existingType) {
         int existing = existingOps[existingType];
         return maximum == -1 ? static_cast<int>(options.depth) : std::max(maximum - existing, 0);
     };
-    const std::size_t distance = FinalizeOp::Distance(weightsExcluded, sampler.getInputShape(), {
+    const std::size_t distance = FinalizeOp::Distance(current, sampler.getInputShape(), {
         .ctx = ctx,
         .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
         .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),

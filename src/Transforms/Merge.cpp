@@ -63,7 +63,7 @@ MergeOp::Values MergeOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for MergeOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs, inputRhs, output);
 }
 
-std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
+std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // Canonicalization. Manually handle SplitOp, StrideOp(s<B) and UnfoldOp(k<B).

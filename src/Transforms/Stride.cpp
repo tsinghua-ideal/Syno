@@ -44,7 +44,7 @@ StrideOp::Values StrideOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for StrideOp: input = {}, output = {}", input, output);
 }
 
-std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
+std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     using enum DimensionTypeWithOrder;

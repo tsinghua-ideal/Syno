@@ -49,7 +49,7 @@ public:
         ExceedsMaxValidReshapeShiftPattern,
         SuccessfulGenerations,
     )
-    static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const GraphHandle& outputShape, const GenerateOptions& options);
+    static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<ShiftOp>);

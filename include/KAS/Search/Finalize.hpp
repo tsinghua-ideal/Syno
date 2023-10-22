@@ -46,15 +46,13 @@ public:
 
     std::string description(const BindingContext& ctx) const;
 
-    struct WeightOptions {
-        std::size_t maximumTensors;
-    };
-
-    static bool FitIntoWeights(const std::vector<Dimension>& current, const WeightOptions& options);
-
     bool hasRedundantWeights(const Graph::DimensionSet& sharedWeightDims) const;
 
-    static std::size_t Distance(const std::vector<Dimension>& current, const Shape& desired, const ShapeComplexity::DistanceOptions& options);
+    static std::size_t Distance(
+        // Dimension and corresponding remainingLength, computed from maxChainLength.
+        const std::vector<std::pair<Dimension, int>>& current,
+        const Shape& desired, const ShapeComplexity::DistanceOptions& options
+    );
 
     KAS_STATISTICS_DEF(
         GenerateInvocations,

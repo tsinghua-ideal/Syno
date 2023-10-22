@@ -16,19 +16,19 @@ TEST_F(search_tests, shape_complexity) {
         .overflow = 1,
     };
 
-    ASSERT_EQ(ShapeComplexity::Compute(desired, {N, H, W}, options), 0);
+    ASSERT_EQ(ShapeComplexity::Compute(desired, {{N, 0}, {H, 1}, {W, 1}}, options), 0);
 
-    ASSERT_EQ(ShapeComplexity::Compute(desired, {N, H * W}, options), ShapeComplexity::Infinity);
+    ASSERT_EQ(ShapeComplexity::Compute(desired, {{N, 1}, {H * W, 1}}, options), ShapeComplexity::Infinity);
     options.remainingMerges = 1;
-    ASSERT_EQ(ShapeComplexity::Compute(desired, {N, H * W}, options), 1);
+    ASSERT_EQ(ShapeComplexity::Compute(desired, {{N, 0}, {H * W, 1}}, options), 1);
 
-    ASSERT_EQ(ShapeComplexity::Compute(desired, {N, H, W, k_1}, options), ShapeComplexity::Infinity);
+    ASSERT_EQ(ShapeComplexity::Compute(desired, {{N, 1}, {H, 1}, {W, 1}, {k_1, 1}}, options), ShapeComplexity::Infinity);
     options.remainingUnfoldsAndExpands = 1;
-    ASSERT_EQ(ShapeComplexity::Compute(desired, {N, H, W, k_1}, options), 1);
+    ASSERT_EQ(ShapeComplexity::Compute(desired, {{N, 0}, {H, 0}, {W, 1}, {k_1, 1}}, options), 1);
 
-    ASSERT_EQ(ShapeComplexity::Compute(desired, {N, H, W / k_1, k_1}, options), ShapeComplexity::Infinity);
+    ASSERT_EQ(ShapeComplexity::Compute(desired, {{N, 1}, {H, 1}, {W / k_1, 1}, {k_1, 1}}, options), ShapeComplexity::Infinity);
     options.remainingSplits = 1;
-    ASSERT_EQ(ShapeComplexity::Compute(desired, {N, H, W / k_1, k_1}, options), 1);
+    ASSERT_EQ(ShapeComplexity::Compute(desired, {{N, 0}, {H, 0}, {W / k_1, 1}, {k_1, 1}}, options), 1);
 }
 
 } // namespace kas

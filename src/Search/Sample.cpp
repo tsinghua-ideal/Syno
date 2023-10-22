@@ -218,6 +218,10 @@ Size Sampler::getMaxRDomSize() const {
     return inputShape.totalSize();
 }
 
+int Sampler::remainingChainLength(const Graph& graph, const Dimension& dim) const {
+    return static_cast<int>(options.maxChainLength) - graph.getHeight(dim);
+}
+
 std::optional<Node> Sampler::visit(const std::vector<Next>& path) {
     Node n { this, rootStage };
     for (const auto& next: path) {

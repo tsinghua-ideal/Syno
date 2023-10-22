@@ -27,7 +27,7 @@ Graph::DimensionSet ExpandOp::GetSharedWeightDims(const Graph& graph) {
     return result;
 }
 
-std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
+std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // We need to check if there are too many Expand's.

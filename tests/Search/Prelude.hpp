@@ -25,9 +25,10 @@ protected:
         options.maximumTensors = 4;
         options.maximumReductions = 2;
         options.maxFLOPs = 1e7;
+        options.maxChainLength = 5;
         return options;
     }();
-    Sampler sampler = {"[N,H,W]", "[N,H,W]", {"N=3:0"}, {"k_1=3:4", "s_1=2"}, {dict}, {{0, 0}}, options, 12};
+    Sampler sampler = {"[N,H,W]", "[N,H,W]", {"N=3:0", "H:0", "W:1"}, {"k_1=3:4", "s_1=2:2"}, {dict}, {{0, 0}}, options, 12};
     const BindingContext& ctx = sampler.getBindingContext();
     search_tests() {
         ctx.debug(); // For debugging.

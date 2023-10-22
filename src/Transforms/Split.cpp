@@ -101,7 +101,7 @@ SplitOp::Values SplitOp::value(const Values &known) const {
     KAS_CRITICAL("Conflicting values for SplitOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
-std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const GraphHandle& interface, const GenerateOptions& options) {
+std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // Canonicalization requires SplitOp to be chained.
