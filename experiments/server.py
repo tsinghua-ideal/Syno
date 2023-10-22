@@ -5,7 +5,7 @@ import urllib.parse
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from analysis import AbstractExplorer
+from KAS import AbstractExplorer
 from base import log, parser, models, mem
 from search import get_session, Session
 

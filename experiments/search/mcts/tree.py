@@ -29,6 +29,7 @@ class MCTSTree:
         max_final_iterations: Tuple[int, int, int] = (10, 1.5, 3000), # (a, b, c) s.t. sample num = a * (b ** (max_depth - depth))
         simulate_retry_period: float = 60,
         sample_retry_times: int = 5, 
+        simulate_decay_time: Tuple[float, float] = (300, 300), 
         max_depth: int = 16,
     ) -> None:
         self._treenode_store: Dict[Node, TreeNode] = dict()
@@ -59,6 +60,7 @@ class MCTSTree:
         self.next_serializer = NextSerializer()
         
         self.simulate_time_ema = 0
+        self.simulate_decay_time = simulate_decay_time
 
         # HACK
         tree_node = self.tree_root
@@ -301,7 +303,8 @@ class MCTSTree:
         
         if max_final_iterations is None:
             a, b, c = self._max_final_iterations
-            a *= math.exp(-self.simulate_time_ema / 60)
+            offset = max(0, (self.simulate_time_ema - self.simulate_decay_time[0]))
+            a *= math.exp(- offset / self.simulate_decay_time[1])
             left_depth = self._max_depth - len(tree_path) + 1
             max_final_iterations = int(a * (b ** left_depth) + c)
 

@@ -20,6 +20,7 @@ class MCTSAlgorithm:
     c_l = 10.0
     simulate_retry_period = 1e9
     sample_retry_times = 5
+    simulate_decay_time = (300, 600)
     flush_virtual_loss_period = 600  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
     # initial kernels, see base/models/manual_kernels.py for a complete list
@@ -38,6 +39,7 @@ class MCTSAlgorithm:
             max_final_iterations=self.max_final_iterations,
             simulate_retry_period=self.simulate_retry_period,
             sample_retry_times=self.sample_retry_times,
+            simulate_decay_time=self.simulate_decay_time, 
             max_depth=args.kas_depth,
         )
         self.sampler = sampler
