@@ -1,6 +1,6 @@
 import logging
 import math
-import random
+from random import random
 from collections import defaultdict
 from functools import partial
 from typing import List, Union, Optional, Dict, Tuple, DefaultDict, Generator
@@ -417,39 +417,56 @@ class TreeNode:
 
         Dependencies: get_unrevealed_children -> get_children -> get_child -> is_dead_end -> is_final -> None
         """
-
-        def rave(key: Tuple[PseudoTreeNext, TreeNode, AverageMeter]) -> float:
-            """
-            (1-β) l-RAVE + β g-RAVE
-            """
-            next, _, _ = key
+        
+        grave_list = []
+        lrave_list = []
+        beta_list = []
+        children = self.get_children(auto_initialize=True)
+        for next, _, _ in children:
             if self._is_mid:
                 assert isinstance(next, int)
                 arc = self._node.get_arc_from_handle(Next(self._type, next))
                 if arc is None:  # the next is already dead
-                    return -1
+                    grave_list.append(-100.)
+                    lrave_list.append(-100.)
+                    beta_list.append(-100.)
+                    continue
             else:
                 assert isinstance(next, Next.Type)
                 arc = next
-            beta = self._tree._c_l / (self._tree._c_l + self.l_rave[arc].N)
-            return (1 - beta) * self.l_rave[arc].mean + beta * self._tree.g_rave[
-                arc
-            ].mean
-
-        unrevealed_children = self.get_unrevealed_children()
-        random.shuffle(unrevealed_children)
-        if len(unrevealed_children) == 0:
+            
+            grave = self._tree.g_rave[arc].mean if arc in self._tree.g_rave else -1.
+            lrave = self.l_rave[arc].mean if arc in self.l_rave else -1.
+            beta = self._tree._c_l / (self._tree._c_l + self.l_rave[arc].N) if arc in self.l_rave else 1.
+            grave_list.append(grave)
+            lrave_list.append(lrave)
+            beta_list.append(beta)
+        
+        def replace_mean(lst: List[float], placeholder: float, ignored_value: float) -> List[float]:
+            counted_elems = [x for x in lst if x not in [placeholder, ignored_value]]
+            mean_value = sum(counted_elems) / len(counted_elems) if len(counted_elems) > 0 else 0.
+            return [mean_value if x == placeholder else x for x in lst]
+        
+        grave_list = replace_mean(grave_list, -1., -100.)
+        lrave_list = replace_mean(lrave_list, -1., -100.)
+        
+        rave_scores = [
+            ((1 - beta) * l_rave + beta * g_rave) * (1 - self._tree._rave_random_ratio) + self._tree._rave_random_ratio * random()
+            for g_rave, l_rave, beta in zip(grave_list, lrave_list, beta_list)
+        ]
+        unrevealed_children_with_rave = [
+            (child, rave_score)
+            for (_, child, _), rave_score in zip(children, rave_scores)
+            if not child._isin_tree
+        ]
+        if len(unrevealed_children_with_rave) == 0:
             logging.debug("No new children to be added")
-            assert (
-                self.is_fully_in_tree()
-            ), f"{self} is not fully expanded but no children can be revealed"
+            assert self.is_fully_in_tree(), f"{self} is not fully expanded but no children can be revealed"
             return False
-        key = max(unrevealed_children, key=rave)
-        if rave(key) == -1:
-            # logging.debug("No new children to be added")
+        selected_child, score = max(unrevealed_children_with_rave, key=lambda x: x[1])
+        if score == -100.:
             return False
-        _, child, _ = key
-        child._isin_tree = True
+        selected_child._isin_tree = True
         return True
 
     def get_unrevealed_children(

@@ -20,6 +20,7 @@ class MCTSAlgorithm:
     c_l = 10.0
     simulate_retry_period = 1e9
     sample_retry_times = 5
+    rave_random_ratio = 0.3
     simulate_decay_time = (300, 600)
     flush_virtual_loss_period = 600  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
@@ -41,6 +42,7 @@ class MCTSAlgorithm:
             sample_retry_times=self.sample_retry_times,
             simulate_decay_time=self.simulate_decay_time, 
             max_depth=args.kas_depth,
+            rave_random_ratio=self.rave_random_ratio
         )
         self.sampler = sampler
         self.explorer = MCTSExplorer(model, sampler, self.mcts)

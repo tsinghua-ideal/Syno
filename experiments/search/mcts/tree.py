@@ -31,6 +31,7 @@ class MCTSTree:
         sample_retry_times: int = 5, 
         simulate_decay_time: Tuple[float, float] = (300, 300), 
         max_depth: int = 16,
+        rave_random_ratio: float = 0.3,
     ) -> None:
         self._treenode_store: Dict[Node, TreeNode] = dict()
         self._path_store: Dict[Node, Path] = dict()
@@ -48,7 +49,9 @@ class MCTSTree:
         self._simulate_retry_period = simulate_retry_period
         self._sample_retry_times = sample_retry_times
         self._max_depth = max_depth
+        self._rave_random_ratio = rave_random_ratio
         assert policy in ["update-all", "update-descent"]
+        assert 0 <= rave_random_ratio <= 1
         random.seed(sampler._seed)
 
         # Tree Parallelization
