@@ -115,7 +115,7 @@ class Session:
         logging.info(f"Fast updating with files in {self.evaluation_result_file}")
         
         with open(self.evaluation_result_file) as f:
-            dirs = [l[:-1] for l in f.readlines()]
+            dirs = [l[:-1] for l in f.readlines() if l[-1] == '\n']
         
         kernels = []
         for directory in dirs:
