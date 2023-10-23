@@ -233,18 +233,6 @@ public:
 
     // FOR DEBUG USAGE ONLY!
     std::string debugToString() const;
-
-    template<typename C = decltype([](const std::string&){})>
-    static std::vector<std::string> parseNames(std::string_view shape) {
-        auto parsedShape = Parser(shape).parseShape();
-        std::vector<std::string> result;
-        for (auto& size: parsedShape) {
-            KAS_ASSERT(size.size() == 1 && size[0].second == 1);
-            std::string name = std::move(size[0].first);
-            result.emplace_back(std::move(name));
-        }
-        return result;
-    }
 };
 
 class PaddingSolver {

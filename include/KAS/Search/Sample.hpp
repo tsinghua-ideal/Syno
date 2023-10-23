@@ -183,8 +183,8 @@ class Sampler final {
 
     BindingContext ctx;
     SampleOptions options;
-    Shape inputShape;
-    Shape outputShape;
+    Shape inputShape, outputShape;
+    std::vector<Parser::Attributes> inputAttributes, outputAttributes;
 
     std::vector<Iterator> outputIterators;
     std::vector<FixedDimension> fixedDimensions;

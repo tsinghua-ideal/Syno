@@ -203,23 +203,36 @@ std::vector<Parser::Factor> Parser::parseSize() {
     }
     throw std::runtime_error("Invalid size expression.");
 }
-std::vector<std::vector<Parser::Factor>> Parser::parseCommaSeparatedSizes() {
-    std::vector<std::vector<Factor>> sizes = { parseSize() };
+Parser::AttributedSize Parser::parseSizeAndAttributes() {
+    auto size = parseSize();
+    if (current() == Token::Colon) {
+        consume(Token::Colon);
+        std::set<std::string> attributes;
+        attributes.emplace(parseIdentifier());
+        while (current() == Token::Plus) {
+            consume(Token::Plus);
+            attributes.emplace(parseIdentifier());
+        }
+        return { std::move(size), std::move(attributes) };
+    }
+    return { std::move(size), {} };
+}
+std::vector<Parser::AttributedSize> Parser::parseCommaSeparatedSizesAndAttributes() {
+    std::vector<AttributedSize> sizes = { parseSizeAndAttributes() };
     while (current() == Token::Comma) {
         consume(Token::Comma);
-        sizes.emplace_back(parseSize());
+        sizes.emplace_back(parseSizeAndAttributes());
     }
     return sizes;
 }
 
-std::vector<std::vector<Parser::Factor>> Parser::parseShape() {
+std::vector<Parser::AttributedSize> Parser::parseShapeAndAttributes() {
     consume(Token::OpenBracket);
-    std::vector<std::vector<Factor>> sizes;
     if (current() != Token::CloseBracket) {
-        sizes = parseCommaSeparatedSizes();
+        return parseCommaSeparatedSizesAndAttributes();
     }
     consume(Token::CloseBracket);
-    return sizes;
+    return {};
 }
 
 TensorExpression Parser::parseFactorExpression() {
@@ -325,8 +338,9 @@ ShapeSpecParser::ShapeSpecParser(const std::vector<std::string>& primarySpecs, c
 {}
 
 ShapeSpecParser& ShapeSpecParser::addShape(std::string_view shape) {
-    auto parsedShape = Parser(shape).parseShape();
-    for (const auto& size: parsedShape) {
+    auto parsedShape = Parser(shape).parseShapeAndAttributes();
+    for (const auto& sizeAndAttributes: parsedShape) {
+        const auto& [size, _] = sizeAndAttributes;
         for (const auto& [var, _]: size) {
             if (!coefficientSpecs.contains(var) && !primarySpecs.contains(var)) {
                 // We have to add a default spec for the name.

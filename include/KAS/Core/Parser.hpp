@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <variant>
@@ -32,19 +33,26 @@ class Parser {
 
 public:
     using Factor = std::pair<std::string, int>;
+    using Attributes = std::set<std::string>;
+
+    struct AttributedSize {
+        std::vector<Factor> factors;
+        Attributes attributes;
+    };
 
     std::string parseIdentifier();
     int parseInteger();
     Factor parseBaseAndPower();
     std::vector<Factor> parseSize();
-    std::vector<std::vector<Factor>> parseCommaSeparatedSizes();
+    AttributedSize parseSizeAndAttributes();
+    std::vector<AttributedSize> parseCommaSeparatedSizesAndAttributes();
 
     TensorExpression parseFactorExpression();
     TensorExpression parseTermExpression();
 
     Parser(std::string_view buffer);
-    std::vector<std::vector<Factor>> parseShape();
-    std::vector<std::vector<std::vector<Factor>>> parseShapes();
+
+    std::vector<AttributedSize> parseShapeAndAttributes();
     TensorExpression parseTensorExpression();
 
     struct PureSpec;

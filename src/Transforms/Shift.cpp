@@ -64,6 +64,10 @@ std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const To
     constexpr int ShiftValue = 1;
     for (auto&& dim: plausible) {
         ++countPlausible;
+        if (dim.getColor().isUnordered()) {
+            // If we apply Shift on an unordered dimension, this is basically useless.
+            continue;
+        }
         Dimension peek = dim;
         if (auto share = dim.tryAs<ShareOp::Input>(); share) {
             // Canonicalization requires us to go beyond Share.

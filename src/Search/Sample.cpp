@@ -140,13 +140,14 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     });
 
     // Parse shape from names.
-    this->inputShape = ctx.getShape(inputShape);
-    this->outputShape = ctx.getShape(outputShape);
+    std::tie(this->inputShape, inputAttributes) = ctx.getShapeAndAttributes(inputShape);
+    std::tie(this->outputShape, outputAttributes) = ctx.getShapeAndAttributes(outputShape);
 
     this->options.check();
     // Initialize the output iterators.
     for (std::size_t index = 0; const auto& domain: this->outputShape) {
-        outputIterators.emplace_back(index++, domain);
+        outputIterators.emplace_back(index, domain, outputAttributes.at(index).contains("unordered"));
+        ++index;
     }
 
     // Check that the bound I/O dimensions are of the same size, and collect fixedDimensions.
