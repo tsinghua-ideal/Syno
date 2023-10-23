@@ -1,10 +1,6 @@
 #!/bin/bash
 
-# Usage: ./run_tmux.sh $(NUM_GPUS) $(ENV_NAME) $(ARGS)
-
-# Delete cache
-echo 'Deleting cache...'
-rm -rf .scheduler-cache
+# Usage: ./run_workers.sh $(NUM_GPUS) $(ENV_NAME) $(LOG_PREFIX) $(ARGS)
 
 # Check power.
 if ! (( $1 > 0 && ($1 & ($1 - 1)) == 0 )); then
@@ -22,28 +18,30 @@ function log2 {
 }
 
 # Create windows.
-tmux new -s "KAS" -d
-tmux selectp -t 0
-tmux splitw -h -p 50
-for ((i = 0; i < $(log2 "$1"); i ++)); do
+tmux new -s "KASworker" -d
+for ((i = 0; i < $(($(log2 "$1") - 1)); i ++)); do
   for ((j = 0; j < 2 ** i; j ++)) do
-    tmux selectp -t $((j * 2 + 1))
+    tmux selectp -t $((j * 2))
     tmux splitw -v -p 50
   done
+done
+
+for ((i = 0; i <= $(($1 - 1)); i += 2)); do
+    tmux selectp -t $i
+    tmux splitw -h -p 50
 done
 
 # Run.
 current_path=$(pwd)
 
 # Client.
-for ((i = 1; i <= $1; i ++)); do
+for ((i = 0; i <= $1-1; i ++)); do
 tmux send-keys -t "$i" "echo TMUX Pane $i" Enter
 tmux send-keys -t "$i" "mamba activate $2" Enter
 tmux send-keys -t "$i" "cd ${current_path}" Enter
-tmux send-keys -t "$i" "export CUDA_VISIBLE_DEVICES=$(($i - 1))" Enter
-tmux send-keys -t "$i" "sleep 5" Enter
-tmux send-keys -t "$i" "./launch_client.sh ${*:3} --kas-client-cache-dir /tmp/.client$(($i))-cache" Enter
+tmux send-keys -t "$i" "export CUDA_VISIBLE_DEVICES=$(($i))" Enter
+tmux send-keys -t "$i" "./launch_client.sh ${*:4} --kas-client-cache-dir /tmp/.client_$3-$i-cache > client_$3-$i.log 2>&1" Enter
 done
 
 # Attach.
-tmux attach -t "KAS"
+tmux attach -t "KASworker"

@@ -2,6 +2,7 @@ import os
 import tempfile
 from torch import nn
 from typing import List, Optional, Tuple, Union
+from copy import deepcopy
 
 from KAS import NextSerializer, Node, Path, Sampler, Statistics, Next
 
@@ -20,7 +21,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
 
     def state_of(self, current_path: List[str]) -> Optional[TreeNode]:
         # Path: alternating type and key
-        path = current_path.copy()
+        path = deepcopy(current_path)
         if len(current_path) % 2 == 1:
             path += ["0"]
         abstract_path = [

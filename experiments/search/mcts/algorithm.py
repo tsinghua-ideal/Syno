@@ -21,7 +21,7 @@ class MCTSAlgorithm:
     simulate_retry_period = 1e9
     sample_retry_times = 5
     rave_random_ratio = 0.3
-    simulate_decay_time = (300, 600)
+    simulate_decay_time = (60, 180)
     flush_virtual_loss_period = 600  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
     # initial kernels, see base/models/manual_kernels.py for a complete list
