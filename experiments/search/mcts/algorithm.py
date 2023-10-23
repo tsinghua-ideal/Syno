@@ -85,7 +85,7 @@ class MCTSAlgorithm:
     def update(self, path: Path, reward):
         tree_node = self.mcts.visit(TreePath(path), on_tree=False)
         if tree_node is None:
-            logging.warn(f"{path} is not in our space. Skipping")
+            logging.warning(f"{path} is not in our space. Skipping")
             return
 
         tree_path, leaf_tree_paths = self.path_toupd.pop(tree_node.to_node())

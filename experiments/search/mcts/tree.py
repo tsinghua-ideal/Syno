@@ -117,7 +117,7 @@ class MCTSTree:
         # )
         if tree_node._virtual_loss < 0:
             tree_node._virtual_loss = 0
-            logging.warn("Virtual loss go below 0! ")
+            logging.warning("Virtual loss go below 0! ")
         for next in path:
             tree_node = tree_node.get_child(next.type, on_tree=True)
             # assert tree_node is not None
@@ -131,7 +131,7 @@ class MCTSTree:
             # )
             if tree_node._virtual_loss < 0:
                 tree_node._virtual_loss = 0
-                logging.warn("Virtual loss go below 0! ")
+                logging.warning("Virtual loss go below 0! ")
             if next.key == 0:
                 break
             tree_node = tree_node.get_child(next.key, on_tree=True)
@@ -146,7 +146,7 @@ class MCTSTree:
             # )
             if tree_node._virtual_loss < 0:
                 tree_node._virtual_loss = 0
-                logging.warn("Virtual loss go below 0! ")
+                logging.warning("Virtual loss go below 0! ")
 
     def visit(
         self, path: TreePath, on_tree: bool = True, put_in_tree: bool = False

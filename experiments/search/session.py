@@ -180,6 +180,9 @@ class Session:
         if path in self.timeout_samples:
             logging.debug(f"{path} is removed due to timeout...")
             return
+        if path not in self.waiting:
+            logging.warning(f"{path} is not in our waiting queue")
+            return
 
         # Not more waiting
         self.waiting.remove(path)
