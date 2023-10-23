@@ -23,6 +23,7 @@ private:
     // The tags are sorted.
     std::vector<Tag> tags;
     bool dataDiscardingFlag = false;
+    bool unorderedFlag = false;
 
 public:
     static bool AnyCommonTags(const std::vector<Tag>& left, const std::vector<Tag>& right);
@@ -46,13 +47,16 @@ public:
     void addTag(Tag tag);
 
     bool isDataDiscarding() const { return dataDiscardingFlag; }
-    void setDataDiscarding(bool value) { dataDiscardingFlag = value; }
+    Color& setDataDiscarding(bool value) { dataDiscardingFlag = value; return *this; }
+    bool isUnordered() const { return unorderedFlag; }
+    Color& setUnordered(bool value) { unorderedFlag = value; return *this; }
 
     // Returns true if removed.
     bool removeTag(Tag tag);
     bool empty() const { return tags.empty(); }
 
-    static const Color None;
+    static const Color NoneOrdered;
+    static const Color NoneUnordered;
 };
 
 // Different from usual colors, a weight can have left color and right color.

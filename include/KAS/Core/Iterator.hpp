@@ -9,10 +9,12 @@ namespace kas {
 class Iterator final: public DimensionImpl {
     std::size_t index;
     Size domain;
+    bool isUnordered;
 public:
-    explicit Iterator(std::size_t index, auto&& domain):
+    explicit Iterator(std::size_t index, const Size& domain, bool isUnordered = false):
         index { index },
-        domain { std::forward<decltype(domain)>(domain) }
+        domain { std::forward<decltype(domain)>(domain) },
+        isUnordered { isUnordered }
     {}
     const Size& size() const override { return domain; }
     std::size_t hash() const noexcept override {
@@ -27,7 +29,7 @@ public:
     constexpr DimensionType type() const noexcept override { return DimensionType::Iterator; }
     void accept(DimVisitor& visitor) const final override;
     const PrimitiveOp *getOpBelow() const override { return nullptr; }
-    const Color & getColor() const override { return Color::None; }
+    const Color & getColor() const override { return isUnordered ? Color::NoneUnordered : Color::NoneOrdered; }
 
     std::size_t getIndex() const { return index; }
     std::string getName() const {

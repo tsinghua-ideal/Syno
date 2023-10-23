@@ -119,7 +119,7 @@ public:
 
     std::vector<Size> getSizes(const std::vector<std::string>& names) const;
     Shape getShape(const std::vector<std::string>& names) const;
-    Shape getShape(std::string_view shape) const;
+    std::pair<Shape, std::vector<Parser::Attributes>> getShapeAndAttributes(std::string_view shape) const;
 
     ConcreteConsts realizeConsts(const std::map<std::string, std::size_t>& mappings, bool defaultFallback = false) const;
     const std::vector<ConcreteConsts>& getAllConsts() const { return allConsts; }

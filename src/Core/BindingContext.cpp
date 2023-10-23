@@ -220,10 +220,15 @@ Shape BindingContext::getShape(const std::vector<std::string>& names) const {
     return Shape { getSizes(names) };
 }
 
-Shape BindingContext::getShape(std::string_view shape) const {
-    return ranges::to<std::vector<Size>>(Parser(shape).parseShape() | std::views::transform([&](const auto& factors) {
-        return getSizeFromFactors(factors);
-    }));
+std::pair<Shape, std::vector<Parser::Attributes>> BindingContext::getShapeAndAttributes(std::string_view shape) const {
+    auto shapeAndAttributes = Parser(shape).parseShapeAndAttributes();
+    std::pair<Shape, std::vector<Parser::Attributes>> result;
+    auto& [sizes, attributes] = result;
+    for (auto& [size, attrs]: shapeAndAttributes) {
+        sizes.sizes.emplace_back(getSizeFromFactors(size));
+        attributes.emplace_back(std::move(attrs));
+    }
+    return result;
 }
 
 ConcreteConsts BindingContext::realizeConsts(const std::map<std::string, std::size_t>& mappings, bool defaultFallback) const {

@@ -83,6 +83,7 @@ std::size_t Color::RemoveTags(std::vector<Tag>& tags, const std::vector<Tag>& to
 void Color::merge(const Color& other) {
     tags = MergeTags(tags, other.tags);
     dataDiscardingFlag = dataDiscardingFlag || other.dataDiscardingFlag;
+    unorderedFlag = unorderedFlag && other.unorderedFlag;
 }
 
 void Color::addTag(Tag tag) {
@@ -97,7 +98,8 @@ bool Color::removeTag(Tag tag) {
     return RemoveTag(tags, tag);
 }
 
-const Color Color::None = Color();
+const Color Color::NoneOrdered = Color();
+const Color Color::NoneUnordered = Color().setUnordered(true);
 
 WeightColor::WeightColor(const Dimension& dim):
     leftTags(dim.getColor().tags), rightTags()
