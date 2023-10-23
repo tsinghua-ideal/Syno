@@ -649,6 +649,7 @@ void PyTorchGen::applyDivision(PythonCodePrinter& printer, const ConcreteConsts&
 
 void PyTorchGen::generatePrelude(std::ostream& outputStream) const {
     outputStream << "import torch\n";
+    outputStream << "import random\n";
     outputStream << "\"\"\"\n";
     auto gvCode = GraphvizDFGGen(ir, ctx).print("kernel_preview");
     outputStream << gvCode << "\n";
@@ -666,7 +667,7 @@ void PyTorchGen::generate(std::ostream& outputStream, std::string_view className
         printer.indent([&] {
             printer.writeLn("super().__init__()");
             printer.writeLn("self.id = i");
-            printer.writeLn("self.shift_direction = (self.id % 2) * 2 - 1");
+            printer.writeLn("self.shift_direction = (random.random() > 0.5) * 2 - 1");
             if (ir.inputTensors.size() == 1) {
                 return;
             }
