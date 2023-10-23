@@ -347,7 +347,7 @@ class MCTSTree:
 
         if len(final_nodes) < self.leaf_num or leaf_expanded.is_dead_end():
             logging.info(f"Simulation from {tree_path} failed, flushing failure time. ")
-            leaf_expanded.set_dead()
+            leaf_expanded.set_simulate_fail()
             return None
         
         self.simulate_time_ema /= 2
@@ -579,7 +579,7 @@ class MCTSTree:
                     if src_node._node.can_accept_arc(arc):
                         arc_pool.remove(arc)
                         nxt = arc.to_next()
-                        mid_child = src_node.get_child(nxt.type, auto_initialize=True)
+                        mid_child = src_node.get_child(nxt.type, auto_initialize=True, include_simulate_failure=False)
                         if mid_child is None:
                             arc_pool.add(arc)
                             continue
@@ -589,7 +589,7 @@ class MCTSTree:
                             src_node._node.get_child_from_arc(arc),
                             path=self._path_store[src_node._node].concat(nxt),
                         )
-                        if child_node.is_dead_end():
+                        if child_node.is_dead_end(include_simulate_failure=False):
                             arc_pool.add(arc)
                             continue
                         if find_lattice(child_node, arc_pool):
