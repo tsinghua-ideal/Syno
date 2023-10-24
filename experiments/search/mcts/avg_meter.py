@@ -77,6 +77,6 @@ class AverageMeter:
 
     def __repr__(self) -> str:
         if self.support_std:
-            return f"AverageMeter(mean={self.mean}, std={self.std}, N={self.N})"
+            return f"(mean={self.mean}, std={self.std}, N={self.N})"
         else:
-            return f"AverageMeter(mean={self.mean}, N={self.N})"
+            return f"(mean={self.mean}, N={self.N})"

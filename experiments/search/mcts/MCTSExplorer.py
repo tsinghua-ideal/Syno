@@ -40,7 +40,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             return [
                 AbstractChild(
                     str(nxt),
-                    state.to_node().get_child_description(Next(state._type, nxt)) or "Failed to get description.",
+                    f"{state.to_node().get_child_description(Next(state._type, nxt))} {edge_state} with l-rave {state.l_rave[state.to_node().get_arc_from_handle(Next(state._type, nxt))]}",
                 )
                 for nxt, child_node, edge_state in handles
             ]
@@ -48,7 +48,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             return [
                 AbstractChild(
                     self._serializer.serialize_type(nxt),
-                    str(nxt).split('.')[-1],
+                    f"{str(nxt).split('.')[-1]} {edge_state}",
                 )
                 for nxt, child_node, edge_state in handles
             ]
@@ -61,10 +61,11 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             f"\tis_final: {state.is_final()}, reward={state.reward}, filtered={state.filtered}\n" if state.is_final() else f"\tis_final: {state.is_final()}\n"
             f"\tis_dead_end: {state.is_dead_end()}\n"
             f"\tis_dead: {state._is_dead}\n"
+            f"\tsimulate_fail: {state._simulate_fail}\n"
             f"\tis_alive: {state._not_dead}\n"
             f"\tis_exhausted: {state._exhausted}\n"
             f"\tis_in_tree: {state._isin_tree}\n"
-            f"\tstates: (N={state.state.N}, mean={state.state.mean}, std={state.state.std})\n"
+            f"\tstates: {state.state}\n"
         )
 
     custom_predicates = (
