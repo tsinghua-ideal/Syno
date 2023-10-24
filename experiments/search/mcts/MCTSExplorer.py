@@ -35,12 +35,12 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
         return node
 
     def children(self, state: TreeNode) -> List[AbstractChild]:
-        handles = state.get_children()
+        handles = state.get_children(filter_simulate_failure=False)
         if state._is_mid:
             return [
                 AbstractChild(
                     str(nxt),
-                    f"{state.to_node().get_child_description(Next(state._type, nxt))} {edge_state} with l-rave {state.l_rave[state.to_node().get_arc_from_handle(Next(state._type, nxt))]}",
+                    f"{state.to_node().get_child_description(Next(state._type, nxt))} {edge_state} with l-rave {state.l_rave[state.to_node().get_arc_from_handle(Next(state._type, nxt))]} {'(simulation failed)' if child_node._simulate_fail else ''}",
                 )
                 for nxt, child_node, edge_state in handles
             ]
@@ -48,7 +48,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             return [
                 AbstractChild(
                     self._serializer.serialize_type(nxt),
-                    f"{str(nxt).split('.')[-1]} {edge_state}",
+                    f"{str(nxt).split('.')[-1]} {edge_state} {'(simulation failed)' if child_node._simulate_fail else ''}",
                 )
                 for nxt, child_node, edge_state in handles
             ]

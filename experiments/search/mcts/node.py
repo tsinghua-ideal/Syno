@@ -525,7 +525,7 @@ class TreeNode:
         self,
         auto_initialize: bool = False,
         on_tree: bool = False,
-        filter_simulate_failure: bool = False,
+        filter_simulate_failure: bool = True,
     ) -> List[Tuple[PseudoTreeNext, "TreeNode", AverageMeter]]:
         """
         Get all alive children of a node with nexts and edge states.
@@ -540,7 +540,7 @@ class TreeNode:
                 if handle.type == self._type
             ]
             children = [
-                self.get_child(nxt, auto_initialize=auto_initialize, on_tree=on_tree)
+                self.get_child(nxt, auto_initialize=auto_initialize, on_tree=on_tree, include_simulate_failure=filter_simulate_failure)
                 for nxt in nexts
             ]
 
@@ -562,8 +562,6 @@ class TreeNode:
         ret_list = list(zip(nexts, children, edge_states))
         if on_tree:
             ret_list = [(nxt, c, e) for nxt, c, e in ret_list if c._isin_tree]
-        if filter_simulate_failure:
-            ret_list = [(nxt, c, e) for nxt, c, e in ret_list if not c.failed_recently]
         return ret_list
 
     def get_child(
