@@ -1,4 +1,5 @@
 add_kas_test(core-colors-tests Colors.cpp)
+add_kas_test(core-flops-game-tests FLOPsGame.cpp)
 add_kas_test(core-ir-tests IR.cpp)
 add_kas_test(core-padding-tests Padding.cpp)
 add_kas_test(core-parser-tests Parser.cpp)
