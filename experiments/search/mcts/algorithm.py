@@ -16,7 +16,7 @@ class MCTSAlgorithm:
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
     max_final_iterations = (8, 1.5, 1000)
-    b = 0.5
+    b = 0.8
     c_l = 10.0
     simulate_retry_period = 1e9
     sample_retry_times = 5
@@ -145,8 +145,8 @@ class MCTSAlgorithm:
         ):
             self.time_stamp = time.time()
             logging.debug("Resetting virtual losses... ")
-            for k in list(self.mcts.virtual_loss_count.keys()):
-                self.mcts.virtual_loss_count[k] = 0
+            for v in self.mcts._treenode_store.values():
+                v._virtual_loss = 0
             logging.debug("Virtual losses cleared. ")
 
         n_iterations = 0

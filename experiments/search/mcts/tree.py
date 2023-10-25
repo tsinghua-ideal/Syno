@@ -5,7 +5,6 @@ import time
 import threading, queue
 from collections import defaultdict
 from typing import List, Tuple, Optional, DefaultDict, Set, Union, Dict
-from tqdm import tqdm
 
 from KAS import Node, Path, Sampler, Next, Arc, NextSerializer
 
@@ -692,7 +691,7 @@ class MCTSTree:
 
         # dump father"s n, q
         # dump children"s n, q, filtered
-        for i, n in enumerate(tqdm(nodes)):
+        for i, n in enumerate(nodes):
             father = self._treenode_store[n]
             underlying_node = father._node
 
@@ -859,7 +858,7 @@ class MCTSTree:
 
         # dump father"s n, q
         # dump children"s n, q, filtered
-        for i, n in enumerate(tqdm(nodes)):
+        for i, n in enumerate(nodes):
             father = self._treenode_store[n]
             if not father.is_final() or father.filtered or father.reward == -1:
                 continue
@@ -893,7 +892,7 @@ class MCTSTree:
         node_list = serialized["node_list"]
         tree = MCTSTree(sampler, **params)
 
-        for node_serial in tqdm(node_list):
+        for node_serial in node_list:
             if node_serial["father"]["state"]["_is_dead"]:
                 if keep_dead_state:
                     path = Path.deserialize(node_serial["path"])
@@ -914,7 +913,7 @@ class MCTSTree:
 
             father.load(node_serial["father"]["state"])
             if keep_virtual_loss:
-                tree.virtual_loss_count[father] = node_serial["father"]["virtual_loss"]
+                father._virtual_loss = node_serial["father"]["virtual_loss"]
             if father.is_final():
                 father.filtered = node_serial["father"]["filtered"]
                 father.reward = node_serial["father"]["reward"]
@@ -924,7 +923,7 @@ class MCTSTree:
                 mid_child = father.get_child(next, auto_initialize=True)[0]
                 mid_child.load(node_serial["children"][next_serial]["state"])
                 if keep_virtual_loss:
-                    tree.virtual_loss_count[mid_child] = node_serial["children"][
+                    mid_child._virtual_loss = node_serial["children"][
                         next_serial
                     ]["virtual_loss"]
                 children_states = node_serial["children"][next_serial]["children"]
