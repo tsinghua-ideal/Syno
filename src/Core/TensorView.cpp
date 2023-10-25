@@ -209,7 +209,7 @@ std::string TensorView::description(const BindingContext& ctx) const {
 
 TensorView::TensorView(const std::vector<Topmost>& canonicalTensors, TensorExpression blending, const BindingContext& ctx) {
     const Graph graph =
-        Graph::Builder().addTopmosts(canonicalTensors).build();
+        GraphBuilder().addTopmosts(canonicalTensors).build();
     const auto& outputIterators = graph.getOutputIterators();
     const auto& reduceIterators = graph.getReduceIterators();
 

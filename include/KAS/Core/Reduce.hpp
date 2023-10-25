@@ -76,7 +76,7 @@ public:
     constexpr DimensionType type() const noexcept override { return ReduceBase::Type; }
     void accept(DimVisitor& visitor) const override;
     const PrimitiveOp *getOpBelow() const override { return nullptr; }
-    const Color& getColor() const override { return Color::NoneOrdered; }
+    Color computeColor(const GraphBuilder& graphBuilder) const override { return Color().setHeight(1); }
 
     const ReduceBase& getBase() const { return base; }
     ReduceType getReduce() const { return base.getReduce(); }

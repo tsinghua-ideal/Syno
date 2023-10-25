@@ -92,12 +92,12 @@ bool FinalizeOp::hasRedundantWeights(const Graph::DimensionSet& sharedWeightDims
     );
 }
 
-std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& current, const Shape& desired, const ShapeComplexity::DistanceOptions& options) {
+std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& current, const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options) {
     int strideDist = 0;
 
     std::vector<std::pair<Size, int>> mustBeInput, canBeWeight;
     for (const auto& [dim, remainingLength]: current) {
-        auto origin = dim.deduceOrigin();
+        auto origin = dim.deduceOrigin(graph);
         switch (origin) {
         case Dimension::Origin::Input:
             mustBeInput.emplace_back(dim.size(), remainingLength);
@@ -287,7 +287,7 @@ struct CollectedTensorFragments {
         mappings.emplace_back(index);
         used[index] = true;
     }
-    std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> toTensorAndWeightDims(const std::vector<Dimension>& interface) const {
+    std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> toTensorAndWeightDims(const Graph& graph, const std::vector<Dimension>& interface) const {
         std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> result;
         auto& [tensor, weight] = result;
         tensor.reserve(mappings.size());
@@ -298,7 +298,7 @@ struct CollectedTensorFragments {
         weight.reserve(interface.size() - mappings.size());
         for (std::size_t i = 0; i < interface.size(); ++i) {
             if (!used[i]) {
-                weight.emplace_back(interface[i]);
+                weight.emplace_back(graph, interface[i]);
             }
         }
         KAS_ASSERT(weight.size() == interface.size() - mappings.size());
@@ -397,7 +397,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
     const std::vector<const Expand *>& expansions = dimensionsAndExpansions.getExpansions();
 
     // First we perform a basic check. If any Dimension is data-discarding, then it is not a legal kernel.
-    if (std::ranges::any_of(interface, [](const Dimension& dim) { return dim.getColor().isDataDiscarding(); })) {
+    if (std::ranges::any_of(interface, [&graph](const Dimension& dim) { return graph.colorOf(dim).isDataDiscarding(); })) {
         ++CountFailedInvocations;
         return {};
     }
@@ -417,7 +417,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
     const auto& desired = options.desired;
 
     auto buildBesideInputTensor = [&](const CollectedTensorFragments& inputCandidate) {
-        const auto [inputTensor, weightDims] = inputCandidate.toTensorAndWeightDims(interface);
+        const auto [inputTensor, weightDims] = inputCandidate.toTensorAndWeightDims(graph, interface);
         KAS_ASSERT(inputTensor.size() == desired.size());
         KAS_ASSERT(weightDims.size() == interface.size() - desired.size());
         for (auto tensors: AssignToWeights(weightDims, options.maximumTensors - 1)) {
@@ -450,7 +450,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
             for (std::size_t i = 0; i < interface.size(); ++i) {
                 if (fragments.used[i]) continue;
                 const auto& cDim = interface[i];
-                auto origin = cDim.deduceOrigin();
+                auto origin = cDim.deduceOrigin(graph);
                 if (origin != Dimension::Origin::Weight && origin != Dimension::Origin::InputOrWeight) {
                     ++CountUncanonicalWeight;
                     return;
@@ -463,7 +463,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
         const auto& desiredDimSize = desired[nextIndex];
         for (std::size_t i = 0; i < interface.size(); ++i) {
             auto&& dim = interface[i];
-            auto origin = dim.deduceOrigin();
+            auto origin = dim.deduceOrigin(graph);
             if (origin != Dimension::Origin::Input && origin != Dimension::Origin::InputOrWeight) {
                 continue;
             }

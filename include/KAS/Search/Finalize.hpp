@@ -16,7 +16,8 @@ namespace kas {
 struct ColoredDimension {
     Dimension dim;
     WeightColor color;
-    ColoredDimension(Dimension dim): dim { dim }, color { dim } {}
+    ColoredDimension(const Graph& graph, const Dimension& dim):
+        dim { dim }, color { graph, dim } {}
     void removeAllRightTagsIn(const WeightColor& color) {
         this->color.removeAllRightTagsIn(color);
     }
@@ -51,7 +52,7 @@ public:
     static std::size_t Distance(
         // Dimension and corresponding remainingLength, computed from maxChainLength.
         const std::vector<std::pair<Dimension, int>>& current,
-        const Shape& desired, const ShapeComplexity::DistanceOptions& options
+        const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options
     );
 
     KAS_STATISTICS_DEF(

@@ -141,6 +141,7 @@ void NormalStage::guardGeneratedChildren() {
         if (!inCriticalState && (options.maximumShifts == -1 || options.maximumShifts > existingOp<ShiftOp>())) {
             add(ShiftOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
+                .graph = graph,
                 .disallowShiftAboveUnfold = options.disallowShiftAboveUnfold,
                 .maximumValidReshapeShiftPattern = options.maximumValidReshapeShiftPattern,
             }));
@@ -209,6 +210,7 @@ void NormalStage::guardGeneratedChildren() {
             // Share^{-1}
             if (!inCriticalState && (options.maximumShares == -1 || options.maximumShares > existingOp<ShareOp>())) {
                 add(ShareOp::Generate(store, prospectiveInterface, {
+                    .graph = graph,
                     .allowance = allowance,
                     .maximumTensors = options.maximumTensors,
                 }));
@@ -255,7 +257,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
 
     std::vector<std::pair<Dimension, int>> current;
     for (const Dimension& dim: interface.getDimensions()) {
-        const auto origin = dim.deduceOrigin();
+        const auto origin = dim.deduceOrigin(graph);
         int remainingLength = sampler.remainingChainLength(graph, dim);
         KAS_ASSERT(remainingLength >= 0);
         if (origin != Dimension::Origin::Weight) {
@@ -271,7 +273,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
         int existing = existingOps[existingType];
         return maximum == -1 ? static_cast<int>(options.depth) : std::max(maximum - existing, 0);
     };
-    const std::size_t distance = FinalizeOp::Distance(current, sampler.getInputShape(), {
+    const std::size_t distance = FinalizeOp::Distance(current, sampler.getInputShape(), graph, {
         .ctx = ctx,
         .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
         .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),

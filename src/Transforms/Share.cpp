@@ -9,14 +9,16 @@
 
 namespace kas {
 
+Color ShareOp::Input::computeColor(const GraphBuilder& graphBuilder) const {
+    // Add constraint.
+    return MergeLikeOp::Input::computeColor(graphBuilder).addTag(op);
+}
+
 ShareOp::ShareOp(const Dimension& output):
     MergeLikeOp { output },
     inputLhs { this, Order::Left },
     inputRhs { this, Order::Right }
-{
-    // Add constraint.
-    color.addTag(this);
-}
+{}
 
 ShareOp::Values ShareOp::value(const Values& known) const {
     if (known.canSkipDeduction()) return known;
@@ -61,6 +63,8 @@ std::pair<bool, CompactColor> ShareOp::transformColor(CompactColor fro1, Compact
 std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
+    const Graph& graph = options.graph;
+
     // "Chained" Share.
     using enum DimensionTypeWithOrder;
     auto plausible = interface.filterOut({ ShareR, Split, Shift });
@@ -69,7 +73,7 @@ std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const To
     CountGenerateAttempts += interface.getDimensions().size();
     std::size_t countPlausible = 0;
     for (auto&& dim: plausible) {
-        const auto& color = dim.getColor();
+        const auto& color = graph.colorOf(dim);
         // Since RHS will be a weight dim, we cannot make it data-discarding.
         if (color.isDataDiscarding()) continue;
         ++countPlausible;

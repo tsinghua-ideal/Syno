@@ -39,6 +39,7 @@ public:
 
     struct GenerateOptions {
         const BindingContext& ctx;
+        const Graph& graph;
         bool disallowShiftAboveUnfold;
         float maximumValidReshapeShiftPattern;
     };
