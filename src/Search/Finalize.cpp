@@ -15,6 +15,141 @@
 
 namespace kas {
 
+namespace {
+
+struct CollectedDecreaseAndShare {
+    std::set<const ShareOp *> shares;
+    std::set<const Reduce *> decreases;
+};
+
+struct DecreaseAndShareCollector: public BottomTopDimVisitor<DecreaseAndShareCollector, CollectedDecreaseAndShare> {
+    using Collected = CollectedDecreaseAndShare;
+    auto transform(const Iterator&) const -> Collected { return {}; }
+    auto transform(const Reduce& reduce) const -> Collected { return { {}, { &reduce } }; }
+    auto transform(const RepeatLikeOp::Input& dim) const -> Collected {
+        return at(dim.getOp()->output);
+    }
+    auto transform(const SplitLikeOp::Input& dim) const -> Collected {
+        auto left = at(dim.getOp()->outputLhs), right = at(dim.getOp()->outputRhs);
+        left.shares.merge(std::move(right.shares));
+        left.decreases.merge(std::move(right.decreases));
+        return left;
+    }
+    auto transform(const MergeLikeOp::Input& dim) const -> std::pair<Collected, Collected> {
+        auto result = at(dim.getOp()->output);
+        if (auto share = dynamic_cast<const ShareOp::Input *>(&dim); share) {
+            result.shares.emplace(share->getDerivedOp<ShareOp>());
+        }
+        return { result, result };
+    }
+};
+
+struct NumelAdjacency {
+    // Expand and Unfold.
+    std::set<const PrimitiveOp *> increase;
+    std::set<const Reduce *> decrease;
+};
+
+} // namespace
+
+ExtendedFLOPsGame::ExtendedFLOPsGame(const BindingContext& ctx, Size inputSize, const Graph& graph):
+    ctx { ctx },
+    inputSize { std::move(inputSize) }
+{
+    // We assume that weights are only connected to Share RHS and Iterator.
+    // `increase`s originates from Expand, Unfold and Iterators in weights.
+    // `decrease`s originates from Reduce. TODO: consider Stride.
+    DecreaseAndShareCollector collector;
+    graph.accept(collector);
+    // First find all the shares, and traverse the collected items to collect decreases.
+    std::map<const ShareOp *, NumelAdjacency> sharedDependencies;
+    for (const ShareOp *shareOp: graph.getOpsOfType<ShareOp>()) {
+        const CollectedDecreaseAndShare& collected = collector.at(shareOp->output);
+        sharedDependencies.try_emplace(shareOp, NumelAdjacency{{}, collected.decreases});
+    }
+    // Then find all the increases.
+    std::map<const PrimitiveOp *, std::pair<Size, std::set<const Reduce *>>> increase;
+    // Expand.
+    for (const ExpandOp *expandOp: graph.getOpsOfType<ExpandOp>()) {
+        const CollectedDecreaseAndShare& collected = collector.at(expandOp->output);
+        for (const ShareOp *shareOp: collected.shares) {
+            increase.try_emplace(expandOp, expandOp->output.size(), collected.decreases);
+            sharedDependencies.at(shareOp).increase.emplace(expandOp);
+        }
+    }
+    // Unfold.
+    for (const UnfoldOp *unfoldOp: graph.getOpsOfType<UnfoldOp>()) {
+        const CollectedDecreaseAndShare& collected = collector.at(unfoldOp->getInput());
+        for (const ShareOp *shareOp: collected.shares) {
+            increase.try_emplace(unfoldOp, unfoldOp->getWindow(), collected.decreases);
+            sharedDependencies.at(shareOp).increase.emplace(unfoldOp);
+        }
+    }
+    // Now we collect all the sizes.
+    std::map<const PrimitiveOp *, std::size_t> increaseIndex;
+    std::map<const Reduce *, std::size_t> decreaseIndex;
+    for (const auto& [op, sizeAndDec]: increase) {
+        const auto& [size, dec] = sizeAndDec;
+        increaseIndex.emplace(op, increaseIndex.size());
+        this->increase.emplace_back(size);
+    }
+    for (const Reduce *reduction: graph.getReduceIterators()) {
+        decreaseIndex.emplace(reduction, decreaseIndex.size());
+        this->decrease.emplace_back(reduction->getBase().getDomain());
+    }
+    // Then translate into indices.
+    for (const auto& [shareOp, adj]: sharedDependencies) {
+        const auto& [inc, dec] = adj;
+        this->sharedDependencies.try_emplace(
+            shareOp->getInputR(),
+            ranges::to<std::vector<std::size_t>>(inc | std::views::transform([&](const PrimitiveOp *op) { return increaseIndex.at(op); })),
+            ranges::to<std::vector<std::size_t>>(dec | std::views::transform([&](const Reduce *reduction) { return decreaseIndex.at(reduction); }))
+        );
+    }
+    // Finally, the Iterators.
+    for (const Dimension& input: graph.getTopmost().getDimensions()) {
+        if (auto iterator = input.tryAs<Iterator>(); iterator) {
+            this->sharedDependencies.try_emplace(input, ExtendedFLOPsGame::Adjacency {
+                .increaseIndices = { this->increase.size() },
+                .decreaseIndices = {},
+            });
+            this->increase.emplace_back(iterator->size());
+        }
+    }
+    this->dependencies.resize(this->decrease.size(), std::vector<bool>(this->increase.size(), false));
+    // Fill in the dependencies.
+    for (const auto& [inc, sizeAndDec]: increase) {
+        const auto& [size, dec] = sizeAndDec;
+        for (const Reduce *reduction: dec) {
+            dependencies[decreaseIndex.at(reduction)][increaseIndex.at(inc)] = true;
+        }
+    }
+}
+
+FLOPsGame ExtendedFLOPsGame::getGameWithWeights(const std::vector<std::vector<Dimension>>& weights) const {
+    auto dependencies = this->dependencies;
+    for (const std::vector<Dimension>& weight: weights) {
+        std::set<std::size_t> requiredIncrease, involvedDecrease;
+        for (const Dimension& weightDim: weight) {
+            const Adjacency& adj = sharedDependencies.at(weightDim);
+            std::ranges::copy(adj.increaseIndices, std::inserter(requiredIncrease, requiredIncrease.begin()));
+            std::ranges::copy(adj.decreaseIndices, std::inserter(involvedDecrease, involvedDecrease.begin()));
+        }
+        for (std::size_t i: involvedDecrease) {
+            for (std::size_t j: requiredIncrease) {
+                dependencies[i][j] = true;
+            }
+        }
+    }
+    return FLOPsGame {
+        .ctx = ctx,
+        .inputSize = inputSize,
+        .increase = increase,
+        .decrease = decrease,
+        .dependencies = std::move(dependencies),
+    };
+}
+
 TensorView FinalizeOp::buildTensorView(const std::vector<FixedDimension>& fixed, TensorExpression blending, const BindingContext& ctx) const {
     if (fixed.empty()) {
         return TensorView { tensors, std::move(blending), ctx };
@@ -92,10 +227,35 @@ bool FinalizeOp::hasRedundantWeights(const Graph::DimensionSet& sharedWeightDims
     );
 }
 
-std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& current, const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options) {
+std::vector<ColoredDimension> FinalizeOp::FLOPsGameOptions::buildFullWeightDims(const std::vector<ColoredDimension>& selectedWeightDims) const {
+    auto it1 = weightDims.begin();
+    auto it2 = selectedWeightDims.begin();
+    std::vector<ColoredDimension> result;
+    while (it1 != weightDims.end() && it2 != selectedWeightDims.end()) {
+        if (it1->hash() < it2->hash()) {
+            result.emplace_back(*it1);
+            ++it1;
+        } else {
+            result.emplace_back(*it2);
+            ++it2;
+        }
+    }
+    while (it1 != weightDims.end()) {
+        result.emplace_back(*it1);
+        ++it1;
+    }
+    while (it2 != selectedWeightDims.end()) {
+        result.emplace_back(*it2);
+        ++it2;
+    }
+    return result;
+}
+
+std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& current, const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, std::optional<FLOPsGameOptions> flopsOptions) {
     int strideDist = 0;
 
     std::vector<std::pair<Size, int>> mustBeInput, canBeWeight;
+    std::vector<ColoredDimension> canBeWeightDims;
     for (const auto& [dim, remainingLength]: current) {
         auto origin = dim.deduceOrigin(graph);
         switch (origin) {
@@ -104,6 +264,7 @@ std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& c
             break;
         case Dimension::Origin::InputOrWeight:
             canBeWeight.emplace_back(dim.size(), remainingLength);
+            canBeWeightDims.emplace_back(graph, dim);
             break;
         case Dimension::Origin::UnfoldOrExpand:
             ++strideDist; // We need an Unfold to eliminate this.
@@ -122,23 +283,56 @@ std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& c
     // Then, experimentally finalize.
     std::size_t minimumComplexity = ShapeComplexity::Infinity;
     std::vector<std::pair<Size, int>> newCurrent = mustBeInput;
-    auto recursion = [&](const auto& self, std::size_t trialIndex) -> void {
-        auto trial = ShapeComplexity::Compute(desired, newCurrent, {
-            .ctx = options.ctx,
-            .remainingMerges = options.remainingMerges,
-            .remainingSplits = options.remainingSplits,
-            .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - strideDist,
-            .overflow = std::min(minimumComplexity, options.overflow), // In either cases, we do not need to further compute.
-        });
-        minimumComplexity = std::min(minimumComplexity, trial);
-        if (trialIndex < canBeWeight.size()) {
-            self(self, trialIndex + 1);
+    std::vector<ColoredDimension> selectedWeightDims;
+    auto extendedGame = ExtendedFLOPsGame(options.ctx, desired.totalSize(), graph);
+    auto recursion = [&]<bool CheckFLOPs>(const auto& self, std::size_t trialIndex) -> void {
+        // In either cases, we do not need to further compute.
+        if (trialIndex == canBeWeight.size()) {
+            const std::size_t overflow = std::min(minimumComplexity, options.overflow);
+            std::size_t trial = ShapeComplexity::Compute(desired, newCurrent, {
+                .ctx = options.ctx,
+                .remainingMerges = options.remainingMerges,
+                .remainingSplits = options.remainingSplits,
+                .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - strideDist,
+                .overflow = overflow,
+            });
+            if constexpr (CheckFLOPs) {
+                if (trial <= overflow) {
+                    std::size_t minFLOPs = std::numeric_limits<std::size_t>::max();
+                    // Collect all weights.
+                    auto allWeightDims = flopsOptions->buildFullWeightDims(selectedWeightDims);
+                    // Enumerate weight dim assignment.
+                    for (auto weights: AssignToWeights(allWeightDims, {
+                        .maxWeights = MaxTensorsToMaxWeights(flopsOptions->maximumTensors),
+                        .allowWeightPermutation = false,
+                    })) {
+                        auto game = extendedGame.getGameWithWeights(weights);
+                        auto gameFLOPs = game.FLOPs();
+                        minFLOPs = std::min(minFLOPs, gameFLOPs);
+                    }
+                    if (minFLOPs > flopsOptions->maxFLOPs) {
+                        // This is not a valid solution.
+                        trial = ShapeComplexity::Infinity;
+                    }
+                }
+            }
+            minimumComplexity = std::min(minimumComplexity, trial);
+        } else if (trialIndex < canBeWeight.size()) {
+            self.template operator()<CheckFLOPs>(self, trialIndex + 1);
             newCurrent.emplace_back(canBeWeight[trialIndex]);
-            self(self, trialIndex + 1);
+            if constexpr (CheckFLOPs) selectedWeightDims.emplace_back(canBeWeightDims[trialIndex]);
+            self.template operator()<CheckFLOPs>(self, trialIndex + 1);
             newCurrent.pop_back();
+            if constexpr (CheckFLOPs) selectedWeightDims.pop_back();
+        } else {
+            KAS_UNREACHABLE();
         }
     };
-    recursion(recursion, 0);
+    if (flopsOptions.has_value()) {
+        recursion.template operator()<true>(recursion, 0);
+    } else {
+        recursion.template operator()<false>(recursion, 0);
+    }
     if (minimumComplexity == ShapeComplexity::Infinity) {
         return ShapeComplexity::Infinity;
     } else {
@@ -166,6 +360,9 @@ struct WeightFragment {
     void accept(std::size_t i) {
         current.merge(interface[i].color);
         used[i] = true;
+    }
+    bool unused() const {
+        return std::ranges::all_of(used, std::logical_not{});
     }
 
     std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> split() const {
@@ -198,7 +395,7 @@ struct WeightFragment {
 } // namespace
 
 // Require that the dimensions are sorted according to hash!
-Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeights(const std::vector<ColoredDimension>& remaining, std::size_t maxWeights) {
+Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeightsImpl(const std::vector<ColoredDimension>& remaining, std::size_t maxWeights, std::optional<std::size_t> maxHashFirstDimension) {
     if (remaining.empty()) {
         co_yield {};
         co_return;
@@ -211,6 +408,13 @@ Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeights(const
     } else if (maxWeights == 1) {
         // Special handling for maxWeights == 1.
         // We can only assign all remaining dimensions to one weight.
+        // Do not forget to check for maxHashFirstDimension.
+        if (
+            maxHashFirstDimension.has_value()
+            && remaining[0].hash() > *maxHashFirstDimension
+        ) {
+            co_return;
+        }
         std::vector<Dimension> weight;
         WeightColor weightColor;
         for (const auto& cDim: remaining) {
@@ -244,7 +448,7 @@ Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeights(const
         if (startIndex == remaining.size()) {
             const auto [weight, newInterface] = fragment.split();
             if (!weight.empty()) {
-                for (auto subproblem: AssignToWeights(newInterface, maxWeights - 1)) {
+                for (auto subproblem: AssignToWeightsImpl(newInterface, maxWeights - 1, weight[0].hash())) {
                     KAS_ASSERT(std::ranges::all_of(subproblem, [](const std::vector<Dimension>& weight) { return !weight.empty(); }));
                     KAS_ASSERT(std::transform_reduce(subproblem.begin(), subproblem.end(), static_cast<std::size_t>(0), std::plus<>(), [](const std::vector<Dimension>& weight) { return weight.size(); }) == newInterface.size());
                     KAS_ASSERT(!weight.empty());
@@ -257,7 +461,14 @@ Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeights(const
             continue;
         }
         if (trial == State::WillTryWithThis) {
-            if (fragment.canAccept(startIndex)) {
+            if (
+                fragment.canAccept(startIndex)
+                && (
+                    !maxHashFirstDimension.has_value()
+                    || !fragment.unused()
+                    || remaining[startIndex].dim.hash() <= *maxHashFirstDimension
+                )
+            ) {
                 auto newFragment = fragment;
                 newFragment.accept(startIndex);
                 trial = State::WillTryWithoutThis;
@@ -271,6 +482,15 @@ Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeights(const
         }
     }
     co_return;
+}
+
+Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeights(const std::vector<ColoredDimension>& weightDims, WeightOptions options) {
+    KAS_ASSERT(std::ranges::is_sorted(weightDims | std::views::transform(&ColoredDimension::hash), std::less{}));
+    return AssignToWeightsImpl(
+        weightDims,
+        options.maxWeights,
+        options.allowWeightPermutation ? std::nullopt : std::make_optional(std::numeric_limits<std::size_t>::max())
+    );
 }
 
 namespace {
@@ -420,7 +640,10 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
         const auto [inputTensor, weightDims] = inputCandidate.toTensorAndWeightDims(graph, interface);
         KAS_ASSERT(inputTensor.size() == desired.size());
         KAS_ASSERT(weightDims.size() == interface.size() - desired.size());
-        for (auto tensors: AssignToWeights(weightDims, options.maximumTensors - 1)) {
+        for (auto tensors: AssignToWeights(weightDims, {
+            .maxWeights = MaxTensorsToMaxWeights(options.maximumTensors), 
+            .allowWeightPermutation = options.allowWeightPermutation,
+        })) {
             // Check whether the results are a partition of interface.
             {
                 KAS_ASSERT(std::transform_reduce(tensors.begin(), tensors.end(), static_cast<std::size_t>(0), std::plus<> {}, [](const auto& t) { return t.size(); }) == weightDims.size());
@@ -435,9 +658,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
                 auto it = std::ranges::adjacent_find(tensors, [](const auto& a, const auto& b) {
                     return a[0].hash() > b[0].hash();
                 });
-                if (it != tensors.end()) {
-                    continue;
-                }
+                KAS_ASSERT(it == tensors.end());
             }
             tensors.insert(tensors.begin(), std::move(inputTensor));
             addToResults(std::move(tensors));

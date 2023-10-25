@@ -256,6 +256,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     const Graph graph = interface.buildGraph();
 
     std::vector<std::pair<Dimension, int>> current;
+    std::vector<ColoredDimension> weightDims;
     for (const Dimension& dim: interface.getDimensions()) {
         const auto origin = dim.deduceOrigin(graph);
         int remainingLength = sampler.remainingChainLength(graph, dim);
@@ -266,6 +267,8 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
                 return false;
             }
             current.emplace_back(dim, remainingLength);
+        } else {
+            weightDims.emplace_back(graph, dim);
         }
     }
 
@@ -279,7 +282,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
         .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),
         .remainingUnfoldsAndExpands = remaining(options.maximumUnfolds, Next::Type::Unfold) + remaining(options.maximumExpands, Next::Type::Expand),
         .overflow = remainingDepth(),
-    });
+    }, std::make_optional<FinalizeOp::FLOPsGameOptions>(options.maximumTensors, options.maxFLOPs, weightDims));
     if (distance > remainingDepth()) {
         ++CountShapeDeviatesTooMuch;
         return false;

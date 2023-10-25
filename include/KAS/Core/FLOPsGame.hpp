@@ -1,7 +1,6 @@
 #pragma once
 
 #include "KAS/Core/Size.hpp"
-#include <cstddef>
 
 
 namespace kas {
