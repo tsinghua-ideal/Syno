@@ -26,7 +26,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<SampleOptions>(m, "SampleOptions")
         .def(
-            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t maxChainLength, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maxRDomSizeMultiplier, std::size_t maximumEnumerationsPerVar, std::size_t maximumVariablesInSize, std::size_t maximumVariablesPowersInSize, bool requiresExactDivision, bool requiresOddKernelSizeInUnfold, bool countCoefficientsInWeightsAsAllowanceUsage, std::string expressionOneTensor, std::string expressionTwoTensors, std::string expressionThreeTensors, std::string expressionFourTensors, std::size_t maximumFinalizations, bool allowWeightPermutation, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float maximumValidReshapeShiftPattern, bool disallowMergeInputAndWeight, bool disallowTile, bool disallowShareWeights, std::size_t maxExpansionRepeatMultiplier, std::size_t maxExpansionMergeMultiplier, bool canonicalizeUnfoldOrder, bool disallowSplitLAboveUnfold, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumExpands, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
+            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t maxChainLength, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maxRDomSizeMultiplier, bool enableFLOPsBasedPruning, std::size_t maximumEnumerationsPerVar, std::size_t maximumVariablesInSize, std::size_t maximumVariablesPowersInSize, bool requiresExactDivision, bool requiresOddKernelSizeInUnfold, bool countCoefficientsInWeightsAsAllowanceUsage, std::string expressionOneTensor, std::string expressionTwoTensors, std::string expressionThreeTensors, std::string expressionFourTensors, std::size_t maximumFinalizations, bool allowWeightPermutation, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float maximumValidReshapeShiftPattern, bool disallowMergeInputAndWeight, bool disallowTile, bool disallowShareWeights, std::size_t maxExpansionRepeatMultiplier, std::size_t maxExpansionMergeMultiplier, bool canonicalizeUnfoldOrder, bool disallowSplitLAboveUnfold, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumExpands, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
                 return SampleOptions {
                     .seed = seed,
                     .depth = depth,
@@ -37,6 +37,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
                     .maximumReductions = maximumReductions,
                     .maxFLOPs = static_cast<std::size_t>(maxFLOPs),
                     .maxRDomSizeMultiplier = maxRDomSizeMultiplier,
+                    .enableFLOPsBasedPruning = enableFLOPsBasedPruning,
                     .maximumEnumerationsPerVar = maximumEnumerationsPerVar,
                     .maximumVariablesInSize = maximumVariablesInSize,
                     .maximumVariablesPowersInSize = maximumVariablesPowersInSize,
@@ -88,6 +89,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("maximum_reductions") = DefaultSampleOptions.maximumReductions,
             pybind11::arg("max_flops") = static_cast<float>(DefaultSampleOptions.maxFLOPs),
             pybind11::arg("max_rdom_size_multiplier") = DefaultSampleOptions.maxRDomSizeMultiplier,
+            pybind11::arg("enable_flops_based_pruning") = DefaultSampleOptions.enableFLOPsBasedPruning,
             pybind11::arg("maximum_enumerations_per_var") = DefaultSampleOptions.maximumEnumerationsPerVar,
             pybind11::arg("maximum_variables_in_size") = DefaultSampleOptions.maximumVariablesInSize,
             pybind11::arg("maximum_variables_powers_in_size") = DefaultSampleOptions.maximumVariablesPowersInSize,

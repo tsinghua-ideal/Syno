@@ -68,6 +68,7 @@ class Sampler:
         maximum_reductions: int = 2,
         max_flops: float = 1e15,
         max_rdom_size_multiplier: int = 32,
+        enable_flops_based_pruning: bool = True,
         maximum_enumerations_per_var: int = 5,
         maximum_variables_in_size: int = 16,
         maximum_variables_powers_in_size: int = 16,
@@ -146,6 +147,8 @@ class Sampler:
             Maximum number of floating point operations allowed in a kernel. This is a soft constraint, because we do not know the exact number of floating point operations in a kernel until we finalize it.
         max_rdom_size_multiplier : int, optional
             We allow for a matmul, times this multiplier at most in ReductionStage.
+        enable_flops_based_pruning : bool, optional
+            Estimate FLOPs during the search to prune.
         maximum_enumerations_per_var : int, optional
             Maximum enumerations per variable. For example, if setting this to 5, then the power could be chosen from s ** (-2) to s ** 2. 
         maximum_variables_in_size : int, optional
@@ -245,6 +248,7 @@ class Sampler:
             maximum_reductions=maximum_reductions,
             max_flops=max_flops,
             max_rdom_size_multiplier=max_rdom_size_multiplier,
+            enable_flops_based_pruning=enable_flops_based_pruning,
             maximum_enumerations_per_var=maximum_enumerations_per_var,
             maximum_variables_in_size=maximum_variables_in_size,
             maximum_variables_powers_in_size=maximum_variables_powers_in_size,

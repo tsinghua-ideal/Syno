@@ -16,6 +16,7 @@ public:
         {}
         const Size& size() const override { return getDerivedOp<StrideOp>()->sz; }
         constexpr DimensionType type() const noexcept override { return Type; }
+        Color computeColor(const GraphBuilder &graphBuilder) const override;
     };
 
 protected:

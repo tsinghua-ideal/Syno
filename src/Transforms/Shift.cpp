@@ -53,6 +53,8 @@ bool ShiftOp::ExceedsMaxValidReshapeShiftPattern(const Size& block, int shift, c
 std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
+    const Graph& graph = options.graph;
+
     using enum DimensionTypeWithOrder;
     std::vector<DimensionTypeWithOrder> disallows { Reduce, ShareR, Shift };
     if (options.disallowShiftAboveUnfold) disallows.push_back(Unfold);
@@ -64,7 +66,7 @@ std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const To
     constexpr int ShiftValue = 1;
     for (auto&& dim: plausible) {
         ++countPlausible;
-        if (dim.getColor().isUnordered()) {
+        if (graph.colorOf(dim).isUnordered()) {
             // If we apply Shift on an unordered dimension, this is basically useless.
             continue;
         }

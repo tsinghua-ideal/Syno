@@ -8,15 +8,17 @@
 
 namespace kas {
 
+Color StrideOp::Input::computeColor(const GraphBuilder &graphBuilder) const {
+    // StrideOp discards data.
+    return RepeatLikeOp::Input::computeColor(graphBuilder).setDataDiscarding(true);
+}
+
 StrideOp::StrideOp(const Dimension& output, const Size& stride):
     RepeatLikeOp { output },
     stride { stride },
     sz { this->output.size() * this->stride },
     input { this }
-{
-    // StrideOp discards data.
-    color.setDataDiscarding(true);
-}
+{}
 
 std::size_t StrideOp::initialHash() const noexcept {
     std::size_t h = DimensionTypeHash(Type);

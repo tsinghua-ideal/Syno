@@ -220,7 +220,7 @@ Size Sampler::getMaxRDomSize() const {
 }
 
 int Sampler::remainingChainLength(const Graph& graph, const Dimension& dim) const {
-    return static_cast<int>(options.maxChainLength) - graph.getHeight(dim);
+    return static_cast<int>(options.maxChainLength) - graph.colorOf(dim).getHeight();
 }
 
 std::optional<Node> Sampler::visit(const std::vector<Next>& path) {

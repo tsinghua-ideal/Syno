@@ -6,13 +6,15 @@
 
 namespace kas {
 
+Color UnfoldOp::Input::computeColor(const GraphBuilder& graphBuilder) const {
+    // Absorb dataDiscardingFlag in outputRhs.
+    return SplitLikeOp::Input::computeColor(graphBuilder).setDataDiscarding(graphBuilder.colorOf(op->outputLhs).isDataDiscarding());
+}
+
 UnfoldOp::UnfoldOp(const Dimension& outputLhs, const Dimension& outputRhs):
     SplitLikeOp { outputLhs, outputRhs },
     input { this }
-{
-    // Absorb dataDiscardingFlag in outputRhs.
-    color.setDataDiscarding(outputLhs.getColor().isDataDiscarding());
-}
+{}
 
 UnfoldOp::Values UnfoldOp::value(const Values& known) const {
     if (known.canSkipDeduction()) return known;

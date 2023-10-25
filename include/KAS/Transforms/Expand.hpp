@@ -13,8 +13,7 @@ public:
     static constexpr DimensionType Type = DimensionType::Expand;
 
     ExpandOp(const Dimension& output):
-        Expand { output },
-        PrimitiveOp { Color { output.getColor() } }
+        Expand { output }
     {}
     ExpandOp(const ExpandOp&) = delete;
     ExpandOp(ExpandOp&&) = delete;

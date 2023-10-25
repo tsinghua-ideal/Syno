@@ -20,6 +20,7 @@ public:
             return (ty == DimensionTypeWithOrder::ShareL && order == Order::Left)
                 || (ty == DimensionTypeWithOrder::ShareR && order == Order::Right);
         }
+        Color computeColor(const GraphBuilder& graphBuilder) const override;
     };
 
 protected:
@@ -50,6 +51,7 @@ public:
     //                  Share
     //
     struct GenerateOptions {
+        const Graph& graph;
         const Allowance& allowance;
         std::size_t maximumTensors;
         std::size_t maxColorTags() const {

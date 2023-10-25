@@ -22,8 +22,12 @@ private:
     // The ancestors ShareOp's of this Op.
     // The tags are sorted.
     std::vector<Tag> tags;
+    // Stride discards data.
     bool dataDiscardingFlag = false;
+    // Channels are unordered.
     bool unorderedFlag = false;
+    // Length of longest chain of primitives below this Dimension.
+    int height = 0;
 
 public:
     static bool AnyCommonTags(const std::vector<Tag>& left, const std::vector<Tag>& right);
@@ -41,23 +45,24 @@ public:
     std::size_t size() const { return tags.size(); }
 
     // Merge two colors, merging the tags, and dataDiscardingFlag. Asserts false on conflict.
-    void merge(const Color& other);
+    Color& merge(const Color& other);
 
     // Add a new tag, assuming the op is ShareOp.
-    void addTag(Tag tag);
-
-    bool isDataDiscarding() const { return dataDiscardingFlag; }
-    Color& setDataDiscarding(bool value) { dataDiscardingFlag = value; return *this; }
-    bool isUnordered() const { return unorderedFlag; }
-    Color& setUnordered(bool value) { unorderedFlag = value; return *this; }
+    Color& addTag(Tag tag);
 
     // Returns true if removed.
     bool removeTag(Tag tag);
     bool empty() const { return tags.empty(); }
 
-    static const Color NoneOrdered;
-    static const Color NoneUnordered;
+    bool isDataDiscarding() const { return dataDiscardingFlag; }
+    Color& setDataDiscarding(bool value) { dataDiscardingFlag = value; return *this; }
+    bool isUnordered() const { return unorderedFlag; }
+    Color& setUnordered(bool value) { unorderedFlag = value; return *this; }
+    int getHeight() const { return height; }
+    Color& setHeight(int value) { height = value; return *this; }
 };
+
+class Graph;
 
 // Different from usual colors, a weight can have left color and right color.
 // Left color refers to the left branches of ShareOp, while the right color refers to the right branches.
@@ -69,7 +74,7 @@ public:
     WeightColor() = default;
     // Create a basic WeightColor from a ShareR.
     // If the dimension is not a ShareR, then all the tags are seen as left tags.
-    WeightColor(const Dimension& dim);
+    WeightColor(const Graph& graph, const Dimension& dim);
 
     std::size_t countLeftTags() const;
     std::size_t countRightTags() const;

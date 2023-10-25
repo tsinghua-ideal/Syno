@@ -70,101 +70,6 @@ VisitedVertex MergeLikeVertex::visitAdjacent(MergeLikeOp::Branch branch) const {
     return graph.visitAlong(operator[](branch), outgoingDirection(branch));
 }
 
-void Graph::Builder::visit(const Iterator& dim) {
-    outputIterators.insert(&dim);
-    assignHeight(&dim, 0);
-}
-void Graph::Builder::visit(const Reduce& dim) {
-    reduceIterators.insert(&dim);
-    // Do not put ReduceOp is ops.
-    assignHeight(&dim, 1);
-}
-void Graph::Builder::visit(const RepeatLikeOp::Input& dim) {
-    auto op = dim.getOp();
-    parent = { op };
-    match(op->output);
-    ops.emplace(op);
-    assignHeight(&dim, acquireHeight(op->output) + 1);
-}
-void Graph::Builder::visit(const SplitLikeOp::Input& dim) {
-    auto op = dim.getOp();
-    parent = { std::make_pair(op, Order::Left) };
-    match(op->outputLhs);
-    parent = { std::make_pair(op, Order::Right) };
-    match(op->outputRhs);
-    ops.emplace(op);
-    assignHeight(&dim, std::max(acquireHeight(op->outputLhs), acquireHeight(op->outputRhs)) + 1);
-}
-void Graph::Builder::visit(const MergeLikeOp::Input& dim) {
-    auto op = dim.getOp();
-    parent = { op };
-    match(op->output);
-    ops.emplace(op);
-    assignHeight(&dim, acquireHeight(op->output) + 1);
-}
-void Graph::Builder::match(const Dimension& dim) {
-    auto [it, inserted] = dimMeta.try_emplace(dim, parent, ancestor, -1);
-    if (!inserted) {
-        // Visited before. Now propagate ancestor.
-        it->second.ancestors.merges(ancestor);
-    }
-    // Since we need to propagate the ancestor all the way down, we always need to visit, no matter inserted or not.
-    dim.accept(*this);
-}
-
-int Graph::Builder::acquireHeight(const Dimension& dim) const {
-    int result = dimMeta.at(dim).height;
-    KAS_ASSERT(result != -1);
-    return result;
-}
-
-void Graph::Builder::assignHeight(const Dimension& dim, int desired) {
-    int& height = dimMeta.at(dim).height;
-    KAS_ASSERT(height == -1 || height == desired);
-    height = desired;
-}
-
-Graph::Builder& Graph::Builder::addDimension(const Dimension& dim) {
-    topmost.getDimensions().emplace_back(dim);
-    ancestor = CompactIndices::Single(topmost.getDimensions().size() + topmost.getExpansions().size());
-    parent = { std::monostate{} };
-    match(dim);
-    return *this;
-}
-Graph::Builder& Graph::Builder::addExpansion(const Expand *exp) {
-    topmost.getExpansions().emplace_back(exp);
-    ancestor = CompactIndices::Single(topmost.getDimensions().size() + topmost.getExpansions().size());
-    auto op = static_cast<const ExpandOp *>(exp);
-    parent = { op };
-    match(exp->output);
-    ops.emplace(op);
-    return *this;
-}
-Graph::Builder& Graph::Builder::addTopmost(const Topmost& interface) {
-    addDimensions(interface.getDimensions());
-    addExpansions(interface.getExpansions());
-    return *this;
-}
-
-Graph Graph::Builder::build() {
-    auto outputIterators = std::vector<const Iterator *>(this->outputIterators.begin(), this->outputIterators.end());
-    auto reduceIterators = std::vector<const Reduce *>(this->reduceIterators.begin(), this->reduceIterators.end());
-    std::ranges::sort(outputIterators, [](const Iterator *lhs, const Iterator *rhs) {
-        return lhs->getIndex() < rhs->getIndex();
-    });
-    std::ranges::sort(reduceIterators, [](const Reduce *lhs, const Reduce *rhs) {
-        return Reduce::LexicographicalLEQ(*lhs, *rhs);
-    });
-    topmost.sort();
-    return {
-        std::move(topmost),
-        std::move(dimMeta),
-        std::move(outputIterators),
-        std::move(reduceIterators),
-        std::move(ops),
-    };
-}
-
 void Graph::WalkDownVisitor::visit(const RepeatLikeOp::Input& dim) {
     auto op = dim.getOp();
     result.emplace(std::pair { RepeatLikeVertex { graph, *op }, RepeatLikeOp::Branch::Input });
@@ -220,10 +125,107 @@ Graph::CompactIndices Graph::getAncestors(const Dimension& dim) const {
     return dimMeta.at(dim).ancestors;
 }
 
-int Graph::getHeight(const Dimension& dim) const {
-    int result = dimMeta.at(dim).height;
-    KAS_ASSERT(result != -1);
-    return result;
+const Color& Graph::colorOf(const Dimension& dim) const {
+    return dimMeta.at(dim).color;
+}
+
+Graph::DimensionMetadata GraphBuilder::DimensionMetadata::acquire() {
+    return { std::move(opAbove), std::move(ancestors), std::move(color.value()) };
+}
+
+void GraphBuilder::visit(const Iterator& dim) {
+    outputIterators.insert(&dim);
+}
+void GraphBuilder::visit(const Reduce& dim) {
+    reduceIterators.insert(&dim);
+    // Do not put ReduceOp is ops.
+}
+void GraphBuilder::visit(const RepeatLikeOp::Input& dim) {
+    auto op = dim.getOp();
+    parent = { op };
+    match(op->output);
+    ops.emplace(op);
+}
+void GraphBuilder::visit(const SplitLikeOp::Input& dim) {
+    auto op = dim.getOp();
+    parent = { std::make_pair(op, Order::Left) };
+    match(op->outputLhs);
+    parent = { std::make_pair(op, Order::Right) };
+    match(op->outputRhs);
+    ops.emplace(op);
+}
+void GraphBuilder::visit(const MergeLikeOp::Input& dim) {
+    auto op = dim.getOp();
+    parent = { op };
+    match(op->output);
+    ops.emplace(op);
+}
+void GraphBuilder::match(const Dimension& dim) {
+    auto [it, inserted] = dimMeta.try_emplace(dim, parent, ancestor, std::nullopt);
+    if (!inserted) {
+        // Visited before. Now propagate ancestor.
+        it->second.ancestors.merges(ancestor);
+    }
+    // Since we need to propagate the ancestor all the way down, we always need to visit, no matter inserted or not.
+    dim.accept(*this);
+    if (inserted) {
+        // Now compute the color.
+        auto& color = it->second.color; // Note that iterators are not invalidated.
+        KAS_ASSERT(!color.has_value());
+        color.emplace(dim.computeColor(*this));
+    }
+}
+
+GraphBuilder& GraphBuilder::addDimension(const Dimension& dim) {
+    topmost.getDimensions().emplace_back(dim);
+    ancestor = Graph::CompactIndices::Single(topmost.getDimensions().size() + topmost.getExpansions().size());
+    parent = { std::monostate{} };
+    match(dim);
+    return *this;
+}
+GraphBuilder& GraphBuilder::addExpansion(const Expand *exp) {
+    topmost.getExpansions().emplace_back(exp);
+    ancestor = Graph::CompactIndices::Single(topmost.getDimensions().size() + topmost.getExpansions().size());
+    auto op = static_cast<const ExpandOp *>(exp);
+    parent = { op };
+    match(exp->output);
+    ops.emplace(op);
+    return *this;
+}
+GraphBuilder& GraphBuilder::addTopmost(const Topmost& interface) {
+    addDimensions(interface.getDimensions());
+    addExpansions(interface.getExpansions());
+    return *this;
+}
+
+const Color& GraphBuilder::colorOf(const Dimension& dim) const {
+    return dimMeta.at(dim).color.value();
+}
+
+Graph GraphBuilder::build() {
+    topmost.sort();
+
+    auto outputIterators = std::vector<const Iterator *>(this->outputIterators.begin(), this->outputIterators.end());
+    auto reduceIterators = std::vector<const Reduce *>(this->reduceIterators.begin(), this->reduceIterators.end());
+    std::ranges::sort(outputIterators, [](const Iterator *lhs, const Iterator *rhs) {
+        return lhs->getIndex() < rhs->getIndex();
+    });
+    std::ranges::sort(reduceIterators, [](const Reduce *lhs, const Reduce *rhs) {
+        return Reduce::LexicographicalLEQ(*lhs, *rhs);
+    });
+
+    std::map<Dimension, Graph::DimensionMetadata, Dimension::AddressLessThan> dimMeta;
+    for (auto& [dim, meta]: this->dimMeta) {
+        dimMeta.try_emplace(dim, meta.acquire());
+    }
+
+    return {
+        std::move(topmost),
+        std::move(dimMeta),
+        std::move(outputIterators),
+        std::move(reduceIterators),
+        std::move(ops),
+    };
 }
 
 ConstrainedGraph ConstrainedGraph::Builder::build() {

@@ -141,6 +141,7 @@ void NormalStage::guardGeneratedChildren() {
         if (!inCriticalState && (options.maximumShifts == -1 || options.maximumShifts > existingOp<ShiftOp>())) {
             add(ShiftOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
+                .graph = graph,
                 .disallowShiftAboveUnfold = options.disallowShiftAboveUnfold,
                 .maximumValidReshapeShiftPattern = options.maximumValidReshapeShiftPattern,
             }));
@@ -209,6 +210,7 @@ void NormalStage::guardGeneratedChildren() {
             // Share^{-1}
             if (!inCriticalState && (options.maximumShares == -1 || options.maximumShares > existingOp<ShareOp>())) {
                 add(ShareOp::Generate(store, prospectiveInterface, {
+                    .graph = graph,
                     .allowance = allowance,
                     .maximumTensors = options.maximumTensors,
                 }));
@@ -254,8 +256,9 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     const Graph graph = interface.buildGraph();
 
     std::vector<std::pair<Dimension, int>> current;
+    std::vector<ColoredDimension> weightDims;
     for (const Dimension& dim: interface.getDimensions()) {
-        const auto origin = dim.deduceOrigin();
+        const auto origin = dim.deduceOrigin(graph);
         int remainingLength = sampler.remainingChainLength(graph, dim);
         KAS_ASSERT(remainingLength >= 0);
         if (origin != Dimension::Origin::Weight) {
@@ -264,6 +267,8 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
                 return false;
             }
             current.emplace_back(dim, remainingLength);
+        } else {
+            weightDims.emplace_back(graph, dim);
         }
     }
 
@@ -271,13 +276,13 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
         int existing = existingOps[existingType];
         return maximum == -1 ? static_cast<int>(options.depth) : std::max(maximum - existing, 0);
     };
-    const std::size_t distance = FinalizeOp::Distance(current, sampler.getInputShape(), {
+    const std::size_t distance = FinalizeOp::Distance(current, sampler.getInputShape(), graph, {
         .ctx = ctx,
         .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
         .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),
         .remainingUnfoldsAndExpands = remaining(options.maximumUnfolds, Next::Type::Unfold) + remaining(options.maximumExpands, Next::Type::Expand),
         .overflow = remainingDepth(),
-    });
+    }, std::make_optional<FinalizeOp::FLOPsGameOptions>(options.maximumTensors, options.maxFLOPs, weightDims));
     if (distance > remainingDepth()) {
         ++CountShapeDeviatesTooMuch;
         return false;
