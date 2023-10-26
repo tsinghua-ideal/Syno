@@ -604,7 +604,7 @@ class MCTSTree:
                         if child_node.is_dead_end(include_simulate_failure=False):
                             arc_pool.add(arc)
                             continue
-                        if find_lattice(child_node, arc_pool):
+                        if find_lattice(child_node, tgt_node, arc_pool):
                             updated.add((src_node, nxt.type))
                             updated.add((mid_child, arc))
                         arc_pool.add(arc)
