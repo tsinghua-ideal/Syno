@@ -435,7 +435,7 @@ public:
     std::vector<Arc> getComposingArcs() const;
     void expandSync(int layers) const;
     void expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& task) const;
-    void expandToSync(Node target) const;
+    Node expandToSync(Node target) const;
     void expand(int layers) const;
     std::optional<std::string> getChildDescription(Next next) const;
     bool isReduction() const { return type() == Type::Reducing; }
