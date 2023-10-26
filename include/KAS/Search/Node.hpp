@@ -421,6 +421,7 @@ public:
     void generateGraphvizAsFinal(const std::filesystem::path& path, const std::string& name) const;
     std::string getNestedLoopsAsFinal() const;
 
+    Node arbitraryParent() const;
     // The count of children nodes.
     std::size_t countChildren() const;
     std::vector<Next> getChildrenHandles() const;
@@ -437,6 +438,8 @@ public:
     void expandToSync(Node target) const;
     void expand(int layers) const;
     std::optional<std::string> getChildDescription(Next next) const;
+    bool isReduction() const { return type() == Type::Reducing; }
+    bool isNormal() const { return type() == Type::Growing; }
     bool isFinal() const { return type() == Type::Final; }
     bool isDeadEnd() const;
     bool discoveredFinalDescendant() const;

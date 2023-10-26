@@ -104,6 +104,7 @@ public:
     AbstractStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> optionalDeltaOp, Lock lock);
     Lock addParent(AbstractStage &parent);
     void addParent(AbstractStage &parent, Lock &lock);
+    AbstractStage *arbitraryParent() const;
 
     // Disallow copy or move.
     AbstractStage(const AbstractStage&) = delete;

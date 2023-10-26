@@ -143,6 +143,24 @@ std::string Node::getNestedLoopsAsFinal() const {
     return final->value.printNestedLoopsForAll(sampler->getBindingContext());
 }
 
+Node Node::arbitraryParent() const {
+    return match<Node>(
+        [&](AbstractStage *stage) {
+            auto parent = stage->arbitraryParent();
+            if (auto rStage = dynamic_cast<ReductionStage *>(parent)) {
+                return Node(sampler, rStage);
+            } else if (auto nStage = dynamic_cast<NormalStage *>(parent)) {
+                return Node(sampler, nStage);
+            } else {
+                KAS_UNREACHABLE();
+            }
+        },
+        [&](FinalStage *stage) {
+            return Node(sampler, &stage->parent);
+        }
+    );
+}
+
 std::size_t Node::countChildren() const {
     return match<std::size_t>(
         [](AbstractStage *stage) { return stage->countChildren(); },
@@ -307,13 +325,12 @@ void Node::expandToSync(Node target) const {
         KAS_ASSERT(removed == bottomArcs.size());
     }
     auto& expander = sampler->getLatticeExpander();
-    Node normalBottom = *this;
     LatticePool poolBottom { remainingReductions.size() }, poolTop { remainingOthers.size() };
+    Node normalBottom = target;
     if (!remainingReductions.empty()) {
         expander.add(LatticeTask { poolBottom, *this, remainingReductions });
-        for (const Arc& arc: remainingReductions) {
-            // This must not throw! Otherwise the pruning algorithm is wrong.
-            normalBottom = normalBottom.getChildFromArc(arc).value();
+        while (!normalBottom.isReduction()) {
+            normalBottom = normalBottom.arbitraryParent();
         }
     }
     if (!remainingOthers.empty()) {

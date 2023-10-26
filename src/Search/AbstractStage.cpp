@@ -114,6 +114,11 @@ void AbstractStage::addParent(AbstractStage &parent, Lock &lock) {
     parents.emplace_back(&parent);
 }
 
+AbstractStage *AbstractStage::arbitraryParent() const {
+    Lock lock = acquireLock();
+    return parents.front();
+}
+
 std::size_t AbstractStage::remainingDepth() const {
     const std::size_t maxDepth = sampler.getOptions().depth;
     KAS_ASSERT(maxDepth >= depth);
