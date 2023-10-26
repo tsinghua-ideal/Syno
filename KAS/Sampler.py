@@ -68,7 +68,7 @@ class Sampler:
         maximum_reductions: int = 2,
         max_flops: float = 1e15,
         max_rdom_size_multiplier: int = 32,
-        enable_flops_based_pruning: bool = True,
+        enable_flops_based_pruning: bool = False,
         maximum_enumerations_per_var: int = 5,
         maximum_variables_in_size: int = 16,
         maximum_variables_powers_in_size: int = 16,
