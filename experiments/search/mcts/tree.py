@@ -25,10 +25,14 @@ class MCTSTree:
         b: float = 0.5,
         c_l: float = 20,
         policy: str = "update-descent",
-        max_final_iterations: Tuple[int, int, int] = (10, 1.5, 3000), # (a, b, c) s.t. sample num = a * (b ** (max_depth - depth))
+        max_final_iterations: Tuple[int, int, int] = (
+            10,
+            1.5,
+            3000,
+        ),  # (a, b, c) s.t. sample num = a * (b ** (max_depth - depth))
         simulate_retry_period: float = 60,
-        sample_retry_times: int = 5, 
-        simulate_decay_time: Tuple[float, float] = (300, 300), 
+        sample_retry_times: int = 5,
+        simulate_decay_time: Tuple[float, float] = (300, 300),
         max_depth: int = 16,
         rave_random_ratio: float = 0.3,
     ) -> None:
@@ -60,7 +64,7 @@ class MCTSTree:
         self.leaf_num = leaf_num
 
         self.next_serializer = NextSerializer()
-        
+
         self.simulate_time_ema = 0
         self.simulate_decay_time = simulate_decay_time
 
@@ -295,18 +299,21 @@ class MCTSTree:
         return next, leaf
 
     def simulate(
-        self, tree_path: TreePath, leaf_expanded: TreeNode, max_final_iterations: int=None
+        self,
+        tree_path: TreePath,
+        leaf_expanded: TreeNode,
+        max_final_iterations: int = None,
     ) -> Optional[Tuple[TreePath, TreeNode]]:
         # assert not leaf_expanded.failed_recently
         if leaf_expanded.is_final():
             return [(tree_path, leaf_expanded) for _ in range(self.leaf_num)]
 
         # leaf_expanded._node.expand(3)
-        
+
         if max_final_iterations is None:
             a, b, c = self._max_final_iterations
             offset = max(0, (self.simulate_time_ema - self.simulate_decay_time[0]))
-            a *= math.exp(- offset / self.simulate_decay_time[1])
+            a *= math.exp(-offset / self.simulate_decay_time[1])
             left_depth = self._max_depth - len(tree_path) + 1
             max_final_iterations = int(a * (b ** left_depth) + c)
 
@@ -348,7 +355,7 @@ class MCTSTree:
             logging.info(f"Simulation from {tree_path} failed, flushing failure time. ")
             leaf_expanded.set_simulate_fail()
             return None
-        
+
         self.simulate_time_ema /= 2
 
         final_nodes = [
@@ -557,28 +564,34 @@ class MCTSTree:
         for type in update_types:
             self.g_rave[type].update(reward)
 
-    def update_lrave(self, final_node: TreeNode, arcs: List[Arc], reward: float) -> None:
+    def update_lrave(
+        self, final_node: TreeNode, arcs: List[Arc], reward: float
+    ) -> None:
         assert isinstance(final_node, TreeNode), f"{final_node} is not TreeNode!"
-        self._root.expand_to(final_node.to_node())
-        
-        attempt_record: Dict[TreeNode, Tuple[bool, Set[Arc]]]=dict()
+
+        reduction_end = self.touch(self._root.expand_to(final_node.to_node()))
+        attempt_record: Dict[TreeNode, Tuple[bool, Set[Arc]]] = dict()
 
         def find_lattice(
-            src_node: TreeNode, arc_pool: Set[Arc]
+            src_node: TreeNode, tgt_node: TreeNode, arc_pool: Set[Arc]
         ) -> bool:
             """
-            Attempt to reach final_node from src_node with arcs in arc_pool
+            Attempt to reach tgt_node from src_node with arcs in arc_pool
             """
-            if src_node == final_node:
+            if src_node == tgt_node:
                 return True
-            
+
             if src_node not in attempt_record:
                 updated: Set[Tuple[TreeNode, Union[Next.Type, Arc]]] = set()
                 for arc in list(arc_pool):
                     if src_node._node.can_accept_arc(arc):
                         arc_pool.remove(arc)
                         nxt = arc.to_next()
-                        mid_child = src_node.get_child(nxt.type, auto_initialize=True, include_simulate_failure=False)
+                        mid_child = src_node.get_child(
+                            nxt.type,
+                            auto_initialize=True,
+                            include_simulate_failure=False,
+                        )
                         if mid_child is None:
                             arc_pool.add(arc)
                             continue
@@ -599,22 +612,25 @@ class MCTSTree:
                 for node, nxt in updated:
                     node.update_lrave(reward, nxt)
                 attempt_record[src_node] = (len(updated) > 0, arc_pool)
-            
+
             assert arc_pool == attempt_record[src_node][1]
             return attempt_record[src_node][0]
 
-        find_lattice(self.tree_root, set(arcs))
+        reduce_arcs = set(reduction_end.to_node().get_composing_arcs())
+        find_lattice(self.tree_root, reduction_end, reduce_arcs)
+        find_lattice(reduction_end, final_node.to_node(), set(arcs) - reduce_arcs)
 
     def touch(self, node: Node, path: Path = None) -> TreeNode:
         """
         Initialize node if not exist in store
         """
         assert isinstance(node, Node)
-        assert path is not None
+        assert path is None or isinstance(path, Path)
         if node not in self._treenode_store:
             self._treenode_store[node] = TreeNode(self, node)
-        if path is not None:
-            self._path_store[node] = path
+        if path is None:
+            path = node.get_possible_path()
+        self._path_store[node] = path
         return self._treenode_store[node]
 
     def remove(self, receipt: Receipt, trial: TreeNode) -> None:
@@ -848,7 +864,7 @@ class MCTSTree:
         # self.garbage_collect(keep_tree_node=True)
         logging.debug("Serialized.")
         return j
-    
+
     def get_eval_results(self) -> List:
         """Serialize the tree and return a dict."""
         logging.debug("Serializing ......")
@@ -862,18 +878,18 @@ class MCTSTree:
             father = self._treenode_store[n]
             if not father.is_final() or father.filtered or father.reward == -1:
                 continue
-            
+
             underlying_node = father._node
 
             assert underlying_node in self._path_store, underlying_node
             node_serial = {
                 "key": str(hash(self._path_store[underlying_node].serialize())),
                 "path": self._path_store[underlying_node].serialize(),
-                "reward": father.reward
+                "reward": father.reward,
             }
 
             node_list.append(node_serial)
-            
+
         logging.debug("Serialized.")
         return node_list
 
@@ -883,7 +899,7 @@ class MCTSTree:
         sampler: Sampler,
         keep_virtual_loss: bool = False,
         keep_dead_state: bool = False,
-        only_load_final: bool = False
+        only_load_final: bool = False,
     ) -> "MCTSTree":
         """Deserialize a serialized tree and return a Tree object"""
         logging.debug("Deserializing ......")
@@ -923,9 +939,9 @@ class MCTSTree:
                 mid_child = father.get_child(next, auto_initialize=True)[0]
                 mid_child.load(node_serial["children"][next_serial]["state"])
                 if keep_virtual_loss:
-                    mid_child._virtual_loss = node_serial["children"][
-                        next_serial
-                    ]["virtual_loss"]
+                    mid_child._virtual_loss = node_serial["children"][next_serial][
+                        "virtual_loss"
+                    ]
                 children_states = node_serial["children"][next_serial]["children"]
 
                 for n_sel, (e_sel, rave_score) in children_states.items():
