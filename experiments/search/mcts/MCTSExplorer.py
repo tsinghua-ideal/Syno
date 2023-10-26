@@ -2,6 +2,7 @@ import os
 import tempfile
 from torch import nn
 from typing import List, Optional, Tuple, Union
+from copy import deepcopy
 
 from KAS import NextSerializer, Node, Path, Sampler, Statistics, Next
 
@@ -20,7 +21,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
 
     def state_of(self, current_path: List[str]) -> Optional[TreeNode]:
         # Path: alternating type and key
-        path = current_path.copy()
+        path = deepcopy(current_path)
         if len(current_path) % 2 == 1:
             path += ["0"]
         abstract_path = [
@@ -34,12 +35,12 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
         return node
 
     def children(self, state: TreeNode) -> List[AbstractChild]:
-        handles = state.get_children()
+        handles = state.get_children(filter_simulate_failure=False)
         if state._is_mid:
             return [
                 AbstractChild(
                     str(nxt),
-                    state.to_node().get_child_description(Next(state._type, nxt)) or "Failed to get description.",
+                    f"{state.to_node().get_child_description(Next(state._type, nxt))} {edge_state} with l-rave {state.l_rave[state.to_node().get_arc_from_handle(Next(state._type, nxt))]} {'(simulation failed)' if child_node._simulate_fail else ''}",
                 )
                 for nxt, child_node, edge_state in handles
             ]
@@ -47,7 +48,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             return [
                 AbstractChild(
                     self._serializer.serialize_type(nxt),
-                    str(nxt).split('.')[-1],
+                    f"{str(nxt).split('.')[-1]} {edge_state} {'(simulation failed)' if child_node._simulate_fail else ''}",
                 )
                 for nxt, child_node, edge_state in handles
             ]
@@ -60,10 +61,12 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             f"\tis_final: {state.is_final()}, reward={state.reward}, filtered={state.filtered}\n" if state.is_final() else f"\tis_final: {state.is_final()}\n"
             f"\tis_dead_end: {state.is_dead_end()}\n"
             f"\tis_dead: {state._is_dead}\n"
+            f"\tsimulate_fail: {state._simulate_fail}\n"
             f"\tis_alive: {state._not_dead}\n"
             f"\tis_exhausted: {state._exhausted}\n"
             f"\tis_in_tree: {state._isin_tree}\n"
-            f"\tstates: (N={state.state.N}, mean={state.state.mean}, std={state.state.std})\n"
+            f"\tstates: {state.state}\n"
+            f"\tvirtual_loss: {state._virtual_loss}\n"
         )
 
     custom_predicates = (

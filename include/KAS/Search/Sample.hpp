@@ -42,6 +42,8 @@ struct SampleOptions {
     std::size_t maxFLOPs = std::numeric_limits<std::size_t>::max();
     std::size_t maxRDomSizeMultiplier = 32;
 
+    bool enableFLOPsBasedPruning = false;
+
     std::size_t maximumEnumerationsPerVar = 5;
     std::size_t maximumVariablesInSize = std::numeric_limits<std::size_t>::max();
     std::size_t maximumVariablesPowersInSize = std::numeric_limits<std::size_t>::max();

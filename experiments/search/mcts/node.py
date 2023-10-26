@@ -157,6 +157,7 @@ class TreeNode:
         self.state = AverageMeter(support_std=True)
         self._last_T: int = 0
         self._is_dead: bool = False
+        self._simulate_fail: bool = False
         self._not_dead: bool = False
         self._exhausted: bool = False
         self._isin_tree: bool = False
@@ -300,6 +301,9 @@ class TreeNode:
 
     def update_lrave(self, reward: float, arc: PseudoArc) -> None:
         assert not self.is_final()
+        if self._simulate_fail:
+            logging.debug(f"Resurrected {self} during lrave update. ")
+            self._simulate_fail = False
         self.l_rave[arc].update(reward)
 
     # Cleansing
@@ -521,7 +525,7 @@ class TreeNode:
         self,
         auto_initialize: bool = False,
         on_tree: bool = False,
-        filter_simulate_failure: bool = False,
+        filter_simulate_failure: bool = True,
     ) -> List[Tuple[PseudoTreeNext, "TreeNode", AverageMeter]]:
         """
         Get all alive children of a node with nexts and edge states.
@@ -536,7 +540,7 @@ class TreeNode:
                 if handle.type == self._type
             ]
             children = [
-                self.get_child(nxt, auto_initialize=auto_initialize, on_tree=on_tree)
+                self.get_child(nxt, auto_initialize=auto_initialize, on_tree=on_tree, include_simulate_failure=filter_simulate_failure)
                 for nxt in nexts
             ]
 
@@ -558,8 +562,6 @@ class TreeNode:
         ret_list = list(zip(nexts, children, edge_states))
         if on_tree:
             ret_list = [(nxt, c, e) for nxt, c, e in ret_list if c._isin_tree]
-        if filter_simulate_failure:
-            ret_list = [(nxt, c, e) for nxt, c, e in ret_list if not c.failed_recently]
         return ret_list
 
     def get_child(
@@ -567,6 +569,7 @@ class TreeNode:
         next: PseudoTreeNext,
         auto_initialize: bool = False,
         on_tree: bool = False,
+        include_simulate_failure: bool = True
     ) -> Optional[Tuple["TreeNode", AverageMeter]]:
         """
         Get the child node of a node with a Next. When the node is dead, return None.
@@ -585,7 +588,7 @@ class TreeNode:
                 return None
             if (
                 child in self._tree._treenode_store
-                and self._tree._treenode_store[child].is_dead_end()
+                and self._tree._treenode_store[child].is_dead_end(include_simulate_failure=include_simulate_failure)
             ):
                 return None
             if child not in self._tree._treenode_store:
@@ -606,7 +609,7 @@ class TreeNode:
                     return (
                         child,
                         child.state
-                        if (not on_tree or child._isin_tree) and not child.is_dead_end()
+                        if (not on_tree or child._isin_tree) and not child.is_dead_end(include_simulate_failure=include_simulate_failure)
                         else None,
                     )
             return None
@@ -673,6 +676,9 @@ class TreeNode:
 
     def set_dead(self) -> None:
         self._is_dead = True
+        
+    def set_simulate_fail(self) -> None:
+        self._simulate_fail = True
 
     def set_alive(self) -> None:
         self._not_dead = True
@@ -680,12 +686,14 @@ class TreeNode:
     def is_alive(self) -> None:
         return self._not_dead
 
-    def is_dead_end(self) -> bool:
+    def is_dead_end(self, include_simulate_failure=True) -> bool:
         """
         Check if a node is dead end (will recursively check all expanded children).
         Dependencies: is_final -> None
         """
         if self._is_dead:
+            return True
+        if include_simulate_failure and self._simulate_fail:
             return True
         if self.is_final():
             if self.filtered or self._node.is_dead_end():

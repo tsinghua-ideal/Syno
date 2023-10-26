@@ -12,7 +12,7 @@ protected:
 
 TEST_F(search_finalize_tests, empty_interface) {
     std::vector<ColoredDimension> remaining;
-    auto gen = FinalizeOp::AssignToWeights(remaining, 1);
+    auto gen = FinalizeOp::AssignToWeights(remaining, {1});
     auto it = gen.begin();
     ASSERT_TRUE(it != gen.end());
     ASSERT_EQ((*it).size(), 0);

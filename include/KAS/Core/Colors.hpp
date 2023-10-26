@@ -22,8 +22,20 @@ private:
     // The ancestors ShareOp's of this Op.
     // The tags are sorted.
     std::vector<Tag> tags;
+    // Stride discards data.
     bool dataDiscardingFlag = false;
+    // Channels are unordered.
     bool unorderedFlag = false;
+    // Length of longest chain of primitives below this Dimension.
+    int height = 0;
+
+    Color(auto&& tags, bool dataDiscardingFlag, bool unorderedFlag, int height):
+        tags { std::forward<decltype(tags)>(tags) },
+        dataDiscardingFlag { dataDiscardingFlag },
+        unorderedFlag { unorderedFlag },
+        height { height }
+    {}
+    Color(const Color&) = default;
 
 public:
     static bool AnyCommonTags(const std::vector<Tag>& left, const std::vector<Tag>& right);
@@ -33,31 +45,35 @@ public:
     static std::size_t RemoveTags(std::vector<Tag>& tags, const std::vector<Tag>& toRemove);
 
     Color() = default;
-    Color(auto&& color1, auto&&color2):
-        Color { std::forward<decltype(color1)>(color1) }
-    {
-        merge(std::forward<decltype(color2)>(color2));
-    }
+    Color(Color&&) = default;
+
+    // Repeat the color.
+    static Color Repeat(const Color& color);
+    // Merge two colors, merging the tags, and dataDiscardingFlag. Asserts false on conflict.
+    static Color Merge(const Color& lhs, const Color& rhs);
+
     std::size_t size() const { return tags.size(); }
 
-    // Merge two colors, merging the tags, and dataDiscardingFlag. Asserts false on conflict.
-    void merge(const Color& other);
-
     // Add a new tag, assuming the op is ShareOp.
-    void addTag(Tag tag);
-
-    bool isDataDiscarding() const { return dataDiscardingFlag; }
-    Color& setDataDiscarding(bool value) { dataDiscardingFlag = value; return *this; }
-    bool isUnordered() const { return unorderedFlag; }
-    Color& setUnordered(bool value) { unorderedFlag = value; return *this; }
+    Color& addTag(Tag tag) &;
+    Color addTag(Tag tag) && { return std::move(static_cast<Color&>(*this).addTag(tag)); }
 
     // Returns true if removed.
     bool removeTag(Tag tag);
     bool empty() const { return tags.empty(); }
 
-    static const Color NoneOrdered;
-    static const Color NoneUnordered;
+    bool isDataDiscarding() const { return dataDiscardingFlag; }
+    Color& setDataDiscarding(bool value) & { dataDiscardingFlag = value; return *this; }
+    Color setDataDiscarding(bool value) && { return std::move(static_cast<Color&>(*this).setDataDiscarding(value)); }
+    bool isUnordered() const { return unorderedFlag; }
+    Color& setUnordered(bool value) & { unorderedFlag = value; return *this; }
+    Color setUnordered(bool value) && { return std::move(static_cast<Color&>(*this).setUnordered(value)); }
+    int getHeight() const { return height; }
+    Color& setHeight(int value) & { height = value; return *this; }
+    Color setHeight(int value) && { return std::move(static_cast<Color&>(*this).setHeight(value)); }
 };
+
+class Graph;
 
 // Different from usual colors, a weight can have left color and right color.
 // Left color refers to the left branches of ShareOp, while the right color refers to the right branches.
@@ -69,7 +85,7 @@ public:
     WeightColor() = default;
     // Create a basic WeightColor from a ShareR.
     // If the dimension is not a ShareR, then all the tags are seen as left tags.
-    WeightColor(const Dimension& dim);
+    WeightColor(const Graph& graph, const Dimension& dim);
 
     std::size_t countLeftTags() const;
     std::size_t countRightTags() const;

@@ -99,6 +99,7 @@ def main():
                     break
                 except Exception as e:
                     logging.info(f"Fetching {path} failed because of {e}. Retrying......")
+                    time.sleep(10)
 
             # Mock evaluate
             if args.kas_mock_evaluate:

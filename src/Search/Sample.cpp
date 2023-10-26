@@ -44,7 +44,7 @@ std::size_t StageStore::Hash::operator()(const Query& query) const noexcept {
     return query.hash;
 }
 std::size_t StageStore::Hash::operator()(const GraphHandle& interface) const noexcept {
-    return std::hash<GraphHandle>{}(interface);
+    return interface.hash();
 }
 std::size_t StageStore::Hash::operator()(AbstractStage *stage) const noexcept {
     return (*this)(stage->getInterface());
@@ -185,7 +185,8 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     std::unique_ptr<ReductionStage> rootStage;
     std::unique_lock<std::recursive_mutex> lock;
     // Generate Reduce's. This recursively calls ReduceOp::Generate().
-    std::tie(rootStage, lock) = ReductionStage::Create(*this, std::move(interface), std::unique_lock<std::recursive_mutex>{});
+    const MutexIndex rootMutexIndex = AbstractStage::GetRootMutexIndex(interface);
+    std::tie(rootStage, lock) = ReductionStage::Create(rootMutexIndex, *this, std::move(interface), std::unique_lock<std::recursive_mutex>{});
     this->rootStage = dynamic_cast<ReductionStage *>(stageStore.insert(0, std::move(rootStage), lock));
     lock.unlock();
     auto expander = ThreadPool<ReductionStage *>(numWorkerThreads, [&](ThreadPool<ReductionStage *>& expander, ReductionStage *stage) {
@@ -220,7 +221,7 @@ Size Sampler::getMaxRDomSize() const {
 }
 
 int Sampler::remainingChainLength(const Graph& graph, const Dimension& dim) const {
-    return static_cast<int>(options.maxChainLength) - graph.getHeight(dim);
+    return static_cast<int>(options.maxChainLength) - graph.colorOf(dim).getHeight();
 }
 
 std::optional<Node> Sampler::visit(const std::vector<Next>& path) {

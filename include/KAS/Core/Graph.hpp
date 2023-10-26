@@ -194,6 +194,7 @@ auto FilterOpsOfType(auto& ops, DimensionType ty) {
 }
 
 class Graph {
+    friend class GraphBuilder;
 public:
     using DimensionSet = std::set<Dimension, Dimension::AddressLessThan>;
     template<typename T>
@@ -267,60 +268,9 @@ public:
     struct DimensionMetadata {
         OpAbove opAbove; // Op above each dimension.
         CompactIndices ancestors; // Dimension's of which this Dimension is a descendant.
-        int height; // Length of longest chain of primitives below this Dimension.
+        Color color;
     };
 
-    // Use Builder to construct a Graph.
-    class Builder final: public DimVisitor {
-        Topmost topmost;
-        std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
-        std::set<const Iterator *> outputIterators;
-        std::set<const Reduce *> reduceIterators;
-        std::set<const PrimitiveOp *> ops;
-
-        OpAbove parent;
-        CompactIndices ancestor = CompactIndices::None();
-        void visit(const Iterator& dim) override;
-        void visit(const Reduce& dim) override;
-        void visit(const RepeatLikeOp::Input& dim) override;
-        void visit(const SplitLikeOp::Input& dim) override;
-        void visit(const MergeLikeOp::Input& dim) override;
-        void match(const Dimension& dim);
-
-        int acquireHeight(const Dimension& dim) const;
-        void assignHeight(const Dimension& dim, int desired);
-
-    public:
-        Builder& addDimension(const Dimension& dim);
-        Builder& addExpansion(const Expand *exp);
-        Builder& addTopmost(const Topmost& interface);
-        static Graph BuildFromHandle(const GraphHandle& handle);
-        template<std::ranges::input_range R>
-        requires std::same_as<std::ranges::range_value_t<R>, Dimension>
-        Builder& addDimensions(R&& dims) {
-            for (const Dimension& dim: dims) {
-                addDimension(dim);
-            }
-            return *this;
-        }
-        template<std::ranges::input_range R>
-        requires std::same_as<std::ranges::range_value_t<R>, const Expand *>
-        Builder& addExpansions(R&& exps) {
-            for (const Expand *exp: exps) {
-                addExpansion(exp);
-            }
-            return *this;
-        }
-        template<std::ranges::input_range R>
-        requires std::same_as<std::ranges::range_value_t<R>, Topmost>
-        Builder& addTopmosts(R&& interfaces) {
-            for (const Topmost& interface: interfaces) {
-                addTopmost(interface);
-            }
-            return *this;
-        }
-        Graph build();
-    };
 private:
     // The input dimensions;
     Topmost topmost;
@@ -405,7 +355,7 @@ public:
         return ancestors;
     }
 
-    int getHeight(const Dimension& dim) const;
+    const Color& colorOf(const Dimension& dim) const;
 
     template<typename Value>
     class AttributeMap {
@@ -446,6 +396,64 @@ public:
             }
         }
     };
+};
+
+// Use Builder to construct a Graph.
+class GraphBuilder final: public DimVisitor {
+    struct DimensionMetadata {
+        Graph::OpAbove opAbove;
+        Graph::CompactIndices ancestors;
+        // Avoid recomputation.
+        std::optional<Color> color;
+        Graph::DimensionMetadata acquire();
+    };
+
+    Topmost topmost;
+    std::map<Dimension, DimensionMetadata, Dimension::AddressLessThan> dimMeta;
+    std::set<const Iterator *> outputIterators;
+    std::set<const Reduce *> reduceIterators;
+    std::set<const PrimitiveOp *> ops;
+
+    Graph::OpAbove parent;
+    Graph::CompactIndices ancestor = Graph::CompactIndices::None();
+    void visit(const Iterator& dim) override;
+    void visit(const Reduce& dim) override;
+    void visit(const RepeatLikeOp::Input& dim) override;
+    void visit(const SplitLikeOp::Input& dim) override;
+    void visit(const MergeLikeOp::Input& dim) override;
+    void match(const Dimension& dim);
+
+public:
+    GraphBuilder& addDimension(const Dimension& dim);
+    GraphBuilder& addExpansion(const Expand *exp);
+    GraphBuilder& addTopmost(const Topmost& interface);
+    static Graph BuildFromHandle(const GraphHandle& handle);
+    template<std::ranges::input_range R>
+    requires std::same_as<std::ranges::range_value_t<R>, Dimension>
+    GraphBuilder& addDimensions(R&& dims) {
+        for (const Dimension& dim: dims) {
+            addDimension(dim);
+        }
+        return *this;
+    }
+    template<std::ranges::input_range R>
+    requires std::same_as<std::ranges::range_value_t<R>, const Expand *>
+    GraphBuilder& addExpansions(R&& exps) {
+        for (const Expand *exp: exps) {
+            addExpansion(exp);
+        }
+        return *this;
+    }
+    template<std::ranges::input_range R>
+    requires std::same_as<std::ranges::range_value_t<R>, Topmost>
+    GraphBuilder& addTopmosts(R&& interfaces) {
+        for (const Topmost& interface: interfaces) {
+            addTopmost(interface);
+        }
+        return *this;
+    }
+    const Color& colorOf(const Dimension& dim) const;
+    Graph build();
 };
 
 class ConstrainedGraph {

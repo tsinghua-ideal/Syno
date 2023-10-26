@@ -421,6 +421,7 @@ public:
     void generateGraphvizAsFinal(const std::filesystem::path& path, const std::string& name) const;
     std::string getNestedLoopsAsFinal() const;
 
+    Node arbitraryParent() const;
     // The count of children nodes.
     std::size_t countChildren() const;
     std::vector<Next> getChildrenHandles() const;
@@ -429,14 +430,16 @@ public:
     std::optional<Node> getChild(Next next) const;
     std::vector<std::optional<Node>> getChildren(const std::vector<Next>& nexts) const;
     bool canAcceptArc(Arc arc) const;
-    Node getChildFromArc(Arc arc) const;
+    std::optional<Node> getChildFromArc(Arc arc) const;
     std::vector<Next> getPossiblePath() const;
     std::vector<Arc> getComposingArcs() const;
     void expandSync(int layers) const;
     void expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& task) const;
-    void expandToSync(Node target) const;
+    Node expandToSync(Node target) const;
     void expand(int layers) const;
     std::optional<std::string> getChildDescription(Next next) const;
+    bool isReduction() const { return type() == Type::Reducing; }
+    bool isNormal() const { return type() == Type::Growing; }
     bool isFinal() const { return type() == Type::Final; }
     bool isDeadEnd() const;
     bool discoveredFinalDescendant() const;

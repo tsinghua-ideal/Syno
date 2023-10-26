@@ -161,47 +161,44 @@ def test_mcts():
         receipts.append(receipt)
         trialss.append(trials)
 
-    for k, v in mcts.virtual_loss_count.items():
-        assert v > 0, f"Virtual loss count for {k} is {v}"
+    for tree_node in mcts._treenode_store.values():
+        assert tree_node._virtual_loss > 0, f"Virtual loss count for {tree_node} is {tree_node._virtual_loss}"
 
     json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
     mcts_serialize = json.load(open("test_mcts.json", "r"))
     mcts_recover = MCTSTree.deserialize(mcts_serialize, sampler, keep_virtual_loss=True)
-    assert (
-        mcts.virtual_loss_count == mcts_recover.virtual_loss_count
-    ), f"virtual_loss_count mismatch! {mcts.virtual_loss_count} vs {mcts_recover.virtual_loss_count}"
 
     mcts.back_propagate(receipts[0], 0.6, trialss[0][0][0])
     mcts.back_propagate(receipts[1], 0.6, trialss[1][0][0])
 
-    for k, v in mcts.virtual_loss_count.items():
-        assert v == 0, f"Virtual loss count for {k} is {v}"
+    for tree_node in mcts._treenode_store.values():
+        assert tree_node._virtual_loss == 0, f"Virtual loss count for {tree_node} is {tree_node._virtual_loss}"
     assert len([v for _, v in mcts._treenode_store.items() if v.N > 0]) == 2
 
     # Test serialize
     json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
     mcts_serialize = json.load(open("test_mcts.json", "r"))
     mcts_recover = MCTSTree.deserialize(mcts_serialize, sampler)
-    for k, v in mcts_recover._treenode_store.items():
-        assert k in mcts._treenode_store, f"Node {k} not in {mcts._treenode_store}"
+    for tree_node, v in mcts_recover._treenode_store.items():
+        assert tree_node in mcts._treenode_store, f"Node {tree_node} not in {mcts._treenode_store}"
         assert v.eq_state(
-            mcts._treenode_store[k]
-        ), f"Node {k} is {v.state_dict}, should be {mcts._treenode_store[k].state_dict}"
-    for k, v in mcts._treenode_store.items():
+            mcts._treenode_store[tree_node]
+        ), f"Node {tree_node} is {v.state_dict}, should be {mcts._treenode_store[tree_node].state_dict}"
+    for tree_node, v in mcts._treenode_store.items():
         if v.empty():
             continue
         assert (
-            k in mcts_recover._treenode_store
-        ), f"Node {k} not in {mcts_recover._treenode_store}"
+            tree_node in mcts_recover._treenode_store
+        ), f"Node {tree_node} not in {mcts_recover._treenode_store}"
         assert v.eq_state(
-            mcts_recover._treenode_store[k]
-        ), f"Node {k} is {v}, should be {mcts_recover._treenode_store[k]}"
+            mcts_recover._treenode_store[tree_node]
+        ), f"Node {tree_node} is {v}, should be {mcts_recover._treenode_store[tree_node]}"
 
     # raves
-    for k, v in mcts.g_rave.items():
-        assert v == mcts_recover.g_rave[k], f"{k}: {v} != {mcts_recover.g_rave[k]}"
-    for k, v in mcts_recover.g_rave.items():
-        assert v == mcts.g_rave[k], f"{k}: {v} != {mcts_recover.g_rave[k]}"
+    for tree_node, v in mcts.g_rave.items():
+        assert v == mcts_recover.g_rave[tree_node], f"{tree_node}: {v} != {mcts_recover.g_rave[tree_node]}"
+    for tree_node, v in mcts_recover.g_rave.items():
+        assert v == mcts.g_rave[tree_node], f"{tree_node}: {v} != {mcts_recover.g_rave[tree_node]}"
     assert (
         mcts.g_rave == mcts_recover.g_rave
     ), f"Rave {mcts.g_rave} != {mcts_recover.g_rave}"

@@ -98,6 +98,7 @@ constexpr std::optional<std::string_view> OrderToLR(std::optional<Order> order) 
 }
 
 class DimVisitor;
+class GraphBuilder;
 class PrimitiveOp;
 
 class DimensionImpl {
@@ -111,7 +112,7 @@ public:
     }
     virtual void accept(DimVisitor& visitor) const = 0;
     virtual const PrimitiveOp *getOpBelow() const = 0;
-    virtual const Color& getColor() const = 0;
+    virtual Color computeColor(const GraphBuilder& graphBuilder) const = 0;
     virtual ~DimensionImpl() = default;
 };
 
@@ -155,14 +156,14 @@ public:
     };
 
     // Color related.
-    const Color& getColor() const { return inner->getColor(); }
+    Color computeColor(const GraphBuilder& graphBuilder) const { return inner->computeColor(graphBuilder); }
     enum class Origin {
         UnfoldOrExpand,
         Input,
         Weight,
         InputOrWeight,
     };
-    Origin deduceOrigin() const;
+    Origin deduceOrigin(const Graph& graph) const;
 
     // [<size>]@<type><hash>
     std::string description(const BindingContext& ctx) const;
@@ -339,6 +340,8 @@ public:
     GraphHandle substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const;
 
     Graph buildGraph() const;
+
+    std::size_t hash() const noexcept;
 
     // FOR DEBUG USAGE ONLY!
     using Topmost::debugDescription;

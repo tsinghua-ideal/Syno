@@ -115,10 +115,13 @@ class Session:
         logging.info(f"Fast updating with files in {self.evaluation_result_file}")
         
         with open(self.evaluation_result_file) as f:
-            dirs = [l[:-1] for l in f.readlines()]
+            dirs = [l[:-1] for l in f.readlines() if l[-1] == '\n']
         
         kernels = []
         for directory in dirs:
+            if not os.path.exists(directory):
+                logging.warning(f"{directory} does not exist......")
+                continue
             for kernel_fmt in os.listdir(directory):
                 kernel_dir = os.path.join(directory, kernel_fmt)
                 if not os.path.isdir(kernel_dir):
@@ -179,6 +182,9 @@ class Session:
         # No receiving timeout kernels
         if path in self.timeout_samples:
             logging.debug(f"{path} is removed due to timeout...")
+            return
+        if path not in self.waiting:
+            logging.warning(f"{path} is not in our waiting queue")
             return
 
         # Not more waiting

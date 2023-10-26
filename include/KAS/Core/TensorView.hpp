@@ -102,7 +102,7 @@ public:
     const std::vector<PureTensor>& getUnderlyingTensors() const { return tensors; }
 
     Graph buildGraph() const {
-        Graph::Builder builder;
+        GraphBuilder builder;
         builder.addTopmosts(tensors | std::views::transform(&PureTensor::getContent));
         return builder.build();
     }

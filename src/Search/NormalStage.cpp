@@ -123,7 +123,7 @@ void NormalStage::guardGeneratedChildren() {
             {
                 Lock lock;
                 std::tie(stage, lock) = getNextOp(op);
-                fin = stage->getFinalizability(lock);
+                fin = stage != nullptr ? stage->getFinalizability(lock) : Finalizability::No;
             }
             if (fin != Finalizability::No) {
                 children.emplace_back(Next::FromOp(op), op, stage);
@@ -141,6 +141,7 @@ void NormalStage::guardGeneratedChildren() {
         if (!inCriticalState && (options.maximumShifts == -1 || options.maximumShifts > existingOp<ShiftOp>())) {
             add(ShiftOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
+                .graph = graph,
                 .disallowShiftAboveUnfold = options.disallowShiftAboveUnfold,
                 .maximumValidReshapeShiftPattern = options.maximumValidReshapeShiftPattern,
             }));
@@ -209,6 +210,7 @@ void NormalStage::guardGeneratedChildren() {
             // Share^{-1}
             if (!inCriticalState && (options.maximumShares == -1 || options.maximumShares > existingOp<ShareOp>())) {
                 add(ShareOp::Generate(store, prospectiveInterface, {
+                    .graph = graph,
                     .allowance = allowance,
                     .maximumTensors = options.maximumTensors,
                 }));
@@ -254,8 +256,9 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     const Graph graph = interface.buildGraph();
 
     std::vector<std::pair<Dimension, int>> current;
+    std::vector<ColoredDimension> weightDims;
     for (const Dimension& dim: interface.getDimensions()) {
-        const auto origin = dim.deduceOrigin();
+        const auto origin = dim.deduceOrigin(graph);
         int remainingLength = sampler.remainingChainLength(graph, dim);
         KAS_ASSERT(remainingLength >= 0);
         if (origin != Dimension::Origin::Weight) {
@@ -264,6 +267,8 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
                 return false;
             }
             current.emplace_back(dim, remainingLength);
+        } else {
+            weightDims.emplace_back(graph, dim);
         }
     }
 
@@ -271,13 +276,19 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
         int existing = existingOps[existingType];
         return maximum == -1 ? static_cast<int>(options.depth) : std::max(maximum - existing, 0);
     };
-    const std::size_t distance = FinalizeOp::Distance(current, sampler.getInputShape(), {
-        .ctx = ctx,
-        .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
-        .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),
-        .remainingUnfoldsAndExpands = remaining(options.maximumUnfolds, Next::Type::Unfold) + remaining(options.maximumExpands, Next::Type::Expand),
-        .overflow = remainingDepth(),
-    });
+    const std::size_t distance = FinalizeOp::Distance(
+        current, sampler.getInputShape(), graph,
+        {
+            .ctx = ctx,
+            .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
+            .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),
+            .remainingUnfoldsAndExpands = remaining(options.maximumUnfolds, Next::Type::Unfold) + remaining(options.maximumExpands, Next::Type::Expand),
+            .overflow = remainingDepth(),
+        },
+        options.enableFLOPsBasedPruning ?
+            std::make_optional<FinalizeOp::FLOPsGameOptions>(options.maximumTensors, options.maxFLOPs, weightDims) :
+            std::nullopt
+    );
     if (distance > remainingDepth()) {
         ++CountShapeDeviatesTooMuch;
         return false;
@@ -314,21 +325,24 @@ const NextFinalizeSlot *NormalStage::getChildFinalizeSlot(Next next) const {
 NormalStage::NormalStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
     Base { std::move(interface), creator, std::move(deltaOp), std::move(lock) }
 {
-    // Perform experimental finalization, i.e., compute the ShapeComplexity of the interface.
+    auto it = std::ranges::adjacent_find(interface.getDimensions(), [](const Dimension& a, const Dimension& b) {
+        return a.hash() == b.hash();
+    });
+    if (it != interface.getDimensions().end()) {
+        KAS_REPORT_DIMENSION_HASH_COLLISION(*it, *std::next(it));
+    }
+}
+
+
+Finalizability NormalStage::experimentFinalizability(Lock& lock) {
     if (!possibleToFinalizeByExperimenting()) {
         // If proved to be not finalizable, no need to generate children.
         childrenGenerated = true;
         // We cannot propagte, because the parent is now building children.
         // Luckily our parent will first check the finalizability of this.
         determineFinalizability(Finalizability::No, false);
-    } else {
-        auto it = std::ranges::adjacent_find(interface.getDimensions(), [](const Dimension& a, const Dimension& b) {
-            return a.hash() == b.hash();
-        });
-        if (it != interface.getDimensions().end()) {
-            KAS_REPORT_DIMENSION_HASH_COLLISION(*it, *std::next(it));
-        }
     }
+    return getFinalizability(lock);
 }
 
 std::size_t NormalStage::countChildrenImpl() {
@@ -373,16 +387,18 @@ bool NormalStage::canAcceptArcImpl(Arc arc) {
     return Base::canAcceptArcImpl(arc);
 }
 
-Node NormalStage::getChildImpl(Arc arc) {
-    return arc.match<Node>(
-        [&](auto op) -> Node {
-            return { &sampler, getNextOpWithoutLock(op) };
+std::optional<Node> NormalStage::getChildImpl(Arc arc) {
+    return arc.match<std::optional<Node>>(
+        [&](auto op) -> std::optional<Node> {
+            auto stage = getNextOpWithoutLock(op);
+            if (!stage) { return std::nullopt; }
+            return std::make_optional<Node>(&sampler, stage);
         },
-        [&](auto op) -> Node {
+        [&](auto op) -> std::optional<Node> {
             KAS_ASSERT(childrenGenerated);
             auto key = NextFinalizeSlot::GetKey(op->tensors);
             auto next = Next { Next::Type::Finalize, key };
-            return getChildImpl(next).value();
+            return getChildImpl(next);
         }
     );
 }

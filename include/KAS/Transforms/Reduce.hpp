@@ -14,7 +14,6 @@ class ReduceOp final: public ReduceBase, public PrimitiveOp {
 public:
     ReduceOp(const Size& domain, ReduceType reduceType):
         ReduceBase { domain, reduceType },
-        PrimitiveOp { Color::NoneOrdered },
         // Store the Reduce's in the Op.
         reduces([this]<std::size_t... Is>(std::index_sequence<Is...>) {
             return std::array<Reduce, ExpectedMaximumReduces> { Reduce(*this, Is)... };

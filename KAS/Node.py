@@ -142,6 +142,8 @@ class Node:
         if not self.can_accept_arc(arc):
             return None
         child_node = self._node.get_child_from_arc(arc)
+        if child_node is None:
+            return None
         return Node(child_node)
 
     def get_possible_path(self) -> Path:
@@ -156,9 +158,9 @@ class Node:
         """Expand a node given layers deeper."""
         self._node.expand(layers)
 
-    def expand_to(self, target: 'Node') -> None:
+    def expand_to(self, target: 'Node') -> 'Node':
         """Expand the lattice defined by the two nodes."""
-        self._node.expand_to(target._node)
+        return Node(self._node.expand_to(target._node))
 
     def expand_async(self, layers: int) -> None:
         """Expand a node given layers deeper asynchronously."""
@@ -295,8 +297,8 @@ class MockNodeMetadata:
     def expand(self, layers: int) -> None:
         pass
 
-    def expand_to(self, target: 'MockNode') -> None:
-        pass
+    def expand_to(self, target: 'MockNode') -> 'MockNode':
+        return target
 
     def expand_async(self, layers: int) -> None:
         pass
@@ -362,6 +364,8 @@ class MockNode(Node):
         if not self.can_accept_arc(arc):
             return None
         child_node = self._node.get_child_from_arc(arc)
+        if child_node is None:
+            return None
         return MockNode(child_node)
 
     def get_child_description(self, next: PseudoNext) -> Optional[str]:

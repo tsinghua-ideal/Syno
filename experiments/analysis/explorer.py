@@ -16,6 +16,6 @@ if __name__ == '__main__':
     model, sampler = models.get_model(args, return_sampler=True)
 
     # Explorer
-    explorer = SearchSpaceExplorer(sampler)
+    explorer = SearchSpaceExplorer(model, sampler)
 
     explorer.interactive()

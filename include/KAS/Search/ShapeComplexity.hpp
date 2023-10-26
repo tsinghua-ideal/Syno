@@ -18,12 +18,15 @@ class ReshapeGroup {
     bool hasNoInput;
     int splits;
     int merges;
+    bool direct;
 public:
     ReshapeGroup(const Size& provision, const Size& consumption);
     ReshapeGroup(const Size& provision);
     const Size& getRemainder() const;
     void addConsumption(const Size& consumption);
     void addProvision(const Size& provision);
+    void markDirect();
+    bool isDirect() const;
     bool isLegal() const;
     int countSplits() const;
     int countTrivialMerges() const;

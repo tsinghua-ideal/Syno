@@ -19,7 +19,7 @@ def test_fast_update(path_repr, leaf_path_repr, model, sampler, args) -> None:
     path_serialized = TreePath.decode_str(path_repr).to_path()[0].serialize()
     leaf_path = TreePath.decode_str(leaf_path_repr)
 
-    algo = MCTSAlgorithm(sampler, args)
+    algo = MCTSAlgorithm(sampler, model, args)
     
     algo.load_eval_result(path_serialized, 0.5, leaf_path=leaf_path)
 
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     model, sampler = models.get_model(args, return_sampler=True)
 
     test_paths = [
-        ("[Reduce(5560283196852294378), Merge(6736361731171789267), Merge(1456760626231759567)]", "[Reduce(5560283196852294378), Merge(6736361731171789267), Merge(1456760626231759567), Share(3105937193444993997), Share(3105937193444993970), Shift(7716808504002403245), Share(14368496488825318166), Expand(17580581500109511259), Expand(14858164344299864834), Shift(15939066619314697752), Share(10067379851896753133), Split(12602826350613247983), Shift(4729962409952852253), Finalize(13617644754852049647)]")
+        ("[Reduce(3815673689317161159), Reduce(16944764544590353949)]", "[Reduce(3815673689317161159), Reduce(16944764544590353949), Merge(17926165022425061937), Merge(1301728425438608103), Split(4242077998742030658), Share(15302844813840757071), Shift(7716808504002403245), Split(3190732959757924985), Share(13497865469262156188), Expand(629380456128670887), Shift(4729962409952852253), Share(14765397666072454195), Share(5592658499789034655), Expand(9911227917462026532), Finalize(4723397394311951784)]")
     ]
 
     for leaf_path, path in test_paths:

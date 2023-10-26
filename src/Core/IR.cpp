@@ -374,7 +374,7 @@ IR IR::copy() const {
 }
 
 Graph IR::buildGraph() const {
-    return Graph::Builder()
+    return GraphBuilder()
         .addDimensions(inputTensors | std::views::transform(&Tensor::output) | std::views::join)
         .addExpansions(expansions | std::views::join)
         .build();
@@ -523,7 +523,7 @@ void IRBuilder::optimizeLayout(IR& ir) const {
 
 IRBuilder::IRBuilder(const std::vector<Topmost>& tensors):
     inputTensors { tensors },
-    graph(Graph::Builder().addTopmosts(tensors).build())
+    graph(GraphBuilder().addTopmosts(tensors).build())
 {}
 
 Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes() const {

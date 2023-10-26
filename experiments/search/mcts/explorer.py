@@ -42,7 +42,7 @@ class MCTSExplorer:
                     )
                 )
                 - self._mcts.virtual_loss_constant
-                * self._mcts.virtual_loss_count[child]
+                * self._mcts.child._virtual_loss
             )
 
         return ucb1_tuned
@@ -97,12 +97,12 @@ class MCTSExplorer:
                 if current_node._is_mid:
                     child = Next(current_node._type, nxt)
                     print(
-                        f"\t{child}:\t{current_node._node.get_child_description(child)}, score={score}, virtual_loss={self._mcts.virtual_loss_count[child_node]}"
+                        f"\t{child}:\t{current_node._node.get_child_description(child)}, score={score}, virtual_loss={self._mcts.child_node._virtual_loss}"
                     )
                 else:
                     assert isinstance(nxt, Next.Type)
                     print(
-                        f"\t{nxt}:\t{child_node.children_count(on_tree=self.on_tree)} children, score={score}, virtual_loss={self._mcts.virtual_loss_count[child_node]}"
+                        f"\t{nxt}:\t{child_node.children_count(on_tree=self.on_tree)} children, score={score}, virtual_loss={self._mcts.child_node._virtual_loss}"
                     )
         elif command in ["g", "grave"]:
             ty = None

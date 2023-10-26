@@ -31,7 +31,7 @@ class NormalStage final: public AbstractStageBase<NormalStage> {
     // In critical state, do not generate useless Ops.
     mutable bool inCriticalState = false;
     // This is for pruning. We experimentally finalize this stage, and conservatively exclude the stage if it is not possible to finalize.
-    bool possibleToFinalizeByExperimenting() const;
+    bool possibleToFinalizeByExperimenting() const override;
 
     std::size_t uncheckedCountChildren() const;
     std::vector<Next> uncheckedGetChildrenHandles() const;
@@ -71,13 +71,15 @@ public:
     // NormalStage cannot be root.
     NormalStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock);
 
+    Finalizability experimentFinalizability(Lock& lock);
+
     std::size_t countChildrenImpl();
     std::vector<Next> getChildrenHandlesImpl();
     std::vector<Arc> getChildrenArcsImpl();
     std::optional<Arc> getArcFromHandleImpl(Next next);
     std::optional<Node> getChildImpl(Next next);
     bool canAcceptArcImpl(Arc arc);
-    Node getChildImpl(Arc arc);
+    std::optional<Node> getChildImpl(Arc arc);
 };
 
 } // namespace kas

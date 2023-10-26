@@ -9,7 +9,8 @@ class ConvNet(KASModel):
     def __init__(self):
         super().__init__()
         self.conv = nn.Sequential(
-            ConvPlaceholder(3, 64, 3),
+            # ConvPlaceholder(3, 64, 3),
+            nn.Conv2d(3, 64, 3, padding="same"),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(3, 2, 1),
@@ -35,10 +36,10 @@ class ConvNet(KASModel):
     
     def sampler_parameters(self, seq_len=None):
          return {
-            'input_shape': '[N, C_in, H, W]',
-            'output_shape': '[N, C_out, H, W]',
-            'primary_specs': ['N: 0', 'C_in: 2', 'C_out: 3', 'H: 0', 'W: 1'],
-            'coefficient_specs': ['k=3: 3', 's=2: 3'],
+            'input_shape': '[N, C_in: unordered, H, W]',
+            'output_shape': '[N, C_out: unordered, H, W]',
+            'primary_specs': ['N: 0', 'C_in: 2', 'C_out: 4', 'H: 0', 'W: 1'],
+            'coefficient_specs': ['k_1=3: 3', 's=2: 2', 'g=16: 4'],
             'fixed_io_pairs': [(0, 0)],
         }
 

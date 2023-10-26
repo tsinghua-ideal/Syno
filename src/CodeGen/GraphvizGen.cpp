@@ -177,7 +177,7 @@ std::string draw(const BindingContext& ctx, R&& tensors) {
     auto SSIt = [&]() { return std::ostreambuf_iterator<char>(ss); };
 
     Graph graph =
-        Graph::Builder()
+        GraphBuilder()
         .addTopmosts(tensors)
         .build();
 

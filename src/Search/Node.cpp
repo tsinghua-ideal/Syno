@@ -143,6 +143,24 @@ std::string Node::getNestedLoopsAsFinal() const {
     return final->value.printNestedLoopsForAll(sampler->getBindingContext());
 }
 
+Node Node::arbitraryParent() const {
+    return match<Node>(
+        [&](AbstractStage *stage) {
+            auto parent = stage->arbitraryParent();
+            if (auto rStage = dynamic_cast<ReductionStage *>(parent)) {
+                return Node(sampler, rStage);
+            } else if (auto nStage = dynamic_cast<NormalStage *>(parent)) {
+                return Node(sampler, nStage);
+            } else {
+                KAS_UNREACHABLE();
+            }
+        },
+        [&](FinalStage *stage) {
+            return Node(sampler, &stage->parent);
+        }
+    );
+}
+
 std::size_t Node::countChildren() const {
     return match<std::size_t>(
         [](AbstractStage *stage) { return stage->countChildren(); },
@@ -194,10 +212,10 @@ bool Node::canAcceptArc(Arc arc) const {
     );
 }
 
-Node Node::getChildFromArc(Arc arc) const {
-    return match<Node>(
+std::optional<Node> Node::getChildFromArc(Arc arc) const {
+    return match<std::optional<Node>>(
         [&](AbstractStage *stage) { return stage->getChild(arc); },
-        [](FinalStage *stage) -> Node { KAS_UNREACHABLE(); }
+        [](FinalStage *stage) -> std::optional<Node> { KAS_UNREACHABLE(); }
     );
 }
 
@@ -263,7 +281,8 @@ void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& 
             ++index;
             continue;
         }
-        auto child = getChildFromArc(arc);
+        // This must not throw! Otherwise the pruning algorithm is wrong.
+        auto child = getChildFromArc(arc).value();
         std::vector<Arc> remainingArcs = arcs;
         remainingArcs.erase(remainingArcs.begin() + index);
         if (task.pool.add(remainingArcs.size(), child)) {
@@ -276,9 +295,15 @@ void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& 
     // KAS_ASSERT(success > 0);
 }
 
-void Node::expandToSync(Node target) const {
+Node Node::expandToSync(Node target) const {
     if (*this == target) {
-        return;
+        return *this;
+    }
+    if (target.isFinal()) {
+        target = target.arbitraryParent();
+    }
+    if (*this == target) {
+        return *this;
     }
     std::vector<Arc> remainingReductions, remainingOthers;
     {
@@ -289,7 +314,7 @@ void Node::expandToSync(Node target) const {
         auto topArcs = ranges::to<std::unordered_set<Arc, Arc::Hash>>(target.match<std::vector<Arc>>(
             [&](AbstractStage *) { return target.getComposingArcs(); },
             // If the target is a TensorView, we only need to expand to its predecessor.
-            [&](FinalStage *stage) -> std::vector<Arc> { return Node(sampler, &stage->parent).getComposingArcs(); }
+            [&](FinalStage *stage) -> std::vector<Arc> { KAS_UNREACHABLE(); }
         ));
         std::size_t removed = 0;
         for (const Arc& arc: topArcs) {
@@ -306,19 +331,24 @@ void Node::expandToSync(Node target) const {
         KAS_ASSERT(removed == bottomArcs.size());
     }
     auto& expander = sampler->getLatticeExpander();
-    Node normalBottom = *this;
     LatticePool poolBottom { remainingReductions.size() }, poolTop { remainingOthers.size() };
     if (!remainingReductions.empty()) {
         expander.add(LatticeTask { poolBottom, *this, remainingReductions });
-        for (const Arc& arc: remainingReductions) {
-            normalBottom = normalBottom.getChildFromArc(arc);
-        }
     }
+    Node normalBottom = target;
+    std::size_t distance = 0;
+    while (!normalBottom.isReduction()) {
+        normalBottom = normalBottom.arbitraryParent();
+        ++distance;
+    }
+    // One more due to the nStage embedded in rStage.
+    KAS_ASSERT(distance == remainingOthers.size() + 1);
     if (!remainingOthers.empty()) {
         expander.add(LatticeTask { poolTop, normalBottom, remainingOthers });
     }
     expander.sync();
     sampler->getExpander().sync();
+    return normalBottom;
 }
 
 void Node::expand(int layers) const {

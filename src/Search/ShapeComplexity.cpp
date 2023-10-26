@@ -8,14 +8,16 @@ ReshapeGroup::ReshapeGroup(const Size& provision, const Size& consumption):
     remainder { provision / consumption },
     hasNoInput { false },
     splits { 0 },
-    merges { 0 }
+    merges { 0 },
+    direct { false }
 {}
 
 ReshapeGroup::ReshapeGroup(const Size& provision):
     remainder { provision },
     hasNoInput { true },
     splits { 0 },
-    merges { 0 }
+    merges { 0 },
+    direct { false }
 {}
 
 const Size& ReshapeGroup::getRemainder() const {
@@ -34,6 +36,15 @@ void ReshapeGroup::addConsumption(const Size& consumption) {
 void ReshapeGroup::addProvision(const Size& provision) {
     ++splits;
     remainder *= provision;
+}
+
+void ReshapeGroup::markDirect() {
+    KAS_ASSERT(!direct);
+    direct = true;
+}
+
+bool ReshapeGroup::isDirect() const {
+    return direct;
 }
 
 bool ReshapeGroup::isLegal() const {
@@ -135,25 +146,37 @@ auto ReshapeGroups::assignDesired(std::size_t indexDesired) const -> Generator<R
         ++pId;
     }
 
-    // First check for new sizes.
-    for (std::size_t i = 0; i < current.size(); ++i) {
-        if (currentAssigned(i)) continue;
-        const auto& [currentSize, currentRemainingLength] = current[i];
-        if (currentSize.getPrimary()[varId] > 0) {
-            if (currentRemainingLength == 0 && desiredSize != currentSize) {
-                // We cannot allow for another Op.
-                // So this group must be exact! That is, one input and one output.
-                continue;
+    // Decide which group this desired dimension should join.
+    // First is existing groups.
+    for (std::size_t i = 0; i <= countGroups(); ++i) {
+        const bool isNewGroup = i == countGroups();
+        if (!isNewGroup && groups[i].isDirect()) continue;
+        if (isNewGroup || groups[i].getRemainder().getPrimary()[varId] == 0) {
+            // Check new sizes for this variable.
+            for (std::size_t j = 0; j < current.size(); ++j) {
+                if (currentAssigned(j)) continue;
+                const auto& [currentSize, currentRemainingLength] = current[j];
+                if (currentSize.getPrimary()[varId] > 0) {
+                    if (currentRemainingLength == 0) {
+                        // We cannot allow for another Op.
+                        // So this group must be exact! That is, one input and one output.
+                        if (!isNewGroup || desiredSize != currentSize) {
+                            continue;
+                        }
+                    }
+                    auto copy = *this;
+                    if (isNewGroup) {
+                        copy.createGroup(indexDesired, j);
+                        if (currentRemainingLength == 0) copy.groups[i].markDirect();
+                    } else {
+                        copy.addCurrentToGroup(j, i);
+                        copy.addDesiredToGroup(indexDesired, i);
+                    }
+                    co_yield std::move(copy);
+                }
             }
-            auto copy = *this;
-            copy.createGroup(indexDesired, i);
-            co_yield std::move(copy);
-        }
-    }
-
-    // Then check for provisions in existing groups.
-    for (std::size_t i = 0; i < countGroups(); ++i) {
-        if (groups[i].getRemainder().getPrimary()[varId] > 0) {
+        } else {
+            // This group provides this variable. OK.
             auto copy = *this;
             copy.addDesiredToGroup(indexDesired, i);
             co_yield std::move(copy);

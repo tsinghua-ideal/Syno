@@ -80,29 +80,34 @@ std::size_t Color::RemoveTags(std::vector<Tag>& tags, const std::vector<Tag>& to
     return removed;
 }
 
-void Color::merge(const Color& other) {
-    tags = MergeTags(tags, other.tags);
-    dataDiscardingFlag = dataDiscardingFlag || other.dataDiscardingFlag;
-    unorderedFlag = unorderedFlag && other.unorderedFlag;
+Color Color::Repeat(const Color& color) {
+    return static_cast<Color>(color).setHeight(color.getHeight() + 1);
 }
 
-void Color::addTag(Tag tag) {
+Color Color::Merge(const Color& lhs, const Color& rhs) {
+    return {
+        MergeTags(lhs.tags, rhs.tags),
+        lhs.dataDiscardingFlag || rhs.dataDiscardingFlag,
+        lhs.unorderedFlag && rhs.unorderedFlag,
+        std::max(lhs.height, rhs.height) + 1,
+    };
+}
+
+Color& Color::addTag(Tag tag) & {
     // Insert tag into tags and keep it sorted.
     auto it = std::ranges::lower_bound(tags, tag);
     if (it == tags.end() || *it != tag) {
         tags.insert(it, tag);
     }
+    return *this;
 }
 
 bool Color::removeTag(Tag tag) {
     return RemoveTag(tags, tag);
 }
 
-const Color Color::NoneOrdered = Color();
-const Color Color::NoneUnordered = Color().setUnordered(true);
-
-WeightColor::WeightColor(const Dimension& dim):
-    leftTags(dim.getColor().tags), rightTags()
+WeightColor::WeightColor(const Graph& graph, const Dimension& dim):
+    leftTags(graph.colorOf(dim).tags), rightTags()
 {
     if (dim.is(DimensionType::Share)) {
         const auto& input = dim.as<MergeLikeOp::Input>();

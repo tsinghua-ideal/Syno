@@ -21,8 +21,8 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
     // Note: you cannot getNextOp, because it shares the same hash with us.
     // The lock for the NormalStage and this are the same, because we share the same hash and depth.
     // There is no dead lock because we use std::recursive_lock.
-    std::tie(nStage, lock) = NormalStage::Create(getInterface(), *this, std::nullopt, std::move(lock));
-    auto fin = nStage->getFinalizability(lock);
+    std::tie(nStage, lock) = NormalStage::Create(getMutexIndex(), getInterface(), *this, std::nullopt, std::move(lock));
+    auto fin = nStage->experimentFinalizability(lock);
 
     // Check if there is need to generate new stages.
     if (
@@ -168,17 +168,19 @@ bool ReductionStage::canAcceptArcImpl(Arc arc) {
     );
 }
 
-Node ReductionStage::getChildImpl(Arc arc) {
+std::optional<Node> ReductionStage::getChildImpl(Arc arc) {
     KAS_ASSERT(expanded);
-    return arc.match<Node>(
-        [&](auto op) -> Node {
+    return arc.match<std::optional<Node>>(
+        [&](auto op) -> std::optional<Node> {
             if (op->getType() == DimensionType::Reduce) {
-                return { &sampler, getNextOpWithoutLock(op) };
+                auto stage = getNextOpWithoutLock(op);
+                if (stage == nullptr) return std::nullopt;
+                return std::make_optional<Node>(&sampler, stage);
             } else {
                 return nStage->getChildImpl(arc);
             }
         },
-        [&](auto op) -> Node {
+        [&](auto op) -> std::optional<Node> {
             return nStage->getChild(arc);
         }
     );

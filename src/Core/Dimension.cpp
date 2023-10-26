@@ -12,8 +12,8 @@
 
 namespace kas {
 
-Dimension::Origin Dimension::deduceOrigin() const {
-    const auto& color = getColor();
+Dimension::Origin Dimension::deduceOrigin(const Graph& graph) const {
+    const auto& color = graph.colorOf(*this);
     if (is(DimensionTypeWithOrder::ShareR)) {
         KAS_ASSERT(!color.isDataDiscarding(), "A weight dimension must not be data discarding!");
         // As required by canonicalization, rhs of ShareOp is not allowed to be further transformed and must be weight.
@@ -204,9 +204,13 @@ GraphHandle GraphHandle::substitute2to1(const Dimension& fro1, const Dimension& 
 
 Graph GraphHandle::buildGraph() const {
     KAS_ASSERT(isSorted());
-    Graph::Builder builder;
+    GraphBuilder builder;
     builder.addTopmost(*this);
     return builder.build();
+}
+
+std::size_t GraphHandle::hash() const noexcept {
+    return std::hash<GraphHandle>{}(*this);
 }
 
 void Bottommost::extractReductions() {
