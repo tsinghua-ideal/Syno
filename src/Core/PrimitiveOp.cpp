@@ -44,7 +44,7 @@ IteratorValue Valuation::tryValue() const {
 }
 
 Color RepeatLikeOp::Input::computeColor(const GraphBuilder& graphBuilder) const {
-    return graphBuilder.colorOf(op->output);
+    return Color::Repeat(graphBuilder.colorOf(op->output));
 }
 
 std::pair<bool, CompactColor> RepeatLikeOp::transformColor(CompactColor fro) const {
@@ -68,7 +68,7 @@ std::string RepeatLikeOp::descendantsDescription(const BindingContext& ctx) cons
 }
 
 Color SplitLikeOp::Input::computeColor(const GraphBuilder& graphBuilder) const {
-    return { graphBuilder.colorOf(op->outputLhs), graphBuilder.colorOf(op->outputRhs) };
+    return Color::Merge(graphBuilder.colorOf(op->outputLhs), graphBuilder.colorOf(op->outputRhs));
 }
 
 std::tuple<bool, CompactColor, CompactColor> SplitLikeOp::transformColor(CompactColor fro) const {
@@ -92,7 +92,7 @@ std::string SplitLikeOp::descendantsDescription(const BindingContext &ctx) const
 }
 
 Color MergeLikeOp::Input::computeColor(const GraphBuilder& graphBuilder) const {
-    return graphBuilder.colorOf(op->output);
+    return Color::Repeat(graphBuilder.colorOf(op->output));
 }
 
 std::pair<bool, CompactColor> MergeLikeOp::transformColor(CompactColor fro1, CompactColor fro2) const {

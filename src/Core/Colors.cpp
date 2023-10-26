@@ -80,15 +80,20 @@ std::size_t Color::RemoveTags(std::vector<Tag>& tags, const std::vector<Tag>& to
     return removed;
 }
 
-Color& Color::merge(const Color& other) {
-    tags = MergeTags(tags, other.tags);
-    dataDiscardingFlag = dataDiscardingFlag || other.dataDiscardingFlag;
-    unorderedFlag = unorderedFlag && other.unorderedFlag;
-    height = std::max(height, other.height);
-    return *this;
+Color Color::Repeat(const Color& color) {
+    return static_cast<Color>(color).setHeight(color.getHeight() + 1);
 }
 
-Color& Color::addTag(Tag tag) {
+Color Color::Merge(const Color& lhs, const Color& rhs) {
+    return {
+        MergeTags(lhs.tags, rhs.tags),
+        lhs.dataDiscardingFlag || rhs.dataDiscardingFlag,
+        lhs.unorderedFlag && rhs.unorderedFlag,
+        std::max(lhs.height, rhs.height) + 1,
+    };
+}
+
+Color& Color::addTag(Tag tag) & {
     // Insert tag into tags and keep it sorted.
     auto it = std::ranges::lower_bound(tags, tag);
     if (it == tags.end() || *it != tag) {
