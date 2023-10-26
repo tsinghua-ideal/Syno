@@ -19,6 +19,8 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         abstract_path = [self._serializer.deserialize_next(handle) for handle in current_path]
         path = Path(abstract_path)
         node = self.sampler.visit(path)
+        if node is None:
+            return None
         node.expand(1)
         if node.is_dead_end():
             return None
@@ -46,9 +48,10 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         )
 
     custom_predicates = (
-        AbstractPredicate("expand", "Expand the current node for given layers.", ("3")),
+        AbstractPredicate("expand", "Expand the current node for given layers.", ("3",)),
+        AbstractPredicate("fill_lattice", "Expand the lattice of the current node."),
         AbstractPredicate("graphviz", "Generate a graphviz file and print it for the current node."),
-        AbstractPredicate("goto", "Go to the given serialized path. Example: `goto 1234_5678`.", (""), can_work_if_state_invalid=True),
+        AbstractPredicate("goto", "Go to the given serialized path. Example: `goto 1234_5678`.", ("",), can_work_if_state_invalid=True),
         AbstractPredicate("composing", "Print the composing arcs of the current node."),
         AbstractPredicate("statistics", "Print statistics of the sampler.", can_work_if_state_invalid=True),
         AbstractPredicate("realize", "Realize the current node."),
@@ -62,6 +65,10 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         assert depth > 0, f"Depth must be positive, but got {depth}."
         state.expand(depth)
         return AbstractResponse(f"Expanded {depth} layers from current node.")
+
+    def fill_lattice(self, state: VisitedNode) -> AbstractResponse:
+        self._sampler.root().expand_to(state)
+        return AbstractResponse(f"Expanded lattice.")
 
     def graphviz(self, state: VisitedNode) -> Union[str, Tuple[str, List[str]]]:
         # Create a temporary file.
