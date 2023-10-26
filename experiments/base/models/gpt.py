@@ -41,7 +41,7 @@ class CausalSelfAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
         assert config.n_embd % config.n_head == 0
-        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
+        self.c_attn = LinearPlaceholder(config.n_embd, 3 * config.n_embd)
         self.c_proj = nn.Linear(config.n_embd, config.n_embd)
         self.attn_dropout = nn.Dropout(config.attn_pdrop)
         self.resid_dropout = nn.Dropout(config.resid_pdrop)
@@ -76,7 +76,7 @@ class Block(nn.Module):
         self.attn = CausalSelfAttention(config)
         self.ln_2 = nn.LayerNorm(config.n_embd)
         self.mlp = nn.ModuleDict(dict(
-            c_fc    = LinearPlaceholder(config.n_embd, 4 * config.n_embd),
+            c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd),
             c_proj  = nn.Linear(4 * config.n_embd, config.n_embd),
             act     = NewGELU(),
             dropout = nn.Dropout(config.resid_pdrop),
@@ -161,9 +161,9 @@ class GPT(KASModel):
     def sampler_parameters(self, args=None):
          return {
             'input_shape': '[N, seq_len, H_in]',
-            'output_shape': '[N, seq_len, s^2*H_in]',
-            'primary_specs': ['N: 0', 'seq_len: 2', 'H_in: 4'],
-            'coefficient_specs': ['k_1=3: 2', 'k_2=5: 2', 's=2: 3', 'g=32: 3'],
+            'output_shape': '[N, seq_len, t*H_in]',
+            'primary_specs': ['N: 0', 'seq_len: 0', 'H_in: 4'],
+            'coefficient_specs': ['k_1=2: 3', 'k_2=5: 2', 't=3: 3', 'g=32: 3'],
             'fixed_io_pairs': [(0, 0)],
         }
 

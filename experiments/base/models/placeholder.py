@@ -14,7 +14,7 @@ class LinearPlaceholder(Placeholder):
 
     @staticmethod
     def impl(assembler):
-        N, seq_len, H_in, H_out = assembler.get_sizes('N', 'seq_len', 'H_in', 's^2*H_in')
+        N, seq_len, H_in, H_out = assembler.get_sizes('N', 'seq_len', 'H_in', 't*H_in')
         in_N, in_seq_len, in_H_in, w_H_in, w_H_out = assembler.make_dims_of_sizes(N, seq_len, H_in, H_in, H_out)
         
         shared_H_in = assembler.create_share(in_H_in, w_H_in)
