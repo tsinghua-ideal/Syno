@@ -63,6 +63,14 @@ TEST_F(search_tests, forward) {
         node.asFinalStage()->value.printNestedLoopsForAll(ctx),
         tensorView.printNestedLoopsForAll(ctx)
     );
+
+    auto graph = tensorView.buildGraph();
+    const Color& colorN = graph.colorOf(dimN), & colorK1 = graph.colorOf(dimK1), & colorK2 = graph.colorOf(dimK2), & colorH = graph.colorOf(dimH), & colorW = graph.colorOf(dimW);
+    ASSERT_EQ(colorN.getHeight(), 0);
+    ASSERT_EQ(colorK1.getHeight(), 2);
+    ASSERT_EQ(colorK2.getHeight(), 2);
+    ASSERT_EQ(colorH.getHeight(), 3);
+    ASSERT_EQ(colorW.getHeight(), 3);
 }
 
 } // namespace kas
