@@ -119,6 +119,9 @@ class Session:
         
         kernels = []
         for directory in dirs:
+            if not os.path.exists(directory):
+                logging.warning(f"{directory} does not exist......")
+                continue
             for kernel_fmt in os.listdir(directory):
                 kernel_dir = os.path.join(directory, kernel_fmt)
                 if not os.path.isdir(kernel_dir):

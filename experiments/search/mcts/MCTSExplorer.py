@@ -66,6 +66,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             f"\tis_exhausted: {state._exhausted}\n"
             f"\tis_in_tree: {state._isin_tree}\n"
             f"\tstates: {state.state}\n"
+            f"\tvirtual_loss: {state._virtual_loss}\n"
         )
 
     custom_predicates = (
