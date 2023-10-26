@@ -341,6 +341,8 @@ public:
 
     Graph buildGraph() const;
 
+    std::size_t hash() const noexcept;
+
     // FOR DEBUG USAGE ONLY!
     using Topmost::debugDescription;
 };

@@ -209,6 +209,10 @@ Graph GraphHandle::buildGraph() const {
     return builder.build();
 }
 
+std::size_t GraphHandle::hash() const noexcept {
+    return std::hash<GraphHandle>{}(*this);
+}
+
 void Bottommost::extractReductions() {
     decltype(output) newOutput;
     decltype(reductions) newReductions;

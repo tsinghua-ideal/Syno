@@ -194,10 +194,10 @@ bool Node::canAcceptArc(Arc arc) const {
     );
 }
 
-Node Node::getChildFromArc(Arc arc) const {
-    return match<Node>(
+std::optional<Node> Node::getChildFromArc(Arc arc) const {
+    return match<std::optional<Node>>(
         [&](AbstractStage *stage) { return stage->getChild(arc); },
-        [](FinalStage *stage) -> Node { KAS_UNREACHABLE(); }
+        [](FinalStage *stage) -> std::optional<Node> { KAS_UNREACHABLE(); }
     );
 }
 
@@ -263,7 +263,8 @@ void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& 
             ++index;
             continue;
         }
-        auto child = getChildFromArc(arc);
+        // This must not throw! Otherwise the pruning algorithm is wrong.
+        auto child = getChildFromArc(arc).value();
         std::vector<Arc> remainingArcs = arcs;
         remainingArcs.erase(remainingArcs.begin() + index);
         if (task.pool.add(remainingArcs.size(), child)) {
@@ -311,7 +312,8 @@ void Node::expandToSync(Node target) const {
     if (!remainingReductions.empty()) {
         expander.add(LatticeTask { poolBottom, *this, remainingReductions });
         for (const Arc& arc: remainingReductions) {
-            normalBottom = normalBottom.getChildFromArc(arc);
+            // This must not throw! Otherwise the pruning algorithm is wrong.
+            normalBottom = normalBottom.getChildFromArc(arc).value();
         }
     }
     if (!remainingOthers.empty()) {

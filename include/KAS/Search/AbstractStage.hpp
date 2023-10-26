@@ -139,6 +139,8 @@ public:
     // This must be called by Pruner!
     virtual void updateFinalizability(Lock& lock) = 0;
 
+    virtual bool possibleToFinalizeByExperimenting() const { return true; }
+
     virtual Node toNode() = 0;
 
     // Python.
@@ -150,17 +152,17 @@ public:
     virtual std::optional<Node> getChild(Next next) = 0;
     virtual std::vector<std::optional<Node>> getChildren(const std::vector<Next>& nexts) = 0;
     virtual bool canAcceptArc(Arc arc) = 0;
-    virtual Node getChild(Arc arc) = 0;
+    virtual std::optional<Node> getChild(Arc arc) = 0;
     std::string description() const;
 
     inline MutexIndex getMutexIndex() const {
-        return { .depth = depth, .hash = std::hash<GraphHandle>{}(interface) };
+        return { .depth = depth, .hash = interface.hash() };
     }
     inline MutexIndex getNextMutexIndex(bool hasOp, const GraphHandle& interface) const {
-        return { .depth = depth + static_cast<std::size_t>(hasOp), .hash = std::hash<GraphHandle>{}(interface) };
+        return { .depth = depth + static_cast<std::size_t>(hasOp), .hash = interface.hash() };
     }
     static inline MutexIndex GetRootMutexIndex(const GraphHandle& interface) {
-        return { .depth = 0, .hash = std::hash<GraphHandle>{}(interface) };
+        return { .depth = 0, .hash = interface.hash() };
     }
 
     void expand(int layers);
@@ -185,7 +187,7 @@ concept StageImpl = requires(DerivedStageType child, const DerivedStageType::Col
     { child.getArcFromHandleImpl(std::declval<Next>()) } -> std::convertible_to<std::optional<Arc>>;
     { child.getChildImpl(std::declval<Next>()) } -> std::convertible_to<std::optional<Node>>;
     { child.canAcceptArcImpl(std::declval<Arc>()) } -> std::convertible_to<bool>;
-    { child.getChildImpl(std::declval<Arc>()) } -> std::convertible_to<Node>;
+    { child.getChildImpl(std::declval<Arc>()) } -> std::convertible_to<std::optional<Node>>;
 };
 
 // A CRTP template class for AbstractStage. All subclasses must inherit from this class.
@@ -279,21 +281,35 @@ protected:
     std::pair<ChildStageType *, Lock> getNextOp(const PrimitiveOp *op) {
         // When this gets called, we are holding the lock of this stage.
         StageStore& store = sampler.getStageStore();
-        GraphHandle newInterface = op->applyToInterface(interface);
-        Lock lock = std::unique_lock { sampler.getMutex(getNextMutexIndex(true, newInterface)) };
-        if (AbstractStage *found = store.find(depth + 1, newInterface, lock); found) {
+        const bool nextLayer = op != nullptr;
+        GraphHandle newInterface = nextLayer ? op->applyToInterface(interface) : interface;
+        const MutexIndex mutexIndex = getNextMutexIndex(nextLayer, newInterface);
+        Lock lock = std::unique_lock { sampler.getMutex(mutexIndex) };
+        if (AbstractStage *found = store.find(depth + nextLayer, newInterface, lock); found) {
             found->addParent(*this, lock);
             auto childStage = dynamic_cast<ChildStageType *>(found);
             KAS_ASSERT(childStage);
             return { childStage, std::move(lock) };
         } else {
-            auto [tempStage, newLock] = ChildStageType::Create(std::move(newInterface), *this, Next::TypeOf(op->getType()), std::move(lock));
-            if (auto it = store.insert(depth + 1, std::move(tempStage), newLock); it) {
-                auto childStage = dynamic_cast<ChildStageType *>(it);
-                KAS_ASSERT(childStage);
-                return { childStage, std::move(newLock) };
+            auto [tempStage, newLock] = ChildStageType::Create(
+                mutexIndex,
+                std::move(newInterface),
+                *this,
+                nextLayer ? std::make_optional<Next::Type>(Next::TypeOf(op->getType())) : std::nullopt,
+                std::move(lock)
+            );
+            // Perform experimental finalization, i.e., compute the ShapeComplexity of the interface.
+            if (!tempStage->possibleToFinalizeByExperimenting()) {
+                // If proved to be not finalizable, no need to store this.
+                return { nullptr, Lock() };
             } else {
-                KAS_CRITICAL("StageStore::insert() failed.");
+                if (auto it = store.insert(depth + nextLayer, std::move(tempStage), newLock); it) {
+                    auto childStage = dynamic_cast<ChildStageType *>(it);
+                    KAS_ASSERT(childStage);
+                    return { childStage, std::move(newLock) };
+                } else {
+                    KAS_CRITICAL("StageStore::insert() failed.");
+                }
             }
         }
     }
@@ -349,7 +365,7 @@ protected:
 public:
     // The initial lock must be obtained. So we make the constructors invisible to outside.
     template<typename... Args>
-    [[nodiscard]] static std::pair<std::unique_ptr<DerivedStageType>, Lock> Create(Args&&... args) {
+    [[nodiscard]] static std::pair<std::unique_ptr<DerivedStageType>, Lock> Create(const MutexIndex& mutexIndex, Args&&... args) {
         auto stage = std::make_unique<DerivedStageType>(std::forward<Args>(args)...);
         Lock lock = stage->obtainInitialLock();
         return { std::move(stage), std::move(lock) };
@@ -392,7 +408,7 @@ public:
         Lock lock = acquireLock();
         return derived().canAcceptArcImpl(arc);
     }
-    Node getChild(Arc arc) final override {
+    std::optional<Node> getChild(Arc arc) final override {
         Lock lock = acquireLock();
         return derived().getChildImpl(arc);
     }

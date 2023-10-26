@@ -142,6 +142,8 @@ class Node:
         if not self.can_accept_arc(arc):
             return None
         child_node = self._node.get_child_from_arc(arc)
+        if child_node is None:
+            return None
         return Node(child_node)
 
     def get_possible_path(self) -> Path:
@@ -362,6 +364,8 @@ class MockNode(Node):
         if not self.can_accept_arc(arc):
             return None
         child_node = self._node.get_child_from_arc(arc)
+        if child_node is None:
+            return None
         return MockNode(child_node)
 
     def get_child_description(self, next: PseudoNext) -> Optional[str]:

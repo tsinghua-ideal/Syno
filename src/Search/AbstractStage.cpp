@@ -121,7 +121,7 @@ std::size_t AbstractStage::remainingDepth() const {
 }
 
 std::size_t AbstractStage::hash() const {
-    return std::hash<GraphHandle>{}(interface);
+    return interface.hash();
 }
 std::string AbstractStage::description() const {
     return interface.description(sampler.getBindingContext());
