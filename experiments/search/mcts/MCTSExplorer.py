@@ -30,7 +30,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
         ]
         path = TreePath(abstract_path)
         node = self._mcts.visit(path, on_tree=False)
-        if node.is_dead_end():
+        if node is None or node.is_dead_end():
             return None
         return node
 
