@@ -44,6 +44,7 @@ public:
 
     struct GenerateOptions {
         const BindingContext& ctx;
+        const Graph& graph;
         const Allowance& allowance;
         bool disallowMergeWithLargeBlockAboveStride;
         // This canonicalization deviates a lot from original semantics. Enable with caution!
@@ -59,6 +60,7 @@ public:
         BlockRelativelyTooLarge,
         DisallowedAboveStride,
         DisallowedAboveUnfold,
+        UnorderedSizeOrderingViolated,
         SuccessfulGenerations,
     )
     static std::vector<const MergeOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);

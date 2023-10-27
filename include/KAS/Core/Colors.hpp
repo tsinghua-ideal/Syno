@@ -8,6 +8,7 @@
 
 namespace kas {
 
+class DimensionImpl;
 class Dimension;
 class MergeLikeOp;
 
@@ -25,14 +26,14 @@ private:
     // Stride discards data.
     bool dataDiscardingFlag = false;
     // Channels are unordered.
-    bool unorderedFlag = false;
+    const DimensionImpl *unorderedScope = nullptr;
     // Length of longest chain of primitives below this Dimension.
     int height = 0;
 
-    Color(auto&& tags, bool dataDiscardingFlag, bool unorderedFlag, int height):
+    Color(auto&& tags, bool dataDiscardingFlag, const DimensionImpl *unorderedScope, int height):
         tags { std::forward<decltype(tags)>(tags) },
         dataDiscardingFlag { dataDiscardingFlag },
-        unorderedFlag { unorderedFlag },
+        unorderedScope { unorderedScope },
         height { height }
     {}
     Color(const Color&) = default;
@@ -65,9 +66,9 @@ public:
     bool isDataDiscarding() const { return dataDiscardingFlag; }
     Color& setDataDiscarding(bool value) & { dataDiscardingFlag = value; return *this; }
     Color setDataDiscarding(bool value) && { return std::move(static_cast<Color&>(*this).setDataDiscarding(value)); }
-    bool isUnordered() const { return unorderedFlag; }
-    Color& setUnordered(bool value) & { unorderedFlag = value; return *this; }
-    Color setUnordered(bool value) && { return std::move(static_cast<Color&>(*this).setUnordered(value)); }
+    bool isUnordered() const { return unorderedScope != nullptr; }
+    Color& setUnordered(const DimensionImpl *value) &;
+    Color setUnordered(const DimensionImpl *value) && { return std::move(static_cast<Color&>(*this).setUnordered(value)); }
     int getHeight() const { return height; }
     Color& setHeight(int value) & { height = value; return *this; }
     Color setHeight(int value) && { return std::move(static_cast<Color&>(*this).setHeight(value)); }

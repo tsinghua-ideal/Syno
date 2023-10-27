@@ -29,7 +29,7 @@ public:
     constexpr DimensionType type() const noexcept override { return DimensionType::Iterator; }
     void accept(DimVisitor& visitor) const final override;
     const PrimitiveOp *getOpBelow() const override { return nullptr; }
-    Color computeColor(const GraphBuilder& graphBuilder) const override { return isUnordered ? Color().setUnordered(true) : Color(); }
+    Color computeColor(const GraphBuilder& graphBuilder) const override { return isUnordered ? Color().setUnordered(this) : Color(); }
 
     std::size_t getIndex() const { return index; }
     std::string getName() const {

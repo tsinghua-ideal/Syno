@@ -68,7 +68,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const To
 
     // Canonicalization. Manually handle SplitOp, StrideOp(s<B) and UnfoldOp(k<B).
     using T = DimensionTypeWithOrder;
-    auto plausible = interface.filterOut({ T::ShareL, T::ShareR, T::Split, T::MergeR });
+    auto plausible = interface.filterOut({ T::ShareL, T::ShareR, T::Split, T::MergeL });
 
     std::vector<const MergeOp *> res;
     auto checkThenAdd = [&options, &store, &res](const Dimension& dim, Size&& block) {
@@ -100,6 +100,22 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const To
             if (auto u = dim.tryAs<UnfoldOp::Input>(); u) {
                 if ((block / u->getDerivedOp<UnfoldOp>()->getWindow()).lowerBoundEst(options.ctx) > static_cast<std::size_t>(1)) {
                     ++CountDisallowedAboveUnfold;
+                    return;
+                }
+            }
+        }
+        if (options.graph.colorOf(dim).isUnordered()) {
+            // If unordered, we must follow the order of sizes.
+            auto lhs = dim.size() / block;
+            if (!Size::LexicographicalLEQ(lhs, block)) {
+                ++CountUnorderedSizeOrderingViolated;
+                return;
+            }
+            if (auto merge = dim.tryAs<MergeOp::Input>(); merge) {
+                KAS_ASSERT(merge->getOrder() == Order::Right);
+                // Enforce the order of sizes.
+                if (!Size::LexicographicalLEQ(merge->getDerivedOp<MergeOp>()->getGroup(), lhs)) {
+                    ++CountUnorderedSizeOrderingViolated;
                     return;
                 }
             }

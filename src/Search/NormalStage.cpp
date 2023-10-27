@@ -206,6 +206,7 @@ void NormalStage::guardGeneratedChildren() {
             if (options.maximumMerges == -1 || options.maximumMerges > existingOp<MergeOp>()) {
                 add(MergeOp::Generate(store, prospectiveInterface, {
                     .ctx = ctx,
+                    .graph = graph,
                     .allowance = allowance,
                     .disallowMergeWithLargeBlockAboveStride = options.disallowMergeWithLargeBlockAboveStride,
                     .disallowMergeWithLargeBlockAboveUnfold = options.disallowMergeWithLargeBlockAboveUnfold,

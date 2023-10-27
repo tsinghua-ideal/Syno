@@ -88,7 +88,7 @@ Color Color::Merge(const Color& lhs, const Color& rhs) {
     return {
         MergeTags(lhs.tags, rhs.tags),
         lhs.dataDiscardingFlag || rhs.dataDiscardingFlag,
-        lhs.unorderedFlag && rhs.unorderedFlag,
+        lhs.unorderedScope == rhs.unorderedScope ? lhs.unorderedScope : nullptr,
         std::max(lhs.height, rhs.height) + 1,
     };
 }
@@ -104,6 +104,11 @@ Color& Color::addTag(Tag tag) & {
 
 bool Color::removeTag(Tag tag) {
     return RemoveTag(tags, tag);
+}
+
+Color& Color::setUnordered(const DimensionImpl *value) & {
+    unorderedScope = value;
+    return *this;
 }
 
 WeightColor::WeightColor(const Graph& graph, const Dimension& dim):
