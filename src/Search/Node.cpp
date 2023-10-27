@@ -161,6 +161,15 @@ Node Node::arbitraryParent() const {
     );
 }
 
+ShapeDistance Node::getShapeDistance() const {
+    return match<ShapeDistance>(
+        [&](AbstractStage *stage) { return stage->getShapeDistance(); },
+        [&](FinalStage *stage) -> ShapeDistance {
+            return { 0, stage->value.getFLOPs(sampler->getBindingContext()) };
+        }
+    );
+}
+
 std::size_t Node::countChildren() const {
     return match<std::size_t>(
         [](AbstractStage *stage) { return stage->countChildren(); },

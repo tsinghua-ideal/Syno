@@ -15,6 +15,16 @@
 
 namespace kas {
 
+struct ShapeDistance {
+    std::size_t steps;
+    std::size_t flops;
+    bool operator==(const ShapeDistance& rhs) const noexcept = default;
+    std::strong_ordering operator<=>(const ShapeDistance& rhs) const noexcept = default;
+    static constexpr std::size_t MaxFLOPs = std::numeric_limits<std::size_t>::max();
+    static const ShapeDistance Infinity;
+    std::string toString() const;
+};
+
 // FLOPsGame that includes ShareOp's.
 class ExtendedFLOPsGame {
     struct Adjacency {
@@ -82,7 +92,7 @@ public:
         std::vector<ColoredDimension> buildFullWeightDims(const std::vector<ColoredDimension>& selectedWeightDims) const;
     };
 
-    static std::size_t Distance(
+    static ShapeDistance Distance(
         // Dimension and corresponding remainingLength, computed from maxChainLength.
         // Still required to be sorted.
         const std::vector<std::pair<Dimension, int>>& current,

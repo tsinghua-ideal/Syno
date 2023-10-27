@@ -337,6 +337,7 @@ class ReductionStage;
 class NormalStage;
 class FinalStage;
 struct LatticeTask;
+struct ShapeDistance;
 
 class Node {
     friend struct Next;
@@ -422,6 +423,7 @@ public:
     std::string getNestedLoopsAsFinal() const;
 
     Node arbitraryParent() const;
+    ShapeDistance getShapeDistance() const;
     // The count of children nodes.
     std::size_t countChildren() const;
     std::vector<Next> getChildrenHandles() const;

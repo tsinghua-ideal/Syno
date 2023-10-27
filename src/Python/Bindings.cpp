@@ -224,9 +224,16 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("to_next", &Arc::toNext)
         .def("__repr__", &Arc::toString);
 
+    pybind11::class_<ShapeDistance>(m, "ShapeDistance")
+        .def_readwrite("steps", &ShapeDistance::steps)
+        .def_readwrite("flops", &ShapeDistance::flops)
+        .def("__repr__", &ShapeDistance::toString);
+
     pybind11::class_<Node>(m, "Node")
         .def("__eq__", &Node::operator==)
         .def("__hash__", &Node::hash)
+        .def("arbitrary_parent", &Node::arbitraryParent)
+        .def("get_shape_distance", &Node::getShapeDistance)
         .def("children_count", &Node::countChildren)
         .def("get_children_handles", &Node::getChildrenHandles)
         .def("get_children_arcs", &Node::getChildrenArcs)

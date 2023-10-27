@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from . import Bindings
-from .Bindings import Next, Arc
+from .Bindings import Next, Arc, ShapeDistance
 
 
 AbsolutePath = List[Next]
@@ -93,6 +93,14 @@ class Node:
 
     def __hash__(self) -> int:
         return hash(self._node)
+
+    def arbitrary_parent(self) -> 'Node':
+        """Do not call this on root."""
+        return Node(self._node.arbitrary_parent())
+
+    def get_shape_distance(self) -> ShapeDistance:
+        """Get the shape distance of a node."""
+        return self._node.get_shape_distance()
 
     def children_count(self) -> int:
         """Get the number of all children of a node."""
@@ -266,6 +274,12 @@ class MockNodeMetadata:
 
     def _mock_children(self) -> Dict[Next, 'MockNodeMetadata']:
         return self._mock_sampler.mock_get_children(self._id)
+
+    def arbitrary_parent(self) -> Optional['MockNodeMetadata']:
+        raise NotImplementedError("MockNodeMetadata does not support arbitrary_parent.")
+
+    def get_shape_distance(self) -> ShapeDistance:
+        raise NotImplementedError("MockNodeMetadata does not support get_shape_distance.")
 
     def children_count(self) -> int:
         return len(self._mock_children())

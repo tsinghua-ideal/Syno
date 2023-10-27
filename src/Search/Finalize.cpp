@@ -15,6 +15,16 @@
 
 namespace kas {
 
+const ShapeDistance ShapeDistance::Infinity = { ShapeComplexity::Infinity, MaxFLOPs };
+
+std::string ShapeDistance::toString() const {
+    if (steps == ShapeComplexity::Infinity) {
+        return "ShapeDistance(Infinity)";
+    } else {
+        return fmt::format("ShapeDistance(steps={}, flops={})", steps, flops);
+    }
+}
+
 namespace {
 
 struct CollectedDecreaseAndShare {
@@ -251,7 +261,7 @@ std::vector<ColoredDimension> FinalizeOp::FLOPsGameOptions::buildFullWeightDims(
     return result;
 }
 
-std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& current, const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, std::optional<FLOPsGameOptions> flopsOptions) {
+ShapeDistance FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& current, const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, std::optional<FLOPsGameOptions> flopsOptions) {
     int strideDist = 0;
 
     std::vector<std::pair<Size, int>> mustBeInput, canBeWeight;
@@ -269,7 +279,7 @@ std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& c
         case Dimension::Origin::UnfoldOrExpand:
             ++strideDist; // We need an Unfold to eliminate this.
             if (remainingLength <= 0) {
-                return ShapeComplexity::Infinity;
+                return ShapeDistance::Infinity;
             }
             break;
         default:
@@ -277,27 +287,30 @@ std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& c
         }
     }
     if (strideDist > options.remainingUnfoldsAndExpands) {
-        return ShapeComplexity::Infinity; // Early stop.
+        return ShapeDistance::Infinity; // Early stop.
     }
 
     // Then, experimentally finalize.
-    std::size_t minimumComplexity = ShapeComplexity::Infinity;
+    
+    ShapeDistance minimumComplexity = ShapeDistance::Infinity;
     std::vector<std::pair<Size, int>> newCurrent = mustBeInput;
     std::vector<ColoredDimension> selectedWeightDims;
-    auto extendedGame = ExtendedFLOPsGame(options.ctx, desired.totalSize(), graph);
+    const bool estimateFLOPs = flopsOptions.has_value();
+    std::optional<ExtendedFLOPsGame> extendedGame;
+    if (estimateFLOPs) extendedGame.emplace(options.ctx, desired.totalSize(), graph);
     auto recursion = [&]<bool CheckFLOPs>(const auto& self, std::size_t trialIndex) -> void {
         // In either cases, we do not need to further compute.
         if (trialIndex == canBeWeight.size()) {
-            const std::size_t overflow = std::min(minimumComplexity, options.overflow);
-            std::size_t trial = ShapeComplexity::Compute(desired, newCurrent, {
+            const std::size_t overflow = std::min(minimumComplexity.steps, options.overflow);
+            ShapeDistance trial = { ShapeComplexity::Compute(desired, newCurrent, {
                 .ctx = options.ctx,
                 .remainingMerges = options.remainingMerges,
                 .remainingSplits = options.remainingSplits,
                 .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - strideDist,
                 .overflow = overflow,
-            });
+            }), ShapeDistance::MaxFLOPs };
             if constexpr (CheckFLOPs) {
-                if (trial <= overflow) {
+                if (trial.steps <= overflow) {
                     std::size_t minFLOPs = std::numeric_limits<std::size_t>::max();
                     // Collect all weights.
                     auto allWeightDims = flopsOptions->buildFullWeightDims(selectedWeightDims);
@@ -306,13 +319,15 @@ std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& c
                         .maxWeights = MaxTensorsToMaxWeights(flopsOptions->maximumTensors),
                         .allowWeightPermutation = false,
                     })) {
-                        auto game = extendedGame.getGameWithWeights(weights);
+                        auto game = extendedGame->getGameWithWeights(weights);
                         auto gameFLOPs = game.FLOPs();
                         minFLOPs = std::min(minFLOPs, gameFLOPs);
                     }
                     if (minFLOPs > flopsOptions->maxFLOPs) {
                         // This is not a valid solution.
-                        trial = ShapeComplexity::Infinity;
+                        trial.steps = ShapeComplexity::Infinity;
+                    } else {
+                        trial.flops = minFLOPs;
                     }
                 }
             }
@@ -328,15 +343,16 @@ std::size_t FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& c
             KAS_UNREACHABLE();
         }
     };
-    if (flopsOptions.has_value()) {
+    if (estimateFLOPs) {
         recursion.template operator()<true>(recursion, 0);
     } else {
         recursion.template operator()<false>(recursion, 0);
     }
-    if (minimumComplexity == ShapeComplexity::Infinity) {
-        return ShapeComplexity::Infinity;
+    if (minimumComplexity.steps == ShapeComplexity::Infinity) {
+        return ShapeDistance::Infinity;
     } else {
-        return minimumComplexity + strideDist;
+        minimumComplexity.steps += strideDist;
+        return minimumComplexity;
     }
 }
 

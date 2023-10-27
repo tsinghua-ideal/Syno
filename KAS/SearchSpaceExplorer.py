@@ -44,6 +44,7 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
             f"\tis_final: {state.is_final()}\n"
             f"\tis_dead_end: {state.is_dead_end()}\n"
             f"\tdiscovered_final_descendant: {state.discovered_final_descendant()}\n"
+            f"\tshape_distance: {state.get_shape_distance()}\n"
             f"Children summary: {state.get_children_types()}\n"
         )
 

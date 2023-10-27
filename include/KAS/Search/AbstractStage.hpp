@@ -141,6 +141,7 @@ public:
     virtual void updateFinalizability(Lock& lock) = 0;
 
     virtual bool possibleToFinalizeByExperimenting() const { return true; }
+    virtual ShapeDistance getShapeDistance() const = 0;
 
     virtual Node toNode() = 0;
 
@@ -320,6 +321,9 @@ protected:
         return childStage;
     }
 
+    ShapeDistance getShapeDistanceImpl() const {
+        return { remainingDepth(), 0 };
+    }
     std::size_t countChildrenImpl() const {
         return nextSlotStore.size();
     }
@@ -370,6 +374,11 @@ public:
         auto stage = std::make_unique<DerivedStageType>(std::forward<Args>(args)...);
         Lock lock = stage->obtainInitialLock();
         return { std::move(stage), std::move(lock) };
+    }
+
+    ShapeDistance getShapeDistance() const final override {
+        Lock lock = acquireLock();
+        return derived().getShapeDistanceImpl();
     }
 
     Node toNode() final override {

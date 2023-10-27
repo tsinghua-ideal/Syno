@@ -1,3 +1,4 @@
+#include "KAS/Core/BindingContext.hpp"
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/NormalStage.hpp"
@@ -89,6 +90,10 @@ void NormalStage::guardGeneratedChildren() {
     }
     KAS_ASSERT(!generatingChildren);
     generatingChildren = true;
+
+    KAS_ASSERT(shapeDistance.steps <= remainingDepth(), "You must first call possibleToFinalizeByExperimenting, then determineFinalizability before calling guardGeneratedChildren.");
+    const bool inCriticalState = shapeDistance.steps == remainingDepth();
+
     const BindingContext& ctx = sampler.getBindingContext();
     const SampleOptions& options = sampler.getOptions();
     PrimitiveOpStore& store = sampler.getOpStore();
@@ -276,7 +281,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
         int existing = existingOps[existingType];
         return maximum == -1 ? static_cast<int>(options.depth) : std::max(maximum - existing, 0);
     };
-    const std::size_t distance = FinalizeOp::Distance(
+    const ShapeDistance distance = FinalizeOp::Distance(
         current, sampler.getInputShape(), graph,
         {
             .ctx = ctx,
@@ -289,13 +294,12 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
             std::make_optional<FinalizeOp::FLOPsGameOptions>(options.maximumTensors, options.maxFLOPs, weightDims) :
             std::nullopt
     );
-    if (distance > remainingDepth()) {
+    if (distance.steps > remainingDepth()) {
         ++CountShapeDeviatesTooMuch;
         return false;
-    } else if (distance == remainingDepth()) {
-        // Save this information.
-        inCriticalState = true;
     }
+    // Save this information.
+    shapeDistance = distance;
 
     return true;
 }
@@ -343,6 +347,10 @@ Finalizability NormalStage::experimentFinalizability(Lock& lock) {
         determineFinalizability(Finalizability::No, false);
     }
     return getFinalizability(lock);
+}
+
+ShapeDistance NormalStage::getShapeDistanceImpl() const {
+    return shapeDistance;
 }
 
 std::size_t NormalStage::countChildrenImpl() {
