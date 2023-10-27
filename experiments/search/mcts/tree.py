@@ -350,13 +350,15 @@ class MCTSTree:
                 final_nodes,
             )
         )
-
+        
         if len(final_nodes) < self.leaf_num or leaf_expanded.is_dead_end():
             logging.info(f"Simulation from {tree_path} failed, flushing failure time. ")
-            leaf_expanded.set_simulate_fail()
+            if not leaf_expanded.is_alive():
+                leaf_expanded.set_simulate_fail()
             return None
 
         self.simulate_time_ema /= 2
+        leaf_expanded.set_alive()
 
         final_nodes = [
             (TreePath(path), self.touch(node, path=path))
