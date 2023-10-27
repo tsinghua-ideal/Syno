@@ -12,7 +12,7 @@ TEST_F(search_tests, sampler) {
     std::size_t failedReconstruction = 0;
     for (int i = 0; i < trials; ++i) {
         auto randomLeaves = sampler.randomFinalNodesWithPrefix({}, 32);
-        for (const auto& [_, node]: randomLeaves) {
+        for (auto& [sampledPath, node]: randomLeaves) {
             auto path = sampler.convertTensorViewToPath(node.asFinalStage()->value);
             auto reconstructedNode = sampler.visit(path);
             if (reconstructedNode.has_value()) {
@@ -27,6 +27,12 @@ TEST_F(search_tests, sampler) {
             fmt::print("Expanding lattice... ");
             sampler.visit({})->expandToSync(node);
             fmt::print("Done.\n");
+            auto flops = node.asFinalStage()->value.getFLOPs(ctx);
+            while (!sampledPath.empty()) {
+                auto distance = sampler.visit(sampledPath)->getShapeDistance();
+                ASSERT_LE(distance.flops, flops);
+                sampledPath.pop_back();
+            }
         }
         if (randomLeaves.empty()) {
             fmt::print("Trial {} failed.\n", i);

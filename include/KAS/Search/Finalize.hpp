@@ -84,6 +84,7 @@ public:
     static std::size_t MaxTensorsToMaxWeights(std::size_t maxTensors) { return maxTensors - 1; }
 
     struct FLOPsGameOptions {
+        bool prune;
         std::size_t maximumTensors;
         std::size_t maxFLOPs;
         // Required to be sorted by hash.
@@ -96,7 +97,7 @@ public:
         // Dimension and corresponding remainingLength, computed from maxChainLength.
         // Still required to be sorted.
         const std::vector<std::pair<Dimension, int>>& current,
-        const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, std::optional<FLOPsGameOptions> flopsOptions
+        const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, const FLOPsGameOptions& flopsOptions
     );
 
     KAS_STATISTICS_DEF(

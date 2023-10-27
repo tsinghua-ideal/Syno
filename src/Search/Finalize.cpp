@@ -261,7 +261,7 @@ std::vector<ColoredDimension> FinalizeOp::FLOPsGameOptions::buildFullWeightDims(
     return result;
 }
 
-ShapeDistance FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& current, const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, std::optional<FLOPsGameOptions> flopsOptions) {
+ShapeDistance FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& current, const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, const FLOPsGameOptions& flopsOptions) {
     int strideDist = 0;
 
     std::vector<std::pair<Size, int>> mustBeInput, canBeWeight;
@@ -295,10 +295,9 @@ ShapeDistance FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>&
     ShapeDistance minimumComplexity = ShapeDistance::Infinity;
     std::vector<std::pair<Size, int>> newCurrent = mustBeInput;
     std::vector<ColoredDimension> selectedWeightDims;
-    const bool estimateFLOPs = flopsOptions.has_value();
-    std::optional<ExtendedFLOPsGame> extendedGame;
-    if (estimateFLOPs) extendedGame.emplace(options.ctx, desired.totalSize(), graph);
-    auto recursion = [&]<bool CheckFLOPs>(const auto& self, std::size_t trialIndex) -> void {
+    auto extendedGame = ExtendedFLOPsGame(options.ctx, desired.totalSize(), graph);
+    const bool checkFLOPs = flopsOptions.prune;
+    auto recursion = [&](const auto& self, std::size_t trialIndex) -> void {
         // In either cases, we do not need to further compute.
         if (trialIndex == canBeWeight.size()) {
             const std::size_t overflow = std::min(minimumComplexity.steps, options.overflow);
@@ -309,45 +308,39 @@ ShapeDistance FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>&
                 .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - strideDist,
                 .overflow = overflow,
             }), ShapeDistance::MaxFLOPs };
-            if constexpr (CheckFLOPs) {
-                if (trial.steps <= overflow) {
-                    std::size_t minFLOPs = std::numeric_limits<std::size_t>::max();
-                    // Collect all weights.
-                    auto allWeightDims = flopsOptions->buildFullWeightDims(selectedWeightDims);
-                    // Enumerate weight dim assignment.
-                    for (auto weights: AssignToWeights(allWeightDims, {
-                        .maxWeights = MaxTensorsToMaxWeights(flopsOptions->maximumTensors),
-                        .allowWeightPermutation = false,
-                    })) {
-                        auto game = extendedGame->getGameWithWeights(weights);
-                        auto gameFLOPs = game.FLOPs();
-                        minFLOPs = std::min(minFLOPs, gameFLOPs);
-                    }
-                    if (minFLOPs > flopsOptions->maxFLOPs) {
-                        // This is not a valid solution.
-                        trial.steps = ShapeComplexity::Infinity;
-                    } else {
-                        trial.flops = minFLOPs;
-                    }
+            if (trial.steps <= overflow) {
+                std::size_t minFLOPs = std::numeric_limits<std::size_t>::max();
+                // Collect all weights.
+                auto allWeightDims = flopsOptions.buildFullWeightDims(selectedWeightDims);
+                // Enumerate weight dim assignment.
+                for (auto weights: AssignToWeights(allWeightDims, {
+                    .maxWeights = MaxTensorsToMaxWeights(flopsOptions.maximumTensors),
+                    .allowWeightPermutation = false,
+                })) {
+                    auto game = extendedGame.getGameWithWeights(weights);
+                    auto gameFLOPs = game.FLOPs();
+                    minFLOPs = std::min(minFLOPs, gameFLOPs);
+                }
+                if (checkFLOPs && minFLOPs > flopsOptions.maxFLOPs) {
+                    // This is not a valid solution.
+                    trial.steps = ShapeComplexity::Infinity;
+                } else {
+                    trial.flops = minFLOPs;
                 }
             }
             minimumComplexity = std::min(minimumComplexity, trial);
         } else if (trialIndex < canBeWeight.size()) {
-            self.template operator()<CheckFLOPs>(self, trialIndex + 1);
+            self(self, trialIndex + 1);
             newCurrent.emplace_back(canBeWeight[trialIndex]);
-            if constexpr (CheckFLOPs) selectedWeightDims.emplace_back(canBeWeightDims[trialIndex]);
-            self.template operator()<CheckFLOPs>(self, trialIndex + 1);
+            selectedWeightDims.emplace_back(canBeWeightDims[trialIndex]);
+            self(self, trialIndex + 1);
             newCurrent.pop_back();
-            if constexpr (CheckFLOPs) selectedWeightDims.pop_back();
+            selectedWeightDims.pop_back();
         } else {
             KAS_UNREACHABLE();
         }
     };
-    if (estimateFLOPs) {
-        recursion.template operator()<true>(recursion, 0);
-    } else {
-        recursion.template operator()<false>(recursion, 0);
-    }
+    recursion(recursion, 0);
     if (minimumComplexity.steps == ShapeComplexity::Infinity) {
         return ShapeDistance::Infinity;
     } else {

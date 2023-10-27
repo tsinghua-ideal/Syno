@@ -290,9 +290,12 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
             .remainingUnfoldsAndExpands = remaining(options.maximumUnfolds, Next::Type::Unfold) + remaining(options.maximumExpands, Next::Type::Expand),
             .overflow = remainingDepth(),
         },
-        options.enableFLOPsBasedPruning ?
-            std::make_optional<FinalizeOp::FLOPsGameOptions>(options.maximumTensors, options.maxFLOPs, weightDims) :
-            std::nullopt
+        {
+            .prune = options.enableFLOPsBasedPruning,
+            .maximumTensors = options.maximumTensors,
+            .maxFLOPs = options.maxFLOPs,
+            .weightDims = weightDims,
+        }
     );
     if (distance.steps > remainingDepth()) {
         ++CountShapeDeviatesTooMuch;

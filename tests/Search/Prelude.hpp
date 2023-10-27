@@ -24,9 +24,8 @@ protected:
         options.dimUpperBound = 10;
         options.maximumTensors = 4;
         options.maximumReductions = 2;
-        options.maxFLOPs = 1e6;
+        options.maxFLOPs = 5e4;
         options.maxChainLength = 5;
-        options.enableFLOPsBasedPruning = true;
         return options;
     }();
     Sampler sampler = {"[N,H,W]", "[N,H,W]", {"N=3:0", "H:0", "W:1"}, {"k_1=3:4", "s_1=2:2"}, {dict}, {{0, 0}}, options, 12};
