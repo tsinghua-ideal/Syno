@@ -28,7 +28,7 @@ class Handler:
         j = self.session.get(f"{self.addr}/sample", timeout=self.timeout).json()
         assert "path" in j
         return j["path"]
-    
+
     def fetch(self, path: str) -> str:
         logging.info(f"Fetch: {self.addr}/fetch/{path}")
         response = self.session.get(f"{self.addr}/fetch/{path}", timeout=self.timeout)
@@ -38,15 +38,15 @@ class Handler:
             os.remove(file_name)
         if os.path.exists(folder_name):
             shutil.rmtree(folder_name)
-        with open(file_name, mode='wb') as f:               
+        with open(file_name, mode="wb") as f:
             f.write(response.content)
-        with tarfile.open(file_name, 'r') as tar:
+        with tarfile.open(file_name, "r") as tar:
             tar.extractall(self.cache_dir)
         assert os.path.exists(folder_name)
         return folder_name
 
-    def reward(self, path, accuracy, flops, params, kernel_dir, loss):
-        message = f"{self.addr}/reward?path={path}&accuracy={accuracy}&flops={flops}&params={params}&kernel_dir={kernel_dir}&loss={loss}"
+    def reward(self, path, accuracy, flops, params, kernel_flag, loss):
+        message = f"{self.addr}/reward?path={path}&accuracy={accuracy}&flops={flops}&params={params}&kernel_flag={kernel_flag}&loss={loss}"
         logging.info("Post: " + message)
         self.session.post(message, timeout=self.timeout)
 
@@ -91,14 +91,16 @@ def main():
                 break
 
             logging.info(f"Got a new path: {path}")
-            
+
             while True:
                 try:
                     kernel_directory = client.fetch(path)
                     logging.info(f"Fetched {path} in {kernel_directory}. ")
                     break
                 except Exception as e:
-                    logging.info(f"Fetching {path} failed because of {e}. Retrying......")
+                    logging.info(
+                        f"Fetching {path} failed because of {e}. Retrying......"
+                    )
                     time.sleep(10)
 
             # Mock evaluate
@@ -110,8 +112,8 @@ def main():
                     -1 if random.random() < 0.5 else random.random(),
                     random.randint(int(1e6), int(1e7)),
                     random.randint(int(1e6), int(1e7)),
-                    "MOCKPATH", 
-                    0
+                    "MOCKPATH",
+                    0,
                 )
                 continue
 
@@ -119,11 +121,23 @@ def main():
             try:
                 kernel_loader = KernelLoader.from_directory(kernel_directory)
                 try:
-                    kernel_dir = model.load_kernel(kernel_loader, compile=args.compile, batch_size=args.batch_size, seq_len=args.gpt_seq_len)
+                    kernel_flag = model.load_kernel(
+                        kernel_loader,
+                        compile=args.compile,
+                        batch_size=args.batch_size,
+                        seq_len=args.gpt_seq_len,
+                    )
                 except Exception as e:
                     if args.compile:
-                        logging.warning("torch compile error, falling back to non-compile version. ")
-                        kernel_dir = model.load_kernel(kernel_loader, compile=False, batch_size=args.batch_size, seq_len=args.gpt_seq_len)
+                        logging.warning(
+                            "torch compile error, falling back to non-compile version. "
+                        )
+                        kernel_flag = model.load_kernel(
+                            kernel_loader,
+                            compile=False,
+                            batch_size=args.batch_size,
+                            seq_len=args.gpt_seq_len,
+                        )
                     else:
                         raise e
                 flops, params = model.profile(args.batch_size, seq_len=args.gpt_seq_len)
@@ -133,15 +147,19 @@ def main():
 
                 logging.info("Evaluating on real dataset ...")
                 if "gpt" not in args.model:
-                    accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
+                    accuracy = max(
+                        trainer.train(model, train_dataloader, val_dataloader, args)
+                    )
                     loss = 0
                 else:
                     accuracy = 0
-                    losses = trainer.train_gpt(model, train_dataloader, val_dataloader, args)
+                    losses = trainer.train_gpt(
+                        model, train_dataloader, val_dataloader, args
+                    )
                     losses = list(map(lambda t: t[1], losses))
                     assert len(losses) >= 1
                     len_not_avg = max(int(len(losses) * 0.8), 1)
-                    loss = np.mean(losses[len_not_avg - 1:])
+                    loss = np.mean(losses[len_not_avg - 1 :])
                     logging.info(f"Meaned loss of last 20%: {loss}")
 
             except Exception as e:
@@ -149,8 +167,14 @@ def main():
                     raise e
                 logging.warning(f"OOM when evaluating {path}, skipping ...")
                 model.remove_thop_hooks()
-                flops, params, accuracy, kernel_dir, loss = 0, 0, -1, "EMPTY", args.gpt_max_loss
-            client.reward(path, accuracy, flops, params, kernel_dir, loss)
+                flops, params, accuracy, kernel_flag, loss = (
+                    0,
+                    0,
+                    -1,
+                    "EMPTY",
+                    args.gpt_max_loss,
+                )
+            client.reward(path, accuracy, flops, params, kernel_flag, loss)
     except KeyboardInterrupt:
         logging.info("Interrupted by user, exiting ...")
 

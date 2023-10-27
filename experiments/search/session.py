@@ -105,18 +105,18 @@ class Session:
                 json.dump(vars(self.args), f, indent=2)
         except Exception as e:
             logging.info(f"Saving failed. {e} {traceback.format_exc()}")
-    
+
         self.last_save_time = time.time()
-    
+
     def fast_update(self):
         if not os.path.exists(self.evaluation_result_file):
             return
-        
+
         logging.info(f"Fast updating with files in {self.evaluation_result_file}")
-        
+
         with open(self.evaluation_result_file) as f:
-            dirs = [l[:-1] for l in f.readlines() if l[-1] == '\n']
-        
+            dirs = [l[:-1] for l in f.readlines() if l[-1] == "\n"]
+
         kernels = []
         for directory in dirs:
             if not os.path.exists(directory):
@@ -129,7 +129,11 @@ class Session:
                 if "cache" in kernel_dir:
                     continue
                 files = list(os.listdir(kernel_dir))
-                assert "graph.dot" in files and "loop.txt" in files and "meta.json" in files
+                assert (
+                    "graph.dot" in files
+                    and "loop.txt" in files
+                    and "meta.json" in files
+                )
 
                 meta_path = os.path.join(kernel_dir, "meta.json")
                 with open(meta_path, "r") as f:
@@ -146,10 +150,16 @@ class Session:
                     )
                 )
         kernels = sorted(kernels, key=lambda x: x[0])
-        
+
         for kernel in kernels:
             logging.info(f"Fast updating with {kernel[1]}")
-            path, accuracy, loss, flops, params = kernel[1], kernel[2], kernel[3], kernel[4], kernel[5]
+            path, accuracy, loss, flops, params = (
+                kernel[1],
+                kernel[2],
+                kernel[3],
+                kernel[4],
+                kernel[5],
+            )
             # Update with reward
             if self.target == "loss":
                 reward = max((self.max_loss - loss), 0) / self.max_loss
@@ -158,14 +168,22 @@ class Session:
                     reward = -1
             elif accuracy > 0:
                 if self.target == "flops" and accuracy >= self.min_accuracy:
-                    reward = self.min_accuracy + \
-                        max(0, 1.0 - (flops / self.original_flops) / self.max_flops_ratio) * (1 - self.min_accuracy)
+                    reward = self.min_accuracy + max(
+                        0, 1.0 - (flops / self.original_flops) / self.max_flops_ratio
+                    ) * (1 - self.min_accuracy)
                 else:
-                    reward = (max(accuracy, self.reward_lower_bound) - self.reward_lower_bound) / (1 - self.reward_lower_bound) / self.reward_upper_bound
+                    reward = (
+                        (
+                            max(accuracy, self.reward_lower_bound)
+                            - self.reward_lower_bound
+                        )
+                        / (1 - self.reward_lower_bound)
+                        / self.reward_upper_bound
+                    )
                 reward = reward ** self.reward_power
             else:
                 reward = -1
-                
+
             self.algo.load_eval_result(path, reward)
 
     def load(self):
@@ -178,7 +196,7 @@ class Session:
         self.algo.deserialize(state)
         logging.info("Successfully loaded session. ")
 
-    def update(self, path, accuracy, flops, params, kernel_dir, loss):
+    def update(self, path, accuracy, flops, params, kernel_flag, loss):
         # No receiving timeout kernels
         if path in self.timeout_samples:
             logging.debug(f"{path} is removed due to timeout...")
@@ -238,17 +256,20 @@ class Session:
                         "accuracy": accuracy,
                         "flops": flops,
                         "params": params,
-                        "kernel_dir": kernel_dir,
+                        "kernel_flag": kernel_flag,
                         "time": time.time() - self.start_time,
-                        "loss": loss
+                        "loss": loss,
                     },
                     f,
                     indent=2,
                 )
-            
+
             # copying kernel dir
-            if kernel_dir not in ["EMPTY", "MOCKPATH"] and os.path.isdir(kernel_dir): 
-                shutil.copytree(kernel_dir, os.path.join(kernel_save_dir, "kernel_scheduler_dir"))
+            if kernel_flag != "LOAD_SUCCESS":
+                shutil.copytree(
+                    self.sampler.realize(self.model, node).get_directory(),
+                    os.path.join(kernel_save_dir, "kernel_scheduler_dir"),
+                )
 
         # Update with reward
         if self.target == "loss":
@@ -258,10 +279,15 @@ class Session:
                 reward = -1
         elif accuracy > 0:
             if self.target == "flops" and accuracy >= self.min_accuracy:
-                reward = self.min_accuracy + \
-                    max(0, 1.0 - (flops / self.original_flops) / self.max_flops_ratio) * (1 - self.min_accuracy)
+                reward = self.min_accuracy + max(
+                    0, 1.0 - (flops / self.original_flops) / self.max_flops_ratio
+                ) * (1 - self.min_accuracy)
             else:
-                reward = (max(accuracy, self.reward_lower_bound) - self.reward_lower_bound) / (1 - self.reward_lower_bound) / self.reward_upper_bound
+                reward = (
+                    (max(accuracy, self.reward_lower_bound) - self.reward_lower_bound)
+                    / (1 - self.reward_lower_bound)
+                    / self.reward_upper_bound
+                )
             reward = reward ** self.reward_power
         else:
             reward = -1
@@ -318,7 +344,7 @@ class Session:
         self.waiting.add(new_sample)
         self.time_buffer[new_sample] = time.time()
         return new_sample
-    
+
     def path_to_file(self, path: str) -> str:
         node = self.sampler.visit(Path.deserialize(path))
         kernel = self.sampler.realize(self.model, node)

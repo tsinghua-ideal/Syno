@@ -16,7 +16,7 @@ class KASModel(nn.Module):
         self.flops = 0
         self.params = 0
     
-    def load_kernel(self, kernel: KernelLoader, compile=False, batch_size=1, seq_len=None) -> PathLike:
+    def load_kernel(self, kernel: KernelLoader, compile=False, batch_size=1, seq_len=None) -> str:
         kernel_packs = kernel.construct_kernel_packs()
         placeholders = KAS.Sampler._extract_placeholders(self)
         assert len(placeholders) == kernel.get_count_placeholders(), f'Kernel {kernel} has {kernel.get_count_placeholders()} placeholders, but {len(placeholders)} placeholders are found in the model'
@@ -38,7 +38,7 @@ class KASModel(nn.Module):
             placeholder.reload(kernel_pack, compile)
             placeholder.referred_layer = None
         
-        return kernel.get_directory()
+        return "LOAD_SUCCESS"
 
     def remove_thop_hooks(self):
         for m in self.modules():
