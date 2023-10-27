@@ -281,7 +281,7 @@ void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& 
             ++index;
             continue;
         }
-        // This must not throw! Otherwise the pruning algorithm is wrong.
+        // This must not throw! Otherwise the pruning algorithm is wrong. (But it might throw for non-final lattices.)
         auto child = getChildFromArc(arc).value();
         std::vector<Arc> remainingArcs = arcs;
         remainingArcs.erase(remainingArcs.begin() + index);
@@ -342,7 +342,7 @@ Node Node::expandToSync(Node target) const {
         ++distance;
     }
     // One more due to the nStage embedded in rStage.
-    KAS_ASSERT(distance == remainingOthers.size() + 1);
+    KAS_ASSERT(distance == remainingOthers.size() + !target.isReduction());
     if (!remainingOthers.empty()) {
         expander.add(LatticeTask { poolTop, normalBottom, remainingOthers });
     }

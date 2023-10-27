@@ -5,6 +5,7 @@ from torch import nn
 from typing import Tuple, List
 from timm.utils import AverageMeter
 from transformers import GPT2Tokenizer
+from KAS import Placeholder
 
 from .loss import get_loss_func
 from .optim import get_optimizer, get_gpt_optimizer
@@ -106,6 +107,12 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
     torch_opt_on()
     model.cuda()
 
+    def init_kernel_weights(m):
+        if isinstance(m, Placeholder):
+            if m.kernel and hasattr(m.kernel, 'weights'):
+                for w in m.kernel.weights:
+                    nn.init.normal_(w, std=.02)
+    model.apply(init_kernel_weights)
     model.initialize_weights()
     optimizer = get_gpt_optimizer(model, args)
 

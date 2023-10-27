@@ -1,4 +1,5 @@
 import logging
+import numpy as np
 
 from base import log, models, trainer, parser, dataset
 
@@ -15,4 +16,11 @@ if __name__ == '__main__':
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
 
     logging.info('Start training ...')
-    trainer.train(model, train_dataloader, val_dataloader, args)
+    losses = trainer.train(model, train_dataloader, val_dataloader, args)
+
+    if 'gpt' in args.model:
+        losses = list(map(lambda t: t[1], losses))
+        assert len(losses) >= 1
+        len_not_avg = max(int(len(losses) * 0.8), 1)
+        loss = np.mean(losses[len_not_avg - 1:])
+        logging.debug(f"Meaned loss of last 20%: {loss}")

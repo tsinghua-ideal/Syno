@@ -1,4 +1,4 @@
-./run_tmux.sh 1 torch \
+./run_tmux.sh 8 torch \
 --kas-server-save-dir results/gpt-session-v$(date '+%Y%m%d') \
 --kas-search-algo MCTS \
 --model gpt/gpt2 --batch-size 1 \
@@ -10,4 +10,4 @@
 --kas-server-save-interval 1800 \
 --kas-server-port 7070 \
 --kas-max-flops-ratio 1.2 \
---kas-target loss --gpt-max-loss 3
+--kas-target loss --gpt-max-loss 3 --kas-max-chain-length 6
