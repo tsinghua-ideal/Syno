@@ -295,7 +295,7 @@ ShapeDistance FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>&
     ShapeDistance minimumComplexity = ShapeDistance::Infinity;
     std::vector<std::pair<Size, int>> newCurrent = mustBeInput;
     std::vector<ColoredDimension> selectedWeightDims;
-    auto extendedGame = ExtendedFLOPsGame(options.ctx, desired.totalSize(), graph);
+    auto extendedGame = ExtendedFLOPsGame(options.ctx, flopsOptions.totalInputSize, graph);
     const bool checkFLOPs = flopsOptions.prune;
     auto recursion = [&](const auto& self, std::size_t trialIndex) -> void {
         // In either cases, we do not need to further compute.

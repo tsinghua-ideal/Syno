@@ -206,13 +206,21 @@ const TensorExpression& Sampler::getExpressionForTensorNum(std::size_t num) cons
     }
 }
 
-Size Sampler::getTotalOutputSize() const {
-    Size result = outputShape.totalSize();
+Size Sampler::getFixedDimensionsSize() const {
+    auto result = Size::Identity(ctx);
     if (!fixedDimensions.empty()) {
         using FixedDimensionsShapeView = AbstractShape<const std::vector<FixedDimension>&, [](const FixedDimension& fd) -> const Size& { return fd.dim.size(); }>;
         result *= FixedDimensionsShapeView { fixedDimensions }.totalSize();
     }
     return result;
+}
+
+Size Sampler::getTotalInputSize() const {
+    return inputShape.totalSize() * getFixedDimensionsSize();
+}
+
+Size Sampler::getTotalOutputSize() const {
+    return outputShape.totalSize() * getFixedDimensionsSize();
 }
 
 Size Sampler::getMaxRDomSize() const {

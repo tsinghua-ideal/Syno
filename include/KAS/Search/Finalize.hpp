@@ -87,6 +87,7 @@ public:
         bool prune;
         std::size_t maximumTensors;
         std::size_t maxFLOPs;
+        Size totalInputSize;
         // Required to be sorted by hash.
         const std::vector<ColoredDimension>& weightDims;
         // `selectedWeightDims` is required to be sorted by hash. So we can merge them efficiently.

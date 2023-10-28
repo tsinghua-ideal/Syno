@@ -295,6 +295,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
             .prune = options.enableFLOPsBasedPruning,
             .maximumTensors = options.maximumTensors,
             .maxFLOPs = options.maxFLOPs,
+            .totalInputSize = sampler.getTotalInputSize(),
             .weightDims = weightDims,
         }
     );

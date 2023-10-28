@@ -216,6 +216,10 @@ public:
 
     const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }
     const TensorExpression& getExpressionForTensorNum(std::size_t num) const;
+    // The size of fixed dimensions.
+    Size getFixedDimensionsSize() const;
+    // Taking fixed dimensions into account.
+    Size getTotalInputSize() const;
     // Taking fixed dimensions into account.
     Size getTotalOutputSize() const;
     Size getMaxRDomSize() const;
