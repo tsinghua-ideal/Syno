@@ -150,6 +150,26 @@ class MCTSTree:
             if tree_node._virtual_loss < 0:
                 tree_node._virtual_loss = 0
                 logging.warning("Virtual loss go below 0! ")
+    
+    def _resurrect(self, path: TreePath) -> None:
+        tree_node = self.tree_root
+        for next in path:
+            tree_node = tree_node.get_child(next.type, on_tree=True, include_simulate_failure=False)
+            if tree_node is None:
+                break
+            tree_node, _ = tree_node
+            if tree_node._simulate_fail:
+                logging.debug(f"Resurrected {tree_node} during lrave update. ")
+                tree_node._simulate_fail = False
+            if next.key == 0:
+                break
+            tree_node = tree_node.get_child(next.key, on_tree=True, include_simulate_failure=False)
+            if tree_node is None:
+                break
+            tree_node, _ = tree_node
+            if tree_node._simulate_fail:
+                logging.debug(f"Resurrected {tree_node} during lrave update. ")
+                tree_node._simulate_fail = False
 
     def visit(
         self, path: TreePath, on_tree: bool = True, put_in_tree: bool = False
@@ -345,12 +365,10 @@ class MCTSTree:
         
         if len(final_nodes) < self.leaf_num or leaf_expanded.is_dead_end():
             logging.info(f"Simulation from {tree_path} failed, flushing failure time. ")
-            # if not leaf_expanded.is_alive():
             leaf_expanded.set_simulate_fail()
             return None
 
         self.simulate_time_ema /= 2
-        # leaf_expanded.set_alive()
 
         final_nodes = [
             (TreePath(path), self.touch(node, path=path))
@@ -374,6 +392,7 @@ class MCTSTree:
         # assert 0.0 <= reward <= 1.0
         logging.debug("Back propagation start")
         path = receipt
+        self._resurrect(path)
         self._decrement_virtual_loss(path)
         logging.debug("Virtual loss decremented. ")
 
