@@ -6,8 +6,33 @@
 
 namespace kas {
 
+std::size_t ExpandOp::initialHash() const noexcept {
+    return DimensionTypeHash(Type);
+}
+
+std::size_t ExpandOp::opHash() const noexcept {
+    std::size_t h = initialHash();
+    HashCombineRaw(h, output.hash());
+    return h;
+}
+
+bool ExpandOp::canApplyToInterface(const GraphHandle& interface) const {
+    return interface.contains(output);
+}
+
 GraphHandle ExpandOp::applyToInterface(const GraphHandle& interface) const {
     return interface.moveToExpansions(this);
+}
+
+bool ExpandOp::operator==(const ExpandOp& other) const noexcept {
+    return output == other.output;
+}
+
+std::string ExpandOp::description(const BindingContext& ctx) const {
+    return fmt::format("-> {}", output.description(ctx));
+}
+std::string ExpandOp::descendantsDescription(const BindingContext& ctx) const {
+    return fmt::format("-> {}", output.descendantsDescription(ctx));
 }
 
 Graph::DimensionSet ExpandOp::GetSharedWeightDims(const Graph& graph) {
@@ -161,6 +186,20 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
     }
     CountDisallowedAttempts += interface.getDimensions().size() - countPlausible;
     return res;
+}
+
+RepeatOp::RepeatOp(const ExpandOp& expandOp, const MergeOp& mergeOp):
+    expandOp { expandOp },
+    mergeOp { mergeOp },
+    input { expandOp.output.as<MergeOp::Input>().getOther() },
+    kind { expandOp.output.as<MergeOp::Input>().getOrder() == Order::Right ? Repeat : Tile },
+    output { mergeOp.output }
+{
+    KAS_ASSERT(expandOp.output.as<MergeOp::Input>().getOp() == &mergeOp);
+}
+
+std::string RepeatOp::description(const BindingContext& ctx) const {
+    return fmt::format("{} -> {}", input.description(ctx), output.description(ctx));
 }
 
 } // namespace kas

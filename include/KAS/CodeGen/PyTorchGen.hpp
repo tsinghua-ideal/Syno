@@ -119,8 +119,9 @@ public:
         ConstrainedGraph subgraph;
         std::set<const Reduce *> remainingReductions;
 
-        struct OpLower final: public OpVisitor {
+        struct OpLower final: public OpVisitor, private DependentCutSetDiscoverer {
             const BindingContext& ctx;
+            const ConstrainedGraph& subgraph;
             const Graph& graph;
             PythonCodePrinter& printer;
             const ConcreteConsts& consts;
@@ -129,16 +130,15 @@ public:
             const Tensor& tensor;
             const std::string& name;
 
-            OpLower(const BindingContext& ctx, const Graph& graph, PythonCodePrinter& printer, const ConcreteConsts& consts, std::vector<Dimension>& interface, const Tensor& tensor, const std::string& name);
+            std::map<Dimension, const ExpandOp *, Dimension::AddressLessThan> undoneExpansions;
 
-            bool successfulVisit = false;
+            OpLower(const BindingContext& ctx, const ConstrainedGraph& subgraph, PythonCodePrinter& printer, const ConcreteConsts& consts, std::vector<Dimension>& interface, const Tensor& tensor, const std::string& name);
 
-            template<PrimitiveOpImpl Op>
+            template<typename Op>
             std::pair<Dimension, std::size_t> getSingleInput(const Op& op) {
                 Dimension input = op.getInput();
                 std::size_t inputIndex = std::distance(interface.begin(), std::ranges::find(interface, input));
                 KAS_ASSERT(inputIndex < interface.size());
-                successfulVisit = true;
                 return { std::move(input), inputIndex };
             }
             // Based on the shape of interface, reshape the PyTorch tensor to this.
@@ -150,11 +150,18 @@ public:
             void visit(const ReduceOp& op) override { KAS_CRITICAL("Cannot lower Reduce to PyTorch as an Op."); }
             void visit(const Reduce& reduction);
             void visit(const MergeOp& op) override;
-            void visit(const ShareOp& op) override;
+            void visit(const ShareOp& op) override { KAS_CRITICAL("Cannot lower Share to PyTorch as an Op."); }
             void visit(const ShiftOp& op) override;
             void visit(const SplitOp& op) override;
             void visit(const StrideOp& op) override;
             void visit(const UnfoldOp& op) override;
+            // Repeat == Expand + Merge.
+            void visitRepeat(const ExpandOp& expandOp, const MergeOp& mergeOp);
+
+            void afterExclusionHook(const PrimitiveOp *op) override;
+            using DependentCutSetDiscoverer::include;
+
+            void checkDone() const;
         };
 
     public:

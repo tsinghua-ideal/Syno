@@ -19,29 +19,17 @@ public:
     ExpandOp(ExpandOp&&) = delete;
 
     constexpr DimensionType getType() const noexcept override { return Type; }
-    std::size_t initialHash() const noexcept override { return DimensionTypeHash(Type); }
-    std::size_t opHash() const noexcept final override {
-        std::size_t h = initialHash();
-        HashCombineRaw(h, output.hash());
-        return h;
-    }
+    std::size_t initialHash() const noexcept override;
+    std::size_t opHash() const noexcept final override;
     void accept(OpVisitor& visitor) const override { visitor.visit(*this); }
 
-    bool canApplyToInterface(const GraphHandle& interface) const final override {
-        return interface.contains(output);
-    }
+    bool canApplyToInterface(const GraphHandle& interface) const final override;
     GraphHandle applyToInterface(const GraphHandle& interface) const final override;
 
-    bool operator==(const ExpandOp& other) const noexcept {
-        return output == other.output;
-    }
+    bool operator==(const ExpandOp& other) const noexcept;
 
-    std::string description(const BindingContext& ctx) const final override {
-        return fmt::format("-> {}", output.description(ctx));
-    }
-    std::string descendantsDescription(const BindingContext& ctx) const final override {
-        return fmt::format("-> {}", output.descendantsDescription(ctx));
-    }
+    std::string description(const BindingContext& ctx) const final override;
+    std::string descendantsDescription(const BindingContext& ctx) const final override;
 
     static Graph::DimensionSet GetSharedWeightDims(const Graph& graph);
 
@@ -63,5 +51,26 @@ public:
 };
 
 static_assert(PrimitiveOpImpl<ExpandOp>);
+
+// Helper class.
+class RepeatOp {
+public:
+    enum Kind: bool {
+        Repeat, // torch.repeat_interleave
+        Tile, // torch.tile
+    };
+private:
+    const ExpandOp& expandOp;
+    const MergeOp& mergeOp;
+    Dimension input;
+    Kind kind;
+public:
+    RepeatOp(const ExpandOp& expandOp, const MergeOp& mergeOp);
+    const Dimension& output;
+    Kind getKind() const { return kind; }
+    const Size& getMultiplier() const { return expandOp.output.size(); }
+    const Dimension& getInput() const { return input; }
+    std::string description(const BindingContext& ctx) const;
+};
 
 } // namespace kas

@@ -295,8 +295,9 @@ void PerformViewsIRPass::apply() {
     });
 }
 
-PyTorchGen::SubgraphGen::OpLower::OpLower(const BindingContext& ctx, const Graph& graph, PythonCodePrinter& printer, const ConcreteConsts& consts, std::vector<Dimension>& interface, const Tensor& tensor, const std::string& name):
-    ctx { ctx }, graph { graph }, printer { printer }, consts { consts }, interface { interface }, tensor { tensor }, name { name }
+PyTorchGen::SubgraphGen::OpLower::OpLower(const BindingContext& ctx, const ConstrainedGraph& subgraph, PythonCodePrinter& printer, const ConcreteConsts& consts, std::vector<Dimension>& interface, const Tensor& tensor, const std::string& name):
+    DependentCutSetDiscoverer(subgraph.getGraph(), interface),
+    ctx { ctx }, subgraph { subgraph }, graph { subgraph.getGraph() }, printer { printer }, consts { consts }, interface { interface }, tensor { tensor }, name { name }
 {}
 
 void PyTorchGen::SubgraphGen::OpLower::reshapeToInterface() {
@@ -327,15 +328,25 @@ std::array<std::size_t, 4> PyTorchGen::SubgraphGen::OpLower::reshapeToNCHW(std::
 }
 
 void PyTorchGen::SubgraphGen::OpLower::visit(const ExpandOp& op) {
-    successfulVisit = true;
-    // This is simple. Just unsqueeze and expand.
-    printer.writeLn("{0} = torch.unsqueeze({0}, {1})", name, interface.size());
-    interface.emplace_back(op.output);
-    printer.write("{0} = {0}.expand(", name);
-    for (const Dimension& dim: interface) {
-        printer.write("{}, ", concretize(dim.size()));
+    // We want to optimize for Repeat.
+    if (
+        auto merge = op.output.tryAs<MergeOp::Input>();
+        // We have to make sure that this MergeOp is in this subgraph.
+        merge && subgraph.getOps().contains(merge->getOp())
+    ) {
+        // This is a Repeat.
+        undoneExpansions.try_emplace(op.output, &op);
+        printer.writeLn("# Fused with {}", merge->getOp()->description(ctx));
+    } else {
+        // This is simple. Just unsqueeze and expand.
+        printer.writeLn("{0} = torch.unsqueeze({0}, {1})", name, interface.size());
+        interface.emplace_back(op.output);
+        printer.write("{0} = {0}.expand(", name);
+        for (const Dimension& dim: interface) {
+            printer.write("{}, ", concretize(dim.size()));
+        }
+        printer.writeLn(")");
     }
-    printer.writeLn(")");
 }
 void PyTorchGen::SubgraphGen::OpLower::visit(const Reduce& reduction) {
     printer.writeLn("# {}", reduction.description(ctx));
@@ -351,12 +362,20 @@ void PyTorchGen::SubgraphGen::OpLower::visit(const MergeOp& op) {
     std::size_t lhsIndex = std::distance(interface.begin(), std::ranges::find(interface, lhs));
     std::size_t rhsIndex = std::distance(interface.begin(), std::ranges::find(interface, rhs));
     const std::size_t length = interface.size();
+    KAS_ASSERT(lhsIndex != rhsIndex);
+
+    // Handle Repeat.
     if (lhsIndex == length || rhsIndex == length) {
-        // We need to defer the lowering of this.
+        // This must be repeat.
+        auto it = undoneExpansions.find(rhsIndex == length ? rhs : lhs);
+        KAS_ASSERT(it != undoneExpansions.end());
+        const ExpandOp *expandOp = it->second;
+        undoneExpansions.erase(it);
+        printer.writeLn("# Fused with {}", expandOp->description(ctx));
+        printer.writeLn();
+        visitRepeat(*expandOp, op);
         return;
     }
-    successfulVisit = true;
-    KAS_ASSERT(lhsIndex != rhsIndex);
 
     // Modify the interface first.
     interface[std::max(lhsIndex, rhsIndex)] = op.output;
@@ -397,9 +416,6 @@ void PyTorchGen::SubgraphGen::OpLower::visit(const MergeOp& op) {
 
     // Now do the reshape.
     reshapeToInterface();
-}
-void PyTorchGen::SubgraphGen::OpLower::visit(const ShareOp& op) {
-    // No progress. successfulVisit == false.
 }
 void PyTorchGen::SubgraphGen::OpLower::visit(const ShiftOp& op) {
     const auto [input, inputIndex] = getSingleInput(op);
@@ -466,6 +482,40 @@ void PyTorchGen::SubgraphGen::OpLower::visit(const UnfoldOp& op) {
     // Finally, reshape it back.
     reshapeToInterface();
 }
+void PyTorchGen::SubgraphGen::OpLower::visitRepeat(const ExpandOp& expandOp, const MergeOp& mergeOp) {
+    const auto op = RepeatOp { expandOp, mergeOp };
+    printer.writeLn("# {}", op.description(ctx));
+    const auto [input, inputIndex] = getSingleInput(op);
+
+    const auto multiplier = concretize(op.getMultiplier());
+    switch (op.getKind()) {
+    case RepeatOp::Repeat:
+        printer.writeLn("{0} = torch.repeat_interleave({0}, {1}, dim={2})", name, multiplier, inputIndex);
+        break;
+    case RepeatOp::Tile:
+        printer.writeLn("{0} = torch.tile({0}, ({1}, ))", name, fmt::join(
+            std::views::iota(0_uz, interface.size())
+            | std::views::transform([&](std::size_t i) {
+                if (i == inputIndex) return multiplier;
+                else return 1_uz;
+            }), ", "
+        ));
+        break;
+    }
+
+    interface[inputIndex] = op.output;
+}
+
+void PyTorchGen::SubgraphGen::OpLower::afterExclusionHook(const PrimitiveOp *op) {
+    printer.writeLn("# {}", op->description(ctx));
+    op->accept(*this);
+    printer.writeLn();
+}
+
+void PyTorchGen::SubgraphGen::OpLower::checkDone() const {
+    KAS_ASSERT(DimensionSetEqual(interface, tensor.output()));
+    KAS_ASSERT(undoneExpansions.empty());
+}
 
 PyTorchGen::SubgraphGen::SubgraphGen(const BindingContext& ctx, const Graph& graph, const std::map<Tensor, std::string>& tensorNames, PythonCodePrinter& printer, const Tensor& tensor):
     ctx { ctx }, tensorNames(tensorNames), printer { printer }, tensor { tensor }, subgraph(tensor.buildConstrainedGraph(graph))
@@ -499,32 +549,17 @@ void PyTorchGen::SubgraphGen::generate(const ConcreteConsts& consts) {
     printer.writeLn();
 
     // Now we have got the input. Time to work on it. The objective is to reach `tensor.output()`.
-    auto opLower = OpLower { ctx, subgraph.getGraph(), printer, consts, interface, tensor, name };
-    struct LowerHelper: DependentCutSetDiscoverer {
-        OpLower& opLower;
-        LowerHelper(OpLower& opLower): DependentCutSetDiscoverer(opLower.graph, opLower.interface), opLower(opLower) {}
-        void afterExclusionHook(const PrimitiveOp *op) override {
-            opLower.printer.writeLn("# {}", op->description(opLower.ctx));
-            opLower.successfulVisit = false;
-            op->accept(opLower);
-            KAS_ASSERT(opLower.successfulVisit);
-            opLower.successfulVisit = false;
-            opLower.printer.writeLn();
-        }
-    };
-    auto helper = LowerHelper { opLower };
+    auto opLower = OpLower { ctx, subgraph, printer, consts, interface, tensor, name };
     for (const Reduce *reduction: remainingReductions) {
-        helper.include(reduction);
+        opLower.include(reduction);
         // Reduce this.
         opLower.visit(*reduction);
     }
     // remainingReductions.clear(); // No need to clear it.
     // Then make sure all the output dims are visited as well.
-    for (const Dimension& dim: tensor.output()) {
-        helper.include(dim);
-    }
+    opLower.include(tensor.output());
 
-    KAS_ASSERT(DimensionSetEqual(interface, tensor.output()));
+    opLower.checkDone();
 
     // Well, we need to permute the interface so that it matches the output of this subgraph.
     // Maybe we can alter the output to get better performance? TODO
