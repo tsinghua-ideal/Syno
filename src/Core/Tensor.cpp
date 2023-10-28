@@ -61,11 +61,7 @@ std::size_t Tensor::getFLOPs(const BindingContext& ctx, const ConcreteConsts& co
 std::size_t Tensor::getFLOPs(const BindingContext& ctx) const {
     auto numel = getNumElements(ctx);
     auto instsPerAddition = hasContraction() ? std::max<std::size_t>(inputs().size() - 1, 1) : 1;
-    std::size_t flops = 0;
-    for (const ConcreteConsts& consts: ctx.getAllConsts()) {
-        flops += numel.eval<std::size_t>(consts) * instsPerAddition;
-    }
-    return flops;
+    return numel.evalSumAllConsts(ctx) * instsPerAddition;
 }
 
 ConstrainedGraph Tensor::buildConstrainedGraph(const Graph& graph) const {

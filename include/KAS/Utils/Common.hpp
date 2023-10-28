@@ -94,6 +94,8 @@ struct Match: Ts... { using Ts::operator()...; };
 template<typename... Ts>
 Match(Ts...) -> Match<Ts...>;
 
+constexpr std::size_t operator""_uz(unsigned long long int x) { return x; }
+
 struct Common {
     static constexpr std::size_t MemoryPoolSize = 65536;
 };

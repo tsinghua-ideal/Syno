@@ -157,7 +157,7 @@ DimensionEvaluator::DimensionEvaluator(const Graph& graph, const std::vector<Pur
             return op->getReduce() == Reduce::ReduceType::Mean;
         })
         | std::views::transform(&Reduce::size);
-    divBy = FoldLeftFirst(avg, std::multiplies<Size>{});
+    divBy = ranges::fold_left_first(avg, std::multiplies<Size>{});
 
     // Initialize the unknown and free set.
     std::ranges::copy(graph.getDimensions(), std::inserter(unknownDimensions, unknownDimensions.end()));

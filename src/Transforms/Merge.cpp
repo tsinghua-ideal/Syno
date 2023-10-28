@@ -90,7 +90,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const To
         }
         if (options.disallowMergeWithLargeBlockAboveStride) {
             if (auto s = dim.tryAs<StrideOp::Input>(); s) {
-                if ((block / s->getDerivedOp<StrideOp>()->getStride()).lowerBoundEst(options.ctx) >= static_cast<std::size_t>(1)) {
+                if ((block / s->getDerivedOp<StrideOp>()->getStride()).lowerBoundEst(options.ctx) >= 1_uz) {
                     ++CountDisallowedAboveStride;
                     return;
                 }
@@ -98,7 +98,7 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const To
         }
         if (options.disallowMergeWithLargeBlockAboveUnfold) {
             if (auto u = dim.tryAs<UnfoldOp::Input>(); u) {
-                if ((block / u->getDerivedOp<UnfoldOp>()->getWindow()).lowerBoundEst(options.ctx) > static_cast<std::size_t>(1)) {
+                if ((block / u->getDerivedOp<UnfoldOp>()->getWindow()).lowerBoundEst(options.ctx) > 1_uz) {
                     ++CountDisallowedAboveUnfold;
                     return;
                 }

@@ -193,7 +193,7 @@ bool BindingContext::isSizeLegalToSample(const Size& size) const {
     auto trait = size.getTrait();
     return trait
         && *trait != Size::Trait::IllegalCoefficient && *trait != Size::Trait::One
-        && size.lowerBoundEst(*this) >= static_cast<std::size_t>(1);
+        && size.lowerBoundEst(*this) >= 1_uz;
 }
 
 bool BindingContext::isSizeValid(const Size& size) const {

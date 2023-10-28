@@ -14,6 +14,7 @@
 #include <boost/rational.hpp>
 
 #include "KAS/Core/BindingContext.hpp"
+#include "KAS/Utils/Algorithm.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Coroutine.hpp"
 #include "KAS/Utils/Hash.hpp"
@@ -113,6 +114,12 @@ public:
     boost::rational<ValueType> evalFraction(const ConcreteConsts& consts) const {
         return evalFraction<ValueType>(consts.primaryWrapper(), consts.coefficientWrapper());
     }
+    template<std::integral ValueType>
+    auto evalFractionAllConsts(const BindingContext& ctx) const {
+        return ctx.getAllConsts() | std::views::transform([*this](const ConcreteConsts& consts) {
+            return evalFraction<ValueType>(consts);
+        });
+    }
     bool isInteger(const ConcreteConsts& consts) const {
         return evalFraction<std::size_t>(consts).denominator() == 1;
     }
@@ -122,7 +129,16 @@ public:
     }
     template<std::floating_point ValueType>
     ValueType eval(const ConcreteConsts& consts) const {
-        return boost::rational_cast<ValueType>(evalFraction<std::size_t>(consts.primaryWrapper(), consts.coefficientWrapper()));
+        return boost::rational_cast<ValueType>(evalFraction<std::size_t>(consts));
+    }
+    template<typename ValueType>
+    auto evalAllConsts(const BindingContext& ctx) const {
+        return ctx.getAllConsts() | std::views::transform([*this](const ConcreteConsts& consts) {
+            return eval<ValueType>(consts);
+        });
+    }
+    std::size_t evalSumAllConsts(const BindingContext& ctx) const {
+        return ranges::fold_left(evalAllConsts<std::size_t>(ctx), 0_uz, std::plus<>{});
     }
 
     // Evaluates with all the consts and take the minimum of all results.

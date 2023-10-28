@@ -1,4 +1,5 @@
 #include "KAS/Core/FLOPsGame.hpp"
+#include "KAS/Utils/Algorithm.hpp"
 
 
 namespace kas {
@@ -45,14 +46,11 @@ std::size_t FLOPsGame::State::FLOPs() const {
 // That is, we have done at least 1 reduction.
 std::size_t FLOPsGame::State::remainingFLOPs(const State& base) const {
     // First count delta FLOPs.
-    std::size_t deltaFLOPs = 0;
-    for (const auto& consts: game.ctx.getAllConsts()) {
-        // `current` is the number of iterations.
-        // Note that the common case is the contraction of 2 tensors.
-        // So a multiplication is absorbed in FMA.
-        // We only provide a conservative estimation, so this is enough.
-        deltaFLOPs += current.eval<std::size_t>(consts);
-    }
+    // `current` is the number of iterations.
+    // Note that the common case is the contraction of 2 tensors.
+    // So a multiplication is absorbed in FMA.
+    // We only provide a conservative estimation, so this is enough.
+    std::size_t deltaFLOPs = current.evalSumAllConsts(game.ctx);
 
     // Then find out unfinished reductions, i.e., decrease.
     const std::size_t nowDecreasing = getNextDecrease(0);
@@ -121,7 +119,7 @@ std::size_t FLOPsGame::State::experimentRemainingFLOPs(const State& base, std::s
                 // The decrease is newly made available.
                 !trial.decreaseDetermined(decrease)
                 && std::ranges::all_of(
-                    std::views::iota(static_cast<std::size_t>(0), game.increase.size()),
+                    std::views::iota(0_uz, game.increase.size()),
                     [&](std::size_t increase) -> bool {
                         return !game.dependencies[decrease][increase] || trial.determinedIncrease[increase];
                     }

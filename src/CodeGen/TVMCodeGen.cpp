@@ -343,7 +343,7 @@ void TVMCodeGen::generateSubgraph(const Tensor& tensor) {
             printer.parens<true>([&] {
                 guardedExpression();
                 printer.writeLn("axis=[{}],", fmt::join(
-                    std::views::iota(static_cast<std::size_t>(0), tensor.reductions().size())
+                    std::views::iota(0_uz, tensor.reductions().size())
                     | std::views::transform([](std::size_t i) {
                         return TVMOpLower::IteratorNameForReduction(i);
                     }), ", "
@@ -356,7 +356,7 @@ void TVMCodeGen::generateSubgraph(const Tensor& tensor) {
         "def build_{}({}) -> te.Tensor:",
         myName,
         fmt::join(
-            std::views::iota(static_cast<std::size_t>(0), tensor.inputs().size())
+            std::views::iota(0_uz, tensor.inputs().size())
             | std::views::transform([](std::size_t i) {
                 return VarNameForInput(i) + ": te.Tensor";
             }), ", "
@@ -378,7 +378,7 @@ void TVMCodeGen::generateSubgraph(const Tensor& tensor) {
                 }), ", "
             ));
             printer.writeLn("lambda {}:", fmt::join(
-                std::views::iota(static_cast<std::size_t>(0), tensor.output().size())
+                std::views::iota(0_uz, tensor.output().size())
                 | std::views::transform([](std::size_t i) {
                     return TVMOpLower::IteratorNameForOutput(i);
                 }), ", "
@@ -406,7 +406,7 @@ void TVMCodeGen::generateCalls() {
 TVMCodeGen::TVMCodeGen(const BindingContext& ctx, const IR& ir):
     ctx { ctx }, concretizer { ctx }, ir { ir }, graph { ir.buildGraph() }, printer { code, 0 }
 {
-    divBy = FoldLeftFirst(
+    divBy = ranges::fold_left_first(
         graph.getReduceIterators()
         | std::views::filter([](const Reduce *r) {
             return r->getReduce() == Reduce::ReduceType::Mean;

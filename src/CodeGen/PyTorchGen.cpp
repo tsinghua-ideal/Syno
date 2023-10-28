@@ -314,11 +314,11 @@ std::array<std::size_t, 4> PyTorchGen::SubgraphGen::OpLower::reshapeToNCHW(std::
         channelSize = 1;
     } else {
         batchSize = concretize(interface[0].size());
-        channelSize = std::transform_reduce(interface.begin() + 1, interface.begin() + heightIndexInInterface, static_cast<std::size_t>(1), std::multiplies<std::size_t>(), [this](const Dimension& dim) {
+        channelSize = std::transform_reduce(interface.begin() + 1, interface.begin() + heightIndexInInterface, 1_uz, std::multiplies<std::size_t>(), [this](const Dimension& dim) {
             return concretize(dim.size());
         });
     }
-    const std::size_t widthSize = std::transform_reduce(interface.begin() + heightIndexInInterface + 1, interface.end(), static_cast<std::size_t>(1), std::multiplies<std::size_t>(), [this](const Dimension& dim) {
+    const std::size_t widthSize = std::transform_reduce(interface.begin() + heightIndexInInterface + 1, interface.end(), 1_uz, std::multiplies<std::size_t>(), [this](const Dimension& dim) {
         return concretize(dim.size());
     });
     printer.writeLn("{0} = torch.reshape({0}, ({1}, {2}, {3}, {4}, ))", name, batchSize, channelSize, heightSize, widthSize);
@@ -542,6 +542,7 @@ void PyTorchGen::SubgraphGen::generate(const ConcreteConsts& consts) {
             printer.write("{}, ", i);
         }
         printer.writeLn("))");
+        printer.writeLn();
     }
 }
 

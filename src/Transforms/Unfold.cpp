@@ -84,11 +84,10 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
             // A precondition is that we are sure that all the fractions evaluate to integers.
             if (
                 options.requiresOddKernelSizeInUnfold &&
-                std::ranges::any_of(options.ctx.getAllConsts(), [&](const ConcreteConsts& consts) {
-                    const auto kernelSizeValue = kernelSize.evalFraction<std::size_t>(consts);
-                    KAS_ASSERT(kernelSizeValue.denominator() == 1, "Fraction must evaluate to an integer.");
-                    return kernelSizeValue.numerator() % 2 == 0; // even
-                })
+                std::ranges::any_of(
+                    kernelSize.evalAllConsts<std::size_t>(options.ctx),
+                    [](auto x) { return x % 2 == 0; }
+                )
             ) {
                 ++CountEvenKernelSize;
                 continue;
@@ -109,7 +108,7 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
             if (options.canonicalizeUnfoldOrder) {
                 if (auto nextUnfold = dimL.tryAs<UnfoldOp::Input>(); nextUnfold) {
                     auto quotient = kernelSize / nextUnfold->getDerivedOp<UnfoldOp>()->getWindow();
-                    if (quotient.lowerBoundEst(options.ctx) < static_cast<std::size_t>(1)) {
+                    if (quotient.lowerBoundEst(options.ctx) < 1_uz) {
                         ++CountCanonicalizedUnfoldChains;
                         continue;
                     }

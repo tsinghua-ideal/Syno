@@ -163,7 +163,7 @@ class ThreadPool<void, V>: private detail::ThreadPoolBase<ThreadPool<void, V>, c
     friend class detail::ThreadPoolBase<ThreadPool<void, V>, char, V>;
     using Super = detail::ThreadPoolBase<ThreadPool<void, V>, char, V>;
     static decltype(auto) Repeat(std::size_t count) {
-        return std::views::iota(static_cast<std::size_t>(0), count) | std::views::transform([](std::size_t) { return ' '; });
+        return std::views::iota(0_uz, count) | std::views::transform([](std::size_t) { return ' '; });
     }
 
 public:

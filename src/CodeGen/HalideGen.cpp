@@ -228,7 +228,7 @@ Halide::Func HalideGen::lowerAccessToFunc(std::vector<Halide::ImageParam>& input
     // Guard the boundary.
     if (!access.constraints.empty()) {
         auto getConstraints = [&](bool likely) {
-            return FoldLeftFirst(
+            return ranges::fold_left_first(
                 access.constraints
                 | std::views::filter([&](const HalideAccess::Constraint& c) {
                     return likely == c.likely;

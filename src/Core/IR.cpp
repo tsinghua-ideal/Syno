@@ -161,7 +161,7 @@ Generator<RFactorSolver::Scheme> RFactorSolver::PlausibleRFactorSchemes(std::vec
         co_return;
     }
     KAS_ASSERT(remaining.size() <= std::numeric_limits<std::size_t>::digits);
-    const std::size_t mask = (static_cast<std::size_t>(1) << remaining.size()) - 1;
+    const std::size_t mask = (1_uz << remaining.size()) - 1;
     for (std::size_t i = !allowEmpty; i <= mask; ++i) {
         std::vector<const Reduce *> current, next;
         for (std::size_t j = 0; j < remaining.size(); ++j) {
@@ -238,9 +238,7 @@ std::size_t RFactorSolver::getFLOPs(const Scheme& scheme, std::size_t overflow) 
 
         // flops += numel * instsPerAddition
         KAS_ASSERT(!ctx.getAllConsts().empty());
-        for (const ConcreteConsts& consts: ctx.getAllConsts()) {
-            flops += numel.eval<std::size_t>(consts) * instsPerAddition;
-        }
+        flops += numel.evalSumAllConsts(ctx) * instsPerAddition;
         if (flops > overflow) {
             return Infinity;
         }
@@ -410,7 +408,7 @@ Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes(const std::v
     }
 
     // If j is later than k (laterThan[j][k] == true), then k must be in a former or the same contraction group as that of j.
-    const std::size_t mask = (static_cast<std::size_t>(1) << remaining.size()) - 1;
+    const std::size_t mask = (1_uz << remaining.size()) - 1;
     for (std::size_t i = 1; i <= mask; ++i) {
         std::vector<std::size_t> contraction, next;
         for (std::size_t j = 0; j < remaining.size(); ++j) {
@@ -580,7 +578,7 @@ Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes() const {
     for (ContractionScheme scheme:
         plausibleContractionSchemes(
             laterThan,
-            ranges::to<std::vector<std::size_t>>(std::views::iota(static_cast<std::size_t>(1), numTensors))
+            ranges::to<std::vector<std::size_t>>(std::views::iota(1_uz, numTensors))
         )
     ) {
         if (earlyReduction) {

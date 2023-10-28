@@ -31,12 +31,12 @@ TEST(serach_misc_tests, size_equals_one) {
     root.expandSync(6);
     sampler.getPruner().sync();
     auto node = root
-        .getChild(Next(Next::TypeOf<ReduceOp>(), 15623912910957193693ul)).value()
-        .getChild(Next(Next::TypeOf<MergeOp>(), 3937223695884881477ul)).value()
-        .getChild(Next(Next::TypeOf<SplitOp>(), 15362865786984789864ul)).value()
-        .getChild(Next(Next::TypeOf<ShareOp>(), 10573079388359089061ul)).value()
-        .getChild(Next(Next::TypeOf<ExpandOp>(), 9719963751023831356ul)).value()
-        .getChild(Next(Next::Type::Finalize, 7705279065707787209ul)).value();
+        .getChild(Next(Next::TypeOf<ReduceOp>(), 15623912910957193693_uz)).value()
+        .getChild(Next(Next::TypeOf<MergeOp>(), 3937223695884881477_uz)).value()
+        .getChild(Next(Next::TypeOf<SplitOp>(), 15362865786984789864_uz)).value()
+        .getChild(Next(Next::TypeOf<ShareOp>(), 10573079388359089061_uz)).value()
+        .getChild(Next(Next::TypeOf<ExpandOp>(), 9719963751023831356_uz)).value()
+        .getChild(Next(Next::Type::Finalize, 7705279065707787209_uz)).value();
     fmt::print("Node {}:\n{}\n", node.toString(), GraphvizDFGGen::Print(node.asFinalStage()->value.getSubgraphs(), ctx));
     ASSERT_TRUE(!root.isDeadEnd());
     StatisticsCollector::PrintSummary(std::cout);

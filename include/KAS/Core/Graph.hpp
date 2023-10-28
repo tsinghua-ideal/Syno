@@ -218,10 +218,10 @@ public:
     public:
         [[nodiscard]] static CompactIndices None() { return {0}; }
         [[nodiscard]] static CompactIndices Single(std::size_t index) {
-            return { static_cast<std::size_t>(1) << index };
+            return { 1_uz << index };
         }
         [[nodiscard]] static CompactIndices All(std::size_t count) {
-            return { (static_cast<std::size_t>(1) << count) - 1 };
+            return { (1_uz << count) - 1 };
         }
         [[nodiscard]] CompactIndices merged(CompactIndices other) const {
             return { content | other.content };
@@ -258,7 +258,7 @@ public:
         void foreach(F&& f) const {
             std::size_t tries = std::numeric_limits<std::size_t>::digits - std::countl_zero(content);
             for (std::size_t i = 0; i < tries; ++i) {
-                if (content & (static_cast<std::size_t>(1) << i)) {
+                if (content & (1_uz << i)) {
                     std::invoke(std::forward<F>(f), i);
                 }
             }

@@ -16,10 +16,10 @@ TEST(core_parser_tests, parse_specs) {
     auto spec2Expect = Parser::SizeSpec { .quantity = std::make_pair("N", 5), .maxOccurrences = std::nullopt };
     ASSERT_EQ(spec2, spec2Expect);
     auto spec3 = Parser("5").parseSizeSpec();
-    auto spec3Expect = Parser::SizeSpec { .quantity = static_cast<std::size_t>(5), .maxOccurrences = std::nullopt };
+    auto spec3Expect = Parser::SizeSpec { .quantity = 5_uz, .maxOccurrences = std::nullopt };
     ASSERT_EQ(spec3, spec3Expect);
     auto spec4 = Parser("5: 10").parseSizeSpec();
-    auto spec4Expect = Parser::SizeSpec { .quantity = static_cast<std::size_t>(5), .maxOccurrences = static_cast<std::size_t>(10) };
+    auto spec4Expect = Parser::SizeSpec { .quantity = 5_uz, .maxOccurrences = 10_uz };
     ASSERT_EQ(spec4, spec4Expect);
 }
 

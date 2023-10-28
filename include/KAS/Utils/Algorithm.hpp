@@ -46,6 +46,8 @@ auto WeakOrderedBinarySearch(R&& r, const auto& value, Comp&& comp = {}, Proj&& 
     return std::ranges::end(r);
 }
 
+namespace ranges {
+
 namespace detail {
 
 template<class F, class T, class I, class U>
@@ -65,6 +67,33 @@ concept indirectly_binary_left_foldable =
         std::decay_t<std::invoke_result_t<F&, T, std::iter_reference_t<I>>>> &&
     indirectly_binary_left_foldable_impl<F, T, I,
         std::decay_t<std::invoke_result_t<F&, T, std::iter_reference_t<I>>>>;
+
+struct fold_left_fn
+{
+    template<
+        std::input_iterator I, std::sentinel_for<I> S, class T,
+        indirectly_binary_left_foldable<T, I> F
+    >
+    constexpr auto operator()( I first, S last, T init, F f ) const
+    {
+        using U = std::decay_t<std::invoke_result_t<F&, T, std::iter_reference_t<I>>>;
+        if (first == last)
+            return U(std::move(init));
+        U accum = std::invoke(f, std::move(init), *first);
+        for (++first; first != last; ++first)
+            accum = std::invoke(f, std::move(accum), *first);
+        return std::move(accum);
+    }
+ 
+    template<
+        std::ranges::input_range R, class T,
+        indirectly_binary_left_foldable<T, std::ranges::iterator_t<R>> F
+    >
+    constexpr auto operator()( R&& r, T init, F f ) const
+    {
+        return (*this)(std::ranges::begin(r), std::ranges::end(r), std::move(init), std::ref(f));
+    }
+};
 
 struct fold_left_first_fn
 {
@@ -103,7 +132,11 @@ struct fold_left_first_fn
 };
 
 } // namespace detail
- 
-constexpr detail::fold_left_first_fn FoldLeftFirst;
+
+constexpr detail::fold_left_fn fold_left;
+
+constexpr detail::fold_left_first_fn fold_left_first;
+
+} // namespace ranges
 
 } // namespace kas

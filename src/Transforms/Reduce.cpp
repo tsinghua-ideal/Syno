@@ -55,14 +55,11 @@ std::vector<const ReduceOp *> ReduceOp::Generate(PrimitiveOpStore& store, const 
     Size reductionSize = current.empty() ? Size::Identity(ctx) : shape.totalSize();
 
     auto withinFLOPs = [&](const Size& size) {
-        for (const ConcreteConsts& consts: ctx.getAllConsts()) {
+        return std::ranges::none_of(
             // This actually has nothing to do with FLOPs.
-            auto rate = (reductionSize * size / options.maxRDomSizeBase).evalFraction<std::size_t>(consts) / options.maxRDomSizeMultiplier;
-            if (rate > 1) {
-                return false;
-            }
-        }
-        return true;
+            (reductionSize * size / options.maxRDomSizeBase).evalFractionAllConsts<std::size_t>(ctx),
+            [&](auto rate) { return rate > options.maxRDomSizeMultiplier; }
+        );
     };
 
     std::vector<const ReduceOp *> res;
