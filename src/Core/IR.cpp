@@ -336,7 +336,6 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx) {
         auto result = builder.build(scheme, ctx);
 
         auto thisOOM = result.getVRAMUsage(ctx) > MaxVRAM;
-        if (thisOOM) { ++CountVRAMExceeded; }
         auto flops = result.getFLOPs(ctx);
 
         if (!OOM && thisOOM) {
@@ -367,7 +366,10 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx) {
         }
     }
 
-    KAS_ASSERT(!OOM, "Hey, it seems that this kernel will definitely OOM.");
+    if (OOM) {
+        KAS_WARNING("Hey, it seems that this kernel will definitely OOM.");
+        ++CountVRAMExceeded;
+    }
     KAS_ASSERT(current);
 
     return current;
