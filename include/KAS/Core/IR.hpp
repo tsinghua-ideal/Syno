@@ -160,6 +160,8 @@ struct IR {
     std::vector<Tensor> inputTensors;
     Tensor outputTensor;
 
+    explicit operator bool() const { return static_cast<bool>(outputTensor); }
+
     // Helper function.
     static IR Build(const std::vector<Topmost>& tensors, const BindingContext& ctx);
 
@@ -196,11 +198,14 @@ struct IR {
 
     Graph buildGraph() const;
     std::size_t getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const;
+    // RAM in bytes.
     std::size_t getFLOPs(const BindingContext& ctx) const;
+    std::size_t getVRAMUsage(const BindingContext& ctx) const;
     std::size_t numStages() const;
 
     KAS_STATISTICS_DEF(
         EqualFLOPs,
+        VRAMExceeded,
     )
 };
 

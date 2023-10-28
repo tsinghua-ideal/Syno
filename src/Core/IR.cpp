@@ -326,11 +326,31 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx) {
     auto builder = IRBuilder(tensors);
     auto schemes = builder.plausibleContractionSchemes();
 
+    // TODO: make this an option.
+    constexpr std::size_t MaxVRAM = 40_uz * 1024 * 1024 * 1024;
+
     IR current;
     std::size_t optimal = std::numeric_limits<std::size_t>::max();
+    bool OOM = true;
     for (auto scheme: schemes) {
         auto result = builder.build(scheme, ctx);
+
+        auto thisOOM = result.getVRAMUsage(ctx) > MaxVRAM;
+        if (thisOOM) { ++CountVRAMExceeded; }
         auto flops = result.getFLOPs(ctx);
+
+        if (!OOM && thisOOM) {
+            // Since there is already a result that does not overflow, we keep it.
+            continue;
+        } else if (OOM && !thisOOM) {
+            // This result does not OOM. We have to pick it.
+            OOM = false;
+            current = std::move(result);
+            optimal = flops;
+            continue;
+        }
+        // Otherwise, OOM == thisOOM. Just compare.
+
         if (flops < optimal) {
             current = std::move(result);
             optimal = flops;
@@ -346,6 +366,9 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx) {
             }
         }
     }
+
+    KAS_ASSERT(!OOM, "Hey, it seems that this kernel will definitely OOM.");
+    KAS_ASSERT(current);
 
     return current;
 }
@@ -391,6 +414,15 @@ std::size_t IR::getFLOPs(const BindingContext& ctx) const {
         flops += tensor.getFLOPs(ctx);
     });
     return flops;
+}
+
+std::size_t IR::getVRAMUsage(const BindingContext& ctx) const {
+    std::size_t numel = 0;
+    bottomTopForEach([&](const Tensor& tensor) {
+        numel += (tensor.output().empty() ? Size::Identity(ctx) : ShapeView(tensor.output()).totalSize()).evalSumAllConsts(ctx);
+    });
+    // 2 for gradients.
+    return 2 * numel * sizeof(float);
 }
 
 std::size_t IR::numStages() const {

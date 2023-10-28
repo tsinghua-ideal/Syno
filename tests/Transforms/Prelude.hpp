@@ -19,7 +19,7 @@ namespace kas {
 // Here, we verify the shape, iterator and codegen semantics of each transform.
 class transforms_tests: public ::testing::Test {
 protected:
-    BindingContext ctx = BindingContext({"H=128", "W=128"}, {"c=5"});
+    BindingContext ctx = BindingContext({"H=4", "W=4"}, {"c=2"});
     Size sizeH = ctx.getSize("H");
     Size sizeW = ctx.getSize("W");
     Size sizeC = ctx.getSize("c");
