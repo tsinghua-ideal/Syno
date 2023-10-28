@@ -332,8 +332,9 @@ class MCTSTree:
             )
             self.simulate_time_ema += time.time() - start
             for trial in trials:
-                if trial.to_node() not in nodes_set:
-                    nodes_set.add(trial.to_node())
+                trial_node = trial.to_node()
+                if trial_node not in nodes_set and not (trial_node in self._treenode_store and self._treenode_store[trial_node].filtered):
+                    nodes_set.add(trial_node)
                     final_nodes.append(trial)
             if len(final_nodes) >= self.leaf_num:
                 break
@@ -341,24 +342,15 @@ class MCTSTree:
         logging.info(
             f"Got {len(final_nodes)} final nodes ({sample_times} samples) for path({tree_path}) after {trial_attempt+1} attempts. "
         )
-
-        final_nodes = list(
-            filter(
-                lambda x: not (
-                    x[1] in self._treenode_store and self._treenode_store[x[1]].filtered
-                ),
-                final_nodes,
-            )
-        )
         
         if len(final_nodes) < self.leaf_num or leaf_expanded.is_dead_end():
             logging.info(f"Simulation from {tree_path} failed, flushing failure time. ")
-            if not leaf_expanded.is_alive():
-                leaf_expanded.set_simulate_fail()
+            # if not leaf_expanded.is_alive():
+            leaf_expanded.set_simulate_fail()
             return None
 
         self.simulate_time_ema /= 2
-        leaf_expanded.set_alive()
+        # leaf_expanded.set_alive()
 
         final_nodes = [
             (TreePath(path), self.touch(node, path=path))
