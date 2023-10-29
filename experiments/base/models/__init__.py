@@ -91,8 +91,6 @@ def get_model(
     args, return_sampler=False
 ) -> Union[Tuple[KASModel, Optional[Sampler]], KASModel]:
     
-    torch.set_default_dtype(torch.bfloat16)
-    
     # Create model instance
     if args.model.startswith("torchvision/"):
         model = get_common_model(args).cuda()

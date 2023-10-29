@@ -19,9 +19,9 @@ def replace_conv2d_filter(conv: nn.Conv2d) -> Optional[nn.Module]:
     if not same_padding(conv.kernel_size, conv.padding):
         return None
     
-    width = math.gcd(conv.in_channels, conv.out_channels)
-    if width != min(conv.in_channels, conv.out_channels):
-        return None
+    # width = math.gcd(conv.in_channels, conv.out_channels)
+    # if width != min(conv.in_channels, conv.out_channels):
+    #     return None
     if conv.groups > 1:
         return None
     
