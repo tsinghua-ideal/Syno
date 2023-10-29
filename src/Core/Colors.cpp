@@ -90,6 +90,7 @@ Color Color::Merge(const Color& lhs, const Color& rhs) {
         lhs.dataDiscardingFlag || rhs.dataDiscardingFlag,
         lhs.unorderedScope == rhs.unorderedScope ? lhs.unorderedScope : nullptr,
         std::max(lhs.height, rhs.height) + 1,
+        lhs.endsUpReduceFlag && rhs.endsUpReduceFlag,
     };
 }
 

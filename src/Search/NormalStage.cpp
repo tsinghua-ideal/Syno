@@ -178,6 +178,7 @@ void NormalStage::guardGeneratedChildren() {
             if (options.maximumUnfolds == -1 || options.maximumUnfolds > existingOp<UnfoldOp>()) {
                 add(UnfoldOp::Generate(store, prospectiveInterface, {
                     .ctx = ctx,
+                    .graph = graph,
                     .minimumRatio = options.minimumUnfoldRatio,
                     .maxUnfoldKernelSize = options.maxUnfoldKernelSize,
                     .requiresOddKernelSizeInUnfold = options.requiresOddKernelSizeInUnfold,

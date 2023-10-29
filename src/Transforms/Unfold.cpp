@@ -57,6 +57,8 @@ UnfoldOp::Values UnfoldOp::value(const Values& known) const {
 std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
+    const Graph& graph = options.graph;
+
     // In addition, canonicalization can require that UnfoldOp chain be structured in ascending order of kernel size. This changes semantics but it seems to be fine.
     using enum DimensionTypeWithOrder;
     std::vector<DimensionTypeWithOrder> disallowsL { ShareR };
@@ -75,7 +77,7 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const 
         for (auto&& dimR: plausibleR) {
             if (dimL == dimR) continue;
             ++countPlausible;
-            if (dimL.is(DimensionType::Reduce) && dimR.is(DimensionType::Reduce)) {
+            if (graph.colorOf(dimL).endsUpReduce() && graph.colorOf(dimR).endsUpReduce()) {
                 ++CountDoubleReduction;
                 continue;
             }

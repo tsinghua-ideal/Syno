@@ -29,12 +29,15 @@ private:
     const DimensionImpl *unorderedScope = nullptr;
     // Length of longest chain of primitives below this Dimension.
     int height = 0;
+    // Whether all bottom descendants of this dim are Reduce.
+    bool endsUpReduceFlag = false;
 
-    Color(auto&& tags, bool dataDiscardingFlag, const DimensionImpl *unorderedScope, int height):
+    Color(auto&& tags, bool dataDiscardingFlag, const DimensionImpl *unorderedScope, int height, bool endsUpReduceFlag):
         tags { std::forward<decltype(tags)>(tags) },
         dataDiscardingFlag { dataDiscardingFlag },
         unorderedScope { unorderedScope },
-        height { height }
+        height { height },
+        endsUpReduceFlag { endsUpReduceFlag }
     {}
     Color(const Color&) = default;
 
@@ -72,6 +75,9 @@ public:
     int getHeight() const { return height; }
     Color& setHeight(int value) & { height = value; return *this; }
     Color setHeight(int value) && { return std::move(static_cast<Color&>(*this).setHeight(value)); }
+    bool endsUpReduce() const { return endsUpReduceFlag; }
+    Color& setEndsUpReduce(bool value) & { endsUpReduceFlag = value; return *this; }
+    Color setEndsUpReduce(bool value) && { return std::move(static_cast<Color&>(*this).setEndsUpReduce(value)); }
 };
 
 class Graph;
