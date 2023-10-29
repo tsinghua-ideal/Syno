@@ -40,7 +40,7 @@ tmux send-keys -t "$i" "echo TMUX Pane $i" Enter
 tmux send-keys -t "$i" "mamba activate $2" Enter
 tmux send-keys -t "$i" "cd ${current_path}" Enter
 tmux send-keys -t "$i" "export CUDA_VISIBLE_DEVICES=$(($i))" Enter
-tmux send-keys -t "$i" "./launch_client.sh ${*:4} --kas-client-cache-dir /tmp/.client_$3-$i-cache > client_$3-$i.log 2>&1" Enter
+tmux send-keys -t "$i" "./launch_client.sh ${*:4} --kas-client-cache-dir /tmp/.client_$3-$i-cache > client_$3-$(($i)).log 2>&1" Enter
 done
 
 # Attach.

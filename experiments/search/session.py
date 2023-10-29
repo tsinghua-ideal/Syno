@@ -265,7 +265,7 @@ class Session:
                 )
 
             # copying kernel dir
-            if kernel_flag != "LOAD_SUCCESS":
+            if kernel_flag != "MOCKPATH":
                 shutil.copytree(
                     self.sampler.realize(self.model, node).get_directory(),
                     os.path.join(kernel_save_dir, "kernel_scheduler_dir"),
