@@ -119,6 +119,14 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
                     isWeightsSharing = true; // Only upon chained ShareOp, this is true.
                 }
             }
+            if (isWeightsSharing) {
+                // We need to restrict this pattern.
+                auto usage = weightDim.size().getLimitsUsage();
+                if (usage.varsPowersInSize != 1) {
+                    // Only allow single variable.
+                    continue;
+                }
+            }
 
             auto weightDimType = weightDim.type();
             if (weightDimType == DimensionType::Merge) {
