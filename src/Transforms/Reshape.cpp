@@ -30,31 +30,29 @@ auto ReshapeBlockNeighbors::combinedWith(const Self& rhs) const -> Self {
     return { left, rhs.right };
 }
 
-auto ReshapeCanonicalizer::transform(const Iterator&) const -> Adjacent {
+auto ReshapeCanonicalizer::transform(const Iterator& dim) const -> Adjacent {
     return {};
 }
 
-auto ReshapeCanonicalizer::transform(const Reduce& reduction) const -> Adjacent {
-    return { &reduction, &reduction };
+auto ReshapeCanonicalizer::transform(const Reduce& dim) const -> Adjacent {
+    return { &dim, &dim };
 }
 
-auto ReshapeCanonicalizer::transform(const RepeatLikeOp::Input&) const -> Adjacent {
+auto ReshapeCanonicalizer::transform(const RepeatLikeOp& op) const -> Adjacent {
     return {};
 }
 
-auto ReshapeCanonicalizer::transform(const SplitLikeOp::Input& dim) const -> Adjacent {
-    if (auto split = dynamic_cast<const SplitOp::Input *>(&dim); split) {
-        auto op = split->getOp();
-        return at(op->outputLhs).combinedWith(at(op->outputRhs));
+auto ReshapeCanonicalizer::transform(const SplitLikeOp& op) const -> Adjacent {
+    if (auto split = dynamic_cast<const SplitOp *>(&op); split) {
+        return at(op.outputLhs).combinedWith(at(op.outputRhs));
     } else {
         return {};
     }
 }
 
-auto ReshapeCanonicalizer::transform(const MergeLikeOp::Input& dim) const -> std::pair<Adjacent, Adjacent> {
-    if (auto merge = dynamic_cast<const MergeOp::Input *>(&dim); merge) {
-        auto op = merge->getDerivedOp<MergeOp>();
-        return at(op->output).separatedBy(op);
+auto ReshapeCanonicalizer::transform(const MergeLikeOp& op) const -> std::pair<Adjacent, Adjacent> {
+    if (auto merge = dynamic_cast<const MergeOp *>(&op); merge) {
+        return at(op.output).separatedBy(merge);
     } else {
         return {};
     }

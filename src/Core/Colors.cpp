@@ -103,6 +103,10 @@ Color& Color::addTag(Tag tag) & {
     return *this;
 }
 
+Dimension Color::getUnorderedScope() const {
+    return unorderedScope;
+}
+
 bool Color::removeTag(Tag tag) {
     return RemoveTag(tags, tag);
 }

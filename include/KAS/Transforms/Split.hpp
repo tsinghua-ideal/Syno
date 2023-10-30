@@ -48,6 +48,7 @@ public:
         GenerateAttempts,
         DisallowedAttempts,
         CounteractedMergesAndReduces,
+        CounteractedUnorderedMerges,
         InvalidProductSize,
         SuccessfulGenerations,
     )

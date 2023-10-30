@@ -319,7 +319,9 @@ public:
     VisitedVertex visitAlong(const Dimension& dim, Direction dir) const;
 
     template<typename Visitor, typename AttributeType>
-    void accept(BottomTopDimVisitor<Visitor, AttributeType>& visitor) const { visitor.propagate(topmost.getAllDimensions()); }
+    void accept(BottomTopDimVisitor<Visitor, AttributeType>& visitor) const { visitor.propagate(topmost); }
+    template<typename Visitor, typename AttributeType>
+    void accept(TopBottomDimVisitor<Visitor, AttributeType>& visitor) const { visitor.propagate(topmost); }
 
     const Topmost& getTopmost() const { return topmost; }
     decltype(auto) getDimensions() const {

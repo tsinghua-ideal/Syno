@@ -22,11 +22,11 @@ struct ReshapeBlockNeighbors {
 // and if the blocks that are adjacent get combined by Split's again, this is illegal.
 struct ReshapeCanonicalizer: public BottomTopDimVisitor<ReshapeCanonicalizer, ReshapeBlockNeighbors> {
     using Adjacent = ReshapeBlockNeighbors;
-    auto transform(const Iterator&) const -> Adjacent;
-    auto transform(const Reduce&) const -> Adjacent;
-    auto transform(const RepeatLikeOp::Input&) const -> Adjacent;
-    auto transform(const SplitLikeOp::Input& dim) const -> Adjacent;
-    auto transform(const MergeLikeOp::Input& dim) const -> std::pair<Adjacent, Adjacent>;
+    auto transform(const Iterator& dim) const -> Adjacent;
+    auto transform(const Reduce& dim) const -> Adjacent;
+    auto transform(const RepeatLikeOp& op) const -> Adjacent;
+    auto transform(const SplitLikeOp& op) const -> Adjacent;
+    auto transform(const MergeLikeOp& op) const -> std::pair<Adjacent, Adjacent>;
 };
 
 } // namespace kas

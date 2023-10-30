@@ -70,6 +70,7 @@ public:
     Color& setDataDiscarding(bool value) & { dataDiscardingFlag = value; return *this; }
     Color setDataDiscarding(bool value) && { return std::move(static_cast<Color&>(*this).setDataDiscarding(value)); }
     bool isUnordered() const { return unorderedScope != nullptr; }
+    Dimension getUnorderedScope() const;
     Color& setUnordered(const DimensionImpl *value) &;
     Color setUnordered(const DimensionImpl *value) && { return std::move(static_cast<Color&>(*this).setUnordered(value)); }
     int getHeight() const { return height; }

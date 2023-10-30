@@ -49,6 +49,8 @@ SplitOp::Values SplitOp::value(const Values &known) const {
 std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
+    const Graph& graph = options.graph;
+
     // Canonicalization requires SplitOp to be chained.
     using T = DimensionTypeWithOrder;
     std::vector<DimensionTypeWithOrder> disallowsL { T::ShareR, T::Split };
@@ -60,16 +62,32 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const To
     auto plausibleR = interface.filterOut(std::move(disallowsR));
 
     ReshapeCanonicalizer canonicalizer;
-    options.graph.accept(canonicalizer);
+    graph.accept(canonicalizer);
 
     std::vector<const SplitOp *> result;
-    auto checkThenAdd = [&store, &canonicalizer, &result, &ctx = options.ctx](const Dimension& dimL, const Dimension& dimR) {
+    auto checkThenAdd = [&store, &canonicalizer, &result, &ctx = options.ctx, &graph](const Dimension& dimL, const Dimension& dimR) {
         // Perform canonicalization for reshape.
         if (canonicalizer.at(dimL).isAdjacentTo(canonicalizer.at(dimR))) {
             // They are redundant!
             // Because the split dimensions are merged or reduced.
             ++CountCounteractedMergesAndReduces;
             return;
+        }
+        // Check orderedness.
+        if (
+            const auto& colorL = graph.colorOf(dimL), & colorR = graph.colorOf(dimR);
+            // Same unorderedness.
+            colorL.isUnordered() && colorR.isUnordered() && colorL.getUnorderedScope() == colorR.getUnorderedScope()
+        ) {
+            // They are from the same unordered dim.
+            // No matter whether they are adjacent, it is sure that if they are from the same merge block, they are redundant.
+            auto mergeL = dimL, mergeR = dimR;
+            while (auto m = mergeL.tryAs<MergeOp::Input>()) mergeL = m->getOp()->output;
+            while (auto m = mergeR.tryAs<MergeOp::Input>()) mergeR = m->getOp()->output;
+            if (mergeL == mergeR) {
+                ++CountCounteractedUnorderedMerges;
+                return;
+            }
         }
         // Check that the created size is valid.
         if (auto product = dimL.size() * dimR.size(); !ctx.isSizeValid(product)) {

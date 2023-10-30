@@ -36,19 +36,19 @@ struct DecreaseAndShareCollector: public BottomTopDimVisitor<DecreaseAndShareCol
     using Collected = CollectedDecreaseAndShare;
     auto transform(const Iterator&) const -> Collected { return {}; }
     auto transform(const Reduce& reduce) const -> Collected { return { {}, { &reduce } }; }
-    auto transform(const RepeatLikeOp::Input& dim) const -> Collected {
-        return at(dim.getOp()->output);
+    auto transform(const RepeatLikeOp& op) const -> Collected {
+        return at(op.output);
     }
-    auto transform(const SplitLikeOp::Input& dim) const -> Collected {
-        auto left = at(dim.getOp()->outputLhs), right = at(dim.getOp()->outputRhs);
+    auto transform(const SplitLikeOp& op) const -> Collected {
+        auto left = at(op.outputLhs), right = at(op.outputRhs);
         left.shares.merge(std::move(right.shares));
         left.decreases.merge(std::move(right.decreases));
         return left;
     }
-    auto transform(const MergeLikeOp::Input& dim) const -> std::pair<Collected, Collected> {
-        auto result = at(dim.getOp()->output);
-        if (auto share = dynamic_cast<const ShareOp::Input *>(&dim); share) {
-            result.shares.emplace(share->getDerivedOp<ShareOp>());
+    auto transform(const MergeLikeOp& op) const -> std::pair<Collected, Collected> {
+        auto result = at(op.output);
+        if (auto shareOp = dynamic_cast<const ShareOp *>(&op); shareOp) {
+            result.shares.emplace(shareOp);
         }
         return { result, result };
     }
