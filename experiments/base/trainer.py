@@ -100,6 +100,7 @@ def train(model, train_dataloader, val_dataloader, args, init_weight=True) -> Li
             break
 
     logging.info(f'Training completed, accuracy: {max(val_accuracy)}')
+    model = model.float()
     return val_accuracy
 
 
