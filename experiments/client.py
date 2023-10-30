@@ -120,26 +120,12 @@ def main():
             # Load and evaluate on a dataset
             try:
                 kernel_loader = KernelLoader.from_directory(kernel_directory)
-                try:
-                    kernel_flag = model.load_kernel(
-                        kernel_loader,
-                        compile=args.compile,
-                        batch_size=args.batch_size,
-                        seq_len=args.gpt_seq_len,
-                    )
-                except Exception as e:
-                    if args.compile:
-                        logging.warning(
-                            "torch compile error, falling back to non-compile version. "
-                        )
-                        kernel_flag = model.load_kernel(
-                            kernel_loader,
-                            compile=False,
-                            batch_size=args.batch_size,
-                            seq_len=args.gpt_seq_len,
-                        )
-                    else:
-                        raise e
+                kernel_flag = model.load_kernel(
+                    kernel_loader,
+                    compile=args.compile,
+                    batch_size=args.batch_size,
+                    seq_len=args.gpt_seq_len,
+                )
                 flops, params = model.profile(args.batch_size, seq_len=args.gpt_seq_len)
                 logging.info(
                     f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
