@@ -62,7 +62,7 @@ auto UnorderednessCanonicalizer::transform(const MergeLikeOp& op) -> Unorderedne
     return at(op.getInputL()) && at(op.getInputR());
 }
 
-bool IsCanonicalGivenUnorderedness(const Graph& graph, const std::set<Dimension, Dimension::AddressLessThan>& unorderedDims) {
+bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionSet& unorderedDims) {
     UnorderednessCanonicalizer canonicalizer { unorderedDims };
     graph.accept(canonicalizer);
     for (auto shiftOp: graph.getOpsOfType<ShiftOp>()) {

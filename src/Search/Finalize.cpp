@@ -8,6 +8,7 @@
 #include "KAS/Core/TensorView.hpp"
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Search/Sample.hpp"
+#include "KAS/Transforms/Canonicalization.hpp"
 #include "KAS/Utils/Algorithm.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Ranges.hpp"
@@ -649,6 +650,21 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
         const auto [inputTensor, weightDims] = inputCandidate.toTensorAndWeightDims(graph, interface);
         KAS_ASSERT(inputTensor.size() == desired.size());
         KAS_ASSERT(weightDims.size() == interface.size() - desired.size());
+
+        // Pruning based on unorderedness.
+        {
+            Graph::DimensionSet unorderedDims;
+            for (std::size_t i: options.unorderedDesiredDims) {
+                unorderedDims.emplace(inputTensor.at(i));
+            }
+            if (!IsCanonicalGivenUnorderedness(graph, unorderedDims)) {
+                ++CountUncanonicalUnorderedInput;
+                return;
+            } else {
+                ++CountCanonicalUnorderedInput;
+            }
+        }
+
         for (auto tensors: AssignToWeights(weightDims, {
             .maxWeights = MaxTensorsToMaxWeights(options.maximumTensors), 
             .allowWeightPermutation = options.allowWeightPermutation,
@@ -669,7 +685,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
                 });
                 KAS_ASSERT(it == tensors.end());
             }
-            tensors.insert(tensors.begin(), std::move(inputTensor));
+            tensors.insert(tensors.begin(), inputTensor);
             addToResults(std::move(tensors));
         }
     };

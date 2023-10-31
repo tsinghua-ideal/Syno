@@ -31,6 +31,6 @@ struct UnorderednessCanonicalizer: public TopBottomDimVisitor<UnorderednessCanon
     auto transform(const MergeLikeOp& op) -> Unorderedness;
 };
 
-bool IsCanonicalGivenUnorderedness(const Graph& graph, const std::set<Dimension, Dimension::AddressLessThan>& unorderedDims);
+bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionSet& unorderedDims);
 
 } // namespace kas

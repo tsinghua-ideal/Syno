@@ -187,6 +187,7 @@ class Sampler final {
     SampleOptions options;
     Shape inputShape, outputShape;
     std::vector<Parser::Attributes> inputAttributes, outputAttributes;
+    std::vector<std::size_t> unorderedInputDims;
 
     std::vector<Iterator> outputIterators;
     std::vector<FixedDimension> fixedDimensions;
@@ -210,6 +211,10 @@ public:
     const BindingContext& getBindingContext() const { return ctx; }
     Shape& getInputShape() { return inputShape; }
     Shape& getOutputShape() { return outputShape; }
+    const std::vector<Parser::Attributes>& getInputAttributes() const { return inputAttributes; }
+    const std::vector<Parser::Attributes>& getOutputAttributes() const { return outputAttributes; }
+    // Search-time. That is, all fixed dimensions are removed.
+    const std::vector<std::size_t>& getUnorderedInputDims() const { return unorderedInputDims; }
     const SampleOptions& getOptions() const { return options; }
     PrimitiveOpStore& getOpStore() { return opStore; }
     StageStore& getStageStore() { return stageStore; }

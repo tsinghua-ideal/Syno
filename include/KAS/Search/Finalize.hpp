@@ -105,6 +105,8 @@ public:
         GenerateInvocations,
         SuccessfulInvocations,
         FailedInvocations,
+        UncanonicalUnorderedInput,
+        CanonicalUnorderedInput,
         LegalFinalizations,
         UncanonicalWeight,
     )
@@ -116,6 +118,8 @@ public:
     struct GenerateOptions {
         const BindingContext& ctx;
         const Shape& desired;
+        // Unorderedness.
+        const std::vector<std::size_t>& unorderedDesiredDims;
         std::size_t maximumTensors;
         std::size_t maximumFinalizations;
         bool allowWeightPermutation;

@@ -103,6 +103,7 @@ void NormalStage::guardGeneratedChildren() {
     nextFinalizations.fill(FinalizeOp::Generate(interface, graph, {
         .ctx = ctx,
         .desired = sampler.getInputShape(),
+        .unorderedDesiredDims = sampler.getUnorderedInputDims(),
         .maximumTensors = options.maximumTensors,
         .maximumFinalizations = options.maximumFinalizations,
         .allowWeightPermutation = options.allowWeightPermutation,

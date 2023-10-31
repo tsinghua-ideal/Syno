@@ -144,6 +144,15 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     std::tie(this->outputShape, outputAttributes) = ctx.getShapeAndAttributes(outputShape);
 
     this->options.check();
+
+    // Input unorderedness.
+    for (std::size_t index = 0; const auto& attrs: inputAttributes) {
+        if (attrs.contains("unordered")) {
+            unorderedInputDims.emplace_back(index);
+        }
+        ++index;
+    }
+
     // Initialize the output iterators.
     for (std::size_t index = 0; const auto& domain: this->outputShape) {
         outputIterators.emplace_back(index, domain, outputAttributes.at(index).contains("unordered"));
@@ -163,6 +172,12 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     // To bind input and output dimensions, remove fixed dimensions from inputShape and outputShape.
     for (std::size_t i: fixedDimensions | std::views::reverse | std::views::transform(&FixedDimension::index)) {
         this->inputShape.sizes.erase(this->inputShape.sizes.begin() + i);
+        for (std::size_t& index: unorderedInputDims) {
+            KAS_ASSERT(index != i, "Unordered dimension cannot be bound.");
+            if (index > i) {
+                --index;
+            }
+        }
     }
     for (std::size_t o: boundOutputDimensions | std::views::reverse) {
         this->outputShape.sizes.erase(this->outputShape.sizes.begin() + o);
