@@ -262,24 +262,24 @@ std::vector<ColoredDimension> FinalizeOp::FLOPsGameOptions::buildFullWeightDims(
     return result;
 }
 
-ShapeDistance FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>& current, const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, const FLOPsGameOptions& flopsOptions) {
+ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current, const std::vector<DesiredSize>& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, const FLOPsGameOptions& flopsOptions) {
     int strideDist = 0;
 
-    std::vector<std::pair<Size, int>> mustBeInput, canBeWeight;
+    std::vector<CurrentSize> mustBeInput, canBeWeight;
     std::vector<ColoredDimension> canBeWeightDims;
-    for (const auto& [dim, remainingLength]: current) {
-        auto origin = dim.deduceOrigin(graph);
+    for (const auto& dim: current) {
+        auto origin = dim.value.deduceOrigin(graph);
         switch (origin) {
         case Dimension::Origin::Input:
-            mustBeInput.emplace_back(dim.size(), remainingLength);
+            mustBeInput.emplace_back(dim);
             break;
         case Dimension::Origin::InputOrWeight:
-            canBeWeight.emplace_back(dim.size(), remainingLength);
+            canBeWeight.emplace_back(dim);
             canBeWeightDims.emplace_back(graph, dim);
             break;
         case Dimension::Origin::UnfoldOrExpand:
-            ++strideDist; // We need an Unfold to eliminate this.
-            if (remainingLength <= 0) {
+            ++strideDist; // We need an Unfold or an Expand to eliminate this.
+            if (dim.remainingLength <= 0) {
                 return ShapeDistance::Infinity;
             }
             break;
@@ -287,26 +287,32 @@ ShapeDistance FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>&
             KAS_CRITICAL("Dimension origin {} not allowed in FinalizeOp::Distance()!", origin);
         }
     }
-    if (strideDist > options.remainingUnfoldsAndExpands) {
+    if (
+        // Note that we can use Split to combine two strided dims, so the least requirement is 1.
+        (strideDist > 0 && options.remainingUnfoldsAndExpands <= 0)
+        // One step for each strided dim.
+        || strideDist > options.overflow
+        // TODO! Add numel check.
+    ) {
         return ShapeDistance::Infinity; // Early stop.
     }
+    const std::size_t overflow = options.overflow - strideDist;
 
     // Then, experimentally finalize.
-    
+
     ShapeDistance minimumComplexity = ShapeDistance::Infinity;
-    std::vector<std::pair<Size, int>> newCurrent = mustBeInput;
+    std::vector<CurrentSize> newCurrent = mustBeInput;
     std::vector<ColoredDimension> selectedWeightDims;
     auto extendedGame = ExtendedFLOPsGame(options.ctx, flopsOptions.totalInputSize, graph);
     const bool checkFLOPs = flopsOptions.prune;
     auto recursion = [&](const auto& self, std::size_t trialIndex) -> void {
         // In either cases, we do not need to further compute.
         if (trialIndex == canBeWeight.size()) {
-            const std::size_t overflow = std::min(minimumComplexity.steps, options.overflow);
             ShapeDistance trial = { ShapeComplexity::Compute(desired, newCurrent, {
                 .ctx = options.ctx,
                 .remainingMerges = options.remainingMerges,
                 .remainingSplits = options.remainingSplits,
-                .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - strideDist,
+                .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - (strideDist > 0),
                 .overflow = overflow,
             }), ShapeDistance::MaxFLOPs };
             if (trial.steps <= overflow) {
@@ -345,6 +351,8 @@ ShapeDistance FinalizeOp::Distance(const std::vector<std::pair<Dimension, int>>&
     if (minimumComplexity.steps == ShapeComplexity::Infinity) {
         return ShapeDistance::Infinity;
     } else {
+        // Although we may only need 1 Expand or Unfold to eliminate all strided dims (with the help of other ops),
+        // we have to spend at least 1 step per strided dim.
         minimumComplexity.steps += strideDist;
         return minimumComplexity;
     }
@@ -654,8 +662,11 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
         // Pruning based on unorderedness.
         {
             Graph::DimensionSet unorderedDims;
-            for (std::size_t i: options.unorderedDesiredDims) {
-                unorderedDims.emplace(inputTensor.at(i));
+            for (std::size_t i = 0; const auto& desiredDim: desired) {
+                if (desiredDim.isUnordered) {
+                    unorderedDims.emplace(inputTensor.at(i));
+                }
+                ++i;
             }
             if (!IsCanonicalGivenUnorderedness(graph, unorderedDims)) {
                 ++CountUncanonicalUnorderedInput;
@@ -706,7 +717,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
             buildBesideInputTensor(fragments);
             return;
         }
-        const auto& desiredDimSize = desired[nextIndex];
+        const Size& desiredDimSize = desired[nextIndex].value;
         for (std::size_t i = 0; i < interface.size(); ++i) {
             auto&& dim = interface[i];
             auto origin = dim.deduceOrigin(graph);

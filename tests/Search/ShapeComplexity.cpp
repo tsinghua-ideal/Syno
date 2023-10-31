@@ -7,7 +7,7 @@ TEST_F(search_tests, shape_complexity) {
 
     auto [N, H, W, k_1, s_1] = ctx.getSizes("N", "H", "W", "k_1", "s_1");
 
-    Shape desired = std::vector<Size> {N, H, W};
+    auto desired = std::vector<DesiredSize> {{N}, {H}, {W}};
     ShapeComplexity::DistanceOptions options = {
         .ctx = ctx,
         .remainingMerges = 0,

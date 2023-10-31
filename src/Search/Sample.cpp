@@ -116,6 +116,8 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
         task.node.expandWithArcs(expander, task);
     } }
 {
+    this->options.check();
+
     KAS_ASSERT(numWorkerThreads > 0);
     for (auto& mutexes: this->mutexes) {
         std::vector<std::recursive_mutex> v(countMutexesInLayer);
@@ -143,19 +145,20 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     std::tie(this->inputShape, inputAttributes) = ctx.getShapeAndAttributes(inputShape);
     std::tie(this->outputShape, outputAttributes) = ctx.getShapeAndAttributes(outputShape);
 
-    this->options.check();
-
     // Input unorderedness.
     for (std::size_t index = 0; const auto& attrs: inputAttributes) {
-        if (attrs.contains("unordered")) {
-            unorderedInputDims.emplace_back(index);
-        }
+        desiredShape.emplace_back(this->inputShape[index], attrs.contains("unordered"));
         ++index;
     }
+    KAS_ASSERT(desiredShape.size() == this->inputShape.size());
 
+    // The root, which are output iterators.
+    std::vector<Dimension> rootDimensions;
     // Initialize the output iterators.
+    outputIterators.reserve(this->outputShape.size());
     for (std::size_t index = 0; const auto& domain: this->outputShape) {
         outputIterators.emplace_back(index, domain, outputAttributes.at(index).contains("unordered"));
+        rootDimensions.emplace_back(&outputIterators.back()); // We have called reserve in advance so this is safe.
         ++index;
     }
 
@@ -172,15 +175,11 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     // To bind input and output dimensions, remove fixed dimensions from inputShape and outputShape.
     for (std::size_t i: fixedDimensions | std::views::reverse | std::views::transform(&FixedDimension::index)) {
         this->inputShape.sizes.erase(this->inputShape.sizes.begin() + i);
-        for (std::size_t& index: unorderedInputDims) {
-            KAS_ASSERT(index != i, "Unordered dimension cannot be bound.");
-            if (index > i) {
-                --index;
-            }
-        }
+        this->desiredShape.erase(this->desiredShape.begin() + i);
     }
     for (std::size_t o: boundOutputDimensions | std::views::reverse) {
         this->outputShape.sizes.erase(this->outputShape.sizes.begin() + o);
+        rootDimensions.erase(rootDimensions.begin() + o);
     }
 
     expressionOneTensor = Parser(options.expressionOneTensor).parseTensorExpression();
@@ -188,14 +187,6 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     expressionThreeTensors = Parser(options.expressionThreeTensors).parseTensorExpression();
     expressionFourTensors = Parser(options.expressionFourTensors).parseTensorExpression();
 
-    std::vector<Dimension> rootDimensions;
-    for (const auto& it: outputIterators) {
-        // Exclude the bound dimensions.
-        if (std::ranges::binary_search(boundOutputDimensions, it.getIndex())) {
-            continue;
-        }
-        rootDimensions.emplace_back(&it);
-    }
     auto interface = GraphHandle(std::move(rootDimensions), std::vector<const Expand *>{});
     std::unique_ptr<ReductionStage> rootStage;
     std::unique_lock<std::recursive_mutex> lock;

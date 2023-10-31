@@ -102,8 +102,7 @@ void NormalStage::guardGeneratedChildren() {
     // First add finalizations.
     nextFinalizations.fill(FinalizeOp::Generate(interface, graph, {
         .ctx = ctx,
-        .desired = sampler.getInputShape(),
-        .unorderedDesiredDims = sampler.getUnorderedInputDims(),
+        .desired = sampler.getDesiredShape(),
         .maximumTensors = options.maximumTensors,
         .maximumFinalizations = options.maximumFinalizations,
         .allowWeightPermutation = options.allowWeightPermutation,
@@ -263,7 +262,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     const BindingContext& ctx = sampler.getBindingContext();
     const Graph graph = interface.buildGraph();
 
-    std::vector<std::pair<Dimension, int>> current;
+    std::vector<CurrentDimension> current;
     std::vector<ColoredDimension> weightDims;
     for (const Dimension& dim: interface.getDimensions()) {
         const auto origin = dim.deduceOrigin(graph);
@@ -285,7 +284,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
         return maximum == -1 ? static_cast<int>(options.depth) : std::max(maximum - existing, 0);
     };
     const ShapeDistance distance = FinalizeOp::Distance(
-        current, sampler.getInputShape(), graph,
+        current, sampler.getDesiredShape(), graph,
         {
             .ctx = ctx,
             .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),

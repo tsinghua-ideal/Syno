@@ -76,11 +76,18 @@ int ReshapeGroup::countFinalUnfoldsAndExpands() const {
     return static_cast<int>(trait.value() != Size::Trait::One);
 }
 
-ReshapeGroups::ReshapeGroups(const Shape& desired, const std::vector<std::pair<Size, int>>& current):
-    desired { desired }, current { current },
-    desiredToGroupId(desired.size(), NoGroup),
-    currentToGroupId(current.size(), NoGroup),
-    vacantCurrents { static_cast<int>(current.size()) }
+const std::vector<DesiredSize>& ReshapeGroups::desired() const {
+    return enumerator.desired;
+}
+const std::vector<CurrentSize>& ReshapeGroups::current() const {
+    return enumerator.current;
+}
+
+ReshapeGroups::ReshapeGroups(const Enumerator& enumerator):
+    enumerator { enumerator },
+    desiredToGroupId(enumerator.desired.size(), NoGroup),
+    currentToGroupId(enumerator.current.size(), NoGroup),
+    vacantCurrents { static_cast<int>(enumerator.current.size()) }
 {}
 
 void ReshapeGroups::createGroup(std::size_t indexDesired, std::size_t indexCurrent) {
@@ -88,21 +95,21 @@ void ReshapeGroups::createGroup(std::size_t indexDesired, std::size_t indexCurre
     desiredToGroupId[indexDesired] = groups.size();
     currentToGroupId[indexCurrent] = groups.size();
     --vacantCurrents;
-    groups.emplace_back(current[indexCurrent].first, desired[indexDesired]);
+    groups.emplace_back(current()[indexCurrent], desired()[indexDesired]);
 }
 
 void ReshapeGroups::createGroup(std::size_t indexCurrent) {
     KAS_ASSERT(!currentAssigned(indexCurrent));
     currentToGroupId[indexCurrent] = groups.size();
     --vacantCurrents;
-    groups.emplace_back(current[indexCurrent].first);
+    groups.emplace_back(current()[indexCurrent]);
 }
 
 void ReshapeGroups::addDesiredToGroup(std::size_t indexDesired, std::size_t indexGroup) {
     KAS_ASSERT(!desiredAssigned(indexDesired) && countGroups() > indexGroup);
     desiredToGroupId[indexDesired] = indexGroup;
     auto& group = groups[indexGroup];
-    group.addConsumption(desired[indexDesired]);
+    group.addConsumption(desired()[indexDesired]);
 }
 
 void ReshapeGroups::addCurrentToGroup(std::size_t indexCurrent, std::size_t indexGroup) {
@@ -110,8 +117,8 @@ void ReshapeGroups::addCurrentToGroup(std::size_t indexCurrent, std::size_t inde
     currentToGroupId[indexCurrent] = indexGroup;
     --vacantCurrents;
     auto& group = groups[indexGroup];
-    KAS_ASSERT(current[indexCurrent].second > 0, "Cannot add a current size with remainingLength == 0 to a group!");
-    group.addProvision(current[indexCurrent].first);
+    KAS_ASSERT(current()[indexCurrent].remainingLength > 0, "Cannot add a current size with remainingLength == 0 to a group!");
+    group.addProvision(current()[indexCurrent]);
 }
 
 bool ReshapeGroups::desiredAssigned(std::size_t indexDesired) const {
@@ -136,7 +143,7 @@ ReshapeGroups::Counts ReshapeGroups::count() const {
 }
 
 auto ReshapeGroups::assignDesired(std::size_t indexDesired) const -> Generator<ReshapeGroups> {
-    const Size& desiredSize = desired[indexDesired];
+    const Size& desiredSize = desired()[indexDesired];
     KAS_ASSERT(Size::GetLimitsUsage(desiredSize.getPrimary()).varsPowersInSize == 1, "Input dimension sizes must each contain one and only one primary variable! TODO: support other shapes.");
     std::size_t varId = std::numeric_limits<std::size_t>::max();
     for (std::size_t pId = 0; auto p: desiredSize.getPrimary()) {
@@ -153,9 +160,9 @@ auto ReshapeGroups::assignDesired(std::size_t indexDesired) const -> Generator<R
         if (!isNewGroup && groups[i].isDirect()) continue;
         if (isNewGroup || groups[i].getRemainder().getPrimary()[varId] == 0) {
             // Check new sizes for this variable.
-            for (std::size_t j = 0; j < current.size(); ++j) {
+            for (std::size_t j = 0; j < current().size(); ++j) {
                 if (currentAssigned(j)) continue;
-                const auto& [currentSize, currentRemainingLength] = current[j];
+                const auto& [currentSize, currentRemainingLength] = current()[j];
                 if (currentSize.getPrimary()[varId] > 0) {
                     if (currentRemainingLength == 0) {
                         // We cannot allow for another Op.
@@ -188,7 +195,7 @@ auto ReshapeGroups::assignDesired(std::size_t indexDesired) const -> Generator<R
 auto ReshapeGroups::assignCurrent(std::size_t indexCurrent) const -> Generator<ReshapeGroups> {
     // Only if the current size has remainingLength.
     // This is because we need another Op to eliminate it in any group.
-    if (current[indexCurrent].second > 0) {
+    if (current()[indexCurrent].remainingLength > 0) {
         // First add to existing groups.
         for (std::size_t gId = 0; gId < countGroups(); ++gId) {
             auto copy = *this;
@@ -250,32 +257,26 @@ std::optional<T> optionalMin(const std::optional<T>& a, const std::optional<T>& 
 
 } // namespace
 
-std::size_t Compute(const Shape& desired, const std::vector<std::pair<Size, int>>& current, const DistanceOptions& options) {
+
+
+std::size_t Compute(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options) {
+    KAS_ASSERT(!desired.empty());
     // First, check whether there are enough elements in the input tensor.
     if (current.empty()) {
         return Infinity;
     }
-    Size desiredElements = desired.totalSize(), currentElements = Size::Product(current | std::views::transform(&std::pair<Size, int>::first));
+    Size desiredElements = Size::Product(desired | std::views::transform(&DesiredSize::value));
+    Size currentElements = Size::Product(current | std::views::transform(&CurrentSize::value));
     auto totalQuotient = currentElements.canBeDividedBy(desiredElements);
     if (!totalQuotient || *totalQuotient == Size::Trait::IllegalCoefficient) {
         // Not enough elements.
         return Infinity;
     }
 
-    // int numCurrent = static_cast<int>(current.size()), numDesired = static_cast<int>(desired.size());
-    // Ideally, the groups are merge-split towers, i.e., reshapes.
-    // Let there be N groups. Then the waist is N sizes.
-    // N + #Splits = #current.
-    // N + #Merges = #desired + #Unfolds + #Expands.
-    // N >= #Unfolds + #Expands.
-    // const int minGroups = std::max({
-    //     0,
-    //     numCurrent - options.remainingSplits,
-    //     numDesired - options.remainingMerges,
-    // });
+    Enumerator enumerator { desired, current };
 
     // Then group the dimensions recursively.
-    ReshapeGroups root { desired, current };
+    ReshapeGroups root = enumerator.getRoot();
     // Returns required steps or std::nullopt.
     auto currentMatchingRecursion = [&](const auto& self, const ReshapeGroups& groups, std::size_t currentIndex) -> std::optional<std::size_t> {
         const auto counts = groups.currentCount();
@@ -337,7 +338,7 @@ std::size_t Compute(const Shape& desired, const std::vector<std::pair<Size, int>
         } else { // We have assigned all desired sizes.
             // Check if there are current dimensions that have no remainingLength but has not been assigned.
             for (std::size_t i = 0; i < current.size(); ++i) {
-                if (!groups.currentAssigned(i) && current[i].second == 0) {
+                if (!groups.currentAssigned(i) && current[i].remainingLength == 0) {
                     return std::nullopt;
                 }
             }

@@ -97,8 +97,9 @@ public:
     static ShapeDistance Distance(
         // Dimension and corresponding remainingLength, computed from maxChainLength.
         // Still required to be sorted.
-        const std::vector<std::pair<Dimension, int>>& current,
-        const Shape& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, const FLOPsGameOptions& flopsOptions
+        const std::vector<CurrentDimension>& current,
+        const std::vector<DesiredSize>& desired,
+        const Graph& graph, const ShapeComplexity::DistanceOptions& options, const FLOPsGameOptions& flopsOptions
     );
 
     KAS_STATISTICS_DEF(
@@ -117,9 +118,7 @@ public:
     using FinalStageBuilder = std::function<std::unique_ptr<FinalStage>(const FinalizeOp& op)>;
     struct GenerateOptions {
         const BindingContext& ctx;
-        const Shape& desired;
-        // Unorderedness.
-        const std::vector<std::size_t>& unorderedDesiredDims;
+        const std::vector<DesiredSize>& desired;
         std::size_t maximumTensors;
         std::size_t maximumFinalizations;
         bool allowWeightPermutation;

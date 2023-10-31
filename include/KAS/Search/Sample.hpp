@@ -1,17 +1,12 @@
 #pragma once
 
 #include <condition_variable>
-#include <cstddef>
-#include <functional>
-#include <limits>
 #include <memory>
 #include <mutex>
 #include <queue>
 #include <random>
 #include <set>
-#include <span>
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -24,6 +19,7 @@
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/TensorView.hpp"
+#include "KAS/Search/Common.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 
@@ -187,7 +183,7 @@ class Sampler final {
     SampleOptions options;
     Shape inputShape, outputShape;
     std::vector<Parser::Attributes> inputAttributes, outputAttributes;
-    std::vector<std::size_t> unorderedInputDims;
+    std::vector<DesiredSize> desiredShape;
 
     std::vector<Iterator> outputIterators;
     std::vector<FixedDimension> fixedDimensions;
@@ -207,14 +203,13 @@ public:
     Sampler(const Sampler&) = delete;
     Sampler(Sampler&&) = delete;
 
-    BindingContext& getBindingContext() { return ctx; }
     const BindingContext& getBindingContext() const { return ctx; }
-    Shape& getInputShape() { return inputShape; }
-    Shape& getOutputShape() { return outputShape; }
+    const Shape& getInputShape() const { return inputShape; }
+    // Search-time. That is, all fixed dimensions are removed.
+    const std::vector<DesiredSize>& getDesiredShape() const { return desiredShape; }
+    const Shape& getOutputShape() const { return outputShape; }
     const std::vector<Parser::Attributes>& getInputAttributes() const { return inputAttributes; }
     const std::vector<Parser::Attributes>& getOutputAttributes() const { return outputAttributes; }
-    // Search-time. That is, all fixed dimensions are removed.
-    const std::vector<std::size_t>& getUnorderedInputDims() const { return unorderedInputDims; }
     const SampleOptions& getOptions() const { return options; }
     PrimitiveOpStore& getOpStore() { return opStore; }
     StageStore& getStageStore() { return stageStore; }

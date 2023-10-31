@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KAS/Core/Size.hpp"
+#include "KAS/Search/Common.hpp"
 
 
 namespace kas::ShapeComplexity {
@@ -34,11 +35,12 @@ public:
     int countFinalUnfoldsAndExpands() const;
 };
 
+struct Enumerator;
+
 struct ReshapeGroups {
     static constexpr int NoGroup = -1;
 
-    const Shape& desired;
-    const std::vector<std::pair<Size, int>>& current;
+    const Enumerator& enumerator;
 
     std::vector<ReshapeGroup> groups;
 
@@ -46,7 +48,10 @@ struct ReshapeGroups {
     std::vector<int> currentToGroupId;
     int vacantCurrents;
 
-    ReshapeGroups(const Shape& desired, const std::vector<std::pair<Size, int>>& current);
+    const std::vector<DesiredSize>& desired() const;
+    const std::vector<CurrentSize>& current() const;
+
+    ReshapeGroups(const Enumerator& enumerator);
 
     void createGroup(std::size_t indexDesired, std::size_t indexCurrent);
     void createGroup(std::size_t indexCurrent);
@@ -83,6 +88,29 @@ struct ReshapeGroups {
 
 constexpr std::size_t Infinity = std::numeric_limits<std::size_t>::max();
 
-std::size_t Compute(const Shape& desired, const std::vector<std::pair<Size, int>>& current, const DistanceOptions& options);
+// Ideally, the groups are merge-split towers, i.e., reshapes.
+// Let there be N groups. Then the waist is N sizes.
+// N + #Splits = #current.
+// N + #Merges = #desired + #Unfolds + #Expands.
+// So basic corollaries are:
+//  N >= #Unfolds + #Expands,
+//  N >= #desired - #Merges,
+//  N >= #current - #Splits.
+// Now canonicalization prevents Merge above Split, but the counts remain the same.
+struct Enumerator {
+    const std::vector<DesiredSize>& desired;
+    const std::vector<CurrentSize>& current;
+    std::optional<std::size_t> bestSteps;
+
+    bool hasEnoughElements() const;
+    ReshapeGroups getRoot() const { return { *this }; }
+    ReshapeGroups copy(const ReshapeGroups& groups) const { return groups; }
+    // First organize the desired sizes in groups.
+    void matchDesired(const ReshapeGroups& groups, std::size_t desiredIndex);
+    // Then check if the remaining current sizes can be matched to the groups.
+    void matchCurrent(const ReshapeGroups& groups, std::size_t currentIndex);
+};
+
+std::size_t Compute(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options);
 
 } // namespace kas::ShapeComplexity
