@@ -145,8 +145,8 @@ public:
         const auto& op = *dim.getOp();
         auto [lhs, rhs] = derived().transform(op);
         assertEmplace(op.outputLhs, std::move(lhs));
-        assertEmplace(op.outputRhs, std::move(rhs));
         op.outputLhs.accept(*this);
+        assertEmplace(op.outputRhs, std::move(rhs));
         op.outputRhs.accept(*this);
     }
     void visit(const MergeLikeOp::Input& dim) final override {
@@ -158,14 +158,10 @@ public:
     void propagate(const Topmost& topmost) {
         for (const Dimension& dim: topmost.getDimensions()) {
             assertEmplace(dim, derived().transformInput(dim));
-        }
-        for (const Expand *expand: topmost.getExpansions()) {
-            assertEmplace(expand->output, derived().transformExpand(expand->output));
-        }
-        for (const Dimension& dim: topmost.getDimensions()) {
             dim.accept(*this);
         }
         for (const Expand *expand: topmost.getExpansions()) {
+            assertEmplace(expand->output, derived().transformExpand(expand->output));
             expand->output.accept(*this);
         }
     }
