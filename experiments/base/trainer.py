@@ -19,7 +19,7 @@ def torch_opt_on():
     torch.backends.cudnn.allow_tf32 = True
 
 
-def train(model, train_dataloader, val_dataloader, args, init_weight=True) -> List[float]:
+def train(model, train_dataloader, val_dataloader, args, init_weight=True, use_bf16=True) -> List[float]:
     if 'gpt' in args.model:
         return train_gpt(model, train_dataloader, val_dataloader, args)
 
@@ -30,7 +30,8 @@ def train(model, train_dataloader, val_dataloader, args, init_weight=True) -> Li
     model.cuda()
     if init_weight:
         model.initialize_weights()
-    model.bfloat16()
+    if use_bf16:
+        model.bfloat16()
 
     # Loss, optimizer and scheduler
     loss_func = get_loss_func(args)
@@ -47,7 +48,7 @@ def train(model, train_dataloader, val_dataloader, args, init_weight=True) -> Li
         for i, (image, label) in enumerate(train_dataloader):
             # Forward
             image, label = image.cuda(), label.cuda()
-            logits: torch.Tensor = model(image.bfloat16()).float()
+            logits: torch.Tensor = model(image.bfloat16()).float() if use_bf16 else model(image)
             loss = loss_func(logits, label)
 
             # Backward
@@ -81,7 +82,7 @@ def train(model, train_dataloader, val_dataloader, args, init_weight=True) -> Li
                     label = torch.cat([label, torch.zeros(shape, dtype=label.dtype).cuda() - 1], dim=0)
 
                 # Inference
-                logits = model(image.bfloat16())
+                logits = model(image.bfloat16()) if use_bf16 else model(image)
 
                 # Statistic
                 pred = torch.argmax(logits, 1)

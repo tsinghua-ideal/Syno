@@ -50,5 +50,5 @@ if __name__ == "__main__":
     )
 
     logging.info("Evaluating on real dataset ...")
-    accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
+    accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args, use_bf16=True))
     print(f"Evaluation result: {flops} {params} {accuracy}")
