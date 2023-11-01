@@ -27,10 +27,11 @@ TEST_F(search_tests, sampler) {
             fmt::print("Expanding lattice... ");
             sampler.visit({})->expandToSync(node);
             fmt::print("Done.\n");
-            // auto flops = node.asFinalStage()->value.getFLOPs(ctx);
+            // auto successorFlops = node.asFinalStage()->value.getFLOPs(ctx);
             // while (!sampledPath.empty()) {
-            //     auto distance = sampler.visit(sampledPath)->getShapeDistance();
-            //     ASSERT_LE(distance.flops, flops);
+            //     auto [_, flops] = sampler.visit(sampledPath)->getShapeDistance();
+            //     ASSERT_LE(flops, successorFlops);
+            //     successorFlops = flops;
             //     sampledPath.pop_back();
             // }
         }
