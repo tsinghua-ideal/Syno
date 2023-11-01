@@ -27,10 +27,11 @@ TEST_F(search_tests, sampler) {
             fmt::print("Expanding lattice... ");
             sampler.visit({})->expandToSync(node);
             fmt::print("Done.\n");
-            // auto flops = node.asFinalStage()->value.getFLOPs(ctx);
+            // auto successorFlops = node.asFinalStage()->value.getFLOPs(ctx);
             // while (!sampledPath.empty()) {
-            //     auto distance = sampler.visit(sampledPath)->getShapeDistance();
-            //     ASSERT_LE(distance.flops, flops);
+            //     auto [_, flops] = sampler.visit(sampledPath)->getShapeDistance();
+            //     ASSERT_LE(flops, successorFlops);
+            //     successorFlops = flops;
             //     sampledPath.pop_back();
             // }
         }
@@ -52,6 +53,7 @@ TEST_F(search_tests, sampler) {
         PyTorchGen(ctx, tensorView).generateSingle("./search_pt/trial_" + std::to_string(i) + ".py", "trial_" + std::to_string(i), tensorView, dict);
         GraphvizGen(tensorView, ctx).generate("./search_viz/trial_" + std::to_string(i) + ".dot", "trial_" + std::to_string(i));
 
+#ifdef KAS_USE_HALIDE
         if (doRealization) {
             auto cgOpt = CodeGenOptions();
             cgOpt.scheduler = CodeGenOptions::AutoScheduler::Anderson2021;
@@ -60,6 +62,7 @@ TEST_F(search_tests, sampler) {
             auto name = "search_codegen_test_" + std::to_string(i);
             gen.performTrial<false>(dict, name, true, false, []{});
         }
+#endif
     }
     StatisticsCollector::PrintSummary(std::cout);
     fmt::print("Success rate: {:.2f} ({} / {})\n", static_cast<float>(successes) / trials, successes, trials);

@@ -37,14 +37,14 @@ if(KAS_WITH_HALIDE)
     # Halide
     find_package(Halide REQUIRED)
 
-    # GTest
-    enable_testing()
-    find_package(GTest REQUIRED)
-    include_directories(${GTEST_INCLUDE_DIRS})
-
     # OpenMP, which is used to speed up tests. Optional.
     find_package(OpenMP)
 endif()
+
+# GTest
+enable_testing()
+find_package(GTest REQUIRED)
+include_directories(${GTEST_INCLUDE_DIRS})
 
 # Includes and libraries
 include_directories(include)
@@ -52,9 +52,7 @@ include_directories(include)
 # Sub-directories
 add_subdirectory(src)
 
-if(KAS_WITH_HALIDE)
-    add_subdirectory(tests)
-endif()
+add_subdirectory(tests)
 
 # Only runtime may require CUDA or Torch.
 add_subdirectory(runtime)

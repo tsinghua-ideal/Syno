@@ -35,7 +35,7 @@ public:
     int countFinalUnfoldsAndExpands() const;
 };
 
-struct Enumerator;
+class Enumerator;
 
 struct ReshapeGroups {
     static constexpr int NoGroup = -1;
@@ -97,18 +97,29 @@ constexpr std::size_t Infinity = std::numeric_limits<std::size_t>::max();
 //  N >= #desired - #Merges,
 //  N >= #current - #Splits.
 // Now canonicalization prevents Merge above Split, but the counts remain the same.
-struct Enumerator {
+class Enumerator {
+public:
     const std::vector<DesiredSize>& desired;
     const std::vector<CurrentSize>& current;
-    std::optional<std::size_t> bestSteps;
 
-    bool hasEnoughElements() const;
-    ReshapeGroups getRoot() const { return { *this }; }
-    ReshapeGroups copy(const ReshapeGroups& groups) const { return groups; }
+private:
+    DistanceOptions options;
+    bool done = false;
+    // If numels of desired and current are equal, then we do not need any Expand or Unfold.
+    bool isExact = false;
+    std::size_t bestSteps = Infinity;
+
+    bool isCurrentDirect(std::size_t index) const;
+    void accumulateResult(const ReshapeGroups& groups, std::size_t steps);
+
     // First organize the desired sizes in groups.
     void matchDesired(const ReshapeGroups& groups, std::size_t desiredIndex);
     // Then check if the remaining current sizes can be matched to the groups.
     void matchCurrent(const ReshapeGroups& groups, std::size_t currentIndex);
+
+public:
+    Enumerator(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options);
+    std::size_t enumerate();
 };
 
 std::size_t Compute(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options);

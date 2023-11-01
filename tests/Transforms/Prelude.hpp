@@ -3,15 +3,17 @@
 
 #include <fmt/core.h>
 #include <gtest/gtest.h>
-#include <Halide.h>
 
-#include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/TensorView.hpp"
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Functional.hpp"
+
+#ifdef KAS_USE_HALIDE
+#include "KAS/CodeGen/HalideGen.hpp"
+#endif
 
 
 namespace kas {

@@ -91,7 +91,7 @@ public:
         // Required to be sorted by hash.
         const std::vector<ColoredDimension>& weightDims;
         // `selectedWeightDims` is required to be sorted by hash. So we can merge them efficiently.
-        std::vector<ColoredDimension> buildFullWeightDims(const std::vector<ColoredDimension>& selectedWeightDims) const;
+        std::vector<ColoredDimension> buildFullWeightDims(const std::vector<ColoredDimension>& canBeWeightDims, const std::vector<bool>& select) const;
     };
 
     static ShapeDistance Distance(

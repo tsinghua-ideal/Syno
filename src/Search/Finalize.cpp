@@ -238,16 +238,21 @@ bool FinalizeOp::hasRedundantWeights(const Graph::DimensionSet& sharedWeightDims
     );
 }
 
-std::vector<ColoredDimension> FinalizeOp::FLOPsGameOptions::buildFullWeightDims(const std::vector<ColoredDimension>& selectedWeightDims) const {
+std::vector<ColoredDimension> FinalizeOp::FLOPsGameOptions::buildFullWeightDims(const std::vector<ColoredDimension>& canBeWeightDims, const std::vector<bool>& select) const {
+    KAS_ASSERT(canBeWeightDims.size() == select.size());
     auto it1 = weightDims.begin();
-    auto it2 = selectedWeightDims.begin();
+    auto it2 = 0_uz;
     std::vector<ColoredDimension> result;
-    while (it1 != weightDims.end() && it2 != selectedWeightDims.end()) {
-        if (it1->hash() < it2->hash()) {
+    while (it1 != weightDims.end() && it2 != canBeWeightDims.size()) {
+        if (!select[it2]) {
+            ++it2;
+            continue;
+        }
+        if (it1->hash() < canBeWeightDims[it2].hash()) {
             result.emplace_back(*it1);
             ++it1;
         } else {
-            result.emplace_back(*it2);
+            result.emplace_back(canBeWeightDims[it2]);
             ++it2;
         }
     }
@@ -255,8 +260,12 @@ std::vector<ColoredDimension> FinalizeOp::FLOPsGameOptions::buildFullWeightDims(
         result.emplace_back(*it1);
         ++it1;
     }
-    while (it2 != selectedWeightDims.end()) {
-        result.emplace_back(*it2);
+    while (it2 != canBeWeightDims.size()) {
+        if (!select[it2]) {
+            ++it2;
+            continue;
+        }
+        result.emplace_back(canBeWeightDims[it2]);
         ++it2;
     }
     return result;
@@ -292,7 +301,6 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
         (strideDist > 0 && options.remainingUnfoldsAndExpands <= 0)
         // One step for each strided dim.
         || strideDist > options.overflow
-        // TODO! Add numel check.
     ) {
         return ShapeDistance::Infinity; // Early stop.
     }
@@ -302,7 +310,7 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
 
     ShapeDistance minimumComplexity = ShapeDistance::Infinity;
     std::vector<CurrentSize> newCurrent = mustBeInput;
-    std::vector<ColoredDimension> selectedWeightDims;
+    std::vector<bool> givenUpWeightDims(canBeWeight.size(), true);
     auto extendedGame = ExtendedFLOPsGame(options.ctx, flopsOptions.totalInputSize, graph);
     const bool checkFLOPs = flopsOptions.prune;
     auto recursion = [&](const auto& self, std::size_t trialIndex) -> void {
@@ -318,7 +326,7 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
             if (trial.steps <= overflow) {
                 std::size_t minFLOPs = std::numeric_limits<std::size_t>::max();
                 // Collect all weights.
-                auto allWeightDims = flopsOptions.buildFullWeightDims(selectedWeightDims);
+                auto allWeightDims = flopsOptions.buildFullWeightDims(canBeWeightDims, givenUpWeightDims);
                 // Enumerate weight dim assignment.
                 for (auto weights: AssignToWeights(allWeightDims, {
                     .maxWeights = MaxTensorsToMaxWeights(flopsOptions.maximumTensors),
@@ -339,10 +347,10 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
         } else if (trialIndex < canBeWeight.size()) {
             self(self, trialIndex + 1);
             newCurrent.emplace_back(canBeWeight[trialIndex]);
-            selectedWeightDims.emplace_back(canBeWeightDims[trialIndex]);
+            givenUpWeightDims[trialIndex] = false;
             self(self, trialIndex + 1);
             newCurrent.pop_back();
-            selectedWeightDims.pop_back();
+            givenUpWeightDims[trialIndex] = true;
         } else {
             KAS_UNREACHABLE();
         }

@@ -4,10 +4,13 @@
 #include <gtest/gtest.h>
 
 #include "KAS/CodeGen/GraphvizGen.hpp"
-#include "KAS/CodeGen/HalideGen.hpp"
 #include "KAS/CodeGen/PyTorchGen.hpp"
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Transforms/Forward.hpp"
+
+#ifdef KAS_USE_HALIDE
+#include "KAS/CodeGen/HalideGen.hpp"
+#endif
 
 
 namespace kas {
@@ -15,6 +18,7 @@ namespace kas {
 class semantics_tests: public ::testing::Test {
 protected:
     using Mappings = std::map<std::string, std::size_t>;
+#ifdef KAS_USE_HALIDE
     const CodeGenOptions options = {
         .halide = true,
         .useGPU = true,
@@ -34,6 +38,7 @@ protected:
     };
     const bool doSemanticTests = true;
     const bool createStaticLibrary = true;
+#endif
     std::mt19937 rng { std::random_device()() };
     std::uniform_real_distribution<float> dist { 0.5f, 1.5f };
     float random() { return dist(rng); }
