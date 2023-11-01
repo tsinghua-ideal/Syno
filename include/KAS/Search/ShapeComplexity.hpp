@@ -86,6 +86,23 @@ struct ReshapeGroups {
     FinalCounts finalCount() const;
 };
 
+struct DeducedUnorderedDims {
+    std::size_t indexDesired;
+    std::set<int> unorderedCurrent;
+};
+
+class UnorderednessDeduction {
+    // Keep this sorted.
+    std::vector<DeducedUnorderedDims> content;
+public:
+    UnorderednessDeduction() = default;
+    UnorderednessDeduction(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current);
+    const std::vector<DeducedUnorderedDims>& get() const { return content; }
+    bool noUnorderedDims() const { return content.empty(); }
+    void accumulate(const ReshapeGroups& groups);
+    void intersects(const UnorderednessDeduction& other);
+};
+
 constexpr std::size_t Infinity = std::numeric_limits<std::size_t>::max();
 
 // Ideally, the groups are merge-split towers, i.e., reshapes.
@@ -109,7 +126,12 @@ private:
     bool isExact = false;
     std::size_t bestSteps = Infinity;
 
+    UnorderednessDeduction unorderedness;
+
     bool isCurrentDirect(std::size_t index) const;
+    // If we can still deduce unordered dims, we need to traverse the whole space.
+    // Otherwise we can truncate with best result.
+    std::size_t overflow() const;
     void accumulateResult(const ReshapeGroups& groups, std::size_t steps);
 
     // First organize the desired sizes in groups.
@@ -118,8 +140,10 @@ private:
     void matchCurrent(const ReshapeGroups& groups, std::size_t currentIndex);
 
 public:
-    Enumerator(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options);
-    std::size_t enumerate();
+    Enumerator(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options, const UnorderednessDeduction *unorderedness);
+    void enumerate();
+    std::size_t getBestSteps() const;
+    const UnorderednessDeduction& getUnorderedness() const;
 };
 
 std::size_t Compute(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options);

@@ -275,12 +275,14 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
     int strideDist = 0;
 
     std::vector<CurrentSize> mustBeInput, canBeWeight;
+    std::vector<Dimension> mustBeInputDims;
     std::vector<ColoredDimension> canBeWeightDims;
     for (const auto& dim: current) {
         auto origin = dim.value.deduceOrigin(graph);
         switch (origin) {
         case Dimension::Origin::Input:
             mustBeInput.emplace_back(dim);
+            mustBeInputDims.emplace_back(dim);
             break;
         case Dimension::Origin::InputOrWeight:
             canBeWeight.emplace_back(dim);
@@ -307,41 +309,54 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
     const std::size_t overflow = options.overflow - strideDist;
 
     // Then, experimentally finalize.
+    ++CountShapeDistanceInvocations;
 
     ShapeDistance minimumComplexity = ShapeDistance::Infinity;
     std::vector<CurrentSize> newCurrent = mustBeInput;
+    // canBeWeightDims need not be counted, because they are iterators and are ignored by canonicalization.
+    auto unorderedness = ShapeComplexity::UnorderednessDeduction(desired, mustBeInput);
     std::vector<bool> givenUpWeightDims(canBeWeight.size(), true);
     auto extendedGame = ExtendedFLOPsGame(options.ctx, flopsOptions.totalInputSize, graph);
     const bool checkFLOPs = flopsOptions.prune;
     auto recursion = [&](const auto& self, std::size_t trialIndex) -> void {
         // In either cases, we do not need to further compute.
         if (trialIndex == canBeWeight.size()) {
-            ShapeDistance trial = { ShapeComplexity::Compute(desired, newCurrent, {
+            ++CountShapeDistanceTrials;
+
+            auto enumerator = ShapeComplexity::Enumerator(desired, newCurrent, {
                 .ctx = options.ctx,
                 .remainingMerges = options.remainingMerges,
                 .remainingSplits = options.remainingSplits,
                 .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - (strideDist > 0),
                 .overflow = overflow,
-            }), ShapeDistance::MaxFLOPs };
-            if (trial.steps <= overflow) {
-                std::size_t minFLOPs = std::numeric_limits<std::size_t>::max();
-                // Collect all weights.
-                auto allWeightDims = flopsOptions.buildFullWeightDims(canBeWeightDims, givenUpWeightDims);
-                // Enumerate weight dim assignment.
-                for (auto weights: AssignToWeights(allWeightDims, {
-                    .maxWeights = MaxTensorsToMaxWeights(flopsOptions.maximumTensors),
-                    .allowWeightPermutation = false,
-                })) {
-                    auto game = extendedGame.getGameWithWeights(weights);
-                    auto gameFLOPs = game.FLOPs();
-                    minFLOPs = std::min(minFLOPs, gameFLOPs);
-                }
-                if (checkFLOPs && minFLOPs > flopsOptions.maxFLOPs) {
-                    // This is not a valid solution.
-                    trial.steps = ShapeComplexity::Infinity;
-                } else {
-                    trial.flops = minFLOPs;
-                }
+            }, &unorderedness);
+            enumerator.enumerate();
+            auto trial = ShapeDistance::Infinity;
+            trial.steps = enumerator.getBestSteps();
+            if (trial.steps > overflow) {
+                ++CountShapeDistanceTrialTooManySteps;
+                return;
+            }
+
+            unorderedness.intersects(enumerator.getUnorderedness());
+
+            std::size_t minFLOPs = std::numeric_limits<std::size_t>::max();
+            // Collect all weights.
+            auto allWeightDims = flopsOptions.buildFullWeightDims(canBeWeightDims, givenUpWeightDims);
+            // Enumerate weight dim assignment.
+            for (auto weights: AssignToWeights(allWeightDims, {
+                .maxWeights = MaxTensorsToMaxWeights(flopsOptions.maximumTensors),
+                .allowWeightPermutation = false,
+            })) {
+                auto game = extendedGame.getGameWithWeights(weights);
+                auto gameFLOPs = game.FLOPs();
+                minFLOPs = std::min(minFLOPs, gameFLOPs);
+            }
+            trial.flops = minFLOPs;
+            if (checkFLOPs && minFLOPs > flopsOptions.maxFLOPs) {
+                // This is not a valid solution.
+                ++CountShapeDistanceTrialTooManyFLOPs;
+                return;
             }
             minimumComplexity = std::min(minimumComplexity, trial);
         } else if (trialIndex < canBeWeight.size()) {
@@ -359,6 +374,23 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
     if (minimumComplexity.steps == ShapeComplexity::Infinity) {
         return ShapeDistance::Infinity;
     } else {
+        // Canonicalize by unorderedness. Check the unordered dims.
+        Graph::DimensionMap<std::size_t> unorderedDims;
+        // Collect all the unordered dims.
+        for (const auto& deduction: unorderedness.get()) {
+            for (std::size_t index: deduction.unorderedCurrent) {
+                unorderedDims.try_emplace(mustBeInputDims.at(index), deduction.indexDesired);
+            }
+        }
+        if (unorderedDims.empty()) {
+            ++CountUnorderednessDeductionFailure;
+        } else {
+            ++CountUnorderednessDeductionSuccess;
+        }
+        if (!IsCanonicalGivenUnorderedness(graph, unorderedDims)) {
+            ++CountShapeDistanceUnorderedCanonicalized;
+            return ShapeDistance::Infinity;
+        }
         // Although we may only need 1 Expand or Unfold to eliminate all strided dims (with the help of other ops),
         // we have to spend at least 1 step per strided dim.
         minimumComplexity.steps += strideDist;
@@ -669,10 +701,10 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
 
         // Pruning based on unorderedness.
         {
-            Graph::DimensionSet unorderedDims;
+            Graph::DimensionMap<std::size_t> unorderedDims;
             for (std::size_t i = 0; const auto& desiredDim: desired) {
                 if (desiredDim.isUnordered) {
-                    unorderedDims.emplace(inputTensor.at(i));
+                    unorderedDims.try_emplace(inputTensor.at(i), i);
                 }
                 ++i;
             }

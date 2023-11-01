@@ -245,14 +245,89 @@ std::size_t ReshapeGroups::FinalCounts::steps() const {
     return trivialMerges + splits + additionalMerges + unfoldsAndExpands;
 }
 
+UnorderednessDeduction::UnorderednessDeduction(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current) {
+    std::set<int> currentIndices; // 0..<current.size()
+    std::ranges::copy(std::views::iota(0, static_cast<int>(current.size())), std::inserter(currentIndices, currentIndices.begin()));
+    for (std::size_t i = 0; const auto& desiredSize: desired) {
+        if (desiredSize.isUnordered) {
+            content.emplace_back(i, currentIndices);
+        }
+        ++i;
+    }
+}
+
+void UnorderednessDeduction::accumulate(const ReshapeGroups& groups) {
+    // A fast path. If we are already sure we cannot extract any information, we can skip this check.
+    // More importantly, we can update the overflow according to bestSteps.
+    if (noUnorderedDims()) return;
+    decltype(content) newContent;
+    for (auto& deduction: content) {
+        auto gid = groups.desiredToGroupId[deduction.indexDesired];
+        // We can only deduce if the group has a unique input, which is, this unordered input.
+        if (std::ranges::count_if(groups.desiredToGroupId, [gid](int g) { return g == gid; }) != 1) {
+            continue;
+        }
+        auto newDeduction = DeducedUnorderedDims { deduction.indexDesired, {} };
+        // Take the intersection.
+        for (std::size_t i = 0; i < groups.currentToGroupId.size(); ++i) {
+            if (
+                groups.currentToGroupId[i] == gid
+                && deduction.unorderedCurrent.contains(i)
+            ) {
+                newDeduction.unorderedCurrent.emplace(i);
+            }
+        }
+        if (newDeduction.unorderedCurrent.empty()) {
+            // We have deduced that there is nothing to be determined.
+            continue;
+        }
+        newContent.emplace_back(std::move(newDeduction));
+    }
+    content = std::move(newContent);
+}
+
+void UnorderednessDeduction::intersects(const UnorderednessDeduction& other) {
+    const auto& lhs = content;
+    const auto& rhs = other.content;
+    auto it1 = lhs.begin();
+    auto it2 = rhs.begin();
+    decltype(content) newContent;
+    while (it1 != lhs.end() && it2 != rhs.end()) {
+        if (it1->indexDesired < it2->indexDesired) {
+            ++it1;
+        } else if (it1->indexDesired > it2->indexDesired) {
+            ++it2;
+        } else {
+            // Same indexDesired.
+            std::set<int> intersection;
+            std::ranges::set_intersection(it1->unorderedCurrent, it2->unorderedCurrent, std::inserter(intersection, intersection.begin()));
+            if (!intersection.empty()) {
+                newContent.emplace_back(it1->indexDesired, std::move(intersection));
+            }
+            ++it1;
+            ++it2;
+        }
+    }
+    content = std::move(newContent);
+}
+
 bool Enumerator::isCurrentDirect(std::size_t index) const {
     return current[index].remainingLength == 0;
 }
 
+std::size_t Enumerator::overflow() const {
+    if (unorderedness.noUnorderedDims()) {
+        return std::min(bestSteps, options.overflow);
+    } else {
+        return options.overflow;
+    }
+}
+
 void Enumerator::accumulateResult(const ReshapeGroups& groups, std::size_t steps) {
     bestSteps = std::min(bestSteps, steps);
-    // TODO! By the enumeration we can determine the unordered current dimensions.
+    // By the enumeration we can determine the unordered current dimensions.
     // We can use this to do pruning.
+    unorderedness.accumulate(groups);
 }
 
 void Enumerator::matchDesired(const ReshapeGroups& groups, std::size_t desiredIndex) {
@@ -262,7 +337,7 @@ void Enumerator::matchDesired(const ReshapeGroups& groups, std::size_t desiredIn
         trivialMerges > options.remainingMerges ||
         splits > options.remainingSplits ||
         // Too many operations.
-        trivialMerges + splits > options.overflow
+        trivialMerges + splits > overflow()
     ) {
         return;
     }
@@ -294,7 +369,7 @@ void Enumerator::matchCurrent(const ReshapeGroups& groups, std::size_t currentIn
         // Need at least one current size to make a group legal.
         illegalGroups > groups.countVacantCurrents() ||
         // Note that in this stage, each vacant current size accounts for at least one step.
-        trivialMerges + splits + groups.countVacantCurrents() > options.overflow
+        trivialMerges + splits + groups.countVacantCurrents() > overflow()
     ) {
         return;
     }
@@ -320,11 +395,14 @@ void Enumerator::matchCurrent(const ReshapeGroups& groups, std::size_t currentIn
             return;
         }
         const std::size_t steps = finalCounts.steps();
+        if (steps > overflow()) {
+            return;
+        }
         accumulateResult(groups, steps);
     }
 }
 
-Enumerator::Enumerator(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options):
+Enumerator::Enumerator(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options, const UnorderednessDeduction *unorderedness):
     desired(desired),
     current(current),
     options { options }
@@ -352,21 +430,41 @@ Enumerator::Enumerator(const std::vector<DesiredSize>& desired, const std::vecto
         // If this is exact, we do not need any Expand or Unfold.
         isExact = true;
     }
+
+    // If this is exact, we can deduce unordered groups.
+    if (isExact) {
+        if (unorderedness) {
+            this->unorderedness = *unorderedness;
+        } else {
+            this->unorderedness = UnorderednessDeduction { desired, current };
+        }
+    }
+
     return;
 }
 
-std::size_t Enumerator::enumerate() {
+void Enumerator::enumerate() {
     if (!done) {
         // Group the dimensions recursively.
         matchDesired(ReshapeGroups { *this }, 0);
         done = true;
     }
+}
+
+std::size_t Enumerator::getBestSteps() const {
+    KAS_ASSERT(done);
     return bestSteps;
 }
 
+const UnorderednessDeduction& Enumerator::getUnorderedness() const {
+    KAS_ASSERT(done);
+    return unorderedness;
+}
+
 std::size_t Compute(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options) {
-    Enumerator enumerator { desired, current, options };
-    return enumerator.enumerate();
+    Enumerator enumerator { desired, current, options, nullptr };
+    enumerator.enumerate();
+    return enumerator.getBestSteps();
 }
 
 } // namespace kas::ShapeComplexity

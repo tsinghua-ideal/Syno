@@ -8,13 +8,13 @@ namespace kas {
 Unorderedness Unorderedness::Ordered() {
     return { false, std::nullopt };
 }
-Unorderedness Unorderedness::Unordered(const Dimension& source) {
+Unorderedness Unorderedness::Unordered(std::size_t source) {
     return { true, source };
 }
 Unorderedness Unorderedness::Unordered() {
     return { true, std::nullopt };
 }
-Unorderedness Unorderedness::Unordered(std::optional<Dimension> source) {
+Unorderedness Unorderedness::Unordered(std::optional<std::size_t> source) {
     return { true, std::move(source) };
 }
 Unorderedness Unorderedness::operator&&(const Unorderedness& rhs) const {
@@ -36,14 +36,14 @@ Unorderedness Unorderedness::operator&&(const Unorderedness& rhs) const {
     }
 }
 
-UnorderednessCanonicalizer::UnorderednessCanonicalizer(const std::set<Dimension, Dimension::AddressLessThan>& unorderedDims):
+UnorderednessCanonicalizer::UnorderednessCanonicalizer(const Graph::DimensionMap<std::size_t>& unorderedDims):
     unorderedDims(unorderedDims) {}
 auto UnorderednessCanonicalizer::transformInput(const Dimension& dim) -> Unorderedness {
     if (dim.is(DimensionTypeWithOrder::ShareR)) {
         // Weights are unordered.
         return Unorderedness::Unordered();
-    } else if (unorderedDims.contains(dim)) {
-        return Unorderedness::Unordered(dim);
+    } else if (auto it = unorderedDims.find(dim); it != unorderedDims.end()) {
+        return Unorderedness::Unordered(it->second);
     } else {
         return Unorderedness::Ordered();
     }
@@ -62,7 +62,7 @@ auto UnorderednessCanonicalizer::transform(const MergeLikeOp& op) -> Unorderedne
     return at(op.getInputL()) && at(op.getInputR());
 }
 
-bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionSet& unorderedDims) {
+bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionMap<std::size_t>& unorderedDims) {
     UnorderednessCanonicalizer canonicalizer { unorderedDims };
     graph.accept(canonicalizer);
     for (auto shiftOp: graph.getOpsOfType<ShiftOp>()) {

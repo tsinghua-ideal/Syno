@@ -103,6 +103,13 @@ public:
     );
 
     KAS_STATISTICS_DEF(
+        ShapeDistanceInvocations,
+        ShapeDistanceTrials,
+        ShapeDistanceTrialTooManySteps,
+        ShapeDistanceTrialTooManyFLOPs,
+        UnorderednessDeductionSuccess,
+        UnorderednessDeductionFailure,
+        ShapeDistanceUnorderedCanonicalized,
         GenerateInvocations,
         SuccessfulInvocations,
         FailedInvocations,

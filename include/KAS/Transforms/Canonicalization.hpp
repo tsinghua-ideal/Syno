@@ -11,19 +11,19 @@ namespace kas {
 // Unordered, without a specific source. Example: Expand and ShareR. Merging this with an unordered dimension that has a source keeps the source.
 struct Unorderedness {
     bool isUnordered;
-    std::optional<Dimension> source;
+    std::optional<std::size_t> source;
 
     static Unorderedness Ordered();
-    static Unorderedness Unordered(const Dimension& source);
+    static Unorderedness Unordered(std::size_t source);
     static Unorderedness Unordered();
-    static Unorderedness Unordered(std::optional<Dimension> source);
+    static Unorderedness Unordered(std::optional<std::size_t> source);
 
     Unorderedness operator&&(const Unorderedness& rhs) const;
 };
 
 struct UnorderednessCanonicalizer: public TopBottomDimVisitor<UnorderednessCanonicalizer, Unorderedness> {
-    const std::set<Dimension, Dimension::AddressLessThan>& unorderedDims;
-    UnorderednessCanonicalizer(const std::set<Dimension, Dimension::AddressLessThan>& unorderedDims);
+    const Graph::DimensionMap<std::size_t>& unorderedDims;
+    UnorderednessCanonicalizer(const Graph::DimensionMap<std::size_t>& unorderedDims);
     auto transformInput(const Dimension& dim) -> Unorderedness;
     auto transformExpand(const Dimension& dim) -> Unorderedness;
     auto transform(const RepeatLikeOp& op) -> Unorderedness;
@@ -31,6 +31,7 @@ struct UnorderednessCanonicalizer: public TopBottomDimVisitor<UnorderednessCanon
     auto transform(const MergeLikeOp& op) -> Unorderedness;
 };
 
-bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionSet& unorderedDims);
+// Sometimes we can determine that the unordered dims are from a specific source.
+bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionMap<std::size_t>& unorderedDims);
 
 } // namespace kas
