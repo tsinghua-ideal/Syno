@@ -101,7 +101,7 @@ def train(model, train_dataloader, val_dataloader, args, init_weight=True, use_b
             logging.info(f'Inference time limit reached ({elapsed_train_time}s currently), stopping training ...')
             break
 
-        if str(epoch + 1) in milestones and max(val_accuracy) < float(milestones[str(epoch + 1)]):
+        if str(epoch + 1) in milestones and max(val_accuracy) < milestones[str(epoch + 1)]:
             logging.info(f'Accuracy too low, pruning ...')
             break
 
