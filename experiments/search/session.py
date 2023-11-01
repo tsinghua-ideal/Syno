@@ -126,6 +126,8 @@ class Session:
                 kernel_dir = os.path.join(directory, kernel_fmt)
                 if not os.path.isdir(kernel_dir):
                     continue
+                if "ERROR" in kernel_dir:
+                    continue
                 if "cache" in kernel_dir:
                     continue
                 files = list(os.listdir(kernel_dir))

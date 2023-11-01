@@ -15,14 +15,14 @@ class MCTSAlgorithm:
     leaf_parallelization_number = 3
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
-    max_final_iterations = (6, 1.5, 1000)
+    max_final_iterations = (12, 1.5, 3000)
     b = 0.8
     c_l = 10.0
     simulate_retry_period = 1e9
     sample_retry_times = 5
     rave_random_ratio = 0.3
-    simulate_decay_time = (30, 120)
-    flush_virtual_loss_period = 2400  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
+    simulate_decay_time = (30, 180)
+    flush_virtual_loss_period = 3600  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
     # initial kernels, see base/models/manual_kernels.py for a complete list
     init_kernels = [
