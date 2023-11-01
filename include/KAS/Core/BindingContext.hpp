@@ -111,6 +111,7 @@ public:
     std::size_t getMaxEnumerationsPerVar() const;
     std::size_t getMaxVariablesInSize() const;
     std::size_t getMaxVariablesPowersInSize() const;
+    bool requiresExactDivision() const;
     SizeLimitsUsage getUsageLimits() const;
     bool isUsageWinthinLimits(const SizeLimitsUsage& usage) const;
     bool isUsageWinthinLimits(const Size& size) const;

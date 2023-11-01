@@ -1,4 +1,3 @@
-#include "KAS/Core/Shape.hpp"
 #include "KAS/Search/ShapeComplexity.hpp"
 
 
@@ -246,111 +245,128 @@ std::size_t ReshapeGroups::FinalCounts::steps() const {
     return trivialMerges + splits + additionalMerges + unfoldsAndExpands;
 }
 
-namespace {
-
-template<typename T>
-std::optional<T> optionalMin(const std::optional<T>& a, const std::optional<T>& b) {
-    if (!a) return b;
-    if (!b) return a;
-    return std::min(*a, *b);
+bool Enumerator::isCurrentDirect(std::size_t index) const {
+    return current[index].remainingLength == 0;
 }
 
-} // namespace
+void Enumerator::accumulateResult(const ReshapeGroups& groups, std::size_t steps) {
+    bestSteps = std::min(bestSteps, steps);
+    // TODO! By the enumeration we can determine the unordered current dimensions.
+    // We can use this to do pruning.
+}
 
+void Enumerator::matchDesired(const ReshapeGroups& groups, std::size_t desiredIndex) {
+    const auto [trivialMerges, splits] = groups.count();
+    if (
+        // Exceeds limits.
+        trivialMerges > options.remainingMerges ||
+        splits > options.remainingSplits ||
+        // Too many operations.
+        trivialMerges + splits > options.overflow
+    ) {
+        return;
+    }
+    if (desiredIndex != desired.size()) {
+        for (ReshapeGroups newGroups: groups.assignDesired(desiredIndex)) {
+            matchDesired(newGroups, desiredIndex + 1);
+        }
+    } else {
+        // We have assigned all desired sizes.
+        // Check if there are current dimensions that have no remainingLength but has not been assigned.
+        for (std::size_t i = 0; i < current.size(); ++i) {
+            if (!groups.currentAssigned(i) && isCurrentDirect(i)) {
+                return;
+            }
+        }
+        matchCurrent(groups, 0);
+    }
+}
 
+void Enumerator::matchCurrent(const ReshapeGroups& groups, std::size_t currentIndex) {
+    const auto counts = groups.currentCount();
+    const int trivialMerges = counts.trivialMerges;
+    const int splits = counts.splits;
+    const int illegalGroups = counts.illegalGroups;
+    if (
+        // Exceeds limits.
+        trivialMerges > options.remainingMerges ||
+        splits > options.remainingSplits ||
+        // Need at least one current size to make a group legal.
+        illegalGroups > groups.countVacantCurrents() ||
+        // Note that in this stage, each vacant current size accounts for at least one step.
+        trivialMerges + splits + groups.countVacantCurrents() > options.overflow
+    ) {
+        return;
+    }
+    if (currentIndex != current.size()) {
+        if (groups.currentAssigned(currentIndex)) {
+            matchCurrent(groups, currentIndex + 1);
+        } else {
+            for (ReshapeGroups newGroups: groups.assignCurrent(currentIndex)) {
+                matchCurrent(newGroups, currentIndex + 1);
+            }
+        }
+    } else {
+        // We have grouped all sizes.
+        // We do not want any illegal sizes.
+        if (!groups.isLegal()) {
+            return;
+        }
+        const auto finalCounts = groups.finalCount();
+        if (
+            finalCounts.unfoldsAndExpands > options.remainingUnfoldsAndExpands ||
+            finalCounts.merges() > options.remainingMerges
+        ) {
+            return;
+        }
+        const std::size_t steps = finalCounts.steps();
+        accumulateResult(groups, steps);
+    }
+}
 
-std::size_t Compute(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options) {
+Enumerator::Enumerator(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options):
+    desired(desired),
+    current(current),
+    options { options }
+{
     KAS_ASSERT(!desired.empty());
+
     // First, check whether there are enough elements in the input tensor.
     if (current.empty()) {
-        return Infinity;
+        done = true;
+        return;
     }
-    Size desiredElements = Size::Product(desired | std::views::transform(&DesiredSize::value));
-    Size currentElements = Size::Product(current | std::views::transform(&CurrentSize::value));
-    auto totalQuotient = currentElements.canBeDividedBy(desiredElements);
-    if (!totalQuotient || *totalQuotient == Size::Trait::IllegalCoefficient) {
+    Size desiredElements = Size::Product(desired | std::views::transform(&DesiredSize::value)); // desired numel.
+    Size quotient = Size::Product(current | std::views::transform(&CurrentSize::value)); // current numel.
+    auto quotientSpec = quotient.testDividedBy(desiredElements);
+    if (
+        !quotientSpec
+        || *quotientSpec == Size::Trait::IllegalCoefficient
+        || (options.ctx.requiresExactDivision() && quotient.lowerBoundEst(options.ctx) < 1_uz)
+    ) {
         // Not enough elements.
-        return Infinity;
+        done = true;
+        return;
     }
-
-    Enumerator enumerator { desired, current };
-
-    // Then group the dimensions recursively.
-    ReshapeGroups root = enumerator.getRoot();
-    // Returns required steps or std::nullopt.
-    auto currentMatchingRecursion = [&](const auto& self, const ReshapeGroups& groups, std::size_t currentIndex) -> std::optional<std::size_t> {
-        const auto counts = groups.currentCount();
-        const int &trivialMerges = counts.trivialMerges, &splits = counts.splits, &illegalGroups = counts.illegalGroups;
-        if (
-            trivialMerges > options.remainingMerges ||
-            splits > options.remainingSplits
-        ) {
-            return std::nullopt;
-        }
-        // Need at least one current size to make a group legal.
-        if (illegalGroups > groups.countVacantCurrents()) {
-            return std::nullopt;
-        }
-        // Note that in this stage, each vacant current size accounts for at least one step.
-        if (trivialMerges + splits + groups.countVacantCurrents() > options.overflow) {
-            return Infinity;
-        }
-        if (currentIndex != current.size()) {
-            if (groups.currentAssigned(currentIndex)) {
-                return self(self, groups, currentIndex + 1);
-            }
-            std::optional<std::size_t> result;
-            for (ReshapeGroups newGroups: groups.assignCurrent(currentIndex)) {
-                std::optional<std::size_t> newResult = self(self, newGroups, currentIndex + 1);
-                result = optionalMin(result, newResult);
-            }
-            return result;
-        } else { // We have grouped all sizes.
-            if (!groups.isLegal()) {
-                return std::nullopt;
-            }
-            const auto finalCounts = groups.finalCount();
-            if (finalCounts.unfoldsAndExpands > options.remainingUnfoldsAndExpands || finalCounts.merges() > options.remainingMerges) {
-                return std::nullopt;
-            }
-            return finalCounts.steps();
-        }
-    };
-    // Returns required steps or std::nullopt.
-    auto desiredMatchingRecursion = [&](const auto& self, const ReshapeGroups& groups, std::size_t desiredIndex) -> std::optional<std::size_t> {
-        const auto [trivialMerges, splits] = groups.count();
-        if (
-            trivialMerges > options.remainingMerges ||
-            splits > options.remainingSplits
-        ) {
-            return std::nullopt;
-        }
-        if (trivialMerges + splits > options.overflow) {
-            return Infinity; // Too many operations. Treat as inf.
-        }
-        if (desiredIndex != desired.size()) {
-            std::optional<std::size_t> result;
-            for (ReshapeGroups newGroups: groups.assignDesired(desiredIndex)) {
-                std::optional<std::size_t> newResult = self(self, newGroups, desiredIndex + 1);
-                result = optionalMin(result, newResult);
-            }
-            return result;
-        } else { // We have assigned all desired sizes.
-            // Check if there are current dimensions that have no remainingLength but has not been assigned.
-            for (std::size_t i = 0; i < current.size(); ++i) {
-                if (!groups.currentAssigned(i) && current[i].remainingLength == 0) {
-                    return std::nullopt;
-                }
-            }
-            return currentMatchingRecursion(currentMatchingRecursion, groups, 0);
-        }
-    };
-    auto dist = desiredMatchingRecursion(desiredMatchingRecursion, root, 0);
-    if (dist) {
-        return *dist;
-    } else {
-        return Infinity;
+    if (*quotientSpec == Size::Trait::One) {
+        // If this is exact, we do not need any Expand or Unfold.
+        isExact = true;
     }
+    return;
+}
+
+std::size_t Enumerator::enumerate() {
+    if (!done) {
+        // Group the dimensions recursively.
+        matchDesired(ReshapeGroups { *this }, 0);
+        done = true;
+    }
+    return bestSteps;
+}
+
+std::size_t Compute(const std::vector<DesiredSize>& desired, const std::vector<CurrentSize>& current, const DistanceOptions& options) {
+    Enumerator enumerator { desired, current, options };
+    return enumerator.enumerate();
 }
 
 } // namespace kas::ShapeComplexity

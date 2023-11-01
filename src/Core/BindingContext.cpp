@@ -177,6 +177,10 @@ std::size_t BindingContext::getMaxVariablesPowersInSize() const {
     return options.maximumVariablesPowersInSize;
 }
 
+bool BindingContext::requiresExactDivision() const {
+    return options.requiresExactDivision;
+}
+
 SizeLimitsUsage BindingContext::getUsageLimits() const {
     return { options.maximumVariablesInSize, options.maximumVariablesPowersInSize };
 }
