@@ -736,6 +736,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
                 });
                 KAS_ASSERT(it == tensors.end());
             }
+            // TODO! Add basic canonicalization, such as Split-Share-Share.
             tensors.insert(tensors.begin(), inputTensor);
             addToResults(std::move(tensors));
         }

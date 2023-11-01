@@ -1,6 +1,5 @@
 #include "KAS/Transforms/Canonicalization.hpp"
-#include "KAS/Transforms/Shift.hpp"
-#include "KAS/Transforms/Unfold.hpp"
+#include "KAS/Transforms/Transforms.hpp"
 
 
 namespace kas {
@@ -65,20 +64,93 @@ auto UnorderednessCanonicalizer::transform(const MergeLikeOp& op) -> Unorderedne
 bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionMap<std::size_t>& unorderedDims) {
     UnorderednessCanonicalizer canonicalizer { unorderedDims };
     graph.accept(canonicalizer);
-    for (auto shiftOp: graph.getOpsOfType<ShiftOp>()) {
-        // The channels are unordered, so shifting is of no use.
-        if (canonicalizer.at(shiftOp->getInput()).isUnordered) {
-            return false;
+    struct Checker: OpVisitor {
+        const Graph& graph;
+        const UnorderednessCanonicalizer& canonicalizer;
+        bool uncanonical = false;
+        Checker(const Graph& graph, const UnorderednessCanonicalizer& canonicalizer):
+            graph { graph }, canonicalizer { canonicalizer } {}
+
+        const SplitOp *getSourceSplitOp(const Dimension& dim) {
+            return graph.visitAlong(dim, Direction::Up).match(Match {
+                [](const RepeatLikeVertex& r, auto) -> const SplitOp * {
+                    return nullptr;
+                },
+                [this](const SplitLikeVertex& s, auto) -> const SplitOp * {
+                    if (s.op.getType() == SplitOp::Type) {
+                        return getSourceSplitOp(s.op.getInput());
+                    } else {
+                        return nullptr;
+                    }
+                },
+                [](const MergeLikeVertex& m, auto) -> const SplitOp * {
+                    return nullptr;
+                },
+                [&](const ExpandVertex& e, auto) -> const SplitOp * {
+                    return nullptr;
+                },
+            });
+        }
+
+        void visit(const ExpandOp& op) {}
+        void visit(const ReduceOp& op) { KAS_UNREACHABLE(); }
+        void visit(const MergeOp& op) {
+            if (canonicalizer.at(op.output).isUnordered) {
+                auto srcLhs = getSourceSplitOp(op.getInputL());
+                auto srcRhs = getSourceSplitOp(op.getInputR());
+                if (srcLhs && srcRhs && srcLhs == srcRhs) {
+                    // Merged unordered split dims with same source.
+                    // Unordered dimensions need not be split then merged again.
+                    uncanonical = true;
+                }
+            }
+        }
+        void visit(const ShareOp& op) {}
+        void visit(const ShiftOp& op) {
+            // The channels are unordered, so shifting is of no use.
+            if (canonicalizer.at(op.getInput()).isUnordered) {
+                uncanonical = true;
+            }
+        }
+        void visit(const SplitOp& op) {
+            // Enforce size ordering of Split block.
+            if (canonicalizer.at(op.getInput()).isUnordered) {
+                const Size& lhs = op.outputLhs.size();
+                const Size *rhs = nullptr;
+                Dimension rhsDim = op.outputRhs;
+                if (auto split = rhsDim.tryAs<SplitOp::Input>(); split) {
+                    // If this is a split tower, the rhs size is the lhs of the child.
+                    rhs = &split->getDerivedOp<SplitOp>()->getGroups();
+                } else {
+                    rhs = &rhsDim.size();
+                }
+                if (!Size::LexicographicalLEQ(lhs, *rhs)) {
+                    uncanonical = true;
+                }
+            }
+        }
+        void visit(const StrideOp& op) {}
+        void visit(const UnfoldOp& op) {
+            // The channels are unordered, so there is no locality.
+            if (canonicalizer.at(op.getInput()).isUnordered) {
+                uncanonical = true;
+            }
+        }
+    };
+    Checker v { graph, canonicalizer };
+    for (auto op: graph.getOps()) {
+        op->accept(v);
+        if (v.uncanonical) return false;
+    }
+    // Note that reductions can be viewed as merges as well.
+    std::set<const SplitOp *> reductionSourceSplitOps;
+    for (auto it: graph.getReduceIterators()) {
+        auto src = v.getSourceSplitOp(it);
+        if (src) {
+            auto [_, unique] = reductionSourceSplitOps.insert(src);
+            if (!unique) return false;
         }
     }
-    for (auto unfoldOp: graph.getOpsOfType<UnfoldOp>()) {
-        // The channels are unordered, so there is no locality.
-        if (canonicalizer.at(unfoldOp->getInput()).isUnordered) {
-            return false;
-        }
-    }
-    // TODO! Enforce size ordering of Split block.
-    // TODO! Check merged unordered split dims with same source. Note that reductions can be viewed as merges as well.
     return true;
 }
 
