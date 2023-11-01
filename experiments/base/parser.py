@@ -353,6 +353,9 @@ def arg_parse():
         help="Path to test",
     )
 
+    # Pruning options
+    parser.add_argument("--prune-milestones", default='', type=str)
+
     # GPT related
     parser.add_argument('--gpt-seq-len', default=None, type=int)
     parser.add_argument('--gpt-vocab-size', default=None, type=int)

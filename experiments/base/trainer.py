@@ -1,3 +1,4 @@
+import json
 import logging
 import torch
 import time
@@ -40,6 +41,12 @@ def train(model, train_dataloader, val_dataloader, args, init_weight=True, use_b
 
     val_accuracy = []
     num_updates = 0
+    milestones = dict()
+    if args.prune_milestones:
+        with open(args.prune_milestones) as f:
+            milestones = json.load(f)
+        logging.info(f'Milestones loaded: {milestones}')
+
     for epoch in range(sched_epochs):
         # Train
         start_time = time.time()
@@ -94,9 +101,7 @@ def train(model, train_dataloader, val_dataloader, args, init_weight=True, use_b
             logging.info(f'Inference time limit reached ({elapsed_train_time}s currently), stopping training ...')
             break
 
-        # Temporary hack
-        # TODO: make a pruning file
-        if epoch == 9 and max(val_accuracy) < 0.3:
+        if str(epoch + 1) in milestones and max(val_accuracy) < float(milestones[str(epoch + 1)]):
             logging.info(f'Accuracy too low, pruning ...')
             break
 
