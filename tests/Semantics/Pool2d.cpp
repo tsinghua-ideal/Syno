@@ -68,6 +68,8 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     auto funcName = "pool2d";
     auto gvGen = GraphvizGen { tensorView, ctx };
     gvGen.generate("./kernel_" + std::string(funcName) + "/" + std::string(funcName) + ".dot", funcName);
+
+#ifdef KAS_USE_HALIDE
     auto gen = HalideGen { ctx, tensorView, options };
     auto mappings = Mappings {{"N", n}, {"H", h}, {"W", w}, {"C", c}, {"K", k}};
     auto [consts, pipeline, trial, backwardPipeline, backwardTrials] = gen.performTrial(mappings, funcName, createStaticLibrary, true,
@@ -115,6 +117,7 @@ R"(for (int i_0 = 0; i_0 < N; i_0++) {
     auto t2 = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
     fmt::print("Pool2d x{}: {} ms.\n", x, duration);
+#endif
 }
 
 } // namespace kas

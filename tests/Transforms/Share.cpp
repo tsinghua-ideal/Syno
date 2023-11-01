@@ -18,6 +18,8 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
     }
 }
 )");
+
+#ifdef KAS_USE_HALIDE
     auto [_0, _1, outputBuffer, _2, derivatives] = HalideGen(ctx, tensorView, {}).performTrial(
         {{"H", 4}, {"W", 4}, {"c", 2}},
         "share", false, false,
@@ -46,6 +48,7 @@ R"(for (int i_0 = 0; i_0 < H; i_0++) {
         }
         ASSERT_EQ(derivatives[1](i), (4 * 8) * 6 * i * i);
     }
+#endif
 }
 
 } // namespace kas
