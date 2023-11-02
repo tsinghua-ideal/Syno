@@ -52,6 +52,8 @@ class MCTSAlgorithm:
 
         self.sample_num = 0
         self.time_stamp = time.time()
+        
+        self.stucked = None
 
         self.preconditioned = "gpt" in args.model
 
@@ -138,6 +140,9 @@ class MCTSAlgorithm:
         return results
 
     def sample(self):
+        if self.stucked:
+            logging.debug(f"Stucked at {self.stucked}, please check the explorer. ")
+            return "retry"
 
         if (
             self.flush_virtual_loss_period > 0
@@ -184,6 +189,9 @@ class MCTSAlgorithm:
             if n_iterations > self.max_iterations:
                 return "retry"
             elif iteration_results is None:
+                if self.mcts.stucked_path is not None:
+                    self.stucked = self.mcts.stucked_path
+                    return "retry"
                 return "end"
 
             for leaf_tree_path, trial_node, trial_path in iteration_results:

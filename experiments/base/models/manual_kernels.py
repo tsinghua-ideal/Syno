@@ -146,7 +146,7 @@ class ManualImpl:
             w_interm_out_G,
             w_interm_out_C_group, 
             out_C, 
-        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, g, C_out / g / r, C_in / g, k, k, g, C_out / g / r, C_out)
+        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, g, g, C_in / g, k, k, g, g, C_out)
         
         # Spatial dimensions
         main_H, windows_H = self.assembler.create_unfold(in_H, k)
@@ -161,7 +161,7 @@ class ManualImpl:
         shared_G = self.assembler.create_share(in_G, out_G)
         shared_C_in = self.assembler.create_share(in_C_group, w_in_C)
         
-        tmp_dim = self.assembler.create_expand(C_out / g / r)
+        tmp_dim = self.assembler.create_expand(g)
         out_C_group_masked = self.assembler.create_share(tmp_dim, out_C_group)
         interm_G_contracted = self.assembler.create_share(shared_G, w_interm_out_G)
         interm_C_out_group_contracted = self.assembler.create_share(out_C_group_masked, w_interm_out_C_group)

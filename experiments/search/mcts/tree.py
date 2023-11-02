@@ -67,6 +67,7 @@ class MCTSTree:
 
         self.simulate_time_ema = 0
         self.simulate_decay_time = simulate_decay_time
+        self.stucked_path = None
 
         # HACK
         tree_node = self.tree_root
@@ -215,6 +216,9 @@ class MCTSTree:
             if check_exhaustion and self.tree_root.is_exhausted():
                 logging.info("The tree is exhausted. ")
                 return None
+            if self.stucked_path is not None:
+                logging.info(f"The tree has stucked at {self.stucked_path}. ")
+                return None
             start = time.time()
             result = self._may_fail_rollout()
             logging.debug(f"Time elapsed {time.time() - start}")
@@ -251,6 +255,9 @@ class MCTSTree:
             logging.debug(
                 f"Selected final node with time {leaf.N}, return immediately. "
             )
+            if leaf.N >= 100:
+                self.stucked_path = path
+                return None
             self._increment_virtual_loss(path, self.leaf_num)
             return path, [(path, leaf) for _ in range(self.leaf_num)]
 
