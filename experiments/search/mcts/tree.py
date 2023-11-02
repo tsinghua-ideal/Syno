@@ -307,7 +307,7 @@ class MCTSTree:
             if node.children_count() == 0:
                 logging.debug(f"{path} has no children")
             assert len(node.get_unexpanded_children()) == 0
-            selected = self._ucd_select(node)
+            selected = self._ucd_select(node, path)
             if selected is None:
                 return None
             next, node, _ = selected
@@ -668,7 +668,7 @@ class MCTSTree:
         logging.debug("Removing end")
 
     def _ucd_select(
-        self, node: TreeNode
+        self, node: TreeNode, path: TreePath
     ) -> Optional[Tuple[PseudoTreeNext, TreeNode, AverageMeter]]:
         """
         Select a child of node, balancing exploration & exploitation
@@ -693,9 +693,13 @@ class MCTSTree:
             Upper confidence bound.
             UCB1-tuned.
             """
-            _, child, edge = key
+            nxt, child, edge = key
             if edge.N == 0:
                 return 1e9 - self.virtual_loss_constant * child._virtual_loss
+            # If the edge is chosen multiple times but the resulting std is very small
+            if edge.N > 30 and edge.std <= 0.01:
+                logging.info(f"At {path}, encountered {nxt} with {edge} and it is suppressed. ")
+                return -1e9
             return (
                 edge.mean
                 + self._exploration_weight
