@@ -141,6 +141,11 @@ class Node:
             return None
         return Node(child_node)
 
+    def get_children(self, nexts: List[PseudoNext]) -> List[Optional['Node']]:
+        """Get the child nodes of a node with a list of Nexts."""
+        child_nodes = self._node.get_children([Path.to_next(next) for next in nexts])
+        return [Node(child_node) if child_node is not None else None for child_node in child_nodes]
+
     def can_accept_arc(self, arc: Arc) -> bool:
         """Check if a node can accept an arc."""
         return self._node.can_accept_arc(arc)
@@ -235,6 +240,12 @@ class VisitedNode(Node):
             return None
         return VisitedNode(self.path.concat(next), child_node)
 
+    def get_children(self, nexts: List[PseudoNext]) -> List[Optional['VisitedNode']]:
+        """Get the child nodes of a node with a list of Nexts."""
+        nexts = [Path.to_next(next) for next in nexts]
+        child_nodes = self._node.get_children(nexts)
+        return [VisitedNode(self.path.concat(next), child_node) if child_node is not None else None for next, child_node in zip(nexts, child_nodes)]
+
     def to_node(self) -> 'Node':
         return Node(self._node)
 
@@ -295,6 +306,9 @@ class MockNodeMetadata:
 
     def get_child(self, next: Next) -> Optional['MockNodeMetadata']:
         return self._mock_children().get(next, None)
+
+    def get_children(self, nexts: List[Next]) -> List[Optional['MockNodeMetadata']]:
+        return [self.get_child(next) for next in nexts]
 
     def can_accept_arc(self, arc: Next) -> bool:
         return arc in self._mock_children()
@@ -374,6 +388,9 @@ class MockNode(Node):
             return None
         return MockNode(child_node)
 
+    def get_children(self, nexts: List[PseudoNext]) -> List[Optional['MockNode']]:
+        return [self.get_child(next) for next in nexts]
+
     def get_child_from_arc(self, arc: Next) -> Optional['MockNode']:
         if not self.can_accept_arc(arc):
             return None
@@ -417,6 +434,9 @@ class MockVisitedNode(MockNode):
         if child_node is None:
             return None
         return MockVisitedNode(self.path.concat(next), child_node)
+
+    def get_children(self, nexts: List[PseudoNext]) -> List[Optional['MockVisitedNode']]:
+        return [self.get_child(next) for next in nexts]
 
     def __repr__(self) -> str:
         return f"MockVisitedNode({self.path}, {self._node})"

@@ -246,6 +246,10 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("next")
         )
         .def(
+            "get_children", &Node::getChildren,
+            pybind11::arg("nexts")
+        )
+        .def(
             "can_accept_arc", &Node::canAcceptArc,
             pybind11::arg("arc")
         )
