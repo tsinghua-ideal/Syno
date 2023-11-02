@@ -72,7 +72,7 @@ def train(
 
     if test_run:
         logging.info("Evaluating on real dataset ...")
-        accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
+        accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args, use_bf16=False))
         print(f"Evaluation result: {flops} {params} {accuracy}")
         result["accuracy"] = accuracy
 
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     log.setup(level=logging.INFO)
 
     test_kernels = [
-        "Conv2d_simple",
+        # "Conv2d_simple",
         # "Conv2d_dilation",
         # "Conv2d_group",
         # "Conv2d_FC",
@@ -129,9 +129,9 @@ if __name__ == "__main__":
         # "Conv2d_group_oas_double",
         # "Conv2d_pool",
         # "Conv2d_pool1d",
-        "Conv1d_shift1d",
+        # "Conv1d_shift1d",
         # "Shift2d",
     ]
-    test_run = False
+    test_run = True
 
     test_semantic_conv2d(test_kernels, test_run)
