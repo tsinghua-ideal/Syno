@@ -257,6 +257,10 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             "get_child_from_arc", &Node::getChildFromArc,
             pybind11::arg("arc")
         )
+        .def(
+            "get_children_from_arcs", &Node::getChildrenFromArcs,
+            pybind11::arg("arcs")
+        )
         .def("get_possible_path", &Node::getPossiblePath)
         .def("get_composing_arcs", &Node::getComposingArcs)
         .def(

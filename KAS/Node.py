@@ -159,6 +159,11 @@ class Node:
             return None
         return Node(child_node)
 
+    def get_children_from_arcs(self, arcs: List[Arc]) -> List[Optional['Node']]:
+        """Get the child nodes of a node with a list of Arcs."""
+        children_nodes = self._node.get_children_from_arcs(arcs)
+        return [Node(child_node) if child_node is not None else None for child_node in children_nodes]
+
     def get_possible_path(self) -> Path:
         """Get a possible path of a node."""
         return Path(self._node.get_possible_path())
@@ -316,6 +321,9 @@ class MockNodeMetadata:
     def get_child_from_arc(self, arc: Next) -> Optional['MockNodeMetadata']:
         return self.get_child(arc)
 
+    def get_children_from_arcs(self, arcs: List[Next]) -> List[Optional['MockNodeMetadata']]:
+        return [self.get_child(arc) for arc in arcs]
+
     def get_possible_path(self) -> Path:
         return self._path
 
@@ -398,6 +406,10 @@ class MockNode(Node):
         if child_node is None:
             return None
         return MockNode(child_node)
+
+    def get_children_from_arcs(self, arcs: List[Next]) -> List[Optional['MockNode']]:
+        children_nodes = self._node.get_children_from_arcs(arcs)
+        return [MockNode(child_node) if child_node is not None else None for child_node in children_nodes]
 
     def get_child_description(self, next: PseudoNext) -> Optional[str]:
         return self._node._get_child_description_helper(Path.to_next(next))

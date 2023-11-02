@@ -228,6 +228,13 @@ std::optional<Node> Node::getChildFromArc(Arc arc) const {
     );
 }
 
+std::vector<std::optional<Node>> Node::getChildrenFromArcs(const std::vector<Arc>& arcs) const {
+    return match<std::vector<std::optional<Node>>>(
+        [&](AbstractStage *stage) { return stage->getChildren(arcs); },
+        [&](FinalStage *stage) -> std::vector<std::optional<Node>> { KAS_UNREACHABLE(); }
+    );
+}
+
 std::vector<Next> Node::getPossiblePath() const {
     std::optional<Next> finalNext;
     AbstractStage *stage = match<AbstractStage *>(

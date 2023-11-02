@@ -27,14 +27,14 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         return node
 
     def children(self, state: VisitedNode) -> List[AbstractChild]:
-        handles = state.get_children_handles()
+        arcs = state.get_children_arcs()
         return [
             AbstractChild(
-                self._serializer.serialize_next(handle),
-                state.get_child_description(handle) or "Failed to get description.",
-                self._serializer.serialize_type(handle.type),
+                self._serializer.serialize_next(arc.to_next()),
+                f"{arc}",
+                self._serializer.serialize_type(arc.to_next().type),
             )
-            for handle in handles
+            for arc in arcs
         ]
 
     def info(self, state: VisitedNode) -> str:

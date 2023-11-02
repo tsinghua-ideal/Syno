@@ -433,6 +433,7 @@ public:
     std::vector<std::optional<Node>> getChildren(const std::vector<Next>& nexts) const;
     bool canAcceptArc(Arc arc) const;
     std::optional<Node> getChildFromArc(Arc arc) const;
+    std::vector<std::optional<Node>> getChildrenFromArcs(const std::vector<Arc>& arcs) const;
     std::vector<Next> getPossiblePath() const;
     std::vector<Arc> getComposingArcs() const;
     void expandSync(int layers) const;
