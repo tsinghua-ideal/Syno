@@ -27,11 +27,19 @@ TEST_F(search_tests, sampler) {
             fmt::print("Expanding lattice... ");
             sampler.visit({})->expandToSync(node);
             fmt::print("Done.\n");
+            // auto previousPath = sampledPath;
             // auto successorFlops = node.asFinalStage()->value.getFLOPs(ctx);
             // while (!sampledPath.empty()) {
             //     auto [_, flops] = sampler.visit(sampledPath)->getShapeDistance();
+            //     if (flops > successorFlops) {
+            //         fmt::print("Oh, no! FLOPs-based pruning fails!");
+            //         fmt::print("Final DFG:\n{}", GraphvizDFGGen::Print(node.asFinalStage()->value.getSubgraphs(), ctx));
+            //         fmt::print("From:\n{}", GraphvizGen::Print(sampler.visit(sampledPath).value().asNonFinalStage()->getInterface().getRaw(), ctx));
+            //         fmt::print("To:\n{}", GraphvizGen::Print(sampler.visit(previousPath).value().asNonFinalStage()->getInterface().getRaw(), ctx));
+            //     }
             //     ASSERT_LE(flops, successorFlops);
             //     successorFlops = flops;
+            //     previousPath = sampledPath;
             //     sampledPath.pop_back();
             // }
         }

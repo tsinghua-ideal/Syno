@@ -198,8 +198,8 @@ struct IR {
 
     Graph buildGraph() const;
     std::size_t getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const;
-    // RAM in bytes.
     std::size_t getFLOPs(const BindingContext& ctx) const;
+    // RAM in bytes.
     std::size_t getVRAMUsage(const BindingContext& ctx) const;
     std::size_t numStages() const;
 

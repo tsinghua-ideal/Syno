@@ -48,7 +48,8 @@ ExtendedFLOPsGame::ExtendedFLOPsGame(const BindingContext& ctx, Size inputSize, 
 {
     // We assume that weights are only connected to Share RHS and Iterator.
     // `increase`s originates from Expand, Unfold and Iterators in weights.
-    // `decrease`s originates from Reduce. TODO: consider Stride.
+    // `decrease`s originates from Reduce and Stride.
+    // For simplicity, we directly stride the input size.
     DecreaseAndShareCollector collector;
     graph.accept(collector);
     // First find all the shares, and traverse the collected items to collect decreases.
@@ -62,16 +63,16 @@ ExtendedFLOPsGame::ExtendedFLOPsGame(const BindingContext& ctx, Size inputSize, 
     // Expand.
     for (const ExpandOp *expandOp: graph.getOpsOfType<ExpandOp>()) {
         const CollectedDecreaseAndShare& collected = collector.at(expandOp->output);
+        increase.try_emplace(expandOp, expandOp->output.size(), collected.decreases);
         for (const ShareOp *shareOp: collected.shares) {
-            increase.try_emplace(expandOp, expandOp->output.size(), collected.decreases);
             sharedDependencies.at(shareOp).increase.emplace(expandOp);
         }
     }
     // Unfold.
     for (const UnfoldOp *unfoldOp: graph.getOpsOfType<UnfoldOp>()) {
         const CollectedDecreaseAndShare& collected = collector.at(unfoldOp->getInput());
+        increase.try_emplace(unfoldOp, unfoldOp->getWindow(), collected.decreases);
         for (const ShareOp *shareOp: collected.shares) {
-            increase.try_emplace(unfoldOp, unfoldOp->getWindow(), collected.decreases);
             sharedDependencies.at(shareOp).increase.emplace(unfoldOp);
         }
     }
@@ -86,6 +87,11 @@ ExtendedFLOPsGame::ExtendedFLOPsGame(const BindingContext& ctx, Size inputSize, 
     for (const Reduce *reduction: graph.getReduceIterators()) {
         decreaseIndex.emplace(reduction, decreaseIndex.size());
         this->decrease.emplace_back(reduction->getBase().getDomain());
+    }
+    for (const StrideOp *strideOp: graph.getOpsOfType<StrideOp>()) {
+        // This is a trick.
+        // Since Stride is rare, we do not need to really care.
+        this->inputSize /= strideOp->getStride();
     }
     // Then translate into indices.
     for (const auto& [shareOp, adj]: sharedDependencies) {

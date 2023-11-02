@@ -24,7 +24,7 @@ protected:
         options.dimUpperBound = 10;
         options.maximumTensors = 4;
         options.maximumReductions = 2;
-        options.maxFLOPs = 1e6;
+        options.maxFLOPs = 5e5;
         options.maxChainLength = 5;
         return options;
     }();

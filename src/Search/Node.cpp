@@ -101,6 +101,13 @@ std::size_t Node::hash() const {
     return h;
 }
 
+AbstractStage *Node::asNonFinalStage() const {
+    return match<AbstractStage *>(
+        [](AbstractStage *stage) { return stage; },
+        [](FinalStage *) -> AbstractStage * { KAS_UNREACHABLE(); }
+    );
+}
+
 FinalStage *Node::asFinalStage() const {
     return std::get<FinalStage *>(inner);
 }

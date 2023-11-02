@@ -12,7 +12,7 @@ std::size_t FLOPsGame::State::getNextDecrease(std::size_t i) const {
 }
 
 FLOPsGame::State::State(const FLOPsGame& game):
-    game{ game }, current { game.inputSize },
+    game { game }, current { game.inputSize },
     determinedIncrease(game.increase.size()),
     determinedDecrease(game.decrease.size())
 {}

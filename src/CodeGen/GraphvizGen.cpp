@@ -241,6 +241,10 @@ std::string GraphvizGen::Print(const TensorView& tensorView, const BindingContex
     return GraphvizGen(tensorView, ctx).print("preview");
 }
 
+std::string GraphvizGen::Print(const Topmost& inputs, const BindingContext& ctx) {
+    return GraphvizGen(inputs, ctx).print("preview");
+}
+
 std::string GraphvizDFGGen::InterfaceName(const Dimension& dim, std::size_t subgraphIndex, Direction type) {
     return fmt::format("interface_{}_{}_{}", subgraphIndex, type == Direction::Up ? "in" : "out", fmt::ptr(dim.getInnerPointer()));
 }

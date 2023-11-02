@@ -23,6 +23,8 @@ public:
     std::size_t opHash() const noexcept final override;
     void accept(OpVisitor& visitor) const override { visitor.visit(*this); }
 
+    static const ExpandOp *FromRaw(const Expand *raw) { return &dynamic_cast<const ExpandOp&>(*raw); }
+
     bool canApplyToInterface(const GraphHandle& interface) const final override;
     GraphHandle applyToInterface(const GraphHandle& interface) const final override;
 

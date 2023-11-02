@@ -412,6 +412,7 @@ public:
     // For convenience.
     std::strong_ordering operator<=>(const Node& rhs) const = default;
 
+    AbstractStage *asNonFinalStage() const;
     FinalStage *asFinalStage() const;
     std::unique_ptr<Kernel> realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& directory, const std::string& name) const;
     // Obtain the mappings from Sampler, and do not solve the paddings. We only want to estimate the FLOPs.
