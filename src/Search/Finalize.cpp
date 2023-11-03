@@ -88,21 +88,6 @@ std::string FinalizeOp::description(const BindingContext& ctx) const {
     return Topmost::Description(tensors, ctx);
 }
 
-bool FinalizeOp::hasRedundantWeights(const Graph::DimensionSet& sharedWeightDims) const {
-    return std::ranges::any_of(
-        tensors | std::views::drop(1), // only weights.
-        [&](const Topmost& tensor) {
-            return std::ranges::all_of(
-                tensor.getDimensions(),
-                [&](const Dimension& dim) {
-                    // All dims of this weight are shared among weights.
-                    return sharedWeightDims.contains(dim);
-                }
-            );
-        }
-    );
-}
-
 std::vector<ColoredDimension> FinalizeOp::FLOPsGameOptions::buildFullWeightDims(const std::vector<ColoredDimension>& canBeWeightDims, const std::vector<bool>& select) const {
     KAS_ASSERT(canBeWeightDims.size() == select.size());
     auto it1 = weightDims.begin();
@@ -138,6 +123,8 @@ std::vector<ColoredDimension> FinalizeOp::FLOPsGameOptions::buildFullWeightDims(
 
 ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current, const std::vector<DesiredSize>& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, const FLOPsGameOptions& flopsOptions) {
     int strideDist = 0;
+
+    const BindingContext& ctx = options.ctx;
 
     std::vector<CurrentSize> mustBeInput, canBeWeight;
     std::vector<Dimension> mustBeInputDims;
@@ -181,7 +168,7 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
     // canBeWeightDims need not be counted, because they are iterators and are ignored by canonicalization.
     auto unorderedness = ShapeComplexity::UnorderednessDeduction(desired, mustBeInput);
     std::vector<bool> givenUpWeightDims(canBeWeight.size(), true);
-    auto extendedGame = ExtendedFLOPsGame(options.ctx, flopsOptions.totalInputSize, graph);
+    auto extendedGame = ExtendedFLOPsGame(ctx, flopsOptions.totalInputSize, graph);
     const bool checkFLOPs = flopsOptions.prune;
     auto recursion = [&](const auto& self, std::size_t trialIndex) -> void {
         // In either cases, we do not need to further compute.
@@ -189,7 +176,7 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
             ++CountShapeDistanceTrials;
 
             auto enumerator = ShapeComplexity::Enumerator(desired, newCurrent, {
-                .ctx = options.ctx,
+                .ctx = ctx,
                 .remainingMerges = options.remainingMerges,
                 .remainingSplits = options.remainingSplits,
                 .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - (strideDist > 0),
@@ -483,22 +470,18 @@ struct TopKFinalizations {
         }
     };
     const BindingContext& ctx;
-    const Graph::DimensionSet& sharedWeightDims;
     const std::size_t k;
     const FinalizeOp::FinalStageBuilder& finalStageBuilder;
     const std::size_t maxFLOPs;
     // Sorted by variance, from lowest to highest.
     std::vector<Finalization> topK;
 
-    TopKFinalizations(const BindingContext& ctx, const Graph::DimensionSet& sharedWeightDims, std::size_t k, const FinalizeOp::FinalStageBuilder& finalStageBuilder, std::size_t maxFLOPs):
-        ctx { ctx }, sharedWeightDims { sharedWeightDims }, k { k }, finalStageBuilder { finalStageBuilder }, maxFLOPs { maxFLOPs } {}
+    TopKFinalizations(const BindingContext& ctx, std::size_t k, const FinalizeOp::FinalStageBuilder& finalStageBuilder, std::size_t maxFLOPs):
+        ctx { ctx }, k { k }, finalStageBuilder { finalStageBuilder }, maxFLOPs { maxFLOPs } {}
     bool empty() const noexcept { return topK.empty(); }
     std::size_t size() const noexcept { return topK.size(); }
     void emplace(auto&& tensors) {
         Finalization f { ctx, std::forward<decltype(tensors)>(tensors) };
-        if (f.tensors.hasRedundantWeights(sharedWeightDims)) {
-            return;
-        }
 
         // If the top-k cannot accomodate this, no need to check whether the result is within FLOPs by building.
         auto vacancy = std::lower_bound(topK.cbegin(), topK.cend(), f);
@@ -536,6 +519,7 @@ struct TopKFinalizations {
 std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Generate(const GraphHandle& dimensionsAndExpansions, const Graph& graph, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
+    const BindingContext& ctx = options.ctx;
     const std::vector<Dimension>& interface = dimensionsAndExpansions.getDimensions();
     const std::vector<const Expand *>& expansions = dimensionsAndExpansions.getExpansions();
 
@@ -545,16 +529,18 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
         return {};
     }
 
-    const Graph::DimensionSet sharedWeightDims = ExpandOp::GetSharedWeightDims(graph);
+    const ExpandOp::Usage expandOpUsage = ExpandOp::GetUsage(ctx, graph);
 
-    TopKFinalizations result { options.ctx, sharedWeightDims, options.maximumFinalizations, options.finalStageBuilder, options.maxFLOPs };
-    auto addToResults = [&result, &expansions](std::vector<std::vector<Dimension>>&& tensors) {
+    TopKFinalizations result { ctx, options.maximumFinalizations, options.finalStageBuilder, options.maxFLOPs };
+    auto addToResults = [&result, &expansions, &graph, &expandOpUsage](std::vector<std::vector<Dimension>>&& tensors) {
         // Currently, we only allow expansions to be added to the input tensor.
         std::vector<Topmost> realTensors;
         realTensors.emplace_back(std::move(tensors.at(0)), expansions);
         for (auto&& tensor: tensors | std::views::drop(1)) {
             realTensors.emplace_back(std::move(tensor), std::vector<const Expand *>{});
         }
+        // Redundant weights.
+        if (!FinalizationIsCanonicalGivenSharedWeights(graph, realTensors, expandOpUsage.sharedWeightDims)) return;
         result.emplace(std::move(realTensors));
     };
     const auto& desired = options.desired;

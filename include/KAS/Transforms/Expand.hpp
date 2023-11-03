@@ -33,7 +33,11 @@ public:
     std::string description(const BindingContext& ctx) const final override;
     std::string descendantsDescription(const BindingContext& ctx) const final override;
 
-    static Graph::DimensionSet GetSharedWeightDims(const Graph& graph);
+    struct Usage {
+        Graph::DimensionSet sharedWeightDims;
+        Size mergedInputAndWeight;
+    };
+    static Usage GetUsage(const BindingContext& ctx, const Graph& graph);
 
     struct GenerateOptions {
         const BindingContext& ctx;

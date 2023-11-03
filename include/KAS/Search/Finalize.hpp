@@ -60,8 +60,6 @@ public:
 
     std::string description(const BindingContext& ctx) const;
 
-    bool hasRedundantWeights(const Graph::DimensionSet& sharedWeightDims) const;
-
     static std::size_t MaxTensorsToMaxWeights(std::size_t maxTensors) { return maxTensors - 1; }
 
     struct FLOPsGameOptions {

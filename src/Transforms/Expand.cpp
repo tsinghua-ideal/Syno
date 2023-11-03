@@ -35,17 +35,20 @@ std::string ExpandOp::descendantsDescription(const BindingContext& ctx) const {
     return fmt::format("-> {}", output.descendantsDescription(ctx));
 }
 
-Graph::DimensionSet ExpandOp::GetSharedWeightDims(const Graph& graph) {
-    Graph::DimensionSet result;
-    for (const Expand *expand: graph.getOpsOfType<ExpandOp>()) {
+ExpandOp::Usage ExpandOp::GetUsage(const BindingContext& ctx, const Graph& graph) {
+    Usage result { {}, Size::Identity(ctx) };
+    for (const Expand *expand: graph.getTopmost().getExpansions()) {
         if (auto share = expand->output.tryAs<ShareOp::Input>(); share) {
-            // May be a chain of ShareOp.
-            if (share->getOp()->output.is(DimensionType::Share)) {
-                // OK, it is.
+            auto belowThisShare = share->getOp()->output.type();
+            if (belowThisShare == DimensionType::Share) {
+                // A chain of ShareOp.
                 while (share != nullptr) {
-                    result.emplace(share->getOther());
+                    result.sharedWeightDims.emplace(share->getOther());
                     share = share->getOp()->output.tryAs<ShareOp::Input>();
                 }
+            } else if (belowThisShare == DimensionType::Merge) {
+                // Merge input and weight.
+                result.mergedInputAndWeight *= share->size();
             }
         }
     }
