@@ -70,6 +70,8 @@ struct SampleOptions {
     bool disallowShareWeights = false;
     std::size_t maxExpansionRepeatMultiplier = 10;
     std::size_t maxExpansionMergeMultiplier = 128;
+    std::size_t maxExpansionWeightsSharingDimSize = 3;
+    std::size_t minExpansionWeightsSharingDimSize = 8;
 
     // Below are canonicalization options.
 

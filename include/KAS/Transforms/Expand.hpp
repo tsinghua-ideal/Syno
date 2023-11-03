@@ -42,6 +42,8 @@ public:
         bool disallowShareWeights;
         std::size_t maxExpansionRepeatMultiplier;
         std::size_t maxExpansionMergeMultiplier;
+        std::size_t maxExpansionWeightsSharingDimSize;
+        std::size_t minExpansionWeightsSharingDimSize;
     };
     KAS_STATISTICS_DEF(
         GenerateInvocations,

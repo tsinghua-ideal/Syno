@@ -55,9 +55,11 @@ Graph::DimensionSet ExpandOp::GetSharedWeightDims(const Graph& graph) {
 std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
+    const BindingContext& ctx = options.ctx;
+
     // We need to check if there are too many Expand's.
-    auto currentExpansionRepeat = Size::Identity(options.ctx);
-    auto currentExpansionMerge = Size::Identity(options.ctx);
+    auto currentExpansionRepeat = Size::Identity(ctx);
+    auto currentExpansionMerge = Size::Identity(ctx);
     // Also record all the weight dims brought by Expand. Weight dims cannot be Merge'd with weight dims.
     // Moreover, I cannot see what is useful for Merging expanded dims with expanded dims or weight dims.
     // I think expanded dims are only useful when they merge with data dims. TODO: think over this.
@@ -121,9 +123,9 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
             }
             if (isWeightsSharing) {
                 // We need to restrict this pattern.
-                auto usage = weightDim.size().getLimitsUsage();
-                if (usage.varsPowersInSize != 1) {
-                    // Only allow single variable.
+                auto weightsSharing = weightDim.size().upperBoundEst(ctx);
+                if (weightsSharing < options.minExpansionWeightsSharingDimSize || weightsSharing > options.maxExpansionWeightsSharingDimSize) {
+                    // Only allow sizes in this interval.
                     continue;
                 }
             }
@@ -143,7 +145,7 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
                 if (
                     options.maxExpansionMergeMultiplier &&
                     // Do not make expansions too large.
-                    (currentExpansionMerge * dim.size()).upperBoundEst(options.ctx) > options.maxExpansionMergeMultiplier
+                    (currentExpansionMerge * dim.size()).upperBoundEst(ctx) > options.maxExpansionMergeMultiplier
                 ) {
                     continue;
                 }
@@ -184,7 +186,7 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
             if (
                 options.maxExpansionRepeatMultiplier &&
                 // Do not make expansions too large.
-                (currentExpansionRepeat * dim.size()).upperBoundEst(options.ctx) > options.maxExpansionRepeatMultiplier
+                (currentExpansionRepeat * dim.size()).upperBoundEst(ctx) > options.maxExpansionRepeatMultiplier
             ) {
                 continue;
             }

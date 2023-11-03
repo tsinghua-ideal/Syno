@@ -197,6 +197,8 @@ void NormalStage::guardGeneratedChildren() {
                     .disallowShareWeights = options.disallowShareWeights,
                     .maxExpansionRepeatMultiplier = options.maxExpansionRepeatMultiplier,
                     .maxExpansionMergeMultiplier = options.maxExpansionMergeMultiplier,
+                    .maxExpansionWeightsSharingDimSize = options.maxExpansionWeightsSharingDimSize,
+                    .minExpansionWeightsSharingDimSize = options.minExpansionWeightsSharingDimSize,
                 }));
             }
         }
