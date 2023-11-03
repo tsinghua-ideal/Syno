@@ -1,9 +1,5 @@
-import itertools
 import logging
-import random
-import requests
-import time
-import sys
+import json, os
 from KAS import Path
 
 from base import log, models, parser, dataset, trainer
@@ -42,9 +38,12 @@ if __name__ == "__main__":
             kernel_hash = kernel_dir.split("_")[1]
 
             if meta["accuracy"] > lower_bound:
-                logging.info(f"Found {path} with accuracy {meta["accuracy"]}, evaluating with fp32......")
+                logging.info(f"Found {meta['path']} with accuracy {meta['accuracy']}, evaluating with fp32......")
                 path = meta["path"]
                 node = sampler.visit(Path.deserialize(path)).to_node()
+                if node is None:
+                    logging.info(f"{meta['path']} is not in the search space, skipping......")
+                    continue
                 kernel_loader = sampler.realize(model, node)
                 model.load_kernel(
                     kernel_loader, 
