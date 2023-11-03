@@ -352,6 +352,12 @@ def arg_parse():
         type=str,
         help="Path to test",
     )
+    parser.add_argument(
+        "--kas-evaluate-lower-bound",
+        default=0.75,
+        type=float,
+        help="Lower accuracy bound on kernels to re-evaluate. ",
+    )
 
     # Pruning options
     parser.add_argument("--prune-milestones", default='', type=str)
