@@ -27,6 +27,7 @@ def arg_parse():
         default="fp32",
         help="Type of re-evaluation (fp32 | ImageNet)",
     )
+    parser.add_argument("--dirs", type=str, nargs="+", default=None)
 
     # Model
     parser.add_argument("--model", type=str, default="FCNet")
