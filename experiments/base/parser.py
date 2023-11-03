@@ -5,10 +5,28 @@ from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 def arg_parse():
     parser = argparse.ArgumentParser(description="KAS trainer/searcher")
-    
+
     # Resource
-    parser.add_argument("--server-mem-limit", type=float, default=1.0, help="Maximum portion of memory that server used. ")
-    parser.add_argument("--client-mem-limit", type=float, default=1.0, help="Maximum portion of memory that client used. ")
+    parser.add_argument(
+        "--server-mem-limit",
+        type=float,
+        default=1.0,
+        help="Maximum portion of memory that server used. ",
+    )
+    parser.add_argument(
+        "--client-mem-limit",
+        type=float,
+        default=1.0,
+        help="Maximum portion of memory that client used. ",
+    )
+
+    # Evaluation
+    parser.add_argument(
+        "--evaluate-type",
+        type=str,
+        default="fp32",
+        help="Type of re-evaluation (fp32 | ImageNet)",
+    )
 
     # Model
     parser.add_argument("--model", type=str, default="FCNet")
@@ -38,6 +56,171 @@ def arg_parse():
         metavar="N",
         help="How many training processes to use",
     )
+    parser.add_argument(
+        "--train-split",
+        metavar="NAME",
+        type=str,
+        default="train",
+        help="Dataset train split (default: train)",
+    )
+    parser.add_argument(
+        "--val-split",
+        metavar="NAME",
+        type=str,
+        default="validation",
+        help="Dataset validation split (default: validation)",
+    )
+    parser.add_argument(
+        "--use-multi-epochs-loader",
+        action="store_true",
+        default=False,
+        help="Use the multi-epochs-loader to save time at the beginning of every epoch",
+    )
+
+    # Dataset augmentations (used in Imagenet)
+    parser.add_argument(
+        "--no-aug",
+        action="store_true",
+        default=False,
+        help="Disable all training augmentation, override other train aug args",
+    )
+    parser.add_argument(
+        "--scale",
+        type=float,
+        nargs="+",
+        default=[0.08, 1.0],
+        metavar="PCT",
+        help="Random resize scale (default: 0.08 1.0)",
+    )
+    parser.add_argument(
+        "--ratio",
+        type=float,
+        nargs="+",
+        default=[3.0 / 4.0, 4.0 / 3.0],
+        metavar="RATIO",
+        help="Random resize aspect ratio (default: 0.75 1.33)",
+    )
+    parser.add_argument(
+        "--hflip",
+        type=float,
+        default=0.5,
+        help="Horizontal flip training aug probability",
+    )
+    parser.add_argument(
+        "--vflip",
+        type=float,
+        default=0.0,
+        help="Vertical flip training aug probability",
+    )
+    parser.add_argument(
+        "--color-jitter",
+        type=float,
+        default=0.4,
+        metavar="PCT",
+        help="Color jitter factor (default: 0.4)",
+    )
+    parser.add_argument(
+        "--aa",
+        type=str,
+        default="rand-m9-mstd0.5-inc1",
+        metavar="NAME",
+        help='Use AutoAugment policy. "v0" or "original". (default: rand-m9-mstd0.5-inc1)',
+    )
+    parser.add_argument(
+        "--re-prob",
+        type=float,
+        default=0.25,
+        metavar="PCT",
+        help="Random erase prob (default: 0.25)",
+    )
+    parser.add_argument(
+        "--re-mode",
+        type=str,
+        default="pixel",
+        help='Random erase mode (default: "pixel")',
+    )
+    parser.add_argument(
+        "--re-count", type=int, default=1, help="Random erase count (default: 1)"
+    )
+    parser.add_argument(
+        "--re-split",
+        action="store_true",
+        default=False,
+        help="Do not random erase first (clean) augmentation split",
+    )
+    parser.add_argument(
+        "--mixup",
+        type=float,
+        default=0.8,
+        help="Mixup alpha, mixup enabled if > 0. (default: 0.8)",
+    )
+    parser.add_argument(
+        "--cutmix",
+        type=float,
+        default=1.0,
+        help="Cutmix alpha, cutmix enabled if > 0. (default: 1.0)",
+    )
+    parser.add_argument(
+        "--cutmix-minmax",
+        type=float,
+        nargs="+",
+        default=None,
+        help="Cutmix min/max ratio, overrides alpha and enables cutmix if set (default: None)",
+    )
+    parser.add_argument(
+        "--mixup-prob",
+        type=float,
+        default=1.0,
+        help="Probability of performing mixup or cutmix when either/both is enabled",
+    )
+    parser.add_argument(
+        "--mixup-switch-prob",
+        type=float,
+        default=0.5,
+        help="Probability of switching to cutmix when both mixup and cutmix enabled",
+    )
+    parser.add_argument(
+        "--mixup-mode",
+        type=str,
+        default="batch",
+        help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"',
+    )
+    parser.add_argument(
+        "--smoothing", type=float, default=0.1, help="Label smoothing (default: 0.1)"
+    )
+    parser.add_argument(
+        "--train-interpolation",
+        type=str,
+        default="random",
+        help='Training interpolation (random, bilinear, bicubic default: "random")',
+    )
+    parser.add_argument(
+        "--tta",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Test/inference time augmentation (oversampling) factor",
+    )
+
+    # Loss functions.
+    parser.add_argument(
+        "--jsd-loss",
+        action="store_true",
+        default=False,
+        help="Enable Jensen-Shannon Divergence + CE loss. Use with `--aug-splits`.",
+    )
+    parser.add_argument(
+        "--bce-loss",
+        action="store_true",
+        default=False,
+        help="Enable BCE loss w/ Mixup/CutMix use.",
+    )
+    parser.add_argument(
+        "--bce-target-thresh",
+        type=float,
+        default=None,
+        help="Threshold for binarizing softened BCE targets (default: None, disabled)",
+    )
 
     # Optimizer parameters
     parser.add_argument(
@@ -64,7 +247,7 @@ def arg_parse():
     parser.add_argument(
         "--weight-decay", type=float, default=1e-3, help="Weight decay (default: 0.05)"
     )
-    parser.add_argument("--grad-norm-clip", type=float, default=5.)
+    parser.add_argument("--grad-norm-clip", type=float, default=5.0)
 
     # Scheduler parameters
     parser.add_argument(
@@ -121,19 +304,34 @@ def arg_parse():
     parser.add_argument("--kas-replace-placeholder", type=str, default=None)
     parser.add_argument("--kas-depth", default=12, type=int, help="KAS sampler depth")
     parser.add_argument(
-        "--kas-max-enumerations", default=5, type=int, help="KAS sampler maximum enumerations per variable. "
+        "--kas-max-enumerations",
+        default=5,
+        type=int,
+        help="KAS sampler maximum enumerations per variable. ",
     )
     parser.add_argument(
-        "--kas-max-variables-in-size", default=3, type=int, help="KAS sampler maximum different variables per size. "
+        "--kas-max-variables-in-size",
+        default=3,
+        type=int,
+        help="KAS sampler maximum different variables per size. ",
     )
     parser.add_argument(
-        "--kas-max-size-multiplier", default=1, type=int, help="KAS sampler multiplier for maximum reduce size. "
+        "--kas-max-size-multiplier",
+        default=1,
+        type=int,
+        help="KAS sampler multiplier for maximum reduce size. ",
     )
     parser.add_argument(
-        "--kas-max-chain-length", default=10, type=int, help="KAS sampler maximum primitive chain length. "
+        "--kas-max-chain-length",
+        default=10,
+        type=int,
+        help="KAS sampler maximum primitive chain length. ",
     )
     parser.add_argument(
-        "--kas-max-shift-rhs", default=5, type=int, help="KAS sampler maximum shift RHS size. "
+        "--kas-max-shift-rhs",
+        default=5,
+        type=int,
+        help="KAS sampler maximum shift RHS size. ",
     )
     parser.add_argument(
         "--kas-max-tensors", default=3, type=int, help="KAS sampler maximum tensors"
@@ -205,10 +403,16 @@ def arg_parse():
         help="KAS sampler maximum expansion multiplier",
     )
     parser.add_argument(
-        "--kas-no-exact-division", action="store_true", default=False, help="requires_exact_division=False"
+        "--kas-no-exact-division",
+        action="store_true",
+        default=False,
+        help="requires_exact_division=False",
     )
     parser.add_argument(
-        "--kas-enable-even-unfold", action="store_true", default=False, help="requires_odd_kernel_size_in_unfold=False"
+        "--kas-enable-even-unfold",
+        action="store_true",
+        default=False,
+        help="requires_odd_kernel_size_in_unfold=False",
     )
     parser.add_argument(
         "--kas-min-unfold-ratio",
@@ -360,16 +564,16 @@ def arg_parse():
     )
 
     # Pruning options
-    parser.add_argument("--prune-milestones", default='', type=str)
+    parser.add_argument("--prune-milestones", default="", type=str)
 
     # GPT related
-    parser.add_argument('--gpt-seq-len', default=None, type=int)
-    parser.add_argument('--gpt-vocab-size', default=None, type=int)
-    parser.add_argument('--gpt-tokenizer', default='gpt2-large', type=str)
-    parser.add_argument('--gpt-max-iters', default=0, type=int)
-    parser.add_argument('--gpt-max-minutes', default=0, type=float)
-    parser.add_argument('--gpt-log-interval', default=10, type=int)
-    parser.add_argument('--gpt-max-loss', default=3, type=float)
+    parser.add_argument("--gpt-seq-len", default=None, type=int)
+    parser.add_argument("--gpt-vocab-size", default=None, type=int)
+    parser.add_argument("--gpt-tokenizer", default="gpt2-large", type=str)
+    parser.add_argument("--gpt-max-iters", default=0, type=int)
+    parser.add_argument("--gpt-max-minutes", default=0, type=float)
+    parser.add_argument("--gpt-log-interval", default=10, type=int)
+    parser.add_argument("--gpt-max-loss", default=3, type=float)
 
     args = parser.parse_args()
 
