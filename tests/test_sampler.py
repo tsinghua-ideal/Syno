@@ -77,7 +77,7 @@ def perform_trials(manual: bool):
     sampler._bind_debug_context()
 
     if not manual:
-        Statistics.PrintLog()
+        Statistics.PrintLog(sampler)
         print("Expanding...")
         sampler.root().expand(3)
         print("Completed expansion. Now searching...")
@@ -91,7 +91,7 @@ def perform_trials(manual: bool):
                     kernel_packs = kernel.construct_kernel_packs()
                     print(f"Kernel files stored in {kernel.get_directory()}")
                     break
-        Statistics.PrintLog()
+        Statistics.PrintLog(sampler)
         print(node.get_nested_loops_as_final())
         print(node.get_composing_arcs())
         print(node.get_possible_path())

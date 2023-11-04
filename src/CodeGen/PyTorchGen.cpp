@@ -285,9 +285,9 @@ void PerformViewsIRPass::ViewPerformer::apply() {
     ViewPerformer(subgraph.getGraph(), tensor).shouldWarn(warn).apply();
 }
 
-PerformViewsIRPass::PerformViewsIRPass(IR& ir): graph(ir.buildGraph()), ir(ir) {}
+PerformViewsIRPass::PerformViewsIRPass(const Graph& graph): graph(graph) {}
 
-void PerformViewsIRPass::apply() {
+void PerformViewsIRPass::operator()(IR& ir) const {
     ir.topBottomForEach([&](Tensor& tensor) {
         if (tensor.hasContraction()) {
             ViewPerformer(graph, tensor).apply();
@@ -590,10 +590,13 @@ PyTorchGen::PyTorchGen(const BindingContext& ctx, const IR& ir):
     ir { ir.copy() },
     graph { this->ir.buildGraph() }
 {
-    // First perform views.
-    PerformViewsIRPass(this->ir).apply();
+    // We want rfactor to be applied so that each stage has at most 1 reduction.
+    (RFactorIRPass(ctx, graph, true))(this->ir);
+    // Perform views. Because PyTorch wants the dimensions to be contracted to be explicit.
+    (PerformViewsIRPass(graph))(this->ir);
     // Now that the tensors are in a mess again, optimize layout one more time.
-    LayoutOptimizer().optimize(this->ir);
+    (OptimizeLayoutIRPass(graph))(this->ir);
+
     for (std::size_t index = 0; const auto& tensor: this->ir.inputTensors) {
         declare(tensor, "in_" + std::to_string(index));
         ++index;

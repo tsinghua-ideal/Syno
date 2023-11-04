@@ -13,6 +13,7 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
     if (expanded) {
         return;
     }
+    getStats().expandNode();
 
     const auto& ctx = sampler.getBindingContext();
     const auto& options = sampler.getOptions();
@@ -72,7 +73,7 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
             childrenFinalizabilities.emplace(stage, f);
         }
     }
-    nextSlotStore.fill(nextReductions, [](NextStageSlot& slot) -> NextStageSlot&& {
+    fillSlots(nextSlotStore, nextReductions, [](NextStageSlot& slot) -> NextStageSlot&& {
         return std::move(slot);
     });
     nextSlotStore.checkHashCollisionAndRemove();

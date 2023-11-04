@@ -115,6 +115,7 @@ public:
 
     // Compute from Sampler.
     std::size_t remainingDepth() const;
+    DepthwiseStatistics& getStats() const;
 
     template<PrimitiveOpImpl Op>
     int existingOp() const { return existingOps[Next::TypeOf<Op>()]; }
@@ -202,6 +203,18 @@ class AbstractStageBase: public AbstractStage {
 protected:
     using Base = AbstractStageBase<DerivedStageType>;
 
+    template<typename Slot, std::ranges::input_range R, typename F>
+    requires std::convertible_to<std::invoke_result_t<F, std::ranges::range_reference_t<R>>, Slot>
+    void fillSlots(GenericNextSlotStore<Slot>& slotStore, R&& rawStream, F&& builder, bool isFinal = false) {
+        std::size_t filled = slotStore.fill(std::forward<R>(rawStream), std::forward<F>(builder));
+        if (isFinal) {
+            getStats().addFinalChildren(filled);
+        }
+        else {
+            getStats().addNonFinalChildren(filled);
+        }
+    }
+
     using CollectedFinalizabilities = std::vector<Finalizability>;
 
     CollectedFinalizabilities collectFinalizabilities() {
@@ -211,13 +224,15 @@ protected:
     }
 
     void removeDeadChildrenFromSlots(const CollectedFinalizabilities& collected) {
-        nextSlotStore.removeByIndex([&](std::size_t index) {
+        std::size_t removed = nextSlotStore.removeByIndex([&](std::size_t index) {
             return collected[index] == Finalizability::No;
         });
+        getStats().removeNonFinalChildren(removed);
     }
 
     void removeAllChildrenFromSlots() {
-        nextSlotStore.clear();
+        std::size_t removed = nextSlotStore.clear();
+        getStats().removeNonFinalChildren(removed);
     }
 
     Finalizability checkForFinalizableChildren(const CollectedFinalizabilities& collected) const {

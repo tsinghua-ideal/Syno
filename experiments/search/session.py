@@ -80,7 +80,7 @@ class Session:
         if not force and time.time() - self.last_stats_time < self.stats_interval:
             return
 
-        Statistics.PrintLog()
+        Statistics.PrintLog(self.sampler)
         self.last_stats_time = time.time()
 
     def save(self, force=True):

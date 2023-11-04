@@ -202,6 +202,15 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     KAS_DEBUG("Built {} ReductionStage's", numReductionStages);
 }
 
+std::string Sampler::statsToString() const {
+    std::ostringstream oss;
+    for (std::size_t i = 0; const auto& stat: depthwiseStatistics) {
+        fmt::format_to(std::ostreambuf_iterator(oss), "Depth {}: {}\n", i, stat.toString());
+        ++i;
+    }
+    return oss.str();
+}
+
 const TensorExpression& Sampler::getExpressionForTensorNum(std::size_t num) const {
     switch (num) {
         case 1: return expressionOneTensor;
@@ -277,10 +286,9 @@ std::optional<std::pair<std::vector<Next>, Node>> Sampler::randomNodeWithPrefix(
     return std::optional<std::pair<std::vector<Next>, Node>>(std::in_place, std::move(path), std::move(cur));
 }
 
-std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPrefix(const std::vector<Next>& prefix, std::size_t count, std::optional<Next::Type> type /* = std::nullopt */, int steps /* = 1 */) {
+std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPrefix(const std::vector<Next>& prefix, std::size_t count, std::optional<Next::Type> type, int steps) {
+    KAS_ASSERT(steps == 1 || steps == 2, "Only 1-step sampling and 2-step sampling are supported.");
 
-    KAS_ASSERT(steps == 1 || steps == 2);
-    
     if (count == 0) return {};
 
     const std::optional<Node> optCur = visit(prefix);
@@ -297,96 +305,86 @@ std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPre
     using Workers = ThreadPool<RandomTask, std::pair<std::vector<Next>, Node>>;
     // Hierarchical sampling.
     auto workers = Workers(numWorkerThreads, [steps](Workers& pool, RandomTask task) {
-          static thread_local std::mt19937 rng { std::random_device{}() };
+        static thread_local std::mt19937 rng { std::random_device{}() };
 
-          const auto& [path, node, quota, type] = task;
-          KAS_ASSERT(quota > 0);
+        const auto& [path, node, quota, type] = task;
+        KAS_ASSERT(quota > 0);
 
-          // If this is final, return it.
-          if (node.isFinal()) {
+        // If this is final, return it.
+        if (node.isFinal()) {
             pool.emplaceResult(std::move(path), std::move(node));
             return;
-          }
+        }
 
-          // Obtain the children.
-          auto children = node.getChildrenHandles();
-          if (type != std::nullopt) {
+        // Obtain the children.
+        auto children = node.getChildrenHandles();
+        if (type != std::nullopt) {
             // Filter by type.
-            children.erase(std::remove_if(children.begin(), children.end(), [type](const Next &next) {
-                return next.type != type.value();
+            children.erase(std::remove_if(children.begin(), children.end(), [type = *type](const Next &next) {
+                return next.type != type;
             }), children.end());
-            for (auto& child : children) {
-              KAS_ASSERT(child.type == type.value());
-            }
-          }
-          if (children.empty()) return;
+        }
+        if (children.empty()) return;
 
-          // Pick each child with equal probability.
-          auto assignment = std::vector<std::size_t>(children.size(), 0);
+        // Pick each child with equal probability.
+        auto assignment = std::vector<std::size_t>(children.size(), 0);
 
-          if (steps == 1) {
+        if (steps == 1) {
             auto dist = std::uniform_int_distribution<std::size_t>{0, children.size() - 1};
             for (std::size_t i = 0; i < quota; ++i) {
                 auto next = dist(rng);
                 ++assignment[next];
             }
-          } else {
-            // aggregate children by their types
-            std::map<Next::Type, std::vector<std::size_t>> typeToChildrenID;
-            for (std::size_t i = 0; i < children.size(); ++i) {
-                typeToChildrenID[children[i].type].emplace_back(i);
+        } else {
+            // Aggregate children by their types.
+            std::map<Next::Type, std::vector<std::size_t>> typesAndKeys;
+            for (std::size_t i = 0; Next child: children) {
+                typesAndKeys[child.type].emplace_back(i++);
             }
-            // traverse the map and assign quota to each type
-            auto type_dist = std::uniform_int_distribution<std::size_t>{
-                0, typeToChildrenID.size() - 1};
-            std::map<Next::Type, std::uniform_int_distribution<std::size_t>>
-                key_dist;
-            for (auto &[type, childrenID] : typeToChildrenID) {
-                key_dist[type] =
-                    std::uniform_int_distribution<std::size_t>{0, childrenID.size() - 1};
+            std::vector<std::pair<std::vector<std::size_t>, std::uniform_int_distribution<std::size_t>>> keys;
+            keys.reserve(typesAndKeys.size());
+            for (auto& [_, key]: typesAndKeys) {
+                const std::size_t count = key.size();
+                keys.emplace_back(std::move(key), std::uniform_int_distribution<std::size_t>{0, count - 1});
             }
+            std::uniform_int_distribution<std::size_t> typeDist{0, keys.size() - 1};
+            // Assign quota to each type, then to each key.
             for (std::size_t i = 0; i < quota; ++i) {
-                auto typeOffset = type_dist(rng);
-                auto keyDistIterator = key_dist.begin();
-                auto childrenIDIterator = typeToChildrenID.begin();
-                std::advance(keyDistIterator, typeOffset);
-                std::advance(childrenIDIterator, typeOffset);
-                auto next = keyDistIterator->second(rng);
-                auto nextChildID = childrenIDIterator->second[next];
-                ++assignment[nextChildID];
+                auto& [key, keyDist] = keys[typeDist(rng)];
+                auto next = key[keyDist(rng)];
+                ++assignment[next];
             }
-          }
-          
+        }
 
-          // First collect the required nexts and convert them to Nodes.
-          std::vector<std::size_t> subQuotas;
-          std::vector<Next> subNexts;
-          for (std::size_t i = 0; i < children.size(); ++i) {
+        // First collect the required nexts and convert them to Nodes.
+        std::vector<std::size_t> subQuotas;
+        std::vector<Next> subNexts;
+        for (std::size_t i = 0; i < children.size(); ++i) {
             std::size_t subQuota = assignment[i];
             if (subQuota == 0) continue;
             subQuotas.emplace_back(subQuota);
             subNexts.emplace_back(children[i]);
-          }
-          auto optSubNodes = node.getChildren(subNexts);
+        }
+        auto optSubNodes = node.getChildren(subNexts);
 
-          KAS_ASSERT(subQuotas.size() == optSubNodes.size() && subQuotas.size() == subNexts.size());
+        KAS_ASSERT(subQuotas.size() == optSubNodes.size() && subQuotas.size() == subNexts.size());
 
-          // Next level of hierarchy.
-          std::vector<RandomTask> subTasks;
-          for (std::size_t i = 0; i < subQuotas.size(); ++i) {
+        // Next level of hierarchy.
+        std::vector<RandomTask> subTasks;
+        for (std::size_t i = 0; i < subQuotas.size(); ++i) {
             auto& optSubNode = optSubNodes[i];
             if (!optSubNode) continue;
             std::size_t subQuota = subQuotas[i];
             std::vector<Next> subPath = path;
             subPath.emplace_back(subNexts[i]);
             subTasks.emplace_back(std::move(subPath), std::move(*optSubNode), subQuota, std::nullopt);
-          }
+        }
 
-          // For better randomness, to reduce waiting for locks.
-          std::shuffle(subTasks.begin(), subTasks.end(), rng);
+        // For better randomness, to reduce waiting for locks.
+        std::shuffle(subTasks.begin(), subTasks.end(), rng);
 
-          pool.addMultiple(std::move(subTasks));
-        });
+        pool.addMultiple(std::move(subTasks));
+    });
 
     workers.addSync(RandomTask{prefix, *optCur, count, type});
     auto results = workers.dumpResults();

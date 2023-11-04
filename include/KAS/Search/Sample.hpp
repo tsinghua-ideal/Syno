@@ -70,8 +70,8 @@ struct SampleOptions {
     bool disallowShareWeights = false;
     std::size_t maxExpansionRepeatMultiplier = 10;
     std::size_t maxExpansionMergeMultiplier = 128;
-    std::size_t maxExpansionWeightsSharingDimSize = 3;
-    std::size_t minExpansionWeightsSharingDimSize = 8;
+    std::size_t maxExpansionWeightsSharingDimSize = 8;
+    std::size_t minExpansionWeightsSharingDimSize = 3;
 
     // Below are canonicalization options.
 
@@ -197,6 +197,8 @@ class Sampler final {
 
     ReductionStage *rootStage;
 
+    std::array<DepthwiseStatistics, DepthwiseStatistics::MaxSearchDepth> depthwiseStatistics {};
+
 public:
     // A specification has the following forms:
     // <literal-value> [: <max-occurrencens>]
@@ -215,6 +217,9 @@ public:
     const SampleOptions& getOptions() const { return options; }
     PrimitiveOpStore& getOpStore() { return opStore; }
     StageStore& getStageStore() { return stageStore; }
+    DepthwiseStatistics& getStats(std::size_t depth) { return depthwiseStatistics[depth]; }
+
+    std::string statsToString() const;
 
     const std::vector<FixedDimension>& getFixedDimensions() const { return fixedDimensions; }
     const TensorExpression& getExpressionForTensorNum(std::size_t num) const;
