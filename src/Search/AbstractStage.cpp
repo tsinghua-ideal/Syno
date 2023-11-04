@@ -67,6 +67,7 @@ AbstractStage::AbstractStage(Sampler &sampler, GraphHandle interface, Lock lock)
 {
     ++CountCreations;
     ++CountFinalizabilityMaybe;
+    sampler.getStats(depth).createNode();
 }
 
 AbstractStage::AbstractStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> optionalDeltaOp, Lock lock):
@@ -87,6 +88,7 @@ AbstractStage::AbstractStage(GraphHandle interface, AbstractStage& creator, std:
     ++CountCreations;
     ++CountFinalizabilityMaybe;
     if (optionalDeltaOp) {
+        sampler.getStats(depth).createNode();
         Next::Type deltaOp = *optionalDeltaOp;
         existingOps[deltaOp] += 1;
         switch (deltaOp) {
@@ -123,6 +125,10 @@ std::size_t AbstractStage::remainingDepth() const {
     const std::size_t maxDepth = sampler.getOptions().depth;
     KAS_ASSERT(maxDepth >= depth);
     return maxDepth - depth;
+}
+
+DepthwiseStatistics& AbstractStage::getStats() const {
+    return sampler.getStats(depth);
 }
 
 std::size_t AbstractStage::hash() const {

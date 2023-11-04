@@ -90,6 +90,7 @@ void NormalStage::guardGeneratedChildren() {
     }
     KAS_ASSERT(!generatingChildren);
     generatingChildren = true;
+    getStats().expandNode();
 
     KAS_ASSERT(shapeDistance.steps <= remainingDepth(), "You must first call possibleToFinalizeByExperimenting, then determineFinalizability before calling guardGeneratedChildren.");
     const bool inCriticalState = shapeDistance.steps == remainingDepth();
@@ -100,7 +101,7 @@ void NormalStage::guardGeneratedChildren() {
     Graph graph = interface.buildGraph();
 
     // First add finalizations.
-    nextFinalizations.fill(FinalizeOp::Generate(interface, graph, {
+    fillSlots(nextFinalizations, FinalizeOp::Generate(interface, graph, {
         .ctx = ctx,
         .desired = sampler.getDesiredShape(),
         .maximumTensors = options.maximumTensors,
@@ -114,7 +115,7 @@ void NormalStage::guardGeneratedChildren() {
         auto& [op, stage] = opAndStage;
         auto key = NextFinalizeSlot::GetKey(op.tensors);
         return NextFinalizeSlot({Next::Type::Finalize, key}, std::move(op), std::move(stage));
-    });
+    }, true);
     nextFinalizations.checkHashCollisionAndRemove();
 
     std::vector<NextStageSlot> children;
@@ -227,7 +228,7 @@ void NormalStage::guardGeneratedChildren() {
         }
     }
 
-    nextSlotStore.fill(children, [](NextStageSlot& child) -> NextStageSlot&& { return std::move(child); });
+    fillSlots(nextSlotStore, children, [](NextStageSlot& child) -> NextStageSlot&& { return std::move(child); });
     const auto& rawSlots = nextSlotStore.getRawSlots();
     if (auto it = std::ranges::adjacent_find(rawSlots); it != rawSlots.end()) {
         KAS_REPORT_OP_HASH_COLLISION(*it->op, *std::next(it)->op);

@@ -320,6 +320,10 @@ class Sampler:
         )
         self._device = torch.device("cuda" if cuda else "cpu")
 
+    def get_all_stats(self) -> str:
+        """Get all stats."""
+        return self._sampler.get_all_stats()
+
     def root(self) -> VisitedNode:
         """Get the root node."""
         return self.visit([])

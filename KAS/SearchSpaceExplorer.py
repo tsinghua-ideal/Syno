@@ -96,7 +96,7 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         )
 
     def statistics(self, state: Optional[VisitedNode]) -> Union[str, Tuple[str, List[str]]]:
-        return AbstractResponse(Statistics.Summary())
+        return AbstractResponse(Statistics.Summary(self.sampler))
 
     def realize(self, state: VisitedNode) -> Union[str, Tuple[str, List[str]]]:
         kernel_loader = self.sampler.realize(self.model, state)
