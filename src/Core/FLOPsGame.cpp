@@ -93,12 +93,10 @@ std::size_t FLOPsGame::State::experimentRemainingFLOPs(const State& base, std::s
     }
 
     // Start experimenting.
-    std::size_t bestFLOPs = Infinity;
 
-    // Then enumerate trials.
     KAS_ASSERT(!decreaseDetermined(nowDecreasing));
-    // First is the trial with this reduced.
-    {
+    // First is the trial with this reduced. Enumerate trials.
+    const std::size_t FLOPsWithThis = [&] {
         auto trial = *this;
         trial.determinedDecrease[nowDecreasing] = true;
         for (std::size_t increase = 0; increase < game.increase.size(); ++increase) {
@@ -136,15 +134,11 @@ std::size_t FLOPsGame::State::experimentRemainingFLOPs(const State& base, std::s
                 }
             }
         }
-        const std::size_t FLOPsWithThis = trial.experimentRemainingFLOPs(base, trial.getNextDecrease(nowDecreasing + 1));
-        bestFLOPs = std::min(bestFLOPs, FLOPsWithThis);
-    }
+        return trial.experimentRemainingFLOPs(base, trial.getNextDecrease(nowDecreasing + 1));
+    }();
     // Then is the trial without this reduced.
-    {
-        const std::size_t FLOPsWithoutThis = experimentRemainingFLOPs(base, getNextDecrease(nowDecreasing + 1));
-        bestFLOPs = std::min(bestFLOPs, FLOPsWithoutThis);
-    }
-    return bestFLOPs;
+    const std::size_t FLOPsWithoutThis = experimentRemainingFLOPs(base, getNextDecrease(nowDecreasing + 1));
+    return std::min(FLOPsWithThis, FLOPsWithoutThis);
 }
 
 std::size_t FLOPsGame::FLOPs() const {
