@@ -3,7 +3,7 @@
 #include "KAS/CodeGen/Python.hpp"
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/IR.hpp"
-#include "KAS/Core/Tensor.hpp"
+#include "KAS/Core/Pass.hpp"
 #include "KAS/Core/TensorView.hpp"
 
 
@@ -43,8 +43,7 @@ public:
 
 // For PyTorch codegen, further split Tensor's apart so that contractions are apparent, that is, ShareOp's are above any other type of Op's in each Tensor.
 class PerformViewsIRPass {
-    Graph graph;
-    IR& ir;
+    const Graph& graph;
 public:
     class ViewPerformer {
         Tensor tensor;
@@ -80,8 +79,8 @@ public:
         ViewPerformer& shouldWarn(int level) { warn = level + 1; return *this; }
         void apply();
     };
-    PerformViewsIRPass(IR& ir);
-    void apply();
+    PerformViewsIRPass(const Graph& graph);
+    void operator()(IR& ir) const;
 };
 
 class PyTorchGen {
