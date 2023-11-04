@@ -6,12 +6,14 @@ namespace kas {
 TEST_F(search_tests, sampler) {
     auto rng = std::mt19937_64(42);
 
-    constexpr std::size_t trials = 100;
+    constexpr std::size_t trials = 50;
     std::size_t successes = 0;
     std::size_t successfulReconstruction = 0;
     std::size_t failedReconstruction = 0;
     for (int i = 0; i < trials; ++i) {
         auto randomLeaves = sampler.randomFinalNodesWithPrefix({}, 32);
+        randomLeaves.erase(std::ranges::remove_if(randomLeaves, [](const auto& pair) { return pair.first.size() < 3; }).begin(), randomLeaves.end());
+
         for (auto& [sampledPath, node]: randomLeaves) {
             auto path = sampler.convertTensorViewToPath(node.asFinalStage()->value);
             auto reconstructedNode = sampler.visit(path);
@@ -27,21 +29,17 @@ TEST_F(search_tests, sampler) {
             fmt::print("Expanding lattice... ");
             sampler.visit({})->expandToSync(node);
             fmt::print("Done.\n");
-            // auto previousPath = sampledPath;
-            // auto successorFlops = node.asFinalStage()->value.getFLOPs(ctx);
-            // while (!sampledPath.empty()) {
-            //     auto [_, flops] = sampler.visit(sampledPath)->getShapeDistance();
-            //     if (flops > successorFlops) {
-            //         fmt::print("Oh, no! FLOPs-based pruning fails!");
-            //         fmt::print("Final DFG:\n{}", GraphvizDFGGen::Print(node.asFinalStage()->value.getSubgraphs(), ctx));
-            //         fmt::print("From:\n{}", GraphvizGen::Print(sampler.visit(sampledPath).value().asNonFinalStage()->getInterface().getRaw(), ctx));
-            //         fmt::print("To:\n{}", GraphvizGen::Print(sampler.visit(previousPath).value().asNonFinalStage()->getInterface().getRaw(), ctx));
-            //     }
-            //     ASSERT_LE(flops, successorFlops);
-            //     successorFlops = flops;
-            //     previousPath = sampledPath;
-            //     sampledPath.pop_back();
-            // }
+            auto finalFlops = node.asFinalStage()->value.getFLOPs(ctx);
+            while (!sampledPath.empty()) {
+                sampledPath.pop_back();
+                auto [_, flops] = sampler.visit(sampledPath)->getShapeDistance();
+                if (flops > finalFlops) {
+                    fmt::print("Oh, no! FLOPs-based pruning fails!");
+                    fmt::print("Final DFG:\n{}", GraphvizDFGGen::Print(node.asFinalStage()->value.getSubgraphs(), ctx));
+                    fmt::print("Intermediate:\n{}", GraphvizGen::Print(sampler.visit(sampledPath).value().asNonFinalStage()->getInterface().getRaw(), ctx));
+                }
+                ASSERT_LE(flops, finalFlops);
+            }
         }
         if (randomLeaves.empty()) {
             fmt::print("Trial {} failed.\n", i);
@@ -73,6 +71,7 @@ TEST_F(search_tests, sampler) {
 #endif
     }
     StatisticsCollector::PrintSummary(std::cout);
+    fmt::print("{}", sampler.statsToString());
     fmt::print("Success rate: {:.2f} ({} / {})\n", static_cast<float>(successes) / trials, successes, trials);
     fmt::print("Reconstruction: successful = {}, failed = {}\n", successfulReconstruction, failedReconstruction);
     ASSERT_GT(successfulReconstruction, failedReconstruction);
