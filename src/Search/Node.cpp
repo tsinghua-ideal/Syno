@@ -168,6 +168,13 @@ Node Node::arbitraryParent() const {
     );
 }
 
+void Node::recomputeShapeDistance() const {
+    match<void>(
+        [&](AbstractStage *stage) { stage->recomputeShapeDistance(); },
+        [](FinalStage *) {}
+    );
+}
+
 ShapeDistance Node::getShapeDistance() const {
     return match<ShapeDistance>(
         [&](AbstractStage *stage) { return stage->getShapeDistance(); },

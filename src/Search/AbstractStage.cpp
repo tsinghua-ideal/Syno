@@ -131,6 +131,11 @@ DepthwiseStatistics& AbstractStage::getStats() const {
     return sampler.getStats(depth);
 }
 
+void AbstractStage::recomputeShapeDistance() const {
+    Lock lock = acquireLock();
+    possibleToFinalizeByExperimenting();
+}
+
 std::size_t AbstractStage::hash() const {
     return interface.hash();
 }
