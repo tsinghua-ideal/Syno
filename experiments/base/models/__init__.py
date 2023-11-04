@@ -21,10 +21,14 @@ def get_sampler(args, model) -> Sampler:
     raw_flops, _ = model.profile(not_count_placeholder=True, seq_len=args.gpt_seq_len)
     flops, _ = model.profile(seq_len=args.gpt_seq_len)
     max_flops = args.kas_max_flops_ratio * flops
-    assert max_flops > raw_flops, f"Maximum FLOPs {max_flops} is smaller than raw FLOPs {raw_flops}"
+    assert (
+        max_flops > raw_flops
+    ), f"Maximum FLOPs {max_flops} is smaller than raw FLOPs {raw_flops}"
     max_placeholder_flops = max_flops - raw_flops
     logging.info(f"Raw FLOPs per batch: {raw_flops / 1e9:.5f}G")
-    logging.info(f"Maximum total placeholder FLOPs per batch: {max_placeholder_flops / 1e9:.5f}G")
+    logging.info(
+        f"Maximum total placeholder FLOPs per batch: {max_placeholder_flops / 1e9:.5f}G"
+    )
     logging.info(f"Enable soft FLOPs limit: {args.kas_soft_flops_limit}")
     setattr(args, "original_flops", flops)
 
@@ -58,13 +62,17 @@ def get_sampler(args, model) -> Sampler:
         "maximum_finalizations": args.kas_max_finalizations,
         "max_expansion_repeat_multiplier": args.kas_max_expansion_repeat_multiplier,
         "max_expansion_merge_multiplier": args.kas_max_expansion_merge_multiplier,
+        "max_expansion_weights_sharing_dim_size": args.kas_max_weight_share_dim,
+        "min_expansion_weights_sharing_dim_size": args.kas_min_weight_share_dim,
         "maximum_valid_reshape_shift_pattern": args.kas_max_shift_rhs,
         "max_flops": max_placeholder_flops * args.batch_size,
-        "maximum_enumerations_per_var": args.kas_max_enumerations, 
-        "maximum_variables_in_size": args.kas_max_variables_in_size, 
-        "max_chain_length": args.kas_max_chain_length, 
-        "max_rdom_size_multiplier": args.kas_max_size_multiplier, 
-        "save_path": os.path.join(args.kas_server_save_dir, args.kas_scheduler_cache_dir),
+        "maximum_enumerations_per_var": args.kas_max_enumerations,
+        "maximum_variables_in_size": args.kas_max_variables_in_size,
+        "max_chain_length": args.kas_max_chain_length,
+        "max_rdom_size_multiplier": args.kas_max_size_multiplier,
+        "save_path": os.path.join(
+            args.kas_server_save_dir, args.kas_scheduler_cache_dir
+        ),
         "cuda": True,
         "autoscheduler": CodeGenOptions.AutoScheduler.Anderson2021,
         "num_worker_threads": args.kas_sampler_workers,
@@ -90,26 +98,31 @@ def get_sampler(args, model) -> Sampler:
 def get_model(
     args, return_sampler=False
 ) -> Union[Tuple[KASModel, Optional[Sampler]], KASModel]:
-    
     # Create model instance
     if args.model.startswith("torchvision/"):
         model = get_common_model(args).cuda()
     elif args.model.startswith("gpt/"):
         config = GPT.get_default_config()
-        config.model_type = args.model[len("gpt/"):]
+        config.model_type = args.model[len("gpt/") :]
         config.vocab_size = GPT2Tokenizer.from_pretrained(args.gpt_tokenizer).vocab_size
         config.block_size = args.gpt_seq_len
         model = GPT(config)
     else:
-        assert hasattr(sys.modules[__name__], args.model), f"Could not find model {args.model}"
+        assert hasattr(
+            sys.modules[__name__], args.model
+        ), f"Could not find model {args.model}"
         model_cls = getattr(sys.modules[__name__], args.model)
         model = model_cls()
     model = model.cuda()
     flops, params = model.profile(seq_len=args.gpt_seq_len)
-    logging.info(f"Base model {args.model} has {flops / 1e9:.5f} GFLOPs (per batch) and {params / 1e6:.2f}M parameters")
+    logging.info(
+        f"Base model {args.model} has {flops / 1e9:.5f} GFLOPs (per batch) and {params / 1e6:.2f}M parameters"
+    )
 
     # Build mapping for usages
-    sample_input = torch.ones((args.batch_size, *model.sample_input_shape(args.gpt_seq_len))).cuda()
+    sample_input = torch.ones(
+        (args.batch_size, *model.sample_input_shape(args.gpt_seq_len))
+    ).cuda()
     if args.gpt_seq_len:
         sample_input = sample_input.long()
     build_placeholder_mappings(model, sample_input)
@@ -131,7 +144,9 @@ def get_model(
         assembler = sampler.create_assembler()
         assembled = getattr(placeholder, cls_name).impl(assembler)
         logging.debug(f"Assembled path: {assembled.convert_to_path(sampler)}")
-        logging.debug(f"Assembled path (serialized): {Path(assembled.convert_to_path(sampler)).serialize()}")
+        logging.debug(
+            f"Assembled path (serialized): {Path(assembled.convert_to_path(sampler)).serialize()}"
+        )
         if sampler.visit(assembled.convert_to_path(sampler)) is None:
             path = Path(assembled.convert_to_path(sampler))
             logging.warning(f"Path {path} is not valid, testing...")
@@ -144,13 +159,26 @@ def get_model(
             kernel_loader,
             compile=args.compile,
             batch_size=args.batch_size,
-            seq_len=args.gpt_seq_len
+            seq_len=args.gpt_seq_len,
         )
-        flops_replaced, params_replaced = model.profile(batch_size=args.batch_size, force_update=True, seq_len=args.gpt_seq_len)
-        flops_base, params_base = model.profile(batch_size=args.batch_size, force_update=True, not_count_placeholder=True, seq_len=args.gpt_seq_len)
-        logging.info(f"Replaced model {args.model} has {flops_replaced / 1e9:.5f}G FLOPs and {params_replaced / 1e6:.2f}M parameters")
-        logging.info(f"Placeholder flops change {flops - flops_base:.2f} -> {flops_replaced - flops_base:.2f}")
-        logging.info(f"Placeholder params change {params - params_base:.2f} -> {params_replaced - params_base:.2f}")
+        flops_replaced, params_replaced = model.profile(
+            batch_size=args.batch_size, force_update=True, seq_len=args.gpt_seq_len
+        )
+        flops_base, params_base = model.profile(
+            batch_size=args.batch_size,
+            force_update=True,
+            not_count_placeholder=True,
+            seq_len=args.gpt_seq_len,
+        )
+        logging.info(
+            f"Replaced model {args.model} has {flops_replaced / 1e9:.5f}G FLOPs and {params_replaced / 1e6:.2f}M parameters"
+        )
+        logging.info(
+            f"Placeholder flops change {flops - flops_base:.2f} -> {flops_replaced - flops_base:.2f}"
+        )
+        logging.info(
+            f"Placeholder params change {params - params_base:.2f} -> {params_replaced - params_base:.2f}"
+        )
 
     if return_sampler:
         assert sampler

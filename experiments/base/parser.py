@@ -323,6 +323,18 @@ def arg_parse():
         help="KAS sampler multiplier for maximum reduce size. ",
     )
     parser.add_argument(
+        "--kas-max-weight-share-dim",
+        default=8,
+        type=int,
+        help="Maximum size of the dim that is shared by 2 weights.",
+    )
+    parser.add_argument(
+        "--kas-min-weight-share-dim",
+        default=3,
+        type=int,
+        help="Minimum size of the dim that is shared by 2 weights.",
+    )
+    parser.add_argument(
         "--kas-max-chain-length",
         default=10,
         type=int,
