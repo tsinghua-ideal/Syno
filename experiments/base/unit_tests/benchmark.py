@@ -22,7 +22,6 @@ def train(
     val_dataloader: dataset.FuncDataloader,
     test_run: bool,
 ) -> None:
-
     # logging.info(f"model verbose: {model}")
     impl = models.ManualImpl(sampler)
     assert hasattr(impl, name), f"{name} is not a valid kernel"
@@ -55,7 +54,10 @@ def train(
     kernel_loader = sampler.realize(model, kernel, name)
     try:
         model.load_kernel(
-            kernel_loader, compile=args.compile, batch_size=args.batch_size, seq_len=args.gpt_seq_len,
+            kernel_loader,
+            compile=args.compile,
+            batch_size=args.batch_size,
+            seq_len=args.gpt_seq_len,
         )
         flops, params = model.profile(args.batch_size)
         logging.info(
@@ -72,7 +74,7 @@ def train(
 
     if test_run:
         logging.info("Evaluating on real dataset ...")
-        accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args, use_bf16=False))
+        accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
         print(f"Evaluation result: {flops} {params} {accuracy}")
         result["accuracy"] = accuracy
 

@@ -20,8 +20,16 @@ def torch_opt_on():
     torch.backends.cudnn.allow_tf32 = True
 
 
-def train(model, train_dataloader, val_dataloader, args, init_weight=True, use_bf16=True) -> List[float]:
-    if 'gpt' in args.model:
+def train(
+    model,
+    train_dataloader,
+    val_dataloader,
+    args,
+    init_weight=True,
+    use_bf16_train=True,
+    use_bf16_test=False,
+) -> List[float]:
+    if "gpt" in args.model:
         return train_gpt(model, train_dataloader, val_dataloader, args)
 
     assert isinstance(model, KASModel)
@@ -31,8 +39,6 @@ def train(model, train_dataloader, val_dataloader, args, init_weight=True, use_b
     model.cuda()
     if init_weight:
         model.initialize_weights()
-    if use_bf16:
-        model.bfloat16()
 
     # Loss, optimizer and scheduler
     loss_func = get_loss_func(args)
@@ -45,22 +51,30 @@ def train(model, train_dataloader, val_dataloader, args, init_weight=True, use_b
     if args.prune_milestones:
         with open(args.prune_milestones) as f:
             milestones = json.load(f)
-        logging.info(f'Milestones loaded: {milestones}')
+        logging.info(f"Milestones loaded: {milestones}")
 
     for epoch in range(sched_epochs):
         # Train
         start_time = time.time()
+        if use_bf16_train:
+            model.bfloat16()
+        else:
+            model.float()
         model.train()
         loss_meter = AverageMeter()
         for i, (image, label) in enumerate(train_dataloader):
             # Forward
             image, label = image.cuda(), label.cuda()
-            logits: torch.Tensor = model(image.bfloat16()).float() if use_bf16 else model(image)
+            logits: torch.Tensor = (
+                model(image.bfloat16()).float() if use_bf16_train else model(image)
+            )
             loss = loss_func(logits, label)
 
             # Backward
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(parameters=model.parameters(), max_norm=args.grad_norm_clip, norm_type=2)
+            torch.nn.utils.clip_grad_norm_(
+                parameters=model.parameters(), max_norm=args.grad_norm_clip, norm_type=2
+            )
             optimizer.step()
             optimizer.zero_grad(set_to_none=True)
 
@@ -73,6 +87,10 @@ def train(model, train_dataloader, val_dataloader, args, init_weight=True, use_b
 
         # Valiation
         start_time = time.time()
+        if use_bf16_test:
+            model.bfloat16()
+        else:
+            model.float()
         model.eval()
         with torch.no_grad():
             correct = 0
@@ -80,32 +98,47 @@ def train(model, train_dataloader, val_dataloader, args, init_weight=True, use_b
             for i, (image, label) in enumerate(val_dataloader):
                 image, label = image.cuda(), label.cuda()
                 total += label.size(0)
-                
+
                 # A hack for the last batch
                 if image.size(0) != args.batch_size:
                     shape = (args.batch_size - image.size(0), *image.size()[1:])
-                    image = torch.cat([image, torch.zeros(shape, dtype=image.dtype).cuda()], dim=0)
+                    image = torch.cat(
+                        [image, torch.zeros(shape, dtype=image.dtype).cuda()], dim=0
+                    )
                     shape = (args.batch_size - label.size(0), *label.size()[1:])
-                    label = torch.cat([label, torch.zeros(shape, dtype=label.dtype).cuda() - 1], dim=0)
+                    label = torch.cat(
+                        [label, torch.zeros(shape, dtype=label.dtype).cuda() - 1], dim=0
+                    )
 
                 # Inference
-                logits = model(image.bfloat16()) if use_bf16 else model(image)
+                logits = model(image.bfloat16()) if use_bf16_test else model(image)
 
                 # Statistic
                 pred = torch.argmax(logits, 1)
                 correct += torch.sum(pred == label).item()
             val_accuracy.append(correct / total)
         elapsed_valid_time = time.time() - start_time
-        logging.info(f'Epoch [{epoch + 1}/{sched_epochs}], train loss: {loss_meter.avg}, test accuracy: {correct / total}, training time: {elapsed_train_time}, validation time: {elapsed_valid_time}')
-        if epoch > 0 and args.kas_inference_time_limit and elapsed_train_time > args.kas_inference_time_limit:
-            logging.info(f'Inference time limit reached ({elapsed_train_time}s currently), stopping training ...')
+        logging.info(
+            f"Epoch [{epoch + 1}/{sched_epochs}], train loss: {loss_meter.avg}, test accuracy: {correct / total}, training time: {elapsed_train_time}, validation time: {elapsed_valid_time}"
+        )
+        if (
+            epoch > 0
+            and args.kas_inference_time_limit
+            and elapsed_train_time > args.kas_inference_time_limit
+        ):
+            logging.info(
+                f"Inference time limit reached ({elapsed_train_time}s currently), stopping training ..."
+            )
             break
 
-        if str(epoch + 1) in milestones and max(val_accuracy) < milestones[str(epoch + 1)]:
-            logging.info(f'Accuracy too low, pruning ...')
+        if (
+            str(epoch + 1) in milestones
+            and max(val_accuracy) < milestones[str(epoch + 1)]
+        ):
+            logging.info(f"Accuracy too low, pruning ...")
             break
 
-    logging.info(f'Training completed, accuracy: {max(val_accuracy)}')
+    logging.info(f"Training completed, accuracy: {max(val_accuracy)}")
     model = model.float()
     return val_accuracy
 
@@ -117,9 +150,10 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
 
     def init_kernel_weights(m):
         if isinstance(m, Placeholder):
-            if m.kernel and hasattr(m.kernel, 'weights'):
+            if m.kernel and hasattr(m.kernel, "weights"):
                 for w in m.kernel.weights:
-                    nn.init.normal_(w, std=.02)
+                    nn.init.normal_(w, std=0.02)
+
     model.apply(init_kernel_weights)
     model.initialize_weights()
     optimizer = get_gpt_optimizer(model, args)
@@ -154,14 +188,17 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
         if args.gpt_max_iters > 0 and num_iters >= args.gpt_max_iters:
             logging.info(f"Reaching max iterations {args.gpt_max_iters}, break")
             break
-        
-        if args.gpt_max_minutes > 0 and (time.time() - start_time) / 60 > args.gpt_max_minutes:
+
+        if (
+            args.gpt_max_minutes > 0
+            and (time.time() - start_time) / 60 > args.gpt_max_minutes
+        ):
             logging.info(f"Reaching max time limit {args.gpt_max_minutes} mins, break")
             break
-        
+
         # Pruning
         if time.time() - start_time > 60 and loss.item() > args.gpt_max_loss:
             logging.info(f"Prune loss (last item): {loss.item()}")
             break
-    
+
     return losses

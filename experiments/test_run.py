@@ -17,13 +17,15 @@ if __name__ == "__main__":
 
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
-    
+
     logging.info("Preparing model ...")
     if args.kas_use_orig_model:
         if args.model.startswith("torchvision/"):
             model = models.common.get_common_model(args).cuda()
         else:
-            assert hasattr(sys.modules[__name__], args.model), f"Could not find model {args.model}"
+            assert hasattr(
+                sys.modules[__name__], args.model
+            ), f"Could not find model {args.model}"
             model_cls = getattr(sys.modules[__name__], args.model)
             model = model_cls().cuda()
     else:
@@ -33,7 +35,10 @@ if __name__ == "__main__":
                 node = sampler.visit(Path.deserialize(path)).to_node()
                 kernel_loader = sampler.realize(model, node)
                 model.load_kernel(
-                    kernel_loader, compile=args.compile, batch_size=args.batch_size, seq_len=args.gpt_seq_len,
+                    kernel_loader,
+                    compile=args.compile,
+                    batch_size=args.batch_size,
+                    seq_len=args.gpt_seq_len,
                 )
         except Exception as e:
             if not "out of memory" in str(e):
@@ -50,5 +55,12 @@ if __name__ == "__main__":
     )
 
     logging.info("Evaluating on real dataset ...")
-    accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args, use_bf16=True))
+    accuracy = max(
+        trainer.train(
+            model,
+            train_dataloader,
+            val_dataloader,
+            args,
+        )
+    )
     print(f"Evaluation result: {flops} {params} {accuracy}")

@@ -6,12 +6,18 @@ from copy import deepcopy
 
 from KAS import NextSerializer, Node, Path, Sampler, Statistics, Next
 
-from KAS.AbstractExplorer import AbstractChild, AbstractExplorer, AbstractPredicate, AbstractResponse
+from KAS.AbstractExplorer import (
+    AbstractChild,
+    AbstractExplorer,
+    AbstractPredicate,
+    AbstractResponse,
+)
 
 from .node import TreePath, TreeNode
 from .tree import MCTSTree
 
 EXPLORER_TEMP_ID = 0
+
 
 class MCTSExplorer(AbstractExplorer[TreeNode]):
     def __init__(self, model: nn.Module, sampler: Sampler, mcts: MCTSTree):
@@ -58,7 +64,9 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             f"Node: {state.to_node()}\n"
             f"\tis_mid: {state._is_mid}\n"
             f"\tis_terminal: {state.is_terminal()}\n"
-            f"\tis_final: {state.is_final()}, reward={state.reward}, filtered={state.filtered}\n" if state.is_final() else f"\tis_final: {state.is_final()}\n"
+            f"\tis_final: {state.is_final()}, reward={state.reward}, filtered={state.filtered}\n"
+            if state.is_final()
+            else f"\tis_final: {state.is_final()}\n"
             f"\tis_dead_end: {state.is_dead_end()}\n"
             f"\tis_dead: {state._is_dead}\n"
             f"\tsimulate_fail: {state._simulate_fail}\n"
@@ -71,10 +79,21 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
 
     custom_predicates = (
         AbstractPredicate("expand", "Expand the current node for given layers.", ("3")),
-        AbstractPredicate("graphviz", "Generate a graphviz file and print it for the current node."),
-        AbstractPredicate("goto", "Go to the given serialized path. Example: `goto 1234_5678`.", (""), can_work_if_state_invalid=True),
+        AbstractPredicate(
+            "graphviz", "Generate a graphviz file and print it for the current node."
+        ),
+        AbstractPredicate(
+            "goto",
+            "Go to the given serialized path. Example: `goto 1234_5678`.",
+            ("",),
+            can_work_if_state_invalid=True,
+        ),
         AbstractPredicate("composing", "Print the composing arcs of the current node."),
-        AbstractPredicate("statistics", "Print statistics of the sampler.", can_work_if_state_invalid=True),
+        AbstractPredicate(
+            "statistics",
+            "Print statistics of the sampler.",
+            can_work_if_state_invalid=True,
+        ),
         AbstractPredicate("realize", "Realize the current node."),
     )
 
@@ -96,22 +115,32 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
         state.to_node().generate_graphviz(path, "preview")
         with open(path, "r") as f:
             result = f.read()
-        return AbstractResponse(f"Generated graphviz file {filename}.", returned_file=filename)
+        return AbstractResponse(
+            f"Generated graphviz file {filename}.", returned_file=filename
+        )
 
-    def goto(self, state: Optional[TreeNode], serialized_path: str) -> Union[str, Tuple[str, List[str]]]:
+    def goto(
+        self, state: Optional[TreeNode], serialized_path: str
+    ) -> Union[str, Tuple[str, List[str]]]:
         path = TreePath.deserialize(serialized_path)
-        return AbstractResponse(f"Going to {path}.", next_state=[self._serializer.serialize_next(next) for next in path])
+        explorer_path = []
+        for next in path:
+            explorer_path.append(self._serializer.serialize_type(next.type))
+            explorer_path.append(str(next.key))
+        return AbstractResponse(
+            f"Going to {path}.",
+            next_state=explorer_path,
+        )
 
     def composing(self, state: TreeNode) -> Union[str, Tuple[str, List[str]]]:
         return AbstractResponse(
-            "Composing arcs:\n" +
-            "".join(
-                f"\t{arc}\n"
-                for arc in state.to_node().get_composing_arcs()
-            )
+            "Composing arcs:\n"
+            + "".join(f"\t{arc}\n" for arc in state.to_node().get_composing_arcs())
         )
 
-    def statistics(self, state: Optional[TreeNode]) -> Union[str, Tuple[str, List[str]]]:
+    def statistics(
+        self, state: Optional[TreeNode]
+    ) -> Union[str, Tuple[str, List[str]]]:
         return AbstractResponse(Statistics.Summary(self.sampler))
 
     def realize(self, state: TreeNode) -> Union[str, Tuple[str, List[str]]]:
