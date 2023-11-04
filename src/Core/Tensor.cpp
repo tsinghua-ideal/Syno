@@ -59,6 +59,7 @@ std::size_t Tensor::getFLOPs(const BindingContext& ctx, const ConcreteConsts& co
 }
 
 std::size_t Tensor::getFLOPs(const BindingContext& ctx) const {
+    if (isInputTensor()) return 0;
     auto numel = getNumElements(ctx);
     auto instsPerAddition = hasContraction() ? std::max<std::size_t>(inputs().size() - 1, 1) : 1;
     return numel.evalSumAllConsts(ctx) * instsPerAddition;

@@ -56,6 +56,7 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         AbstractPredicate("composing", "Print the composing arcs of the current node."),
         AbstractPredicate("statistics", "Print statistics of the sampler.", can_work_if_state_invalid=True),
         AbstractPredicate("realize", "Realize the current node."),
+        AbstractPredicate("exec", "Execute a method with no argument.", ("is_terminal",)),
     )
 
     def available_custom_predicates(self) -> Tuple[AbstractPredicate, ...]:
@@ -71,7 +72,7 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         self._sampler.root().expand_to(state)
         return AbstractResponse(f"Expanded lattice.")
 
-    def graphviz(self, state: VisitedNode) -> Union[str, Tuple[str, List[str]]]:
+    def graphviz(self, state: VisitedNode) -> AbstractResponse:
         # Create a temporary file.
         global EXPLORER_TEMP_ID
         filename = f"search_space_explorer_{EXPLORER_TEMP_ID}.dot"
@@ -82,11 +83,11 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
             result = f.read()
         return AbstractResponse(f"Generated graphviz file {filename}.", returned_file=filename)
 
-    def goto(self, state: Optional[VisitedNode], serialized_path: str) -> Union[str, Tuple[str, List[str]]]:
+    def goto(self, state: Optional[VisitedNode], serialized_path: str) -> AbstractResponse:
         path = Path.deserialize(serialized_path)
         return AbstractResponse(f"Going to {path}.", next_state=[self._serializer.serialize_next(next) for next in path])
 
-    def composing(self, state: VisitedNode) -> Union[str, Tuple[str, List[str]]]:
+    def composing(self, state: VisitedNode) -> AbstractResponse:
         return AbstractResponse(
             "Composing arcs:\n" +
             "".join(
@@ -95,10 +96,10 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
             )
         )
 
-    def statistics(self, state: Optional[VisitedNode]) -> Union[str, Tuple[str, List[str]]]:
+    def statistics(self, state: Optional[VisitedNode]) -> AbstractResponse:
         return AbstractResponse(Statistics.Summary(self.sampler))
 
-    def realize(self, state: VisitedNode) -> Union[str, Tuple[str, List[str]]]:
+    def realize(self, state: VisitedNode) -> AbstractResponse:
         kernel_loader = self.sampler.realize(self.model, state)
         global EXPLORER_TEMP_ID
         filename = f"search_space_explorer_{EXPLORER_TEMP_ID}.tar.gz"
@@ -106,3 +107,8 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         EXPLORER_TEMP_ID += 1
         kernel_loader.archive_to(path)
         return AbstractResponse(f"Realized to {filename}.", returned_file=filename)
+
+    def exec(self, state: VisitedNode, method: str) -> AbstractResponse:
+        assert not method.startswith("_"), f"Method {method} is private."
+        res = getattr(state, method)()
+        return AbstractResponse(f"Executed {method} with result:\n{res}\n")

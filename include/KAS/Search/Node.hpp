@@ -110,6 +110,7 @@ public:
     std::string getNestedLoopsAsFinal() const;
 
     Node arbitraryParent() const;
+    void recomputeShapeDistance() const;
     ShapeDistance getShapeDistance() const;
     // The count of children nodes.
     std::size_t countChildren() const;

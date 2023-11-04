@@ -142,6 +142,7 @@ public:
     virtual void updateFinalizability(Lock& lock) = 0;
 
     virtual bool possibleToFinalizeByExperimenting() const { return true; }
+    void recomputeShapeDistance() const;
     virtual ShapeDistance getShapeDistance() const = 0;
 
     virtual Node toNode() = 0;

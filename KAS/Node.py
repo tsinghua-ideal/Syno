@@ -98,6 +98,10 @@ class Node:
         """Do not call this on root."""
         return Node(self._node.arbitrary_parent())
 
+    def recompute_shape_distance(self) -> None:
+        """Recompute the shape distance of a node."""
+        self._node.recompute_shape_distance()
+
     def get_shape_distance(self) -> ShapeDistance:
         """Get the shape distance of a node."""
         return self._node.get_shape_distance()
@@ -293,6 +297,9 @@ class MockNodeMetadata:
 
     def arbitrary_parent(self) -> Optional['MockNodeMetadata']:
         raise NotImplementedError("MockNodeMetadata does not support arbitrary_parent.")
+
+    def recompute_shape_distance(self) -> None:
+        pass
 
     def get_shape_distance(self) -> ShapeDistance:
         raise NotImplementedError("MockNodeMetadata does not support get_shape_distance.")
