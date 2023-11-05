@@ -537,6 +537,7 @@ void PyTorchGen::SubgraphGen::generate(const ConcreteConsts& consts) {
     for (const Tensor& inputTensor: tensor.inputs()) {
         inputsSubscripts.emplace_back(ToEinsteinNotation(inputTensor.output() | std::views::transform(dimToSubscript)));
     }
+    printer.writeLn("# Perform contraction.");
     printer.writeLn(
         R"code({} = torch.einsum("{} -> {}", {}))code",
         name,
@@ -577,6 +578,13 @@ void PyTorchGen::SubgraphGen::generate(const ConcreteConsts& consts) {
             printer.write("{}, ", i);
         }
         printer.writeLn("))");
+        printer.writeLn();
+    }
+
+    // Add Activation.
+    if (true) {
+        printer.writeLn("# Activation.");
+        printer.writeLn("{0} = torch.nn.functional.relu({0})", name);
         printer.writeLn();
     }
 }
