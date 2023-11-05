@@ -354,6 +354,9 @@ Finalizability NormalStage::experimentFinalizability(Lock& lock) {
         // We cannot propagte, because the parent is now building children.
         // Luckily our parent will first check the finalizability of this.
         determineFinalizability(Finalizability::No, false);
+    } else {
+        // Because we have added this in ReductionStage.
+        --getStats().expandedNodes;
     }
     return getFinalizability(lock);
 }

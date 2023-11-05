@@ -211,6 +211,9 @@ std::size_t Sampler::getExpandAtDepth() {
     if (options.depth - d > 6) {
         // This is a bit dangerous.
         d = options.depth - 6;
+    } else if (options.depth - d < 3) {
+        // It is OK.
+        d = options.depth - 3;
     }
     return d;
 }

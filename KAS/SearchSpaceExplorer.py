@@ -1,4 +1,5 @@
 import os
+import random
 import tempfile
 from torch import nn
 from typing import List, Optional, Tuple, Union
@@ -50,6 +51,7 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
 
     custom_predicates = (
         AbstractPredicate("expand", "Expand the current node for given layers.", ("3",)),
+        AbstractPredicate("sample", "Sample final nodes. Randomly jump to any of the results. The argument is the number of trials.", ("1024",)),
         AbstractPredicate("fill_lattice", "Expand the lattice of the current node."),
         AbstractPredicate("graphviz", "Generate a graphviz file and print it for the current node."),
         AbstractPredicate("goto", "Go to the given serialized path. Example: `goto 1234_5678`.", ("",), can_work_if_state_invalid=True),
@@ -67,6 +69,18 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         assert depth > 0, f"Depth must be positive, but got {depth}."
         state.expand(depth)
         return AbstractResponse(f"Expanded {depth} layers from current node.")
+
+    def sample(self, state: VisitedNode, trials: str) -> AbstractResponse:
+        trials = int(trials)
+        assert trials > 0, f"Trials must be positive, but got {trials}."
+        results = self.sampler.random_final_nodes_with_prefix(state.path, trials, None, 2)
+        if len(results) == 0:
+            return AbstractResponse("All trials failed.")
+        result = max(results, key=lambda result: len(result.path))
+        return AbstractResponse(
+            f"Sampled {len(results)} final nodes. Jumping to deepest {result.path}.",
+            next_state=[self._serializer.serialize_next(next) for next in result.path],
+        )
 
     def fill_lattice(self, state: VisitedNode) -> AbstractResponse:
         self._sampler.root().expand_to(state)

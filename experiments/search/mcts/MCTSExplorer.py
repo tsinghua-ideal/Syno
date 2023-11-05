@@ -25,6 +25,13 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
         self._serializer = NextSerializer()
         self._mcts = mcts
 
+    def _tree_path_to_explorer_path(self, path: TreePath) -> List[str]:
+        explorer_path = []
+        for next in path:
+            explorer_path.append(self._serializer.serialize_type(next.type))
+            explorer_path.append(str(next.key))
+        return explorer_path
+
     def state_of(self, current_path: List[str]) -> Optional[TreeNode]:
         # Path: alternating type and key
         path = deepcopy(current_path)
@@ -80,6 +87,11 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
     custom_predicates = (
         AbstractPredicate("expand", "Expand the current node for given layers.", ("3")),
         AbstractPredicate(
+            "sample",
+            "Sample final nodes. Randomly jump to any of the results. The argument is the number of trials.",
+            ("1024",),
+        ),
+        AbstractPredicate(
             "graphviz", "Generate a graphviz file and print it for the current node."
         ),
         AbstractPredicate(
@@ -106,10 +118,23 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
         state.to_node().expand(depth)
         return AbstractResponse(f"Expanded {depth} layers from current node.")
 
-    def graphviz(self, state: TreeNode) -> Union[str, Tuple[str, List[str]]]:
+    def sample(self, state: TreeNode, trials: str) -> AbstractResponse:
+        trials = int(trials)
+        assert trials > 0, f"Trials must be positive, but got {trials}."
+        # TODO: add TreePath to state, and avoid this conversion
+        results = self.sampler.random_final_nodes_with_prefix(state.to_node().get_possible_path(), trials, None, 2)
+        if len(results) == 0:
+            return AbstractResponse("All trials failed.")
+        result = max(results, key=lambda result: len(result.path))
+        return AbstractResponse(
+            f"Sampled {len(results)} final nodes. Jumping to deepest {result.path}.",
+            next_state=self._tree_path_to_explorer_path(TreePath(result.path)),
+        )
+
+    def graphviz(self, state: TreeNode) -> AbstractResponse:
         # Create a temporary file.
         global EXPLORER_TEMP_ID
-        filename = f"search_space_explorer_{EXPLORER_TEMP_ID}.dot"
+        filename = f"mcts_explorer_{EXPLORER_TEMP_ID}.dot"
         path = os.path.join(self.working_dir, filename)
         EXPLORER_TEMP_ID += 1
         state.to_node().generate_graphviz(path, "preview")
@@ -121,18 +146,15 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
 
     def goto(
         self, state: Optional[TreeNode], serialized_path: str
-    ) -> Union[str, Tuple[str, List[str]]]:
+    ) -> AbstractResponse:
         path = TreePath.deserialize(serialized_path)
-        explorer_path = []
-        for next in path:
-            explorer_path.append(self._serializer.serialize_type(next.type))
-            explorer_path.append(str(next.key))
+        explorer_path = self._tree_path_to_explorer_path(path)
         return AbstractResponse(
             f"Going to {path}.",
             next_state=explorer_path,
         )
 
-    def composing(self, state: TreeNode) -> Union[str, Tuple[str, List[str]]]:
+    def composing(self, state: TreeNode) -> AbstractResponse:
         return AbstractResponse(
             "Composing arcs:\n"
             + "".join(f"\t{arc}\n" for arc in state.to_node().get_composing_arcs())
@@ -140,13 +162,13 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
 
     def statistics(
         self, state: Optional[TreeNode]
-    ) -> Union[str, Tuple[str, List[str]]]:
+    ) -> AbstractResponse:
         return AbstractResponse(Statistics.Summary(self.sampler))
 
-    def realize(self, state: TreeNode) -> Union[str, Tuple[str, List[str]]]:
+    def realize(self, state: TreeNode) -> AbstractResponse:
         kernel_loader = self.sampler.realize(self.model, state.to_node())
         global EXPLORER_TEMP_ID
-        filename = f"search_space_explorer_{EXPLORER_TEMP_ID}.tar.gz"
+        filename = f"mcts_explorer_{EXPLORER_TEMP_ID}.tar.gz"
         path = os.path.join(self.working_dir, filename)
         EXPLORER_TEMP_ID += 1
         kernel_loader.archive_to(path)
