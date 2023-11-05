@@ -1,6 +1,7 @@
 #pragma once
 
 #include <condition_variable>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <queue>
@@ -11,6 +12,28 @@
 
 
 namespace kas {
+
+template<typename T>
+struct Synchronized {
+    std::mutex mutex;
+    T value;
+
+    template<typename... Args>
+    Synchronized(Args&&... args): value(std::forward<Args>(args)...) {}
+
+    template<typename F>
+    requires std::invocable<F, T&>
+    decltype(auto) operator()(F&& f) {
+        std::scoped_lock lock { mutex };
+        return std::invoke(f, value);
+    }
+    template<typename F>
+    requires std::invocable<F, const T&>
+    decltype(auto) operator()(F&& f) const {
+        std::scoped_lock lock { mutex };
+        return std::invoke(f, value);
+    }
+};
 
 namespace detail {
 

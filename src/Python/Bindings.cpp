@@ -239,6 +239,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def("arbitrary_parent", &Node::arbitraryParent)
         .def("recompute_shape_distance", &Node::recomputeShapeDistance)
         .def("get_shape_distance", &Node::getShapeDistance)
+        .def("depth", &Node::depth)
         .def("children_count", &Node::countChildren)
         .def("get_children_handles", &Node::getChildrenHandles)
         .def("get_children_arcs", &Node::getChildrenArcs)

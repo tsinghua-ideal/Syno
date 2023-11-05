@@ -218,6 +218,7 @@ public:
     PrimitiveOpStore& getOpStore() { return opStore; }
     StageStore& getStageStore() { return stageStore; }
     DepthwiseStatistics& getStats(std::size_t depth) { return depthwiseStatistics[depth]; }
+    std::size_t getExpandAtDepth();
 
     std::string statsToString() const;
 

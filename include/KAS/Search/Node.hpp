@@ -113,6 +113,7 @@ public:
     void recomputeShapeDistance() const;
     ShapeDistance getShapeDistance() const;
     // The count of children nodes.
+    std::size_t depth() const;
     std::size_t countChildren() const;
     std::vector<Next> getChildrenHandles() const;
     std::vector<Arc> getChildrenArcs() const;

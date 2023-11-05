@@ -184,6 +184,13 @@ ShapeDistance Node::getShapeDistance() const {
     );
 }
 
+std::size_t Node::depth() const {
+    return match<std::size_t>(
+        [](AbstractStage *stage) { return stage->getDepth(); },
+        [](FinalStage *stage) { return stage->parent.getDepth() + 1; }
+    );
+}
+
 std::size_t Node::countChildren() const {
     return match<std::size_t>(
         [](AbstractStage *stage) { return stage->countChildren(); },

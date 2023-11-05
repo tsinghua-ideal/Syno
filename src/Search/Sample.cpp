@@ -202,6 +202,19 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
     KAS_DEBUG("Built {} ReductionStage's", numReductionStages);
 }
 
+std::size_t Sampler::getExpandAtDepth() {
+    std::size_t d = options.depth - 1;
+    while (d > 0 && getStats(d).branchingFactor() < 3.0f) {
+        --d;
+    }
+    ++d;
+    if (options.depth - d > 6) {
+        // This is a bit dangerous.
+        d = options.depth - 6;
+    }
+    return d;
+}
+
 std::string Sampler::statsToString() const {
     std::ostringstream oss;
     for (std::size_t i = 0; const auto& stat: depthwiseStatistics) {
@@ -296,18 +309,24 @@ std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPre
         return {};
     }
 
+    const std::size_t expandAtDepth = getExpandAtDepth();
+    // + 1 for FinalStage.
+    const std::size_t totalDepth = options.depth + 1;
+
     struct RandomTask {
+        bool staged = false;
         std::vector<Next> path;
         Node node;
         std::size_t quota;
         std::optional<Next::Type> type;
     };
+    Synchronized<std::vector<RandomTask>> stageArea;
     using Workers = ThreadPool<RandomTask, std::pair<std::vector<Next>, Node>>;
     // Hierarchical sampling.
-    auto workers = Workers(numWorkerThreads, [steps](Workers& pool, RandomTask task) {
+    auto workers = Workers(numWorkerThreads, [&](Workers& pool, RandomTask task) {
         static thread_local std::mt19937 rng { std::random_device{}() };
 
-        const auto& [path, node, quota, type] = task;
+        const auto& [staged, path, node, quota, type] = task;
         KAS_ASSERT(quota > 0);
 
         // If this is final, return it.
@@ -377,16 +396,37 @@ std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPre
             std::size_t subQuota = subQuotas[i];
             std::vector<Next> subPath = path;
             subPath.emplace_back(subNexts[i]);
-            subTasks.emplace_back(std::move(subPath), std::move(*optSubNode), subQuota, std::nullopt);
+            subTasks.emplace_back(staged, std::move(subPath), std::move(*optSubNode), subQuota, std::nullopt);
         }
 
         // For better randomness, to reduce waiting for locks.
         std::shuffle(subTasks.begin(), subTasks.end(), rng);
 
-        pool.addMultiple(std::move(subTasks));
+        // The search tree width gets narrower as we go deeper.
+        // So if there are really few steps left, we should just expand, and remove the dead nodes before we proceed.
+        const std::size_t nodeDepth = node.depth();
+        if (!staged && nodeDepth + 1 >= expandAtDepth) {
+            // Expand.
+            node.expand(totalDepth - nodeDepth);
+            for (auto& task: subTasks) {
+                task.staged = true;
+            }
+            stageArea([&](std::vector<RandomTask>& stageArea) {
+                stageArea.reserve(stageArea.size() + subTasks.size());
+                std::ranges::move(subTasks, std::back_inserter(stageArea));
+            });
+        } else {
+            // Otherwise just carry on.
+            pool.addMultiple(std::move(subTasks));
+        }
     });
 
-    workers.addSync(RandomTask{prefix, *optCur, count, type});
+    workers.addSync(RandomTask{false, prefix, *optCur, count, type});
+    getExpander().sync();
+    getPruner().sync();
+    stageArea([&](std::vector<RandomTask>& stageArea) {
+        workers.addMultipleSync(std::move(stageArea));
+    });
     auto results = workers.dumpResults();
 
     std::ranges::sort(results, std::less{}, &std::pair<std::vector<Next>, Node>::second);

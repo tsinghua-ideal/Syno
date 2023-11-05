@@ -359,6 +359,11 @@ struct DepthwiseStatistics {
     DepthwiseStatistics& addFinalChildren(std::size_t cnt) { finalChildren += cnt; return *this; }
     DepthwiseStatistics& addNonFinalChildren(std::size_t cnt) { initialNonFinalChildren += cnt; return *this; }
     DepthwiseStatistics& removeNonFinalChildren(std::size_t cnt) { removedNonFinalChildren += cnt; return *this; }
+    float branchingFactor() const {
+        const std::size_t total = expandedNodes.load();
+        const std::size_t children = initialNonFinalChildren.load() + finalChildren.load();
+        return total == 0 ? 10.0f : static_cast<float>(children) / total; 
+    }
     std::string toString() const {
         return fmt::format(
             "{{totalNodes: {}, expandedNodes: {}, finalChildren: {}, initialNonFinalChildren: {}, removedNonFinalChildren: {}}}",

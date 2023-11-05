@@ -106,6 +106,10 @@ class Node:
         """Get the shape distance of a node."""
         return self._node.get_shape_distance()
 
+    def depth(self) -> int:
+        """Get the depth of a node."""
+        return self._node.depth()
+
     def children_count(self) -> int:
         """Get the number of all children of a node."""
         return self._node.children_count()
@@ -303,6 +307,9 @@ class MockNodeMetadata:
 
     def get_shape_distance(self) -> ShapeDistance:
         raise NotImplementedError("MockNodeMetadata does not support get_shape_distance.")
+
+    def depth(self) -> int:
+        return len(self._path)
 
     def children_count(self) -> int:
         return len(self._mock_children())
