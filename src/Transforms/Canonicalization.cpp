@@ -124,7 +124,7 @@ bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionMap
                 } else {
                     rhs = &rhsDim.size();
                 }
-                if (!Size::LexicographicalLEQ(lhs, *rhs)) {
+                if (Size::LexicographicalLessThan(*rhs, lhs)) {
                     uncanonical = true;
                 }
             }

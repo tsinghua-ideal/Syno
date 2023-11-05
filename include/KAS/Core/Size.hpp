@@ -241,8 +241,8 @@ public:
 
     bool operator==(const Size& other) const;
     static std::strong_ordering LexicographicalCompare(const Size& lhs, const Size& rhs);
-    static bool LexicographicalLEQ(const Size& lhs, const Size& rhs) {
-        return LexicographicalCompare(lhs, rhs) != std::strong_ordering::greater;
+    static bool LexicographicalLessThan(const Size& lhs, const Size& rhs) {
+        return LexicographicalCompare(lhs, rhs) == std::strong_ordering::less;
     }
 
     std::string toString(const BindingContext& ctx) const;

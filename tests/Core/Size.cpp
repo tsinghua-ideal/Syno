@@ -105,13 +105,13 @@ TEST_F(core_size_tests, enumerate_HWoverC) {
 
 TEST_F(core_size_tests, leq) {
     ASSERT_TRUE(
-        Size::LexicographicalLEQ(sizeC, sizeH)
-        != Size::LexicographicalLEQ(sizeH, sizeC)
+        Size::LexicographicalLessThan(sizeC, sizeH)
+        != Size::LexicographicalLessThan(sizeH, sizeC)
     );
-    ASSERT_TRUE(Size::LexicographicalLEQ(sizeH, sizeH));
+    ASSERT_FALSE(Size::LexicographicalLessThan(sizeH, sizeH));
     ASSERT_TRUE(
-        Size::LexicographicalLEQ(sizeH, sizeH * sizeC)
-        != Size::LexicographicalLEQ(sizeH * sizeC, sizeH)
+        Size::LexicographicalLessThan(sizeH, sizeH * sizeC)
+        != Size::LexicographicalLessThan(sizeH * sizeC, sizeH)
     );
 }
 

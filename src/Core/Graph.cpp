@@ -211,7 +211,7 @@ Graph GraphBuilder::build() {
         return lhs->getIndex() < rhs->getIndex();
     });
     std::ranges::sort(reduceIterators, [](const Reduce *lhs, const Reduce *rhs) {
-        return Reduce::LexicographicalLEQ(*lhs, *rhs);
+        return Reduce::LexicographicalLessThan(*lhs, *rhs);
     });
 
     std::map<Dimension, Graph::DimensionMetadata, Dimension::AddressLessThan> dimMeta;

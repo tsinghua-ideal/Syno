@@ -92,8 +92,8 @@ public:
         if (domain != 0) return domain;
         return a.getMultiplicity() <=> b.getMultiplicity();
     }
-    static bool LexicographicalLEQ(const Reduce& a, const Reduce& b) noexcept {
-        return LexicographicalCompare(a, b) != std::strong_ordering::greater;
+    static bool LexicographicalLessThan(const Reduce& a, const Reduce& b) noexcept {
+        return LexicographicalCompare(a, b) == std::strong_ordering::less;
     }
 
     std::size_t getMultiplicity() const { return multiplicity; }

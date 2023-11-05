@@ -116,7 +116,7 @@ std::vector<Dimension> EinsumContractor::build(const std::vector<Tensor>& inputs
     }
     auto result = DependentCutSetDiscoverer::build();
     std::ranges::sort(result, [&](const Dimension& lhs, const Dimension& rhs) {
-        return preferredOrder.at(subscripts.at(lhs)) <= preferredOrder.at(subscripts.at(rhs));
+        return preferredOrder.at(subscripts.at(lhs)) < preferredOrder.at(subscripts.at(rhs));
     });
     return result;
 }

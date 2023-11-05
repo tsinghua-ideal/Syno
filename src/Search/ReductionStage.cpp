@@ -43,7 +43,7 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
     std::ranges::move(getInterface().getDimensions() | std::views::transform([](const Dimension& dim) { return dim.tryAs<Reduce>(); }) | std::views::filter([](auto ptr) { return ptr != nullptr; }), std::back_inserter(reductions));
     KAS_ASSERT(reductions.size() == existingOp<ReduceOp>());
     std::ranges::sort(reductions, [](const Reduce *lhs, const Reduce *rhs) {
-        return Reduce::LexicographicalLEQ(*lhs, *rhs);
+        return Reduce::LexicographicalLessThan(*lhs, *rhs);
     });
 
     // Get Allowance.

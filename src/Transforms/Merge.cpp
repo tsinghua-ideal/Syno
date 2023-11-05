@@ -107,14 +107,14 @@ std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const To
         if (options.graph.colorOf(dim).isUnordered()) {
             // If unordered, we must follow the order of sizes.
             auto lhs = dim.size() / block;
-            if (!Size::LexicographicalLEQ(lhs, block)) {
+            if (Size::LexicographicalLessThan(block, lhs)) {
                 ++CountUnorderedSizeOrderingViolated;
                 return;
             }
             if (auto merge = dim.tryAs<MergeOp::Input>(); merge) {
                 KAS_ASSERT(merge->getOrder() == Order::Right);
                 // Enforce the order of sizes.
-                if (!Size::LexicographicalLEQ(merge->getDerivedOp<MergeOp>()->getGroup(), lhs)) {
+                if (Size::LexicographicalLessThan(lhs, merge->getDerivedOp<MergeOp>()->getGroup())) {
                     ++CountUnorderedSizeOrderingViolated;
                     return;
                 }
