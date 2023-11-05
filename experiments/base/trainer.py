@@ -26,7 +26,7 @@ def train(
     val_dataloader,
     args,
     init_weight=True,
-    use_bf16_train=True,
+    use_bf16_train=False,
     use_bf16_test=False,
 ) -> List[float]:
     if "gpt" in args.model:
