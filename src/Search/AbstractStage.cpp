@@ -67,7 +67,7 @@ AbstractStage::AbstractStage(Sampler &sampler, GraphHandle interface, Lock lock)
 {
     ++CountCreations;
     ++CountFinalizabilityMaybe;
-    sampler.getStats(depth).createNode();
+    getStats().createNode();
 }
 
 AbstractStage::AbstractStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> optionalDeltaOp, Lock lock):
@@ -88,7 +88,7 @@ AbstractStage::AbstractStage(GraphHandle interface, AbstractStage& creator, std:
     ++CountCreations;
     ++CountFinalizabilityMaybe;
     if (optionalDeltaOp) {
-        sampler.getStats(depth).createNode();
+        getStats().createNode();
         Next::Type deltaOp = *optionalDeltaOp;
         existingOps[deltaOp] += 1;
         switch (deltaOp) {

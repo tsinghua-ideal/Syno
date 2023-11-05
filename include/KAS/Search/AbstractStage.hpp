@@ -320,6 +320,9 @@ protected:
             // Perform experimental finalization, i.e., compute the ShapeComplexity of the interface.
             if (!tempStage->possibleToFinalizeByExperimenting()) {
                 // If proved to be not finalizable, no need to store this.
+                --CountCreations;
+                --CountFinalizabilityMaybe;
+                --tempStage->getStats().totalNodes;
                 return { nullptr, Lock() };
             } else {
                 if (auto it = store.insert(depth + nextLayer, std::move(tempStage), newLock); it) {
