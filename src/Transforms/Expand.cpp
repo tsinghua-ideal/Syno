@@ -124,14 +124,6 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
                     isWeightsSharing = true; // Only upon chained ShareOp, this is true.
                 }
             }
-            if (isWeightsSharing) {
-                // We need to restrict this pattern.
-                auto weightsSharing = weightDim.size().upperBoundEst(ctx);
-                if (weightsSharing < options.minExpansionWeightsSharingDimSize || weightsSharing > options.maxExpansionWeightsSharingDimSize) {
-                    // Only allow sizes in this interval.
-                    continue;
-                }
-            }
 
             auto weightDimType = weightDim.type();
             if (weightDimType == DimensionType::Merge) {
@@ -152,9 +144,20 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
                 ) {
                     continue;
                 }
-            } else if (weightDimType == DimensionType::Iterator || weightDimType == DimensionType::Reduce) {
+            } else if (weightDimType == DimensionType::Iterator) {
                 // This case is only allowed in weights-sharing.
                 if (!isWeightsSharing) {
+                    continue;
+                }
+            } else if (weightDimType == DimensionType::Reduce) {
+                // This case is only allowed in weights-sharing.
+                if (!isWeightsSharing) {
+                    continue;
+                }
+                // We need to restrict this pattern.
+                auto weightsSharing = weightDim.size().upperBoundEst(ctx);
+                if (weightsSharing < options.minExpansionWeightsSharingDimSize || weightsSharing > options.maxExpansionWeightsSharingDimSize) {
+                    // Only allow sizes in this interval.
                     continue;
                 }
             } else {
