@@ -19,10 +19,10 @@ TEST(ir_tests, sequential_shares) {
     dimN.output(0);
     dimH_share_2.output(1);
 
-    auto topmosts = Forward::Factory::ForwardDimsToBackwardDims({
+    factory.inputs({
         {dimN, dimH_input}, {dimH_weight_1}, {dimH_weight_2},
     });
-    auto tensorView = TensorView(topmosts, Parser("in_0 * in_1 * in_2").parseTensorExpression(), ctx);
+    auto tensorView = TensorView(factory.getInputs(), Parser("in_0 * in_1 * in_2").parseTensorExpression(), ctx);
     const IR& ir = tensorView.getSubgraphs();
     fmt::print("Result: {}\n", ir.outputTensor.toString(ctx));
     auto dfgGen = GraphvizDFGGen(ir, ctx);

@@ -12,6 +12,12 @@
 
 namespace kas {
 
+bool Dimension::GlobalLessThan::operator()(const Dimension& lhs, const Dimension& rhs) const {
+    auto height = graph.colorOf(lhs).getHeight() <=> graph.colorOf(rhs).getHeight();
+    if (height != 0) return height < 0;
+    return lhs.hash() < rhs.hash();
+}
+
 Dimension::Origin Dimension::deduceOrigin(const Graph& graph) const {
     const auto& color = graph.colorOf(*this);
     if (is(DimensionTypeWithOrder::ShareR)) {

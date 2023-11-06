@@ -30,9 +30,11 @@ TEST_F(search_tests, forward) {
     dimK1_shared.reduce(Reduce::ReduceType::Sum);
     // [N, H, W], the output.
 
-    auto input = Topmost({ dimN, dimH, dimW }, {});
-    auto weight = Topmost({ dimK1, dimK2 }, {});
-    std::vector<Topmost> tensors { input, weight };
+    factory.inputs({
+        {dimN, dimH, dimW},
+        {dimK1, dimK2},
+    });
+    std::vector<Topmost> tensors = factory.getInputs();
     sampler.sortAllExpansionsAndWeightDimensions(tensors);
     auto tensorView = TensorView(tensors, TensorExpression::ProductOfTensors(tensors.size()), ctx);
     auto obtainedTensors = ranges::to<std::vector<Topmost>>(tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent));

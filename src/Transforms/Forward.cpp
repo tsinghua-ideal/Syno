@@ -1,3 +1,4 @@
+#include "KAS/Core/Graph.hpp"
 #include "KAS/Core/TensorView.hpp"
 #include "KAS/Transforms/Forward.hpp"
 
@@ -44,29 +45,85 @@ const Reduce *Factory::createReduce(const Size& domain, Reduce::ReduceType reduc
     return dynamic_cast<const Reduce *>(backDim.getInnerPointer());
 }
 
-std::vector<Topmost> Factory::ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors) {
-    std::vector<Topmost> backwardTensors(tensors.size());
+void Factory::inputs(const std::vector<std::vector<Dimension>>& tensors) {
+    KAS_ASSERT(topmosts.empty(), "You must not call inputs() twice!");
+    topmosts.resize(tensors.size());
+
+    std::map<Dimension, int> dimToTensorId;
+    for (int i = 0; i < tensors.size(); ++i) {
+        for (const Dimension& dim: tensors[i]) {
+            dimToTensorId.try_emplace(dim, i);
+        }
+    }
+    std::vector<int> tensorIdToFinalTensorId(tensors.size(), -1);
+    tensorIdToFinalTensorId[0] = 0;
+
+    while (!unresolvedShareOps.empty()) {
+        // First find next rhsOrigin.
+        const Graph graph = GraphBuilder().addDimensions(
+            unresolvedShareOps
+            | std::views::transform([](const std::pair<BackwardDimension, ShareOp *>& pair) {
+                return pair.first;
+            })
+        ).build();
+        auto origins = ::kas::ShareOp::GetRhsOrigins(graph);
+        int nextRhsOrigin = origins.size() + 1;
+        KAS_ASSERT(origins.empty() || *origins.rbegin() == nextRhsOrigin - 1);
+
+        // Then find the tensor to label.
+        std::optional<std::pair<BackwardDimension, ShareOp *>> least;
+        auto comp = BackwardDimension::GlobalLessThan(graph);
+        for (const std::pair<BackwardDimension, ShareOp *>& pair: unresolvedShareOps) {
+            const auto& [dim, share] = pair;
+            if (!least || comp(dim, least->first)) {
+                least = pair;
+            }
+        }
+        auto selectedWeightDim = least->second->getInputRhs();
+        int targetTensorId = dimToTensorId.at(selectedWeightDim);
+        int& finalTensorId = tensorIdToFinalTensorId[targetTensorId];
+        KAS_ASSERT(finalTensorId == -1);
+        finalTensorId = nextRhsOrigin;
+
+        // Now label the tensors.
+        while (true) {
+            bool hasProgress = false;
+            for (auto it = unresolvedShareOps.begin(); it != unresolvedShareOps.end(); ++it) {
+                auto [dim, share] = *it;
+                int tensorId = dimToTensorId.at(share->getInputRhs());
+                int finalTensorId = tensorIdToFinalTensorId.at(tensorId);
+                if (finalTensorId != -1) {
+                    unresolvedShareOps.erase(it);
+                    hasProgress = true;
+                    share->setRhsOrigin(finalTensorId);
+                    share->proceedNotification(*this);
+                    break;
+                }
+            }
+            if (!hasProgress) break;
+        }
+    }
+
     for (std::size_t i = 0; i < tensors.size(); ++i) {
         for (const Dimension& dim: tensors[i]) {
+            int finalTensorId = tensorIdToFinalTensorId[i];
             if (auto expand = dim.asExpanded(); expand) {
-                backwardTensors[i].getExpansions().emplace_back(expand->getOp());
+                topmosts[finalTensorId].getExpansions().emplace_back(expand->getOp());
             } else {
-                backwardTensors[i].getDimensions().emplace_back(dim);
+                topmosts[finalTensorId].getDimensions().emplace_back(dim);
             }
         }
     }
     // Sort the dimensions by hash.
     // TODO: what if we change the order, due to performance considerations?
-    backwardTensors[0].sortExpansions();
-    for (std::size_t i = 1; i < tensors.size(); ++i) {
-        backwardTensors[i].sort();
-    }
-    return backwardTensors;
+    topmosts[0].sortExpansions();
+    std::ranges::for_each(topmosts | std::views::drop(1), [](Topmost& topmost) { topmost.sort(); });
 }
 
-TensorView& Factory::buildTensorView(const std::vector<std::vector<Dimension>>& tensors, TensorExpression blending) {
+TensorView& Factory::buildTensorView(TensorExpression blending) {
     KAS_ASSERT(!this->result, "Factory must not be used twice!");
-    this->result = std::make_unique<TensorView>(ForwardDimsToBackwardDims(tensors), std::move(blending), ctx);
+    KAS_ASSERT(!topmosts.empty(), "You must first call inputs() before building!");
+    this->result = std::make_unique<TensorView>(topmosts, std::move(blending), ctx);
     return *this->result;
 }
 
@@ -85,6 +142,11 @@ Dimension MergeOp::Create(const Dimension& lhs, const Dimension& rhs) {
 
 void ShareOp::onNotification(Factory& factory) {
     KAS_ASSERT(output.lock()->evaluated());
+    BackwardDimension outputDim = output.lock()->get();
+    factory.registerUnresolvedShareOp(outputDim, this);
+}
+void ShareOp::proceedNotification(Factory& factory) {
+    KAS_ASSERT(rhsOrigin >= 1);
     BackwardDimension outputDim = output.lock()->get();
     auto op = factory.getStore().get<::kas::ShareOp>(outputDim, rhsOrigin);
     inputLhs.set(op->getInputL());

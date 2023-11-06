@@ -16,10 +16,10 @@ TEST(ir_tests, outer_product) {
     dimN.output(0);
     dimS_shared.output(1);
 
-    auto topmosts = Forward::Factory::ForwardDimsToBackwardDims({
+    factory.inputs({
         {dimN, dimS_expanded}, {dimS},
     });
-    auto tensorView = TensorView(topmosts, Parser("in_0 * in_1").parseTensorExpression(), ctx);
+    auto tensorView = TensorView(factory.getInputs(), Parser("in_0 * in_1").parseTensorExpression(), ctx);
     const IR& ir = tensorView.getSubgraphs();
     fmt::print("Result: {}\n", ir.outputTensor.toString(ctx));
     auto dfgGen = GraphvizDFGGen(ir, ctx);

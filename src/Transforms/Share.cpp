@@ -71,6 +71,14 @@ std::pair<bool, CompactColor> ShareOp::transformColor(CompactColor fro1, Compact
     return { !(fro1 & fro2), fro1 | fro2 };
 }
 
+std::set<int> ShareOp::GetRhsOrigins(const Graph& graph) {
+    std::set<int> result;
+    for (const ShareOp *op: graph.getOpsOfType<ShareOp>()) {
+        result.emplace(op->getRhsOrigin());
+    }
+    return result;
+}
+
 std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 

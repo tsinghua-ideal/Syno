@@ -156,6 +156,13 @@ public:
             return lhs.getInnerPointer() < rhs.getInnerPointer();
         }
     };
+    // First compares height, then compares hash.
+    // This is a monotonic ordering.
+    // If a is below b, then a < b, so we can deduce that any further steps c > a if all the current dimensions b > a.
+    struct GlobalLessThan {
+        const Graph& graph;
+        bool operator()(const Dimension& lhs, const Dimension& rhs) const;
+    };
 
     // Color related.
     Color computeColor(const GraphBuilder& graphBuilder) const { return inner->computeColor(graphBuilder); }
@@ -217,7 +224,6 @@ std::string TensorArrayToString(R&& tensors, const BindingContext& ctx) {
 }
 
 class Expand;
-class Graph;
 
 class Topmost;
 template<typename R>

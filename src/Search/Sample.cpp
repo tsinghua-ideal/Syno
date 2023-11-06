@@ -465,6 +465,7 @@ void Sampler::sortAllExpansionsAndWeightDimensions(std::vector<Topmost>& tensors
 
 void Sampler::convertTensorsToSearchableForm(std::vector<Topmost>& tensors) const {
     removeFixedDimensions(tensors);
+    // TODO!!! No, we should actually look at the rhsOrigin!
     sortAllExpansionsAndWeightDimensions(tensors);
 }
 

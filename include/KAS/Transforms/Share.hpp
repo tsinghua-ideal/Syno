@@ -47,6 +47,8 @@ public:
         return output == other.output && rhsOrigin == other.rhsOrigin;
     }
 
+    static std::set<int> GetRhsOrigins(const Graph& graph);
+
     // Due to canonicalization reasons, we require ShareOp's to be chained, and RHS to be from weight.
     // Just like this:
     //
