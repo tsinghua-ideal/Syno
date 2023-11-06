@@ -527,7 +527,7 @@ void PyTorchGen::SubgraphGen::generate(const ConcreteConsts& consts) {
     const auto& name = tensorNames.at(tensor);
 
     // Add Activation.
-    if (tensor.inputs().size() > 1 && !tensor.inputs().at(0).isInputTensor()) {
+    if (false && tensor.inputs().size() > 1 && !tensor.inputs().at(0).isInputTensor()) {
         printer.writeLn("# Add activation before contraction.");
         printer.writeLn("{0} = torch.nn.functional.relu({0})", tensorNames.at(tensor.inputs()[0]));
         printer.writeLn();
