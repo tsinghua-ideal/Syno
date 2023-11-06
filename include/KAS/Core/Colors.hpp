@@ -13,8 +13,6 @@ class Dimension;
 class MergeLikeOp;
 
 class Color {
-    friend class WeightColor;
-
 public:
     // Colors are specified by tags. The disjoint constraints are due to ShareOp's. So in each tag we have a ShareOp, to indicate that such a ShareOp is an acestor of this Dimension.
     using Tag = const MergeLikeOp *;
@@ -56,6 +54,7 @@ public:
     // Merge two colors, merging the tags, and dataDiscardingFlag. Asserts false on conflict.
     static Color Merge(const Color& lhs, const Color& rhs);
 
+    const std::vector<Tag>& getTags() const { return tags; }
     std::size_t size() const { return tags.size(); }
 
     // Add a new tag, assuming the op is ShareOp.
@@ -79,35 +78,6 @@ public:
     bool endsUpReduce() const { return endsUpReduceFlag; }
     Color& setEndsUpReduce(bool value) & { endsUpReduceFlag = value; return *this; }
     Color setEndsUpReduce(bool value) && { return std::move(static_cast<Color&>(*this).setEndsUpReduce(value)); }
-};
-
-class Graph;
-
-// Different from usual colors, a weight can have left color and right color.
-// Left color refers to the left branches of ShareOp, while the right color refers to the right branches.
-// Left and right colors must be disjoint to be consistent.
-class WeightColor {
-    using Tag = Color::Tag;
-    std::vector<Tag> leftTags, rightTags;
-public:
-    WeightColor() = default;
-    // Create a basic WeightColor from a ShareR.
-    // If the dimension is not a ShareR, then all the tags are seen as left tags.
-    WeightColor(const Graph& graph, const Dimension& dim);
-
-    std::size_t countLeftTags() const;
-    std::size_t countRightTags() const;
-    // Left tags + right tags.
-    std::size_t countTags() const;
-
-    // Merge. Asserts that the two are disjoint.
-    void merge(const WeightColor& other);
-
-    // Remove all the given right tags from left tags of this.
-    void removeAllRightTagsIn(const WeightColor& color);
-
-    // Check for conflicts that will create a bad ShareOp.
-    bool disjointWith(const WeightColor& other) const;
 };
 
 // Use bits to represent colors.

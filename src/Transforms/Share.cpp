@@ -14,11 +14,22 @@ Color ShareOp::Input::computeColor(const GraphBuilder& graphBuilder) const {
     return MergeLikeOp::Input::computeColor(graphBuilder).addTag(op);
 }
 
-ShareOp::ShareOp(const Dimension& output):
+ShareOp::ShareOp(const Dimension& output, int rhsOrigin):
     MergeLikeOp { output },
+    rhsOrigin { rhsOrigin },
     inputLhs { this, Order::Left },
     inputRhs { this, Order::Right }
 {}
+
+std::size_t ShareOp::initialHash() const noexcept {
+    std::size_t h = DimensionTypeHash(Type);
+    constexpr std::size_t
+        maxTensors = 4,
+        delta = std::numeric_limits<std::size_t>::digits / (2 * maxTensors),
+        ones = (1_uz << delta) - 1;
+    HashCombine(h, ones << (delta * static_cast<std::size_t>(rhsOrigin + maxTensors)));
+    return h;
+}
 
 ShareOp::Values ShareOp::value(const Values& known) const {
     if (known.canSkipDeduction()) return known;
@@ -67,7 +78,7 @@ std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const To
 
     // "Chained" Share.
     using enum DimensionTypeWithOrder;
-    auto plausible = interface.filterOut({ ShareR, Split, Shift });
+    auto plausible = interface.filterOut({ ShareR });
 
     std::vector<const ShareOp *> result;
     CountGenerateAttempts += interface.getDimensions().size();
@@ -92,7 +103,18 @@ std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const To
             continue;
         }
         ++CountSuccessfulGenerations;
-        result.emplace_back(store.get<ShareOp>(dim));
+        std::vector<bool> trials(options.maximumTensors, true);
+        trials[0] = false;
+        for (const MergeLikeOp *op: color.getTags()) {
+            auto previous = dynamic_cast<const ShareOp *>(op);
+            KAS_ASSERT(previous, "Tags in Color must be ShareOp.");
+            trials.at(previous->getRhsOrigin()) = false;
+        }
+        for (std::size_t i = 1; i < options.maximumTensors; ++i) {
+            if (trials[i]) {
+                result.emplace_back(store.get<ShareOp>(dim, i));
+            }
+        }
     }
     CountDisallowedAttempts += interface.getDimensions().size() - countPlausible;
     return result;

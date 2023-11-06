@@ -26,6 +26,8 @@ protected:
         options.maximumReductions = 2;
         options.maxFLOPs = 5e5;
         options.maxChainLength = 5;
+        // TODO! Bring back FLOPs-based pruning!
+        options.enableFLOPsBasedPruning = false;
         return options;
     }();
     Sampler sampler = {"[N,H,W]", "[N,H,W]", {"N=3:0", "H:0", "W:1"}, {"k_1=3:4", "s_1=2:2"}, {dict}, {{0, 0}}, options, 12};

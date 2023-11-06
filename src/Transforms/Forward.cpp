@@ -86,7 +86,7 @@ Dimension MergeOp::Create(const Dimension& lhs, const Dimension& rhs) {
 void ShareOp::onNotification(Factory& factory) {
     KAS_ASSERT(output.lock()->evaluated());
     BackwardDimension outputDim = output.lock()->get();
-    auto op = factory.getStore().get<::kas::ShareOp>(outputDim);
+    auto op = factory.getStore().get<::kas::ShareOp>(outputDim, rhsOrigin);
     inputLhs.set(op->getInputL());
     inputRhs.set(op->getInputR());
 }

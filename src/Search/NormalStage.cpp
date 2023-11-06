@@ -278,7 +278,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
             }
             current.emplace_back(dim, remainingLength);
         } else {
-            weightDims.emplace_back(graph, dim);
+            weightDims.emplace_back(dim, dim.as<ShareOp::Input>().getRhsOrigin());
         }
     }
 

@@ -241,8 +241,10 @@ public:
 
 class ShareOp final: public MergeLikeOp {
     using MergeLikeOp::MergeLikeOp;
+    int rhsOrigin = -1;
 public:
     void onNotification(Factory& factory) override;
+    // TODO!!! implement rhsOrigin computation.
     [[nodiscard]] static Dimension Create(const Dimension& lhs, const Dimension& rhs);
 };
 

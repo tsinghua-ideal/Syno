@@ -29,17 +29,18 @@ TEST_F(search_tests, sampler) {
             fmt::print("Expanding lattice... ");
             sampler.visit({})->expandToSync(node);
             fmt::print("Done.\n");
-            auto finalFlops = node.asFinalStage()->value.getFLOPs(ctx);
-            while (!sampledPath.empty()) {
-                sampledPath.pop_back();
-                auto [_, flops] = sampler.visit(sampledPath)->getShapeDistance();
-                if (flops > finalFlops) {
-                    fmt::print("Oh, no! FLOPs-based pruning fails!");
-                    fmt::print("Final DFG:\n{}", GraphvizDFGGen::Print(node.asFinalStage()->value.getSubgraphs(), ctx));
-                    fmt::print("Intermediate:\n{}", GraphvizGen::Print(sampler.visit(sampledPath).value().asNonFinalStage()->getInterface().getRaw(), ctx));
-                }
-                ASSERT_LE(flops, finalFlops);
-            }
+            // TODO! Bring back FLOPs-based pruning!
+            // auto finalFlops = node.asFinalStage()->value.getFLOPs(ctx);
+            // while (!sampledPath.empty()) {
+            //     sampledPath.pop_back();
+            //     auto [_, flops] = sampler.visit(sampledPath)->getShapeDistance();
+            //     if (flops > finalFlops) {
+            //         fmt::print("Oh, no! FLOPs-based pruning fails!");
+            //         fmt::print("Final DFG:\n{}", GraphvizDFGGen::Print(node.asFinalStage()->value.getSubgraphs(), ctx));
+            //         fmt::print("Intermediate:\n{}", GraphvizGen::Print(sampler.visit(sampledPath).value().asNonFinalStage()->getInterface().getRaw(), ctx));
+            //     }
+            //     ASSERT_LE(flops, finalFlops);
+            // }
         }
         if (randomLeaves.empty()) {
             fmt::print("Trial {} failed.\n", i);

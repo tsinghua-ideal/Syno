@@ -27,12 +27,9 @@ struct ShapeDistance {
 
 struct ColoredDimension {
     Dimension dim;
-    WeightColor color;
-    ColoredDimension(const Graph& graph, const Dimension& dim):
-        dim { dim }, color { graph, dim } {}
-    void removeAllRightTagsIn(const WeightColor& color) {
-        this->color.removeAllRightTagsIn(color);
-    }
+    std::optional<int> weightId;
+    ColoredDimension(const Dimension& dim, std::optional<int> weightId):
+        dim { dim }, weightId { std::move(weightId) } {}
     std::size_t hash() const noexcept { return dim.hash(); }
 };
 

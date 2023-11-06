@@ -14,6 +14,10 @@ public:
         Input(const ShareOp* op, Order order):
             MergeLikeOp::Input { op, order }
         {}
+        int getRhsOrigin() const {
+            KAS_ASSERT(order == Order::Right);
+            return getDerivedOp<ShareOp>()->getRhsOrigin();
+        }
         const Size& size() const override { return op->output.size(); }
         constexpr DimensionType type() const noexcept override { return Type; }
         bool is(DimensionTypeWithOrder ty) const noexcept override {
@@ -24,12 +28,14 @@ public:
     };
 
 protected:
+    int rhsOrigin;
     Input inputLhs, inputRhs;
 
 public:
-    ShareOp(const Dimension& output);
+    ShareOp(const Dimension& output, int rhsOrigin);
+    int getRhsOrigin() const noexcept { return rhsOrigin; }
     constexpr DimensionType getType() const noexcept override { return Type; }
-    std::size_t initialHash() const noexcept override { return DimensionTypeHash(Type); }
+    std::size_t initialHash() const noexcept override;
     void accept(OpVisitor& visitor) const override { visitor.visit(*this); }
     Dimension getInputL() const override { return &inputLhs; }
     Dimension getInputR() const override { return &inputRhs; }
@@ -38,7 +44,7 @@ public:
     std::pair<bool, CompactColor> transformColor(CompactColor fro1, CompactColor fro2) const override;
 
     bool operator==(const ShareOp& other) const noexcept {
-        return output == other.output;
+        return output == other.output && rhsOrigin == other.rhsOrigin;
     }
 
     // Due to canonicalization reasons, we require ShareOp's to be chained, and RHS to be from weight.

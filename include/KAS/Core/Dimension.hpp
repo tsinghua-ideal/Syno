@@ -116,6 +116,8 @@ public:
     virtual ~DimensionImpl() = default;
 };
 
+class Graph;
+
 class Dimension {
 public:
     using PointerType = const DimensionImpl *;
