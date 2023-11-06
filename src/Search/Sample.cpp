@@ -204,13 +204,13 @@ Sampler::Sampler(std::string_view inputShape, std::string_view outputShape, cons
 
 std::size_t Sampler::getExpandAtDepth() {
     std::size_t d = options.depth - 1;
-    while (d > 0 && getStats(d).branchingFactor() < 3.0f) {
+    while (d > 0 && getStats(d).branchingFactor() < 2.0f) {
         --d;
     }
     ++d;
-    if (options.depth - d > 6) {
+    if (options.depth - d > 5) {
         // This is a bit dangerous.
-        d = options.depth - 6;
+        d = options.depth - 5;
     } else if (options.depth - d < 3) {
         // It is OK.
         d = options.depth - 3;
