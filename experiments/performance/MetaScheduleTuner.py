@@ -81,6 +81,8 @@ class KernelSpecificTuner:
                 if show:
                     print("After applying tuning database:")
                     relax_mod.show()
+                with open(os.path.join(self.working_dir, "kernels_tvm_tuned.py"), "w") as out_file:
+                    out_file.write(relax_mod.script(show_meta=True))
                 executable = relax.build(relax_mod, target=self.parent.target)
         from tvm.contrib.tar import tar
         executable.export_library(os.path.join(self.working_dir, "kernels_tvm_tuned.tar.gz"), tar)
