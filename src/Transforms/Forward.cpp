@@ -7,6 +7,24 @@ namespace kas {
 
 namespace Forward {
 
+void DimensionImpl::set(const BackwardDimension& value) {
+    this->value = value.getInnerPointer();
+    factory.addToCutSet(value);
+    notifyParent();
+}
+
+BackwardDimension DimensionImpl::get() const {
+    KAS_ASSERT(evaluated(), "Dimension is not evaluated yet");
+    return value;
+}
+
+BackwardDimension DimensionImpl::acquire() const {
+    KAS_ASSERT(evaluated(), "Dimension is not evaluated yet");
+    BackwardDimension result = value;
+    factory.removeFromCutSet(result);
+    return result;
+}
+
 void Expand::notifyParent() {
     KAS_ASSERT(evaluated());
     BackwardDimension outputDim = get();
@@ -45,6 +63,20 @@ const Reduce *Factory::createReduce(const Size& domain, Reduce::ReduceType reduc
     return dynamic_cast<const Reduce *>(backDim.getInnerPointer());
 }
 
+void Factory::addToCutSet(const BackwardDimension& dim) {
+    auto [_, inserted] = cutSet.insert(dim);
+    KAS_ASSERT(inserted);
+}
+void Factory::removeFromCutSet(const BackwardDimension& dim) {
+    auto erased = cutSet.erase(dim);
+    KAS_ASSERT(erased == 1);
+}
+Graph Factory::buildGraph() const {
+    GraphBuilder builder;
+    builder.addDimensions(cutSet);
+    return builder.build();
+}
+
 void Factory::inputs(const std::vector<std::vector<Dimension>>& tensors) {
     KAS_ASSERT(std::ranges::all_of(tensors, [](const auto& t) { return !t.empty(); }));
 
@@ -62,12 +94,7 @@ void Factory::inputs(const std::vector<std::vector<Dimension>>& tensors) {
 
     while (!unresolvedShareOps.empty()) {
         // First find next rhsOrigin.
-        const Graph graph = GraphBuilder().addDimensions(
-            unresolvedShareOps
-            | std::views::transform([](const std::pair<BackwardDimension, ShareOp *>& pair) {
-                return pair.first;
-            })
-        ).build();
+        const Graph graph = buildGraph();
         auto origins = ::kas::ShareOp::GetRhsOrigins(graph);
         int nextRhsOrigin = origins.size() + 1;
         KAS_ASSERT(origins.empty() || *origins.rbegin() == nextRhsOrigin - 1);
@@ -138,7 +165,7 @@ TensorView& Factory::buildTensorView(TensorExpression blending) {
 
 void MergeOp::onNotification(Factory& factory) {
     KAS_ASSERT(output.lock()->evaluated());
-    BackwardDimension outputDim = output.lock()->get();
+    BackwardDimension outputDim = output.lock()->acquire();
     auto op = factory.getStore().get<::kas::MergeOp>(outputDim, inputRhs.getSize());
     inputLhs.set(op->getInputL());
     inputRhs.set(op->getInputR());
@@ -156,7 +183,7 @@ void ShareOp::onNotification(Factory& factory) {
 }
 void ShareOp::proceedNotification(Factory& factory) {
     KAS_ASSERT(rhsOrigin >= 1);
-    BackwardDimension outputDim = output.lock()->get();
+    BackwardDimension outputDim = output.lock()->acquire();
     auto op = factory.getStore().get<::kas::ShareOp>(outputDim, rhsOrigin);
     inputLhs.set(op->getInputL());
     inputRhs.set(op->getInputR());
@@ -170,7 +197,7 @@ Dimension ShareOp::Create(const Dimension& lhs, const Dimension& rhs) {
 
 void ShiftOp::onNotification(Factory& factory) {
     KAS_ASSERT(output.lock()->evaluated());
-    BackwardDimension outputDim = output.lock()->get();
+    BackwardDimension outputDim = output.lock()->acquire();
     input.set(factory.getStore().get<::kas::ShiftOp>(outputDim, shift)->getInput());
 }
 Dimension ShiftOp::Create(const Dimension& input, int shift) {
@@ -181,8 +208,8 @@ Dimension ShiftOp::Create(const Dimension& input, int shift) {
 
 void SplitOp::onNotification(Factory& factory) {
     if (outputLhs.lock()->evaluated() && outputRhs.lock()->evaluated()) {
-        BackwardDimension outputLhsDim = outputLhs.lock()->get();
-        BackwardDimension outputRhsDim = outputRhs.lock()->get();
+        BackwardDimension outputLhsDim = outputLhs.lock()->acquire();
+        BackwardDimension outputRhsDim = outputRhs.lock()->acquire();
         input.set(factory.getStore().get<::kas::SplitOp>(outputLhsDim, outputRhsDim)->getInput());
     }
 }
@@ -195,7 +222,7 @@ std::pair<Dimension, Dimension> SplitOp::Create(const Dimension& input, const Si
 
 void StrideOp::onNotification(Factory& factory) {
     KAS_ASSERT(output.lock()->evaluated());
-    BackwardDimension outputDim = output.lock()->get();
+    BackwardDimension outputDim = output.lock()->acquire();
     input.set(factory.getStore().get<::kas::StrideOp>(outputDim, stride)->getInput());
 }
 Dimension StrideOp::Create(const Dimension& input, const Size& stride) {
@@ -206,8 +233,8 @@ Dimension StrideOp::Create(const Dimension& input, const Size& stride) {
 
 void UnfoldOp::onNotification(Factory& factory) {
     if (outputLhs.lock()->evaluated() && outputRhs.lock()->evaluated()) {
-        BackwardDimension outputLhsDim = outputLhs.lock()->get();
-        BackwardDimension outputRhsDim = outputRhs.lock()->get();
+        BackwardDimension outputLhsDim = outputLhs.lock()->acquire();
+        BackwardDimension outputRhsDim = outputRhs.lock()->acquire();
         input.set(factory.getStore().get<::kas::UnfoldOp>(outputLhsDim, outputRhsDim)->getInput());
     }
 }
