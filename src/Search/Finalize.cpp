@@ -257,26 +257,25 @@ namespace {
 
 struct WeightFragment {
     const std::vector<ColoredDimension>& interface;
-    int maxWeightId = 0;
+    const std::map<int, int>& weightIds;
     std::vector<int> assignedTo;
 
-    WeightFragment(const std::vector<ColoredDimension>& interface):
-        interface { interface }
-    {
-        std::set<int> weightIds;
+    static std::map<int, int> GetWeightIds(const std::vector<ColoredDimension>& interface) {
+        std::map<int, int> weightIds;
         for (const auto& [_, wId]: interface) {
             if (wId.has_value()) {
-                weightIds.emplace(*wId);
-                maxWeightId = std::max(maxWeightId, *wId);
+                weightIds.try_emplace(*wId, 0);
             }
         }
-        // 1...maxWeightId are OK.
-        // TODO! Check this condition before calling this.
-        // KAS_ASSERT(weightIds.size() == maxWeightId);
-        if (weightIds.size() != maxWeightId) {
-            maxWeightId = -1;
+        for (int i = 0; auto& [_, index]: weightIds) {
+            index = i;
+            ++i;
         }
+        return weightIds;
     }
+
+    WeightFragment(const std::vector<ColoredDimension>& interface, const std::map<int, int>& weightIds):
+        interface { interface }, weightIds { weightIds } {}
 
     // Keep assigning, until we see an arbitrary choice.
     std::size_t assign() {
@@ -284,7 +283,7 @@ struct WeightFragment {
         while (begin < interface.size()) {
             const auto& targetWeightId = interface[begin].weightId;
             if (targetWeightId) {
-                assignedTo.emplace_back(*targetWeightId);
+                assignedTo.emplace_back(weightIds.at(*targetWeightId));
             } else {
                 break;
             }
@@ -301,7 +300,7 @@ struct WeightFragment {
         }
         const auto& nextTarget = interface[next].weightId;
         KAS_ASSERT(!nextTarget);
-        for (int i = 1; i <= maxWeightId; ++i) {
+        for (int i = 0; i < weightIds.size(); ++i) {
             auto copy = *this;
             copy.assignedTo.emplace_back(i);
             for (auto result: copy.assignments()) {
@@ -312,10 +311,10 @@ struct WeightFragment {
 
     std::vector<std::vector<Dimension>> split() const {
         KAS_ASSERT(assignedTo.size() == interface.size());
-        KAS_ASSERT(maxWeightId > 0 || interface.empty(), "Cannot assign to pure outer product!");
-        std::vector<std::vector<Dimension>> result(maxWeightId);
+        KAS_ASSERT(!weightIds.empty() || interface.empty(), "Cannot assign to pure outer product!");
+        std::vector<std::vector<Dimension>> result(weightIds.size());
         for (std::size_t i = 0; i < interface.size(); ++i) {
-            result.at(assignedTo[i] - 1).emplace_back(interface[i].dim);
+            result.at(assignedTo[i]).emplace_back(interface[i].dim);
         }
         return result;
     }
@@ -323,10 +322,10 @@ struct WeightFragment {
     std::size_t minimumWeights() const {
         if (interface.empty()) {
             return 0;
-        } else if (maxWeightId <= 0) {
+        } else if (weightIds.empty()) {
             return 25565; // Since only outer product is in this case, we should reject it.
         } else {
-            return maxWeightId;
+            return weightIds.size();
         }
     }
 };
@@ -334,20 +333,10 @@ struct WeightFragment {
 } // namespace
 
 // Require that the dimensions are sorted according to hash!
-Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeightsImpl(const std::vector<ColoredDimension>& remaining, std::size_t maxWeights, std::optional<std::size_t> maxHashFirstDimension) {
-    WeightFragment fragments { remaining };
-    if (fragments.minimumWeights() > maxWeights) {
-        co_return;
-    }
-    auto assignments = fragments.assignments();
-    for (auto result: assignments) {
-        co_yield std::move(result);
-    }
-}
-
 Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeights(const std::vector<ColoredDimension>& weightDims, WeightOptions options) {
     KAS_ASSERT(std::ranges::is_sorted(weightDims | std::views::transform(&ColoredDimension::hash), std::less{}));
-    WeightFragment fragments { weightDims };
+    const auto weightIds = WeightFragment::GetWeightIds(weightDims);
+    WeightFragment fragments { weightDims, weightIds };
     if (fragments.minimumWeights() > options.maxWeights) {
         co_return;
     }
@@ -485,6 +474,24 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
     if (std::ranges::any_of(interface, [&graph](const Dimension& dim) { return graph.colorOf(dim).isDataDiscarding(); })) {
         ++CountFailedInvocations;
         return {};
+    }
+
+    auto shareOpOrigins = ShareOp::GetWeightLeaders(graph);
+    if (!shareOpOrigins.empty()) {
+        // First check the count of weights.
+        if (shareOpOrigins.rbegin()->first != shareOpOrigins.size()) {
+            // The ShareOp's labeling is not canonical (1, 2, ..., #weights).
+            ++CountFailedInvocations;
+            return {};
+        }
+        auto comp = Dimension::GlobalLessThan(graph);
+        if (std::ranges::adjacent_find(shareOpOrigins, [&comp](const auto& lhs, const auto& rhs) {
+            return !comp(lhs.second, rhs.second);
+        }) != shareOpOrigins.end()) {
+            // The weights are not canonical.
+            ++CountFailedInvocations;
+            return {};
+        }
     }
 
     const ExpandOp::Usage expandOpUsage = ExpandOp::GetUsage(ctx, graph);

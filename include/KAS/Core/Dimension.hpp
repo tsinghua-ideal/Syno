@@ -161,6 +161,9 @@ public:
     // If a is below b, then a < b, so we can deduce that any further steps c > a if all the current dimensions b > a.
     struct GlobalLessThan {
         const Graph& graph;
+        int heightOf(const Dimension& dim) const;
+        bool height(const Dimension& lhs, const Dimension& rhs) const;
+        bool hash(const Dimension& lhs, const Dimension& rhs) const noexcept;
         bool operator()(const Dimension& lhs, const Dimension& rhs) const;
     };
 

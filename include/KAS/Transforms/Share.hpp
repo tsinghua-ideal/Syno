@@ -48,6 +48,9 @@ public:
     }
 
     static std::set<int> GetRhsOrigins(const Graph& graph);
+    // A leader of a weight is the least dimension, defined by Dimension::GlobalLessThan.
+    static std::map<int, Dimension> GetWeightLeaders(const Graph& graph);
+    static std::size_t LeastRemainingShares(const Topmost& interface, const Graph& graph);
 
     // Due to canonicalization reasons, we require ShareOp's to be chained, and RHS to be from weight.
     // Just like this:

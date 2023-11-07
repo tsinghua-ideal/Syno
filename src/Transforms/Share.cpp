@@ -5,6 +5,7 @@
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Transforms/Share.hpp"
 #include "KAS/Utils/Common.hpp"
+#include "KAS/Utils/Ranges.hpp"
 
 
 namespace kas {
@@ -77,6 +78,77 @@ std::set<int> ShareOp::GetRhsOrigins(const Graph& graph) {
         result.emplace(op->getRhsOrigin());
     }
     return result;
+}
+
+std::map<int, Dimension> ShareOp::GetWeightLeaders(const Graph& graph) {
+    std::map<int, Dimension> weightIdToLeastDim;
+    auto comp = Dimension::GlobalLessThan(graph);
+    for (const ShareOp *op: graph.getOpsOfType<ShareOp>()) {
+        auto [least, first] = weightIdToLeastDim.try_emplace(op->getRhsOrigin(), op->output);
+        if (!first) {
+            // Find the least dimension.
+            if (comp(op->output, least->second)) {
+                least->second = op->output;
+            }
+        }
+    }
+    return weightIdToLeastDim;
+}
+
+std::size_t ShareOp::LeastRemainingShares(const Topmost& interface, const Graph& graph) {
+    const auto weightLeaders = GetWeightLeaders(graph);
+    if (weightLeaders.empty()) return 0; // No weights.
+    // The weights are 1...countWeights. It is possible that weightLeaders.size() < countWeights,
+    // because there may be some weights not added yet.
+    const int countWeights = weightLeaders.rbegin()->first;
+    KAS_ASSERT(countWeights > 0 && weightLeaders.size() <= countWeights);
+    KAS_ASSERT(weightLeaders.begin()->first > 0);
+
+    auto leaders = ranges::to<std::vector<std::pair<int, Dimension>>>(weightLeaders);
+    auto globalLessThan = Dimension::GlobalLessThan(graph);
+    // Now sort the leaders. If they are in order (1, 2, 3, ...), then no other steps needed.
+    std::ranges::sort(leaders, globalLessThan, &std::pair<int, Dimension>::second);
+
+    int requiredAdditionalShares = 0;
+    int currentlyOrderedWeights = 0;
+    int currentlyOrderedToLeaderIndex = 0;
+    while (currentlyOrderedWeights < countWeights) {
+        const auto& leader = leaders[currentlyOrderedToLeaderIndex];
+        int extra = leader.first - currentlyOrderedWeights - 1;
+        KAS_ASSERT(extra >= 0);
+
+        if (extra > 0) {
+            requiredAdditionalShares += extra;
+            // We also need to count whether there are enough slots for the extra Share's.
+            const int leaderHeight = globalLessThan.heightOf(leader.second);
+            int slots = 0;
+            for (const Dimension& dim: interface.getDimensions()) {
+                const int h = globalLessThan.heightOf(dim);
+                if (h < leaderHeight) {
+                    slots += leaderHeight - h;
+                } else if (h == leaderHeight) {
+                    slots += globalLessThan.hash(dim, leader.second);
+                }
+            }
+            // Note that the slots contraint is compulsory, because the leader of this weight can only be decreased by filling into the slots.
+            if (slots < requiredAdditionalShares) {
+                return std::numeric_limits<std::size_t>::max();
+            }
+        }
+
+        currentlyOrderedWeights = leader.first;
+
+        while (
+            currentlyOrderedToLeaderIndex < leaders.size() &&
+            // If the leader of this weight has to be reordered to an earlier position, then it can be placed arbitrarily, so we can skip checking it.
+            leaders[currentlyOrderedToLeaderIndex].first <= currentlyOrderedWeights
+        ) {
+            ++currentlyOrderedToLeaderIndex;
+        }
+    }
+
+    // For example, if tensor 3 is the least, we need to move tensor 1 and tensor 2 before it.
+    return requiredAdditionalShares;
 }
 
 std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {

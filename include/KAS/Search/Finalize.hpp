@@ -109,8 +109,6 @@ public:
         FinalStageBuilder finalStageBuilder;
         std::size_t maxFLOPs;
     };
-    // If you need to disallow weight permutation, set maxHashFirstDimension.
-    static Generator<std::vector<std::vector<Dimension>>> AssignToWeightsImpl(const std::vector<ColoredDimension>& remaining, std::size_t maxWeights, std::optional<std::size_t> maxHashFirstDimension);
     static Generator<std::vector<std::vector<Dimension>>> AssignToWeights(const std::vector<ColoredDimension>& weightDims, WeightOptions options);
     static std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> Generate(const GraphHandle& interface, const Graph& graph, const GenerateOptions& options);
 };

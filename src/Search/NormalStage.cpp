@@ -31,10 +31,10 @@ Finalizability NormalStage::checkForFinalizableChildren(const CollectedFinalizab
     return Base::checkForFinalizableChildren(collected);
 }
 
-Topmost NormalStage::removeTooLongChains(const Graph& graph, const GraphHandle& interface) const {
+Topmost NormalStage::getSearchableInterface(const Graph& graph, const GraphHandle& interface) const {
     std::vector<Dimension> result;
     std::ranges::remove_copy_if(interface.getDimensions(), std::back_inserter(result), [&](const Dimension& dim) {
-        return sampler.remainingChainLength(graph, dim) <= 0;
+        return dim.is(DimensionTypeWithOrder::ShareR) || sampler.remainingChainLength(graph, dim) <= 0;
     });
     return Topmost(std::move(result), interface.getExpansions());
 }
@@ -138,7 +138,7 @@ void NormalStage::guardGeneratedChildren() {
         }
     };
 
-    auto prospectiveInterface = removeTooLongChains(graph, interface);
+    auto prospectiveInterface = getSearchableInterface(graph, interface);
     const auto allowance = Allowance { ctx, getAllowanceUsage(graph), options.countCoefficientsInWeightsAsAllowanceUsage };
 
     if (remainingDepth() > 0) {
@@ -265,6 +265,14 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     const BindingContext& ctx = sampler.getBindingContext();
     const Graph graph = interface.buildGraph();
 
+    const std::size_t shareDist = ShareOp::LeastRemainingShares(getSearchableInterface(graph, interface), graph);
+    std::size_t remainingSteps = remainingDepth();
+    if (shareDist > remainingSteps) {
+        ++CountSharesUncanonical;
+        return false;
+    }
+    remainingSteps -= shareDist;
+
     std::vector<CurrentDimension> current;
     std::vector<ColoredDimension> weightDims;
     for (const Dimension& dim: interface.getDimensions()) {
@@ -293,7 +301,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
             .remainingMerges = remaining(options.maximumMerges, Next::Type::Merge),
             .remainingSplits = remaining(options.maximumSplits, Next::Type::Split),
             .remainingUnfoldsAndExpands = remaining(options.maximumUnfolds, Next::Type::Unfold) + remaining(options.maximumExpands, Next::Type::Expand),
-            .overflow = remainingDepth(),
+            .overflow = remainingSteps,
         },
         {
             .prune = options.enableFLOPsBasedPruning,
@@ -303,12 +311,13 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
             .weightDims = weightDims,
         }
     );
-    if (distance.steps > remainingDepth()) {
+    if (distance.steps > remainingSteps) {
         ++CountShapeDeviatesTooMuch;
         return false;
     }
     // Save this information.
     shapeDistance = distance;
+    shapeDistance.steps += shareDist;
 
     return true;
 }
