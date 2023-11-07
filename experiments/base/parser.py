@@ -58,18 +58,43 @@ def arg_parse():
         help="How many training processes to use",
     )
     parser.add_argument(
-        "--train-split",
-        metavar="NAME",
-        type=str,
-        default="train",
-        help="Dataset train split (default: train)",
+        "--input-size",
+        default=(3, 224, 224),
+        nargs=3,
+        type=int,
+        metavar="N N N",
+        help="Input all image dimensions (d h w, e.g. --input-size 3 224 224, "
+        "model default if none)",
     )
     parser.add_argument(
-        "--val-split",
-        metavar="NAME",
+        "--crop-pct",
+        default=None,
+        type=float,
+        metavar="N",
+        help="Input image center crop percent (for validation only)",
+    )
+    parser.add_argument(
+        "--mean",
+        type=float,
+        nargs="+",
+        default=IMAGENET_DEFAULT_MEAN,
+        metavar="MEAN",
+        help="Override mean pixel value of dataset",
+    )
+    parser.add_argument(
+        "--std",
+        type=float,
+        nargs="+",
+        default=IMAGENET_DEFAULT_STD,
+        metavar="STD",
+        help="Override std deviation of of dataset",
+    )
+    parser.add_argument(
+        "--interpolation",
+        default="bilinear",
         type=str,
-        default="validation",
-        help="Dataset validation split (default: validation)",
+        metavar="NAME",
+        help="Image resize interpolation type (overrides model)",
     )
     parser.add_argument(
         "--use-multi-epochs-loader",
@@ -192,7 +217,7 @@ def arg_parse():
     parser.add_argument(
         "--train-interpolation",
         type=str,
-        default="random",
+        default="bilinear",
         help='Training interpolation (random, bilinear, bicubic default: "random")',
     )
     parser.add_argument(
@@ -299,6 +324,12 @@ def arg_parse():
         nargs="+",
         metavar="RATE",
         help="LR decay milestones",
+    )
+    parser.add_argument(
+        "--pin-memory",
+        action="store_true",
+        default=True,
+        help="Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.",
     )
 
     # KAS preferences
