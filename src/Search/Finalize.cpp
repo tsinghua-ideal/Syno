@@ -136,10 +136,13 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
             mustBeInput.emplace_back(dim);
             mustBeInputDims.emplace_back(dim);
             break;
-        case Dimension::Origin::InputOrWeight:
+        case Dimension::Origin::InputOrWeight: {
             canBeWeight.emplace_back(dim);
-            canBeWeightDims.emplace_back(graph, dim);
+            auto shareR = dim.value.tryAs<ShareOp::Input>();
+            std::optional<int> weightId = shareR ? std::make_optional(shareR->getRhsOrigin()) : std::nullopt;
+            canBeWeightDims.emplace_back(dim, std::move(weightId));
             break;
+        }
         case Dimension::Origin::UnfoldOrExpand:
             ++strideDist; // We need an Unfold or an Expand to eliminate this.
             if (dim.remainingLength <= 0) {
@@ -254,50 +257,75 @@ namespace {
 
 struct WeightFragment {
     const std::vector<ColoredDimension>& interface;
-    std::vector<bool> used;
-    WeightColor current;
+    const std::map<int, int>& weightIds;
+    std::vector<int> assignedTo;
 
-    WeightFragment(const std::vector<ColoredDimension>& interface):
-        interface { interface },
-        used(interface.size(), false)
-    {
-        KAS_ASSERT(std::ranges::all_of(interface, [](const ColoredDimension& dim) { return dim.color.countRightTags() <= 1; }));
-    }
-
-    bool canAccept(std::size_t i) const {
-        return !used[i] && current.disjointWith(interface[i].color);
-    }
-    void accept(std::size_t i) {
-        current.merge(interface[i].color);
-        used[i] = true;
-    }
-    bool unused() const {
-        return std::ranges::all_of(used, std::logical_not{});
-    }
-
-    std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> split() const {
-        std::pair<std::vector<Dimension>, std::vector<ColoredDimension>> result;
-        auto& [weight, newInterface] = result;
-        for (std::size_t i = 0; i < interface.size(); ++i) {
-            if (used[i]) {
-                weight.emplace_back(interface[i].dim);
-            } else {
-                newInterface.emplace_back(interface[i]);
-                newInterface.back().removeAllRightTagsIn(current);
+    static std::map<int, int> GetWeightIds(const std::vector<ColoredDimension>& interface) {
+        std::map<int, int> weightIds;
+        for (const auto& [_, wId]: interface) {
+            if (wId.has_value()) {
+                weightIds.try_emplace(*wId, 0);
             }
+        }
+        for (int i = 0; auto& [_, index]: weightIds) {
+            index = i;
+            ++i;
+        }
+        return weightIds;
+    }
+
+    WeightFragment(const std::vector<ColoredDimension>& interface, const std::map<int, int>& weightIds):
+        interface { interface }, weightIds { weightIds } {}
+
+    // Keep assigning, until we see an arbitrary choice.
+    std::size_t assign() {
+        std::size_t begin = assignedTo.size();
+        while (begin < interface.size()) {
+            const auto& targetWeightId = interface[begin].weightId;
+            if (targetWeightId) {
+                assignedTo.emplace_back(weightIds.at(*targetWeightId));
+            } else {
+                break;
+            }
+            ++begin;
+        }
+        return begin;
+    }
+
+    Generator<std::vector<std::vector<Dimension>>> assignments() {
+        std::size_t next = assign();
+        if (next == interface.size()) {
+            co_yield split();
+            co_return;
+        }
+        const auto& nextTarget = interface[next].weightId;
+        KAS_ASSERT(!nextTarget);
+        for (int i = 0; i < weightIds.size(); ++i) {
+            auto copy = *this;
+            copy.assignedTo.emplace_back(i);
+            for (auto result: copy.assignments()) {
+                co_yield std::move(result);
+            }
+        }
+    };
+
+    std::vector<std::vector<Dimension>> split() const {
+        KAS_ASSERT(assignedTo.size() == interface.size());
+        KAS_ASSERT(!weightIds.empty() || interface.empty(), "Cannot assign to pure outer product!");
+        std::vector<std::vector<Dimension>> result(weightIds.size());
+        for (std::size_t i = 0; i < interface.size(); ++i) {
+            result.at(assignedTo[i]).emplace_back(interface[i].dim);
         }
         return result;
     }
 
-    static std::size_t MinimumWeights(const std::vector<ColoredDimension>& remaining) {
-        if (remaining.empty()) {
+    std::size_t minimumWeights() const {
+        if (interface.empty()) {
             return 0;
-        }
-        std::size_t count = std::ranges::max(remaining | std::views::transform([](const ColoredDimension& cDim) { return cDim.color.countTags(); }));
-        if (count == 0) {
-            return 1;
+        } else if (weightIds.empty()) {
+            return 25565; // Since only outer product is in this case, we should reject it.
         } else {
-            return count;
+            return weightIds.size();
         }
     }
 };
@@ -305,102 +333,18 @@ struct WeightFragment {
 } // namespace
 
 // Require that the dimensions are sorted according to hash!
-Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeightsImpl(const std::vector<ColoredDimension>& remaining, std::size_t maxWeights, std::optional<std::size_t> maxHashFirstDimension) {
-    if (remaining.empty()) {
-        co_yield {};
-        co_return;
-    }
-    if (WeightFragment::MinimumWeights(remaining) > maxWeights) {
-        co_return;
-    }
-    if (maxWeights == 0) {
-        co_return;
-    } else if (maxWeights == 1) {
-        // Special handling for maxWeights == 1.
-        // We can only assign all remaining dimensions to one weight.
-        // Do not forget to check for maxHashFirstDimension.
-        if (
-            maxHashFirstDimension.has_value()
-            && remaining[0].hash() > *maxHashFirstDimension
-        ) {
-            co_return;
-        }
-        std::vector<Dimension> weight;
-        WeightColor weightColor;
-        for (const auto& cDim: remaining) {
-            if (!weightColor.disjointWith(cDim.color)) {
-                co_return;
-            }
-            weightColor.merge(cDim.color);
-            weight.emplace_back(cDim.dim);
-        }
-        std::vector<std::vector<Dimension>> weights { std::move(weight) };
-        co_yield std::move(weights);
-        co_return;
-    }
-
-    // Now we have remaining.size() >= 1 and maxWeights >= 2.
-    // Recursively find all possible assignments.
-
-    struct State {
-        enum Trial: bool {
-            WillTryWithThis,
-            WillTryWithoutThis,
-        };
-        std::size_t startIndex;
-        Trial trial;
-        WeightFragment fragment;
-    };
-    std::stack<State> stack;
-    stack.emplace(0, State::WillTryWithThis, remaining);
-    while (!stack.empty()) {
-        auto& [startIndex, trial, fragment] = stack.top();
-        if (startIndex == remaining.size()) {
-            const auto [weight, newInterface] = fragment.split();
-            if (!weight.empty()) {
-                for (auto subproblem: AssignToWeightsImpl(newInterface, maxWeights - 1, weight[0].hash())) {
-                    KAS_ASSERT(std::ranges::all_of(subproblem, [](const std::vector<Dimension>& weight) { return !weight.empty(); }));
-                    KAS_ASSERT(std::transform_reduce(subproblem.begin(), subproblem.end(), 0_uz, std::plus<>(), [](const std::vector<Dimension>& weight) { return weight.size(); }) == newInterface.size());
-                    KAS_ASSERT(!weight.empty());
-                    subproblem.emplace_back(weight);
-                    KAS_ASSERT(std::transform_reduce(subproblem.begin(), subproblem.end(), 0_uz, std::plus<>(), [](const std::vector<Dimension>& weight) { return weight.size(); }) == remaining.size());
-                    co_yield std::move(subproblem);
-                }
-            }
-            stack.pop();
-            continue;
-        }
-        if (trial == State::WillTryWithThis) {
-            if (
-                fragment.canAccept(startIndex)
-                && (
-                    !maxHashFirstDimension.has_value()
-                    || !fragment.unused()
-                    || remaining[startIndex].dim.hash() <= *maxHashFirstDimension
-                )
-            ) {
-                auto newFragment = fragment;
-                newFragment.accept(startIndex);
-                trial = State::WillTryWithoutThis;
-                stack.emplace(startIndex + 1, State::WillTryWithThis, std::move(newFragment));
-            } else {
-                trial = State::WillTryWithoutThis;
-            }
-        } else if (trial == State::WillTryWithoutThis) {
-            startIndex += 1;
-            trial = State::WillTryWithThis;
-        }
-    }
-    co_return;
-}
-
 Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeights(const std::vector<ColoredDimension>& weightDims, WeightOptions options) {
     KAS_ASSERT(std::ranges::is_sorted(weightDims | std::views::transform(&ColoredDimension::hash), std::less{}));
-    return AssignToWeightsImpl(
-        weightDims,
-        options.maxWeights,
-        options.allowWeightPermutation ? std::nullopt : std::make_optional(std::numeric_limits<std::size_t>::max())
-    );
+    const auto weightIds = WeightFragment::GetWeightIds(weightDims);
+    WeightFragment fragments { weightDims, weightIds };
+    if (fragments.minimumWeights() > options.maxWeights) {
+        co_return;
+    }
+    auto assignments = fragments.assignments();
+    for (auto result: assignments) {
+        co_yield std::move(result);
+    }
+    // TODO! Remove options.allowWeightPermutation.
 }
 
 namespace {
@@ -428,7 +372,10 @@ struct CollectedTensorFragments {
         weight.reserve(interface.size() - mappings.size());
         for (std::size_t i = 0; i < interface.size(); ++i) {
             if (!used[i]) {
-                weight.emplace_back(graph, interface[i]);
+                const Dimension& dim = interface[i];
+                auto shareR = dim.tryAs<ShareOp::Input>();
+                std::optional<int> weightId = shareR ? std::make_optional(shareR->getRhsOrigin()) : std::nullopt;
+                weight.emplace_back(dim, std::move(weightId));
             }
         }
         KAS_ASSERT(weight.size() == interface.size() - mappings.size());
@@ -529,6 +476,24 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
         return {};
     }
 
+    auto shareOpOrigins = ShareOp::GetWeightLeaders(graph);
+    if (!shareOpOrigins.empty()) {
+        // First check the count of weights.
+        if (shareOpOrigins.rbegin()->first != shareOpOrigins.size()) {
+            // The ShareOp's labeling is not canonical (1, 2, ..., #weights).
+            ++CountFailedInvocations;
+            return {};
+        }
+        auto comp = Dimension::GlobalLessThan(graph);
+        if (std::ranges::adjacent_find(shareOpOrigins, [&comp](const auto& lhs, const auto& rhs) {
+            return !comp(lhs.second, rhs.second);
+        }) != shareOpOrigins.end()) {
+            // The weights are not canonical.
+            ++CountFailedInvocations;
+            return {};
+        }
+    }
+
     const ExpandOp::Usage expandOpUsage = ExpandOp::GetUsage(ctx, graph);
 
     TopKFinalizations result { ctx, options.maximumFinalizations, options.finalStageBuilder, options.maxFLOPs };
@@ -580,14 +545,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
                 KAS_ASSERT(interface.size() == solution.size());
                 KAS_ASSERT(std::ranges::equal(interface, solution));
             }
-            // Canonicalize order of tensors.
-            if (!options.allowWeightPermutation) {
-                auto it = std::ranges::adjacent_find(tensors, [](const auto& a, const auto& b) {
-                    return a[0].hash() > b[0].hash();
-                });
-                KAS_ASSERT(it == tensors.end());
-            }
-            // TODO! Add basic canonicalization, such as Split-Share-Share.
+            // Canonicalization of order of tensors is now done in the search.
             tensors.insert(tensors.begin(), inputTensor);
             addToResults(std::move(tensors));
         }

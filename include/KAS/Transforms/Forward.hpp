@@ -20,6 +20,7 @@ using BackwardDimension = ::kas::Dimension;
 using BackwardDimensionImpl = ::kas::DimensionImpl;
 
 class Factory;
+class ShareOp;
 
 class DimensionImpl {
 protected:
@@ -36,14 +37,10 @@ public:
     const Size& getSize() const { return size; }
     bool evaluated() const { return value != nullptr; }
     // Each time a dimension is evluated, its parent Op gets notified. Once all of the children of the Op are evaluated, the Op can be evaluated, propagating to top-most dimensions.
-    void set(const BackwardDimension& value) {
-        this->value = value.getInnerPointer();
-        notifyParent();
-    }
-    BackwardDimension get() const {
-        KAS_ASSERT(evaluated(), "Dimension is not evaluated yet");
-        return value;
-    }
+    void set(const BackwardDimension& value);
+    BackwardDimension get() const;
+    // Remove from cut set.
+    BackwardDimension acquire() const;
     virtual ~DimensionImpl() = default;
 };
 
@@ -77,6 +74,8 @@ public:
     void set(const BackwardDimension& value) { inner->set(value); }
     BackwardDimension get() const { return inner->get(); }
     operator BackwardDimension() const { return get(); }
+    BackwardDimension acquire() const { return inner->acquire(); }
+    std::strong_ordering operator<=>(const Dimension& other) const noexcept = default;
     void output(std::size_t index);
     void reduce(Reduce::ReduceType reduceType);
 };
@@ -86,7 +85,11 @@ class Factory {
     PrimitiveOpStore store;
     std::vector<std::unique_ptr<Iterator>> iterators;
     std::vector<BackwardDimension> bottommost;
+    std::vector<Topmost> topmosts;
     std::unique_ptr<TensorView> result;
+
+    Graph::CutSet cutSet;
+    std::vector<std::pair<BackwardDimension, ShareOp *>> unresolvedShareOps;
 
 public:
     Factory(const BindingContext& ctx): ctx { ctx } {}
@@ -127,8 +130,16 @@ public:
     const Iterator *createIterator(const Size& domain, std::size_t index);
     const Reduce *createReduce(const Size& domain, Reduce::ReduceType reduceType);
 
-    static std::vector<Topmost> ForwardDimsToBackwardDims(const std::vector<std::vector<Dimension>>& tensors);
-    TensorView& buildTensorView(const std::vector<std::vector<Dimension>>& tensors, TensorExpression blending);
+    void addToCutSet(const BackwardDimension& dim);
+    void removeFromCutSet(const BackwardDimension& dim);
+    Graph buildGraph() const;
+    void registerUnresolvedShareOp(const BackwardDimension& backDim, ShareOp *share) {
+        unresolvedShareOps.emplace_back(backDim, share);
+    }
+
+    void inputs(const std::vector<std::vector<Dimension>>& tensors);
+    const std::vector<Topmost>& getInputs() const { return topmosts; }
+    TensorView& buildTensorView(TensorExpression blending);
 };
 
 class ExpandOp {
@@ -241,8 +252,13 @@ public:
 
 class ShareOp final: public MergeLikeOp {
     using MergeLikeOp::MergeLikeOp;
+    int rhsOrigin = -1;
 public:
+    void setRhsOrigin(int rhsOrigin) { this->rhsOrigin = rhsOrigin; }
     void onNotification(Factory& factory) override;
+    const Dimension& getInputRhs() const { return inputRhs; }
+    // After rhsOrigin resolved, continue.
+    void proceedNotification(Factory& factory);
     [[nodiscard]] static Dimension Create(const Dimension& lhs, const Dimension& rhs);
 };
 

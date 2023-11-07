@@ -50,10 +50,11 @@ TEST_F(search_flops_game_tests, dilated_conv) {
 }
 
 TEST_F(search_flops_game_tests, conv) {
-    auto shareOp_k = ShareOp(r_k_1.getInput(0));
+    // TODO! -1 is ugly.
+    auto shareOp_k = ShareOp(r_k_1.getInput(0), -1);
     auto unfoldOp = UnfoldOp(&i_H, shareOp_k.getInputL());
-    auto shareOp_s_bottom = ShareOp(r_s_1.getInput(0));
-    auto shareOp_s_top = ShareOp(shareOp_s_bottom.getInputL());
+    auto shareOp_s_bottom = ShareOp(r_s_1.getInput(0), -1);
+    auto shareOp_s_top = ShareOp(shareOp_s_bottom.getInputL(), -1);
     auto expandOp = ExpandOp(shareOp_s_top.getInputL());
     auto interface = GraphHandle({unfoldOp.getInput(), shareOp_k.getInputR(), shareOp_s_top.getInputR(), shareOp_s_bottom.getInputR(), &i_C_out}, {&expandOp});
     auto weightTop = std::vector<Dimension> {shareOp_k.getInputR(), shareOp_s_top.getInputR()};

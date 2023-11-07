@@ -46,11 +46,11 @@ TEST(ir_tests, pooled_conv) {
     dimH_output.output(2);
     dimW_output.output(3);
 
-    auto topmosts = Forward::Factory::ForwardDimsToBackwardDims({
+    factory.inputs({
         {dimN, dimCin_input, dimH, dimW, dimS_on_H, dimS_on_W},
         {dimCout, dimCin_filter, dimK1, dimK2},
     });
-    auto tensorView = TensorView(topmosts, Parser("in_0 * in_1").parseTensorExpression(), ctx);
+    auto tensorView = TensorView(factory.getInputs(), Parser("in_0 * in_1").parseTensorExpression(), ctx);
     auto graphvizGen = GraphvizGen(tensorView, ctx);
     graphvizGen.generate("./pooled_conv.dot", "pooled_conv");
 

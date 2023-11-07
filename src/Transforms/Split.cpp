@@ -2,6 +2,7 @@
 #include "KAS/Core/Reduce.hpp"
 #include "KAS/Transforms/PrimitiveOpStore.hpp"
 #include "KAS/Transforms/Reshape.hpp"
+#include "KAS/Transforms/Share.hpp"
 #include "KAS/Transforms/Split.hpp"
 #include "KAS/Utils/Common.hpp"
 
@@ -71,6 +72,14 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const To
             // They are redundant!
             // Because the split dimensions are merged or reduced.
             ++CountCounteractedMergesAndReduces;
+            return;
+        }
+        // Check if we can move this Split down the Share.
+        if (
+            auto lShare = dimL.tryAs<ShareOp::Input>(), rShare = dimR.tryAs<ShareOp::Input>();
+            lShare && rShare && lShare->getDerivedOp<ShareOp>()->getRhsOrigin() == rShare->getDerivedOp<ShareOp>()->getRhsOrigin()
+        ) {
+            ++CountCanBeDeferredAfterContraction;
             return;
         }
         // Check orderedness.

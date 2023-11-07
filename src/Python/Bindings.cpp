@@ -349,15 +349,19 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def_static("create_stride", &Forward::StrideOp::Create)
         .def_static("create_unfold", &Forward::UnfoldOp::Create)
         .def(
-            "convert_assembled_to_path", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const Sampler& sampler) -> std::vector<Next> {
-                auto backTensors = Forward::Factory::ForwardDimsToBackwardDims(tensors);
+            "inputs", &Forward::Factory::inputs,
+            pybind11::arg("tensors")
+        )
+        .def(
+            "convert_assembled_to_path", [](Forward::Factory& self, const Sampler& sampler) -> std::vector<Next> {
+                auto backTensors = self.getInputs();
                 sampler.convertTensorsToSearchableForm(backTensors);
                 return Sampler::ConvertSearchableTensorsToPath(backTensors);
             }
         )
         .def(
-            "build", [](Forward::Factory& self, const std::vector<std::vector<Forward::Dimension>>& tensors, const std::string& blending, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name) {
-                TensorView& tensorView = self.buildTensorView(tensors, Parser(blending).parseTensorExpression());
+            "build", [](Forward::Factory& self, const std::string& blending, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name) {
+                TensorView& tensorView = self.buildTensorView(Parser(blending).parseTensorExpression());
                 return std::make_unique<Kernel>(self.getBindingContext(), tensorView, allMappings, std::move(options), dir, name);
             }
         );

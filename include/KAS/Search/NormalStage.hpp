@@ -19,7 +19,7 @@ class NormalStage final: public AbstractStageBase<NormalStage> {
     void removeAllChildrenFromSlots();
     Finalizability checkForFinalizableChildren(const CollectedFinalizabilities& collected) const;
 
-    Topmost removeTooLongChains(const Graph& graph, const GraphHandle& interface) const;
+    Topmost getSearchableInterface(const Graph& graph, const GraphHandle& interface) const;
     Size getAllowanceUsage(const Graph& graph) const;
 
     // This checks whether the nexts are evaluated. If not, it evaluates them.
@@ -66,6 +66,7 @@ public:
         ChildrenFinalize,
         FinalizabilityCheckInvocations,
         TooManyWeights,
+        SharesUncanonical,
         ShapeDeviatesTooMuch,
     );
     // NormalStage cannot be root.

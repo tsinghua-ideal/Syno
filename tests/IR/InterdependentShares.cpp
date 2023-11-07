@@ -32,12 +32,12 @@ TEST(ir_tests, interdependent_shares) {
     dimW_shared.output(0);
     dimH_shared.output(1);
 
-    auto topmosts = Forward::Factory::ForwardDimsToBackwardDims({
+    factory.inputs({
         {dimH_over_S, dimH_dot_S, dimW_dot_S, dimW_over_S},
         {dimW_weight_1, dimH_over_S_weight_1},
         {dimW_over_S_weight_2, dimH_weight_2},
     });
-    auto tensorView = TensorView(topmosts, Parser("in_0 * in_1 * in_2").parseTensorExpression(), ctx);
+    auto tensorView = TensorView(factory.getInputs(), Parser("in_0 * in_1 * in_2").parseTensorExpression(), ctx);
     const IR& ir = tensorView.getSubgraphs();
     fmt::print("Result: {}\n", ir.outputTensor.toString(ctx));
     auto dfgGen = GraphvizDFGGen(ir, ctx);

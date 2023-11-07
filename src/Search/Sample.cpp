@@ -466,6 +466,29 @@ void Sampler::sortAllExpansionsAndWeightDimensions(std::vector<Topmost>& tensors
 void Sampler::convertTensorsToSearchableForm(std::vector<Topmost>& tensors) const {
     removeFixedDimensions(tensors);
     sortAllExpansionsAndWeightDimensions(tensors);
+    // Take a look at the rhsOrigin.
+    std::vector<std::pair<std::size_t, std::optional<int>>> rhsOrigins;
+    for (std::size_t i = 0; i < tensors.size(); ++i) {
+        std::optional<int> origin;
+        if (i != 0) {
+            for (const Dimension& dim: tensors[i].getDimensions()) {
+                if (auto share = dim.tryAs<ShareOp::Input>(); share) {
+                    int rhsOrigin = share->getRhsOrigin();
+                    KAS_ASSERT(!origin || *origin == rhsOrigin, "Inconsistent rhsOrigin.");
+                    origin = rhsOrigin;
+                }
+            }
+        }
+        rhsOrigins.emplace_back(i, origin);
+    }
+    std::ranges::stable_sort(rhsOrigins, std::less{}, &std::pair<std::size_t, std::optional<int>>::second);
+    // Then use the indices to sort the tensors.
+    std::vector<Topmost> sortedTensors;
+    sortedTensors.reserve(tensors.size());
+    for (const auto& [i, _]: rhsOrigins) {
+        sortedTensors.emplace_back(std::move(tensors[i]));
+    }
+    tensors = std::move(sortedTensors);
 }
 
 std::vector<Topmost> Sampler::convertTensorViewToSearchableTensors(const TensorView& tensorView) const {

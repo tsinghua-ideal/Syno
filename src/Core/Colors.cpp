@@ -116,43 +116,4 @@ Color& Color::setUnordered(const DimensionImpl *value) & {
     return *this;
 }
 
-WeightColor::WeightColor(const Graph& graph, const Dimension& dim):
-    leftTags(graph.colorOf(dim).tags), rightTags()
-{
-    if (dim.is(DimensionType::Share)) {
-        const auto& input = dim.as<MergeLikeOp::Input>();
-        KAS_ASSERT(input.getOrder() == Order::Right);
-        auto *shareOp = input.getOp();
-        bool removed = Color::RemoveTag(leftTags, shareOp);
-        KAS_ASSERT(removed);
-        rightTags.emplace_back(shareOp);
-    } else {
-        KAS_ASSERT(leftTags.empty(), "If the dimension is not a ShareR, then it should be an Iterator!");
-    }
-}
-
-std::size_t WeightColor::countLeftTags() const {
-    return leftTags.size();
-}
-std::size_t WeightColor::countRightTags() const {
-    return rightTags.size();
-}
-std::size_t WeightColor::countTags() const {
-    return leftTags.size() + rightTags.size();
-}
-
-void WeightColor::merge(const WeightColor& other) {
-    leftTags = Color::MergeTags(leftTags, other.leftTags);
-    rightTags = Color::MergeTags(rightTags, other.rightTags);
-    KAS_ASSERT(!Color::AnyCommonTags(leftTags, rightTags), "WeightColor::merge() called with overlapping colors.");
-}
-
-void WeightColor::removeAllRightTagsIn(const WeightColor& color) {
-    Color::RemoveTags(leftTags, color.rightTags);
-}
-
-bool WeightColor::disjointWith(const WeightColor& other) const {
-    return !Color::AnyCommonTags(leftTags, other.rightTags) && !Color::AnyCommonTags(rightTags, other.leftTags);
-}
-
 } // namespace kas

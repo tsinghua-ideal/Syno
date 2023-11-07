@@ -116,6 +116,8 @@ public:
     virtual ~DimensionImpl() = default;
 };
 
+class Graph;
+
 class Dimension {
 public:
     using PointerType = const DimensionImpl *;
@@ -153,6 +155,16 @@ public:
         bool operator()(const Dimension& lhs, const Dimension& rhs) const noexcept {
             return lhs.getInnerPointer() < rhs.getInnerPointer();
         }
+    };
+    // First compares height, then compares hash.
+    // This is a monotonic ordering.
+    // If a is below b, then a < b, so we can deduce that any further steps c > a if all the current dimensions b > a.
+    struct GlobalLessThan {
+        const Graph& graph;
+        int heightOf(const Dimension& dim) const;
+        bool height(const Dimension& lhs, const Dimension& rhs) const;
+        bool hash(const Dimension& lhs, const Dimension& rhs) const noexcept;
+        bool operator()(const Dimension& lhs, const Dimension& rhs) const;
     };
 
     // Color related.
@@ -215,7 +227,6 @@ std::string TensorArrayToString(R&& tensors, const BindingContext& ctx) {
 }
 
 class Expand;
-class Graph;
 
 class Topmost;
 template<typename R>

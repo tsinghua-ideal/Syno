@@ -26,6 +26,9 @@ MergeOp::MergeOp(const Dimension& output, const Size& block):
 
 std::size_t MergeOp::initialHash() const noexcept {
     std::size_t h = DimensionTypeHash(Type);
+    using namespace std::string_view_literals;
+    static const auto mergeMinorSizeHash = std::hash<std::string_view>{}("MergeMinorSize"sv);
+    HashCombineRaw(h, mergeMinorSizeHash);
     HashCombine(h, minorSize);
     return h;
 }
@@ -66,7 +69,7 @@ MergeOp::Values MergeOp::value(const Values& known) const {
 std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
-    // Canonicalization. Manually handle SplitOp, StrideOp(s<B) and UnfoldOp(k<B).
+    // Canonicalization. Manually handle StrideOp(s<B) and UnfoldOp(k<B).
     using T = DimensionTypeWithOrder;
     auto plausible = interface.filterOut({ T::ShareL, T::ShareR, T::Split, T::MergeL });
 
