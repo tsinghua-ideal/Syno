@@ -46,6 +46,8 @@ const Reduce *Factory::createReduce(const Size& domain, Reduce::ReduceType reduc
 }
 
 void Factory::inputs(const std::vector<std::vector<Dimension>>& tensors) {
+    KAS_ASSERT(std::ranges::all_of(tensors, [](const auto& t) { return !t.empty(); }));
+
     KAS_ASSERT(topmosts.empty(), "You must not call inputs() twice!");
     topmosts.resize(tensors.size());
 
@@ -104,9 +106,16 @@ void Factory::inputs(const std::vector<std::vector<Dimension>>& tensors) {
         }
     }
 
+    {
+        // Sanity check.
+        auto finalTensorIds = tensorIdToFinalTensorId;
+        std::ranges::sort(finalTensorIds);
+        KAS_ASSERT(std::ranges::equal(finalTensorIds, std::views::iota(0, static_cast<int>(finalTensorIds.size()))));
+    }
+
     for (std::size_t i = 0; i < tensors.size(); ++i) {
+        int finalTensorId = tensorIdToFinalTensorId[i];
         for (const Dimension& dim: tensors[i]) {
-            int finalTensorId = tensorIdToFinalTensorId[i];
             if (auto expand = dim.asExpanded(); expand) {
                 topmosts[finalTensorId].getExpansions().emplace_back(expand->getOp());
             } else {
