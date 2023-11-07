@@ -1,1 +1,1 @@
-from . import dataset, parser, models, trainer
+from . import dataset, parser, models, trainer, device

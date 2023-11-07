@@ -10,7 +10,7 @@ from KAS import Path, Sampler
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
-from base import log, parser, dataset, models, trainer
+from base import log, parser, dataset, models, trainer, device
 
 
 def train(
@@ -84,6 +84,7 @@ def train(
 
 def test_semantic_conv2d(test_kernels: List[str], test_run: bool) -> None:
     args = parser.arg_parse()
+    device.initialize(args)
 
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
