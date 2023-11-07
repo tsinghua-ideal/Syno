@@ -1,5 +1,5 @@
 import logging
-import sys
+import os, sys
 import torch
 import torch.nn.functional as F
 from datasets import load_dataset, IterableDataset
@@ -233,19 +233,14 @@ def get_gpt_dataloader(args):
 
 
 def get_imagenet_dataloader(args):
-    from timm.data import create_dataset, FastCollateMixup, create_loader
+    from timm.data import FastCollateMixup, create_loader
+    from torchvision.datasets import ImageFolder
 
-    dataset_train = create_dataset(
-        name=args.dataset,
-        root=args.root,
-        split=args.train_split,
-        batch_size=args.batch_size,
+    dataset_train = ImageFolder(
+        root=os.path.join(args.root, "train"),
     )
-    dataset_eval = create_dataset(
-        name=args.dataset,
-        root=args.root,
-        split=args.val_split,
-        batch_size=args.batch_size,
+    dataset_eval = ImageFolder(
+        root=os.path.join(args.root, "val"),
     )
 
     # Setup mixup / cutmix.
