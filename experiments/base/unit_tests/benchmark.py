@@ -122,17 +122,19 @@ if __name__ == "__main__":
     log.setup(level=logging.INFO)
 
     test_kernels = [
-        # "Conv2d_simple",
+        "Conv2d_simple",
         # "Conv2d_dilation",
         # "Conv2d_group",
         # "Conv2d_FC",
-        "Conv2d_group_oas",
+        # "Conv2d_group_oas",
         # "Conv2d_group_oas_same",
         # "Conv2d_group_oas_double",
         # "Conv2d_pool",
         # "Conv2d_pool1d",
         # "Conv1d_shift1d",
         # "Shift2d",
+        "kernel_07923",
+        # "kernel_07923_noshift"
     ]
     test_run = True
 

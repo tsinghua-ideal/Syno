@@ -251,4 +251,4 @@ commands.md
 experiments/*results
 experiments/analysis/results
 **.ksh
-results.json
+results*.json
