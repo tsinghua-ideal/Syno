@@ -151,11 +151,13 @@ class MCTSTree:
             if tree_node._virtual_loss < 0:
                 tree_node._virtual_loss = 0
                 logging.warning("Virtual loss go below 0! ")
-    
+
     def _resurrect(self, path: TreePath) -> None:
         tree_node = self.tree_root
         for next in path:
-            tree_node = tree_node.get_child(next.type, on_tree=True, include_simulate_failure=False)
+            tree_node = tree_node.get_child(
+                next.type, on_tree=True, include_simulate_failure=False
+            )
             if tree_node is None:
                 break
             tree_node, _ = tree_node
@@ -164,7 +166,9 @@ class MCTSTree:
                 tree_node._simulate_fail = False
             if next.key == 0:
                 break
-            tree_node = tree_node.get_child(next.key, on_tree=True, include_simulate_failure=False)
+            tree_node = tree_node.get_child(
+                next.key, on_tree=True, include_simulate_failure=False
+            )
             if tree_node is None:
                 break
             tree_node, _ = tree_node
@@ -342,7 +346,7 @@ class MCTSTree:
             offset = max(0, (self.simulate_time_ema - self.simulate_decay_time[0]))
             a *= math.exp(-offset / self.simulate_decay_time[1])
             left_depth = self._max_depth - len(tree_path) + 1
-            max_final_iterations = int(a * (b ** left_depth) + c)
+            max_final_iterations = int(a * (b**left_depth) + c)
 
         sample_times = self.leaf_num * max_final_iterations
         assert sample_times > 0
@@ -360,7 +364,10 @@ class MCTSTree:
             self.simulate_time_ema += time.time() - start
             for trial in trials:
                 trial_node = trial.to_node()
-                if trial_node not in nodes_set and not (trial_node in self._treenode_store and self._treenode_store[trial_node].filtered):
+                if trial_node not in nodes_set and not (
+                    trial_node in self._treenode_store
+                    and self._treenode_store[trial_node].filtered
+                ):
                     nodes_set.add(trial_node)
                     final_nodes.append(trial)
             if len(final_nodes) >= self.leaf_num:
@@ -369,7 +376,7 @@ class MCTSTree:
         logging.info(
             f"Got {len(final_nodes)} final nodes ({sample_times} samples) for path({tree_path}) after {trial_attempt+1} attempts. "
         )
-        
+
         if len(final_nodes) < self.leaf_num or leaf_expanded.is_dead_end():
             logging.info(f"Simulation from {tree_path} failed, flushing failure time. ")
             leaf_expanded.set_simulate_fail()
@@ -637,8 +644,16 @@ class MCTSTree:
             return attempt_record[src_node][0]
 
         reduce_arcs = set(reduction_end.to_node().get_composing_arcs())
-        find_lattice(self.tree_root, reduction_end, reduce_arcs)
-        find_lattice(reduction_end, final_node.to_node(), set(arcs) - reduce_arcs)
+        first_lattice_attempt = find_lattice(self.tree_root, reduction_end, reduce_arcs)
+        second_lattice_attempt = find_lattice(
+            reduction_end, final_node, set(arcs) - reduce_arcs
+        )
+        assert (
+            first_lattice_attempt
+        ), f"Failed to go from {self.tree_root} to {reduction_end}"
+        assert (
+            second_lattice_attempt
+        ), f"Failed to go from {reduction_end} to {final_node}"
 
     def touch(self, node: Node, path: Path = None) -> TreeNode:
         """
@@ -698,7 +713,9 @@ class MCTSTree:
                 return 1e9 - self.virtual_loss_constant * child._virtual_loss
             # If the edge is chosen multiple times but the resulting std is very small
             if edge.N > 30 and edge.std <= 0.01:
-                logging.info(f"At {path}, encountered {nxt} with {edge} and it is suppressed. ")
+                logging.info(
+                    f"At {path}, encountered {nxt} with {edge} and it is suppressed. "
+                )
                 return -1e9
             return (
                 edge.mean
