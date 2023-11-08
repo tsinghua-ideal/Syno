@@ -303,6 +303,7 @@ class Session:
                 logging.info(f"Prefetcher calls the next sample ...")
                 try:
                     sample = self.algo.sample()
+                    time.sleep(1)
                 except Exception as e:
                     logging.info(
                         f"Prefetcher encounters error {e}. {traceback.format_exc()}"

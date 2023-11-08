@@ -1,2 +1,2 @@
-mount -t tmpfs -o size=150g tmpfs /data/ramdisk
-cp -r /data/ImageNet /data/ramdisk/
+mount -t tmpfs -o size=300g tmpfs /localdata_ssd/ramdisk
+cp -r /localdata_ssd/ImageNet /localdata_ssd/ramdisk/
