@@ -13,7 +13,7 @@ from base import log, models, parser, dataset, trainer, mem
 
 
 class Handler:
-    timeout = 600
+    timeout = None
 
     def __init__(self, args):
         self.addr = f"http://{args.kas_server_addr}:{args.kas_server_port}"
