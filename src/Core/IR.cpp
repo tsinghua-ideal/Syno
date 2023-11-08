@@ -6,9 +6,9 @@
 
 namespace kas {
 
-IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx) {
+IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx, bool constractOneTensorEachTime) {
     auto builder = IRBuilder(tensors);
-    auto schemes = builder.plausibleContractionSchemes();
+    auto schemes = builder.plausibleContractionSchemes(constractOneTensorEachTime);
 
     // TODO: make this an option.
     constexpr std::size_t MaxVRAM = 40_uz * 1024 * 1024 * 1024;
@@ -54,7 +54,11 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx) {
         KAS_WARNING("Hey, it seems that this kernel will definitely OOM.");
         ++CountVRAMExceeded;
     }
-    KAS_ASSERT(current);
+    if (!current) {
+        // No, we cannot contract one tensor at a time.
+        ++CountWithInterdependentShares;
+        return Build(tensors, ctx, false);
+    }
 
     return current;
 }
@@ -117,6 +121,12 @@ std::size_t IR::numStages() const {
         stages += !tensor.isInputTensor();
     });
     return stages;
+}
+
+bool ContractionScheme::contractMoreThanOneTensorEachTime() const {
+    return std::ranges::any_of(contractions, [](const std::vector<std::size_t>& contraction) {
+        return contraction.size() > 1;
+    });
 }
 
 Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes(const std::vector<std::vector<bool>>& laterThan, std::vector<std::size_t> remaining) const {
@@ -226,7 +236,7 @@ IRBuilder::IRBuilder(const std::vector<Topmost>& tensors):
     graph(GraphBuilder().addTopmosts(tensors).build())
 {}
 
-Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes() const {
+Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes(bool constractOneTensorEachTime) const {
     const std::size_t numTensors = inputTensors.size();
 
     std::vector<Graph::CompactIndices> tensorFeatures;
@@ -285,6 +295,9 @@ Generator<ContractionScheme> IRBuilder::plausibleContractionSchemes() const {
     ) {
         if (earlyReduction) {
             scheme.contractions.insert(scheme.contractions.begin(), std::vector<std::size_t>{});
+        }
+        if (constractOneTensorEachTime && scheme.contractMoreThanOneTensorEachTime()) {
+            continue;
         }
         co_yield std::move(scheme);
     }

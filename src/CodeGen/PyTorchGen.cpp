@@ -593,11 +593,14 @@ std::vector<std::size_t> PyTorchGen::concretize(const std::vector<Dimension>& in
     return ShapeView(interface).eval<std::size_t>(consts);
 }
 
-PyTorchGen::PyTorchGen(const BindingContext& ctx, const IR& ir):
+PyTorchGen::PyTorchGen(const BindingContext& ctx, const TensorView& tensorView):
     ctx { ctx },
-    ir { ir.copy() },
-    graph { this->ir.buildGraph() }
+    graph { tensorView.buildGraph() }
 {
+    const auto tensors = ranges::to<std::vector<Topmost>>(
+        tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent)
+    );
+    ir = IR::Build(tensors, ctx, true);
     // We want rfactor to be applied so that each stage has at most 1 reduction.
     (RFactorIRPass(ctx, graph, true))(this->ir);
     // Perform views. Because PyTorch wants the dimensions to be contracted to be explicit.

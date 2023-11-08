@@ -14,7 +14,7 @@ struct IR {
     explicit operator bool() const { return static_cast<bool>(outputTensor); }
 
     // Helper function.
-    static IR Build(const std::vector<Topmost>& tensors, const BindingContext& ctx);
+    static IR Build(const std::vector<Topmost>& tensors, const BindingContext& ctx, bool constractOneTensorEachTime = false);
 
     template<bool Const = true, bool PostOrder = false, typename F>
     void forEachHelper(F&& f) const {
@@ -57,12 +57,13 @@ struct IR {
     KAS_STATISTICS_DEF(
         EqualFLOPs,
         VRAMExceeded,
+        WithInterdependentShares,
     )
 };
 
 struct ContractionScheme {
     // Each item is a contraction group. Moreover, each contraction group corresponds to one Tensor.
-    // {{0}, ...} if we can do early reduction, and {{0, ...}, ...} is we cannot do early reduction, in which case we perform contraction right away.
+    // {{}, ...} if we can do early reduction, and {{...}, ...} is we cannot do early reduction, in which case we perform contraction right away.
     std::vector<std::vector<std::size_t>> contractions;
     ContractionScheme() = default;
     template<std::convertible_to<std::vector<std::vector<std::size_t>>> T>
@@ -72,6 +73,7 @@ struct ContractionScheme {
         contractions.insert(contractions.begin(), contraction);
         return *this;
     }
+    bool contractMoreThanOneTensorEachTime() const;
 };
 
 // There are multiple passes when building the IR.
@@ -87,7 +89,7 @@ class IRBuilder {
 
 public:
     IRBuilder(const std::vector<Topmost>& tensors);
-    Generator<ContractionScheme> plausibleContractionSchemes() const;
+    Generator<ContractionScheme> plausibleContractionSchemes(bool constractOneTensorEachTime) const;
 
     // This cuts the graph into subgraphs, based on contraction order.
     // Each subgraph is a Tensor. We here only do this minimally. That is, in each subgraph, all reductions that can be done are done, and only the dependent Dimension's and Op's are kept.
