@@ -181,9 +181,7 @@ public:
 
     std::vector<std::size_t> concretize(const std::vector<Dimension>& interface, const ConcreteConsts& consts) const;
 
-    PyTorchGen(const BindingContext& ctx, const IR& subgraphs);
-    PyTorchGen(const BindingContext& ctx, const TensorView& tensorView):
-        PyTorchGen { ctx, tensorView.getSubgraphs() } {}
+    PyTorchGen(const BindingContext& ctx, const TensorView& tensorView);
     void loadWeights(PythonCodePrinter& printer) const;
     void padInputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const;
     void cropOutputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const;
