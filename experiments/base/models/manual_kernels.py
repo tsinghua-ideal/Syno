@@ -130,8 +130,8 @@ class ManualImpl:
         )
 
     def Conv2d_group_oas(self) -> Assembled:
-        N, H, W, k_1, g, r, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "g", "k_2", "C_in", "C_out"
+        N, H, W, k_1, g, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "W", "k_1", "g", "s", "C_in", "C_out"
         )
         k = k_1
         (
@@ -146,7 +146,9 @@ class ManualImpl:
             w_interm_out_G,
             w_interm_out_C_group,
             out_C,
-        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, r, C_in, k, k, g, r, C_out)
+        ) = self.assembler.make_dims_of_sizes(
+            N, H, W, C_in, C_in / g / s, C_in, k, k, g, C_in / g / s, C_out
+        )
 
         # Spatial dimensions
         main_H, windows_H = self.assembler.create_unfold(in_H, k)
@@ -159,7 +161,7 @@ class ManualImpl:
         shared_G_C_in = self.assembler.create_share(in_C, w_out_G_in_C)
         shared_G, shared_C_in = self.assembler.create_split(shared_G_C_in, C_in / g)
 
-        tmp_dim = self.assembler.create_expand(r)
+        tmp_dim = self.assembler.create_expand(C_in / g / s)
         out_C_group_masked = self.assembler.create_share(tmp_dim, out_C_group)
         interm_G_contracted = self.assembler.create_share(shared_G, w_interm_out_G)
         interm_C_out_group_contracted = self.assembler.create_share(
