@@ -5,6 +5,7 @@ import time
 import threading, queue
 from collections import defaultdict
 from typing import List, Tuple, Optional, DefaultDict, Set, Union, Dict
+from multiset import Multiset
 
 from KAS import Node, Path, Sampler, Next, Arc, NextSerializer
 
@@ -597,22 +598,23 @@ class MCTSTree:
         assert isinstance(final_node, TreeNode), f"{final_node} is not TreeNode!"
 
         reduction_end = self.touch(self._root.expand_to(final_node.to_node()))
-        attempt_record: Dict[TreeNode, Tuple[bool, Set[Arc]]] = dict()
+        attempt_record: Dict[TreeNode, Tuple[bool, Multiset[Arc]]] = dict()
 
         def find_lattice(
-            src_node: TreeNode, tgt_node: TreeNode, arc_pool: Set[Arc]
+            src_node: TreeNode, tgt_node: TreeNode, arc_pool: Multiset
         ) -> bool:
             """
             Attempt to reach tgt_node from src_node with arcs in arc_pool
             """
-            if src_node == tgt_node:
+            if src_node.to_node() == tgt_node.to_node():
                 return True
 
             if src_node not in attempt_record:
                 updated: Set[Tuple[TreeNode, Union[Next.Type, Arc]]] = set()
                 for arc in list(arc_pool):
                     if src_node._node.can_accept_arc(arc):
-                        arc_pool.remove(arc)
+                        new_arc_pool = arc_pool.copy()
+                        new_arc_pool.remove(arc, 1)
                         nxt = arc.to_next()
                         mid_child = src_node.get_child(
                             nxt.type,
@@ -620,7 +622,6 @@ class MCTSTree:
                             include_simulate_failure=False,
                         )
                         if mid_child is None:
-                            arc_pool.add(arc)
                             continue
                         mid_child = mid_child[0]
                         assert src_node._node in self._path_store, src_node._node
@@ -629,12 +630,10 @@ class MCTSTree:
                             path=self._path_store[src_node._node].concat(nxt),
                         )
                         if child_node.is_dead_end(include_simulate_failure=False):
-                            arc_pool.add(arc)
                             continue
-                        if find_lattice(child_node, tgt_node, arc_pool):
+                        if find_lattice(child_node, tgt_node, new_arc_pool):
                             updated.add((src_node, nxt.type))
                             updated.add((mid_child, arc))
-                        arc_pool.add(arc)
 
                 for node, nxt in updated:
                     node.update_lrave(reward, nxt)
@@ -643,14 +642,13 @@ class MCTSTree:
             assert arc_pool == attempt_record[src_node][1]
             return attempt_record[src_node][0]
 
-        reduce_arcs = set(reduction_end.to_node().get_composing_arcs())
+        reduce_arcs = Multiset(reduction_end.to_node().get_composing_arcs())
+        other_arcs = Multiset(arcs) - reduce_arcs
         first_lattice_attempt = find_lattice(self.tree_root, reduction_end, reduce_arcs)
-        second_lattice_attempt = find_lattice(
-            reduction_end, final_node, set(arcs) - reduce_arcs
-        )
         assert (
             first_lattice_attempt
         ), f"Failed to go from {self.tree_root} to {reduction_end}"
+        second_lattice_attempt = find_lattice(reduction_end, final_node, other_arcs)
         assert (
             second_lattice_attempt
         ), f"Failed to go from {reduction_end} to {final_node}"
