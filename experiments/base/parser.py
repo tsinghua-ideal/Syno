@@ -619,6 +619,12 @@ def arg_parse():
     parser.add_argument("--gpt-log-interval", default=10, type=int)
     parser.add_argument("--gpt-max-loss", default=3, type=float)
 
+    # Imagenet related
+    parser.add_argument("--imagenet-log-folder", default="logs", type=str)
+    parser.add_argument(
+        "--imagenet-config-file", default="ffcv-imagenet/rn18_configs/rn18_88_epochs.yaml", type=str
+    )
+
     args = parser.parse_args()
 
     # Print

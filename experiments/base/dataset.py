@@ -102,7 +102,7 @@ def get_dataloader(args):
     if "gpt" in args.model:
         return get_gpt_dataloader(args)
     if "imagenet" in args.dataset:
-        return get_imagenet_dataloader(args)
+        return None, None
 
     # Get tensors
     transform = transforms.Compose([transforms.ToTensor()])

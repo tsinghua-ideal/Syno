@@ -10,7 +10,16 @@ from KAS import Path, Sampler
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
-from base import log, parser, dataset, models, trainer, device
+from base import (
+    log,
+    parser,
+    dataset,
+    models,
+    trainer,
+    device,
+    ImageNetTrainer,
+    make_config,
+)
 
 
 def train(
@@ -74,7 +83,11 @@ def train(
 
     if test_run:
         logging.info("Evaluating on real dataset ...")
-        accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
+        if "imagenet" in args.dataset:
+            make_config()
+            accuracy = ImageNetTrainer.launch_from_args(model, args.imagenet_log_folder)
+        else:
+            accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
         print(f"Evaluation result: {flops} {params} {accuracy}")
         result["accuracy"] = accuracy
 
