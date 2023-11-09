@@ -20,6 +20,7 @@ from typing import List
 from pathlib import Path
 from argparse import ArgumentParser
 import logging
+from tqdm import tqdm
 
 from fastargs import get_current_config
 from fastargs.decorators import param
@@ -388,7 +389,7 @@ class ImageNetTrainer:
         lrs = np.interp(np.arange(iters), [0, iters], [lr_start, lr_end])
 
         iterator = self.train_loader
-        for ix, (images, target) in enumerate(iterator):
+        for ix, (images, target) in enumerate(tqdm(iterator)):
             ### Training start
             for param_group in self.optimizer.param_groups:
                 param_group["lr"] = lrs[ix]
@@ -418,7 +419,9 @@ class ImageNetTrainer:
                     values += [f"{loss_train.item():.3f}"]
 
                 msg = ", ".join(f"{n}={v}" for n, v in zip(names, values))
-                iterator.set_description(msg)
+                # iterator.set_description(msg)
+                if (ix + 1) % 100 == 0:
+                    logging.info(msg)
             ### Logging end
 
     @param("validation.lr_tta")
@@ -443,7 +446,6 @@ class ImageNetTrainer:
         [meter.reset() for meter in self.val_meters.values()]
         return stats
 
-    @param("logging.folder")
     def initialize_logger(self, folder):
         self.val_meters = {
             "top_1": torchmetrics.Accuracy(task="multiclass", num_classes=1000).to(
@@ -517,7 +519,7 @@ class ImageNetTrainer:
 
         if distributed:
             trainer.cleanup_distributed()
-            
+
         if not eval_only:
             return accuracy
 

@@ -4,13 +4,14 @@ import random
 import requests
 import time
 import sys
+import torch
 from KAS import Path
 
-from base import log, models, parser, dataset, trainer
+from base import log, models, parser, dataset, trainer, ImageNetTrainer
 
 
 if __name__ == "__main__":
-    log.setup()
+    log.setup(logging.INFO)
 
     args = parser.arg_parse()
     path = args.kas_test_path
@@ -28,6 +29,8 @@ if __name__ == "__main__":
             ), f"Could not find model {args.model}"
             model_cls = getattr(sys.modules[__name__], args.model)
             model = model_cls().cuda()
+        if args.compile:
+            model = torch.compile(model)
     else:
         try:
             model, sampler = models.get_model(args, return_sampler=True)
@@ -50,17 +53,28 @@ if __name__ == "__main__":
 
     # Load and evaluate on a dataset
     flops, params = model.profile(args.batch_size)
-    logging.debug(
+    logging.info(
         f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
     )
 
     logging.info("Evaluating on real dataset ...")
-    accuracy = max(
-        trainer.train(
-            model,
-            train_dataloader,
-            val_dataloader,
-            args,
+
+    if "imagenet" in args.dataset:
+        from fastargs import get_current_config
+
+        config = get_current_config()
+        config.collect_config_file(args.imagenet_config_file)
+        config.validate(mode="stderr")
+        config.summary()
+
+        accuracy = ImageNetTrainer.launch_from_args(model, args.imagenet_log_folder)
+    else:
+        accuracy = max(
+            trainer.train(
+                model,
+                train_dataloader,
+                val_dataloader,
+                args,
+            )
         )
-    )
     print(f"Evaluation result: {flops} {params} {accuracy}")

@@ -2,6 +2,7 @@
 Not finished test. 
 """
 
+import torch
 import os, sys, json
 import logging
 from argparse import Namespace
@@ -18,7 +19,6 @@ from base import (
     trainer,
     device,
     ImageNetTrainer,
-    make_config,
 )
 
 
@@ -31,60 +31,85 @@ def train(
     val_dataloader: dataset.FuncDataloader,
     test_run: bool,
 ) -> None:
-    # logging.info(f"model verbose: {model}")
-    impl = models.ManualImpl(sampler)
-    assert hasattr(impl, name), f"{name} is not a valid kernel"
-    kernel = getattr(impl, name)()
-
-    path = Path(kernel.convert_to_path(sampler))
-    logging.info(f"Assembled path: {path}")
-    if sampler.visit(path) is None:
-        logging.warning(f"Path {path} is not valid, testing...")
-        for subpath in path.hierarchy:
-            if sampler.visit(subpath) is None:
-                logging.warning(f"Subpath {subpath} is not valid")
-                logging.info(f"Available Children of {node._node}:")
-                for child in node.get_children_handles():
-                    child_node = node.get_child(child)
-                    if child_node is None:
-                        continue
-                    logging.info(f"\t{child}:\t{node.get_child_description(child)}")
-                break
-            else:
-                node = sampler.visit(subpath)
-        Inspace = False
-        message = "[Failed]"
-    else:
-        Inspace = True
-        message = "[Passed]"
-
-    result = {"path": str(path), "Inspace": Inspace}
-
-    kernel_loader = sampler.realize(model, kernel, name)
-    try:
-        model.load_kernel(
-            kernel_loader,
-            compile=args.compile,
-            batch_size=args.batch_size,
-            seq_len=args.gpt_seq_len,
-        )
+    if name == "Baseline":
+        if args.model.startswith("torchvision/"):
+            model = models.common.get_common_model(args).cuda()
+        else:
+            assert hasattr(
+                sys.modules[__name__], args.model
+            ), f"Could not find model {args.model}"
+            model_cls = getattr(sys.modules[__name__], args.model)
+            model = model_cls().cuda()
         flops, params = model.profile(args.batch_size)
         logging.info(
             f"Loaded model has {flops / 1e9}G FLOPs per batch and {params / 1e6}M parameters in total."
         )
-        result.update(
-            {
-                "flops": flops,
-                "params": params,
-            }
-        )
-    except Exception as e:
-        logging.warning(e)
+        message = "[Passed]"
+        result = {
+            "flops": flops,
+            "params": params,
+        }
+    else:
+        impl = models.ManualImpl(sampler)
+        assert hasattr(impl, name), f"{name} is not a valid kernel"
+        kernel = getattr(impl, name)()
+
+        path = Path(kernel.convert_to_path(sampler))
+        logging.info(f"Assembled path: {path}")
+        if sampler.visit(path) is None:
+            logging.warning(f"Path {path} is not valid, testing...")
+            for subpath in path.hierarchy:
+                if sampler.visit(subpath) is None:
+                    logging.warning(f"Subpath {subpath} is not valid")
+                    logging.info(f"Available Children of {node._node}:")
+                    for child in node.get_children_handles():
+                        child_node = node.get_child(child)
+                        if child_node is None:
+                            continue
+                        logging.info(f"\t{child}:\t{node.get_child_description(child)}")
+                    break
+                else:
+                    node = sampler.visit(subpath)
+            Inspace = False
+            message = "[Failed]"
+        else:
+            Inspace = True
+            message = "[Passed]"
+
+        result = {"path": str(path), "Inspace": Inspace}
+
+        kernel_loader = sampler.realize(model, kernel, name)
+        try:
+            model.load_kernel(
+                kernel_loader,
+                compile=args.compile,
+                batch_size=args.batch_size,
+                seq_len=args.gpt_seq_len,
+            )
+            flops, params = model.profile(args.batch_size)
+            logging.info(
+                f"Loaded model has {flops / 1e9}G FLOPs per batch and {params / 1e6}M parameters in total."
+            )
+            result.update(
+                {
+                    "flops": flops,
+                    "params": params,
+                }
+            )
+        except Exception as e:
+            logging.warning(e)
 
     if test_run:
         logging.info("Evaluating on real dataset ...")
         if "imagenet" in args.dataset:
-            make_config()
+            from fastargs import get_current_config
+
+            config = get_current_config()
+            config.collect_config_file(args.imagenet_config_file)
+            config.validate(mode="stderr")
+
+            config.summary()
+
             accuracy = ImageNetTrainer.launch_from_args(model, args.imagenet_log_folder)
         else:
             accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
@@ -136,7 +161,8 @@ if __name__ == "__main__":
     log.setup(level=logging.INFO)
 
     test_kernels = [
-        "Conv2d_simple",
+        "Baseline",
+        # "Conv2d_simple",
         # "Conv2d_dilation",
         # "Conv2d_group",
         # "Conv2d_group_oas",
