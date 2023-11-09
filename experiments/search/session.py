@@ -165,7 +165,7 @@ class Session:
             # Update with reward
             if self.target == "loss":
                 reward = max((self.max_loss - loss), 0) / self.max_loss
-                reward = reward ** self.reward_power
+                reward = reward**self.reward_power
                 if loss >= self.max_loss:
                     reward = -1
             elif accuracy > 0:
@@ -182,7 +182,7 @@ class Session:
                         / (1 - self.reward_lower_bound)
                         / self.reward_upper_bound
                     )
-                reward = reward ** self.reward_power
+                reward = reward**self.reward_power
             else:
                 reward = -1
 
@@ -203,12 +203,16 @@ class Session:
         if path in self.timeout_samples:
             logging.debug(f"{path} is removed due to timeout...")
             return
-        if path not in self.waiting:
-            logging.warning(f"{path} is not in our waiting queue")
+        fast_load_flag = path not in self.waiting
+        if fast_load_flag:
+            logging.warning(
+                f"{path} is not in our waiting queue, will do a fast update"
+            )
             return
 
         # Not more waiting
-        self.waiting.remove(path)
+        if path in self.waiting:
+            self.waiting.remove(path)
         self.time_buffer.pop(path)
 
         # Get implementation
@@ -276,7 +280,7 @@ class Session:
         # Update with reward
         if self.target == "loss":
             reward = max((self.max_loss - loss), 0) / self.max_loss
-            reward = reward ** self.reward_power
+            reward = reward**self.reward_power
             if loss >= self.max_loss:
                 reward = -1
         elif accuracy > 0:
@@ -290,12 +294,15 @@ class Session:
                     / (1 - self.reward_lower_bound)
                     / self.reward_upper_bound
                 )
-            reward = reward ** self.reward_power
+            reward = reward**self.reward_power
         else:
             reward = -1
 
         logging.info(f"Updating with reward {reward} ...")
-        self.algo.update(path, reward)
+        if fast_load_flag:
+            self.algo.load_eval_result(path, reward)
+        else:
+            self.algo.update(path, reward)
 
     def prefetcher_main(self):
         try:
