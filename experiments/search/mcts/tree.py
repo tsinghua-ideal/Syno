@@ -629,7 +629,7 @@ class MCTSTree:
                             src_node._node.get_child_from_arc(arc),
                             path=self._path_store[src_node._node].concat(nxt),
                         )
-                        if child_node.is_dead_end(include_simulate_failure=False):
+                        if child_node._node.is_dead_end():
                             continue
                         if find_lattice(child_node, tgt_node, new_arc_pool):
                             updated.add((src_node, nxt.type))
@@ -643,15 +643,16 @@ class MCTSTree:
             return attempt_record[src_node][0]
 
         reduce_arcs = Multiset(reduction_end.to_node().get_composing_arcs())
+        assert reduce_arcs.issubset(arcs)
         other_arcs = Multiset(arcs) - reduce_arcs
         first_lattice_attempt = find_lattice(self.tree_root, reduction_end, reduce_arcs)
         assert (
             first_lattice_attempt
-        ), f"Failed to go from {self.tree_root} to {reduction_end}"
+        ), f"Failed to go from {self.tree_root.to_node().get_possible_path()} to {reduction_end.to_node().get_possible_path()}"
         second_lattice_attempt = find_lattice(reduction_end, final_node, other_arcs)
         assert (
             second_lattice_attempt
-        ), f"Failed to go from {reduction_end} to {final_node}"
+        ), f"Failed to go from {reduction_end.to_node().get_possible_path()} to {final_node.to_node().get_possible_path()}"
 
     def touch(self, node: Node, path: Path = None) -> TreeNode:
         """
@@ -710,7 +711,7 @@ class MCTSTree:
             if edge.N == 0:
                 return 1e9 - self.virtual_loss_constant * child._virtual_loss
             # If the edge is chosen multiple times but the resulting std is very small
-            if edge.N > 30 and edge.std <= 0.01:
+            if edge.N > 30 and edge.std <= 0.001:
                 logging.info(
                     f"At {path}, encountered {nxt} with {edge} and it is suppressed. "
                 )

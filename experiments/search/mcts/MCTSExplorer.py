@@ -53,7 +53,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             return [
                 AbstractChild(
                     str(nxt),
-                    f"{state.to_node().get_arc_from_handle(Next(state._type, nxt))} {edge_state} with l-rave {state.l_rave[state.to_node().get_arc_from_handle(Next(state._type, nxt))]} {'(simulation failed)' if child_node._simulate_fail else ''}",
+                    f"{state.to_node().get_arc_from_handle(Next(state._type, nxt))} {edge_state} with g-rave {self._mcts.g_rave[state.to_node().get_arc_from_handle(Next(state._type, nxt))]} and l-rave {state.l_rave[state.to_node().get_arc_from_handle(Next(state._type, nxt))]} {'(simulation failed)' if child_node._simulate_fail else ''}",
                 )
                 for nxt, child_node, edge_state in handles
             ]
@@ -61,7 +61,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             return [
                 AbstractChild(
                     self._serializer.serialize_type(nxt),
-                    f"{str(nxt).split('.')[-1]} {edge_state} {'(simulation failed)' if child_node._simulate_fail else ''}",
+                    f"{str(nxt).split('.')[-1]} {edge_state} with g-rave {self._mcts.g_rave[nxt]} and l-rave {state.l_rave[nxt]} {'(simulation failed)' if child_node._simulate_fail else ''}",
                 )
                 for nxt, child_node, edge_state in handles
             ]
@@ -122,7 +122,9 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
         trials = int(trials)
         assert trials > 0, f"Trials must be positive, but got {trials}."
         # TODO: add TreePath to state, and avoid this conversion
-        results = self.sampler.random_final_nodes_with_prefix(state.to_node().get_possible_path(), trials, None, 2)
+        results = self.sampler.random_final_nodes_with_prefix(
+            state.to_node().get_possible_path(), trials, None, 2
+        )
         if len(results) == 0:
             return AbstractResponse("All trials failed.")
         result = max(results, key=lambda result: len(result.path))
@@ -144,9 +146,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             f"Generated graphviz file {filename}.", returned_file=filename
         )
 
-    def goto(
-        self, state: Optional[TreeNode], serialized_path: str
-    ) -> AbstractResponse:
+    def goto(self, state: Optional[TreeNode], serialized_path: str) -> AbstractResponse:
         path = TreePath.deserialize(serialized_path)
         explorer_path = self._tree_path_to_explorer_path(path)
         return AbstractResponse(
@@ -160,9 +160,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             + "".join(f"\t{arc}\n" for arc in state.to_node().get_composing_arcs())
         )
 
-    def statistics(
-        self, state: Optional[TreeNode]
-    ) -> AbstractResponse:
+    def statistics(self, state: Optional[TreeNode]) -> AbstractResponse:
         return AbstractResponse(Statistics.Summary(self.sampler))
 
     def realize(self, state: TreeNode) -> AbstractResponse:
