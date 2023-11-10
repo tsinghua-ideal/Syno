@@ -88,7 +88,7 @@ class Sampler:
         disallow_merge_input_and_weight: bool = False,
         disallow_tile: bool = True,
         disallow_share_weights: bool = False,
-        max_expansion_repeat_multiplier: int = 10,
+        max_expansion_repeat_multiplier: int = 1,
         max_expansion_merge_multiplier: int = 128,
         max_expansion_weights_sharing_dim_size: int = 3,
         min_expansion_weights_sharing_dim_size: int = 8,
