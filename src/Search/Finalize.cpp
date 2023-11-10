@@ -122,28 +122,22 @@ std::vector<ColoredDimension> FinalizeOp::FLOPsGameOptions::buildFullWeightDims(
 }
 
 ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current, const std::vector<DesiredSize>& desired, const Graph& graph, const ShapeComplexity::DistanceOptions& options, const FLOPsGameOptions& flopsOptions) {
+    ++CountShapeDistanceInvocations;
+
     int strideDist = 0;
 
     const BindingContext& ctx = options.ctx;
 
-    // TODO!!! Eliminate canBeWeight.
-    std::vector<CurrentSize> mustBeInput, canBeWeight;
+    std::vector<CurrentSize> mustBeInput;
     std::vector<Dimension> mustBeInputDims;
-    std::vector<ColoredDimension> canBeWeightDims;
     for (const auto& dim: current) {
         auto origin = dim.value.deduceOrigin(graph);
         switch (origin) {
         case Dimension::Origin::Input:
+        case Dimension::Origin::InputOrWeight: // We use Expand + Share to connect to Iterator in ContractionOp. So this is not needed.
             mustBeInput.emplace_back(dim);
             mustBeInputDims.emplace_back(dim);
             break;
-        case Dimension::Origin::InputOrWeight: {
-            canBeWeight.emplace_back(dim);
-            auto shareR = dim.value.tryAs<ShareOp::Input>();
-            std::optional<int> weightId = shareR ? std::make_optional(shareR->getRhsOrigin()) : std::nullopt;
-            canBeWeightDims.emplace_back(dim, std::move(weightId));
-            break;
-        }
         case Dimension::Origin::UnfoldOrExpand:
             ++strideDist; // We need an Unfold or an Expand to eliminate this.
             if (dim.remainingLength <= 0) {
@@ -165,187 +159,69 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
     const std::size_t overflow = options.overflow - strideDist;
 
     // Then, experimentally finalize.
-    ++CountShapeDistanceInvocations;
 
-    ShapeDistance minimumComplexity = ShapeDistance::Infinity;
-    std::vector<CurrentSize> newCurrent = mustBeInput;
-    // canBeWeightDims need not be counted, because they are iterators and are ignored by canonicalization.
+    ++CountShapeDistanceTrials;
+
+    ShapeDistance trial = ShapeDistance::Infinity;
+
     auto unorderedness = ShapeComplexity::UnorderednessDeduction(desired, mustBeInput);
-    std::vector<bool> givenUpWeightDims(canBeWeight.size(), true);
     auto extendedGame = ExtendedFLOPsGame(ctx, flopsOptions.totalInputSize, graph);
-    const bool checkFLOPs = flopsOptions.prune;
-    auto recursion = [&](const auto& self, std::size_t trialIndex) -> void {
-        // In either cases, we do not need to further compute.
-        if (trialIndex == canBeWeight.size()) {
-            ++CountShapeDistanceTrials;
-
-            auto enumerator = ShapeComplexity::Enumerator(desired, newCurrent, {
-                .ctx = ctx,
-                .remainingMerges = options.remainingMerges,
-                .remainingSplits = options.remainingSplits,
-                .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - (strideDist > 0),
-                .overflow = overflow,
-            }, &unorderedness);
-            enumerator.enumerate();
-            auto trial = ShapeDistance::Infinity;
-            trial.steps = enumerator.getBestSteps();
-            if (trial.steps > overflow) {
-                ++CountShapeDistanceTrialTooManySteps;
-                return;
-            }
-
-            unorderedness.intersects(enumerator.getUnorderedness());
-
-            std::size_t minFLOPs = std::numeric_limits<std::size_t>::max();
-            // Collect all weights.
-            auto allWeightDims = flopsOptions.buildFullWeightDims(canBeWeightDims, givenUpWeightDims);
-            // Enumerate weight dim assignment.
-            for (auto weights: AssignToWeights(allWeightDims, {
-                .maxWeights = MaxTensorsToMaxWeights(flopsOptions.maximumTensors),
-                .allowWeightPermutation = false,
-            })) {
-                auto game = extendedGame.getGameWithWeights(weights);
-                auto gameFLOPs = game.FLOPs();
-                minFLOPs = std::min(minFLOPs, gameFLOPs);
-            }
-            trial.flops = minFLOPs;
-            if (checkFLOPs && minFLOPs > flopsOptions.maxFLOPs) {
-                // This is not a valid solution.
-                ++CountShapeDistanceTrialTooManyFLOPs;
-                return;
-            }
-            minimumComplexity = std::min(minimumComplexity, trial);
-        } else if (trialIndex < canBeWeight.size()) {
-            self(self, trialIndex + 1);
-            newCurrent.emplace_back(canBeWeight[trialIndex]);
-            givenUpWeightDims[trialIndex] = false;
-            self(self, trialIndex + 1);
-            newCurrent.pop_back();
-            givenUpWeightDims[trialIndex] = true;
-        } else {
-            KAS_UNREACHABLE();
-        }
-    };
-    recursion(recursion, 0);
-    if (minimumComplexity.steps == ShapeComplexity::Infinity) {
+    auto enumerator = ShapeComplexity::Enumerator(desired, mustBeInput, {
+        .ctx = ctx,
+        .remainingMerges = options.remainingMerges,
+        .remainingSplits = options.remainingSplits,
+        .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - (strideDist > 0),
+        .overflow = overflow,
+    }, &unorderedness);
+    enumerator.enumerate();
+    trial.steps = enumerator.getBestSteps();
+    if (trial.steps > overflow) {
+        ++CountShapeDistanceTrialTooManySteps;
         return ShapeDistance::Infinity;
-    } else {
-        // Canonicalize by unorderedness. Check the unordered dims.
-        Graph::DimensionMap<std::size_t> unorderedDims;
-        // Collect all the unordered dims.
-        for (const auto& deduction: unorderedness.get()) {
-            for (std::size_t index: deduction.unorderedCurrent) {
-                unorderedDims.try_emplace(mustBeInputDims.at(index), deduction.indexDesired);
-            }
-        }
-        if (unorderedDims.empty()) {
-            ++CountUnorderednessDeductionFailure;
-        } else {
-            ++CountUnorderednessDeductionSuccess;
-        }
-        if (!IsCanonicalGivenUnorderedness(graph, unorderedDims)) {
-            ++CountShapeDistanceUnorderedCanonicalized;
-            return ShapeDistance::Infinity;
-        }
-        // Although we may only need 1 Expand or Unfold to eliminate all strided dims (with the help of other ops),
-        // we have to spend at least 1 step per strided dim.
-        minimumComplexity.steps += strideDist;
-        return minimumComplexity;
     }
+
+    unorderedness.intersects(enumerator.getUnorderedness());
+
+    auto weights = AssignToWeights(flopsOptions.weightDims);
+    auto game = extendedGame.getGameWithWeights(weights);
+    trial.flops = game.FLOPs();
+    if (flopsOptions.prune && trial.flops > flopsOptions.maxFLOPs) {
+        // This is not a valid solution.
+        ++CountShapeDistanceTrialTooManyFLOPs;
+        return ShapeDistance::Infinity;
+    }
+
+    // Canonicalize by unorderedness. Check the unordered dims.
+    Graph::DimensionMap<std::size_t> unorderedDims;
+    // Collect all the unordered dims.
+    for (const auto& deduction: unorderedness.get()) {
+        for (std::size_t index: deduction.unorderedCurrent) {
+            unorderedDims.try_emplace(mustBeInputDims.at(index), deduction.indexDesired);
+        }
+    }
+    if (unorderedDims.empty()) {
+        ++CountUnorderednessDeductionFailure;
+    } else {
+        ++CountUnorderednessDeductionSuccess;
+    }
+    if (!IsCanonicalGivenUnorderedness(graph, unorderedDims)) {
+        ++CountShapeDistanceUnorderedCanonicalized;
+        return ShapeDistance::Infinity;
+    }
+    // Although we may only need 1 Expand or Unfold to eliminate all strided dims (with the help of other ops),
+    // we have to spend at least 1 step per strided dim.
+    trial.steps += strideDist;
+    return trial;
 }
 
-namespace {
-
-struct WeightFragment {
-    const std::vector<ColoredDimension>& interface;
-    const std::map<int, int>& weightIds;
-    std::vector<int> assignedTo;
-
-    static std::map<int, int> GetWeightIds(const std::vector<ColoredDimension>& interface) {
-        std::map<int, int> weightIds;
-        for (const auto& [_, wId]: interface) {
-            if (wId.has_value()) {
-                weightIds.try_emplace(*wId, 0);
-            }
-        }
-        for (int i = 0; auto& [_, index]: weightIds) {
-            index = i;
-            ++i;
-        }
-        return weightIds;
-    }
-
-    WeightFragment(const std::vector<ColoredDimension>& interface, const std::map<int, int>& weightIds):
-        interface { interface }, weightIds { weightIds } {}
-
-    // Keep assigning, until we see an arbitrary choice.
-    std::size_t assign() {
-        std::size_t begin = assignedTo.size();
-        while (begin < interface.size()) {
-            const auto& targetWeightId = interface[begin].weightId;
-            if (targetWeightId) {
-                assignedTo.emplace_back(weightIds.at(*targetWeightId));
-            } else {
-                break;
-            }
-            ++begin;
-        }
-        return begin;
-    }
-
-    Generator<std::vector<std::vector<Dimension>>> assignments() {
-        std::size_t next = assign();
-        if (next == interface.size()) {
-            co_yield split();
-            co_return;
-        }
-        const auto& nextTarget = interface[next].weightId;
-        KAS_ASSERT(!nextTarget);
-        for (int i = 0; i < weightIds.size(); ++i) {
-            auto copy = *this;
-            copy.assignedTo.emplace_back(i);
-            for (auto result: copy.assignments()) {
-                co_yield std::move(result);
-            }
-        }
-    };
-
-    std::vector<std::vector<Dimension>> split() const {
-        KAS_ASSERT(assignedTo.size() == interface.size());
-        KAS_ASSERT(!weightIds.empty() || interface.empty(), "Cannot assign to pure outer product!");
-        std::vector<std::vector<Dimension>> result(weightIds.size());
-        for (std::size_t i = 0; i < interface.size(); ++i) {
-            result.at(assignedTo[i]).emplace_back(interface[i].dim);
-        }
-        return result;
-    }
-
-    std::size_t minimumWeights() const {
-        if (interface.empty()) {
-            return 0;
-        } else if (weightIds.empty()) {
-            return 25565; // Since only outer product is in this case, we should reject it.
-        } else {
-            return weightIds.size();
-        }
-    }
-};
-
-} // namespace
-
 // Require that the dimensions are sorted according to hash!
-Generator<std::vector<std::vector<Dimension>>> FinalizeOp::AssignToWeights(const std::vector<ColoredDimension>& weightDims, WeightOptions options) {
+std::vector<std::vector<Dimension>> FinalizeOp::AssignToWeights(const std::vector<ColoredDimension>& weightDims) {
     KAS_ASSERT(std::ranges::is_sorted(weightDims | std::views::transform(&ColoredDimension::hash), std::less{}));
-    const auto weightIds = WeightFragment::GetWeightIds(weightDims);
-    WeightFragment fragments { weightDims, weightIds };
-    if (fragments.minimumWeights() > options.maxWeights) {
-        co_return;
+    std::map<int, std::vector<Dimension>> weights;
+    for (const auto& [dim, weightId]: weightDims) {
+        weights[weightId.value()].emplace_back(dim);
     }
-    auto assignments = fragments.assignments();
-    for (auto result: assignments) {
-        co_yield std::move(result);
-    }
-    // TODO! Remove options.allowWeightPermutation.
+    return ranges::to<std::vector<std::vector<Dimension>>>(weights | std::views::values);
 }
 
 namespace {
@@ -533,23 +409,20 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
             }
         }
 
-        for (auto tensors: AssignToWeights(weightDims, {
-            .maxWeights = MaxTensorsToMaxWeights(options.maximumTensors), 
-            .allowWeightPermutation = options.allowWeightPermutation,
-        })) {
-            // Check whether the results are a partition of interface.
-            {
-                KAS_ASSERT(std::transform_reduce(tensors.begin(), tensors.end(), 0_uz, std::plus<> {}, [](const auto& t) { return t.size(); }) == weightDims.size());
-                auto solution = inputTensor;
-                std::ranges::copy(tensors | std::views::join, std::back_inserter(solution));
-                std::ranges::sort(solution, Dimension::HashLessThan{});
-                KAS_ASSERT(interface.size() == solution.size());
-                KAS_ASSERT(std::ranges::equal(interface, solution));
-            }
-            // Canonicalization of order of tensors is now done in the search.
-            tensors.insert(tensors.begin(), inputTensor);
-            addToResults(std::move(tensors));
+        // TODO: If options.allowWeightPermutation, permute the weights.
+        auto tensors = AssignToWeights(weightDims);
+        // Check whether the results are a partition of interface.
+        {
+            KAS_ASSERT(std::transform_reduce(tensors.begin(), tensors.end(), 0_uz, std::plus<> {}, [](const auto& t) { return t.size(); }) == weightDims.size());
+            auto solution = inputTensor;
+            std::ranges::copy(tensors | std::views::join, std::back_inserter(solution));
+            std::ranges::sort(solution, Dimension::HashLessThan{});
+            KAS_ASSERT(interface.size() == solution.size());
+            KAS_ASSERT(std::ranges::equal(interface, solution));
         }
+        // Canonicalization of order of tensors is now done in the search.
+        tensors.insert(tensors.begin(), inputTensor);
+        addToResults(std::move(tensors));
     };
 
     auto collectInputDimensions = [&](const auto& self, std::size_t nextIndex, const CollectedTensorFragments& fragments) -> void {
@@ -559,7 +432,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
                 if (fragments.used[i]) continue;
                 const auto& cDim = interface[i];
                 auto origin = cDim.deduceOrigin(graph);
-                if (origin != Dimension::Origin::Weight && origin != Dimension::Origin::InputOrWeight) {
+                if (origin != Dimension::Origin::Weight) {
                     ++CountUncanonicalWeight;
                     return;
                 }

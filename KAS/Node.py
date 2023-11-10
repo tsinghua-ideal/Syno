@@ -178,9 +178,9 @@ class Node:
         """Expand a node given layers deeper."""
         self._node.expand(layers)
 
-    def expand_to(self, target: 'Node') -> 'Node':
-        """Expand the lattice defined by the two nodes."""
-        return Node(self._node.expand_to(target._node))
+    def expand_to(self, target: 'Node') -> List['Node']:
+        """Expand the lattice defined by the two nodes. Return the lattice end points."""
+        return [Node(n) for n in self._node.expand_to(target._node)]
 
     def expand_async(self, layers: int) -> None:
         """Expand a node given layers deeper asynchronously."""
@@ -338,8 +338,8 @@ class MockNodeMetadata:
     def expand(self, layers: int) -> None:
         pass
 
-    def expand_to(self, target: 'MockNode') -> 'MockNode':
-        return target
+    def expand_to(self, target: 'MockNode') -> List['MockNode']:
+        return [self, target]
 
     def expand_async(self, layers: int) -> None:
         pass

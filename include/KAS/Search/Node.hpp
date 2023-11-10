@@ -75,12 +75,9 @@ class Node {
     }
 
 public:
-    Node(Sampler *sampler, ReductionStage *rStage):
-        sampler { sampler }, inner { rStage } {}
-    Node(Sampler *sampler, NormalStage *nStage):
-        sampler { sampler }, inner { nStage } {}
-    Node(Sampler *sampler, FinalStage *fStage):
-        sampler { sampler }, inner { fStage } {}
+    Node(Sampler *sampler, ReductionStage *rStage);
+    Node(Sampler *sampler, NormalStage *nStage);
+    Node(Sampler *sampler, FinalStage *fStage);
 
     // For Python.
     bool operator==(const Node& rhs) const;
@@ -107,6 +104,7 @@ public:
     std::string getNestedLoopsAsFinal() const;
 
     Node arbitraryParent() const;
+    bool isBottomOfLattice() const;
     void recomputeShapeDistance() const;
     ShapeDistance getShapeDistance() const;
     // The count of children nodes.
@@ -124,7 +122,8 @@ public:
     std::vector<Arc> getComposingArcs() const;
     void expandSync(int layers) const;
     void expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& task) const;
-    Node expandToSync(Node target) const;
+    // Return the lattice end points.
+    std::vector<Node> expandToSync(Node target) const;
     void expand(int layers) const;
     std::optional<std::string> getChildDescription(Next next) const;
     bool isReduction() const { return type() == Type::Reducing; }

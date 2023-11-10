@@ -92,6 +92,7 @@ void Factory::inputs(const std::vector<std::vector<Dimension>>& tensors) {
     std::vector<int> tensorIdToFinalTensorId(tensors.size(), -1);
     tensorIdToFinalTensorId[0] = 0;
 
+    // TODO!!! Add #shares to Dimension to track weight id.
     while (!unresolvedShareOps.empty()) {
         // First find next rhsOrigin.
         const Graph graph = buildGraph();

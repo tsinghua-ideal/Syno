@@ -83,6 +83,7 @@ public:
     // 2. Child of ContractionStage. Constructed with deltaOp == Next::Type::Contraction. In this case we also just return the NormalStage because ContractionStage is simulated.
     // 3. Child of NormalStage. Others.
     AbstractStage *arbitraryParentImpl() const;
+    bool isEmbeddedInReductionStage() const { return origin == NodeType::Reducing; }
     bool isFromContractionStage() const { return origin == NodeType::Contraction; }
 
     Finalizability experimentFinalizability(Lock& lock);

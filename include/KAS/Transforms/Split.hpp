@@ -50,6 +50,7 @@ public:
         GenerateInvocations,
         GenerateAttempts,
         DisallowedAttempts,
+        CouldHaveBeenDoneBeforeLastContractionStage,
         CounteractedMergesAndReduces,
         CanBeDeferredAfterContraction,
         CounteractedUnorderedMerges,
