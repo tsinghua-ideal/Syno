@@ -18,7 +18,6 @@ from base import (
     models,
     trainer,
     device,
-    ImageNetTrainer,
 )
 
 
@@ -103,6 +102,7 @@ def train(
         logging.info("Evaluating on real dataset ...")
         if "imagenet" in args.dataset:
             from fastargs import get_current_config
+            from base.imagenet_trainer import ImageNetTrainer
 
             config = get_current_config()
             config.collect_config_file(args.imagenet_config_file)
