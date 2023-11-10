@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KAS/Core/DimVisitor.hpp"
+#include "KAS/Core/Graph.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Utils/Statistics.hpp"
 
@@ -40,6 +41,7 @@ public:
     struct GenerateOptions {
         const BindingContext& ctx;
         const Graph& graph;
+        const Graph::DimensionSet& couldHaveBeenDoneBeforeLastContractionStage;
         bool disallowSplitLAboveUnfold;
         bool disallowSplitRAboveUnfold;
         bool disallowSplitRAboveStride;

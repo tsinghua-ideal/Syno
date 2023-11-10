@@ -2,31 +2,34 @@
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/NormalStage.hpp"
+#include "KAS/Search/ReductionStage.hpp"
 #include "KAS/Search/Sample.hpp"
 
 
 namespace kas {
 
 NormalStage::CollectedFinalizabilities NormalStage::collectFinalizabilities() {
-    // TODO!!!
+    return {
+        Base::collectFinalizabilities(),
+        Base::collectFinalizabilities(nextContractions),
+    };
 }
 
 void NormalStage::removeDeadChildrenFromSlots(const CollectedFinalizabilities& collected) {
-    // TODO!!!
     if (!childrenGenerated) {
         return;
     }
     Base::removeDeadChildrenFromSlots(collected);
+    Base::removeDeadChildrenFromSlots(nextContractions, collected.contractionStageFinalizabilities);
 }
 
 void NormalStage::removeAllChildrenFromSlots() {
     KAS_ASSERT(childrenGenerated);
-    // TODO!!!
     Base::removeAllChildrenFromSlots();
+    Base::removeAllChildrenFromSlots(nextContractions);
 }
 
 Finalizability NormalStage::checkForFinalizableChildren(const CollectedFinalizabilities& collected) const {
-    // TODO!!!
     if (!childrenGenerated) {
         return Finalizability::Maybe;
     }
@@ -35,15 +38,16 @@ Finalizability NormalStage::checkForFinalizableChildren(const CollectedFinalizab
         return Finalizability::Yes;
     }
     // Otherwise, check children.
-    return Base::checkForFinalizableChildren(collected);
+    return Base::checkForFinalizableChildren(collected) + Base::checkForFinalizableChildren(collected.contractionStageFinalizabilities);
 }
 
-Topmost NormalStage::getSearchableInterface(const Graph& graph, const GraphHandle& interface) const {
-    std::vector<Dimension> result;
-    std::ranges::remove_copy_if(interface.getDimensions(), std::back_inserter(result), [&](const Dimension& dim) {
-        return dim.is(DimensionTypeWithOrder::ShareR) || sampler.remainingChainLength(graph, dim) <= 0;
-    });
-    return Topmost(std::move(result), interface.getExpansions());
+void NormalStage::removeTooLongChains(ContractionOp::Analysis& analysis, const Graph& graph) const {
+    auto tooLongChain = [&](const Dimension& dim) {
+        return sampler.remainingChainLength(graph, dim) <= 0;
+    };
+    std::erase_if(analysis.simpleViewSearchable.getDimensions(), tooLongChain);
+    std::erase_if(analysis.other, tooLongChain);
+    std::erase_if(analysis.full.getDimensions(), tooLongChain);
 }
 
 Size NormalStage::getAllowanceUsage(const Graph& graph) const {
@@ -105,6 +109,7 @@ void NormalStage::guardGeneratedChildren() {
     const BindingContext& ctx = sampler.getBindingContext();
     const SampleOptions& options = sampler.getOptions();
     PrimitiveOpStore& store = sampler.getOpStore();
+    ContractionOpStore& contractionStore = sampler.getContractionOpStore();
     Graph graph = interface.buildGraph();
 
     // First add finalizations.
@@ -145,14 +150,22 @@ void NormalStage::guardGeneratedChildren() {
         }
     };
 
-    auto prospectiveInterface = getSearchableInterface(graph, interface);
+    auto contractionAnalysis = ContractionOp::Analyze(interface, graph);
+    removeTooLongChains(contractionAnalysis, graph);
+    const auto& prospectiveInterface = contractionAnalysis.simpleViewSearchable;
     const auto allowance = Allowance { ctx, getAllowanceUsage(graph), options.countCoefficientsInWeightsAsAllowanceUsage };
 
     if (remainingDepth() > 0) {
-        // Perform some contractions.
-        if (!inCriticalState) {
+        // Contraction^{-1}
+        if (!inCriticalState && (options.maximumShares == -1 || options.maximumShares > contractionAnalysis.numShares)) {
             add(childrenContraction, ContractionOp::Generate(
-                sampler.getContractionOpStore()
+                store, contractionStore, {
+                    .analysis = contractionAnalysis,
+                    .graph = graph,
+                    .allowance = allowance,
+                    .maximumTensors = options.maximumTensors,
+                    .maxShares = options.maximumShares == -1 ? std::numeric_limits<int>::max() : options.maximumShares - contractionAnalysis.numShares,
+                }
             ));
         }
 
@@ -180,17 +193,19 @@ void NormalStage::guardGeneratedChildren() {
         // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s or `ExpandOp`^{-1}s.
         // Split^{-1}
         if (options.maximumSplits == -1 || options.maximumSplits > existingOp<SplitOp>()) {
-            add(childrenView, SplitOp::Generate(store, prospectiveInterface, {
+            add(childrenView, SplitOp::Generate(store, contractionAnalysis.full, {
                 .ctx = ctx,
                 .graph = graph,
+                .couldHaveBeenDoneBeforeLastContractionStage = contractionAnalysis.other,
                 .disallowSplitLAboveUnfold = options.disallowSplitLAboveUnfold,
                 .disallowSplitRAboveUnfold = options.disallowSplitRAboveUnfold,
                 .disallowSplitRAboveStride = options.disallowSplitRAboveStride,
             }));
         }
+
         // Unfold^{-1}
         if (options.maximumUnfolds == -1 || options.maximumUnfolds > existingOp<UnfoldOp>()) {
-            add(childrenView, UnfoldOp::Generate(store, prospectiveInterface, {
+            add(childrenView, UnfoldOp::Generate(store, contractionAnalysis.full, {
                 .ctx = ctx,
                 .graph = graph,
                 .minimumRatio = options.minimumUnfoldRatio,
@@ -202,6 +217,7 @@ void NormalStage::guardGeneratedChildren() {
                 .disallowUnfoldLAboveMergeR = options.disallowUnfoldLAboveMergeR,
             }));
         }
+
         // Expand^{-1}
         if (options.maximumExpands == -1 || options.maximumExpands > existingOp<ExpandOp>()) {
             add(childrenView, ExpandOp::Generate(store, prospectiveInterface, {
@@ -226,15 +242,6 @@ void NormalStage::guardGeneratedChildren() {
                 .disallowMergeWithLargeBlockAboveStride = options.disallowMergeWithLargeBlockAboveStride,
                 .disallowMergeWithLargeBlockAboveUnfold = options.disallowMergeWithLargeBlockAboveUnfold,
                 .maximumValidReshapeShiftPattern = options.maximumValidReshapeShiftPattern,
-            }));
-        }
-        // Share^{-1}
-        // TODO!!! remove
-        if (!inCriticalState && (options.maximumShares == -1 || options.maximumShares > existingOp<ShareOp>())) {
-            add(childrenView, ShareOp::Generate(store, prospectiveInterface, {
-                .graph = graph,
-                .allowance = allowance,
-                .maximumTensors = options.maximumTensors,
             }));
         }
     }
@@ -281,14 +288,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     const BindingContext& ctx = sampler.getBindingContext();
     const Graph graph = interface.buildGraph();
 
-    // TODO!!! ShareOp no longer counts.
-    const std::size_t shareDist = ShareOp::LeastRemainingShares(getSearchableInterface(graph, interface), graph);
-    std::size_t remainingSteps = remainingDepth();
-    if (shareDist > remainingSteps) {
-        ++CountSharesUncanonical;
-        return false;
-    }
-    remainingSteps -= shareDist;
+    const std::size_t remainingSteps = remainingDepth();
 
     std::vector<CurrentDimension> current;
     std::vector<ColoredDimension> weightDims;
@@ -334,7 +334,6 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     }
     // Save this information.
     shapeDistance = distance;
-    shapeDistance.steps += shareDist;
 
     return true;
 }
@@ -365,8 +364,29 @@ const NextFinalizeSlot *NormalStage::getChildFinalizeSlot(Next next) const {
     return nextFinalizations.getSlot(next);
 }
 
+AbstractStage *NormalStage::arbitraryParentImpl() const {
+    if (origin == NodeType::Contraction) {
+        // We are from ContractionStage. There should be no other NormalStage that can reach this.
+        KAS_ASSERT(getParents().size() == 1);
+    }
+    AbstractStage *parent = Base::arbitraryParentImpl();
+    NormalStage *normalParent = dynamic_cast<NormalStage *>(parent);
+    if (!normalParent) {
+        // ReductionStage.
+        KAS_ASSERT(dynamic_cast<ReductionStage *>(parent));
+        return parent;
+    }
+    if (normalParent->origin == NodeType::Reducing) {
+        // Note that this is embedded! We had better jump this.
+        KAS_ASSERT(normalParent->getParents().size() == 1);
+        return normalParent->arbitraryParent();
+    } else {
+        return parent;
+    }
+}
+
 NormalStage::NormalStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
-    Base { std::move(interface), creator, std::move(deltaOp), std::move(lock) }
+    Base { std::move(interface), creator, deltaOp, std::move(lock) }
 {
     auto it = std::ranges::adjacent_find(interface.getDimensions(), [](const Dimension& a, const Dimension& b) {
         return a.hash() == b.hash();
@@ -374,8 +394,14 @@ NormalStage::NormalStage(GraphHandle interface, AbstractStage& creator, std::opt
     if (it != interface.getDimensions().end()) {
         KAS_REPORT_DIMENSION_HASH_COLLISION(*it, *std::next(it));
     }
+    if (!deltaOp.has_value()) {
+        origin = NodeType::Reducing;
+    } else if (deltaOp == Next::Type::Contraction) {
+        origin = NodeType::Contraction;
+    } else {
+        origin = NodeType::Growing;
+    }
 }
-
 
 Finalizability NormalStage::experimentFinalizability(Lock& lock) {
     if (!possibleToFinalizeByExperimenting()) {
@@ -442,7 +468,6 @@ bool NormalStage::canAcceptArcImpl(Arc arc) {
         // We have left ReductionStage.
         return false;
     }
-    // TODO!!! contraction and finalization.
     return Base::canAcceptArcImpl(arc);
 }
 

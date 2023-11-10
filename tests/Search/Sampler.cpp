@@ -12,7 +12,7 @@ TEST_F(search_tests, sampler) {
     std::size_t failedReconstruction = 0;
     for (int i = 0; i < trials; ++i) {
         auto randomLeaves = sampler.randomFinalNodesWithPrefix({}, 32);
-        randomLeaves.erase(std::ranges::remove_if(randomLeaves, [](const auto& pair) { return pair.first.size() < 3; }).begin(), randomLeaves.end());
+        std::erase_if(randomLeaves, [](const auto& pair) { return pair.first.size() < 3; });
 
         for (auto& [sampledPath, node]: randomLeaves) {
             auto path = sampler.convertTensorViewToPath(node.asFinalStage()->value);

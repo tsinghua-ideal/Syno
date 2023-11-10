@@ -272,19 +272,10 @@ public:
     }
 
     // Remove all slots that satisfy the predicate.
-    template<typename Pred, typename Callback>
-    requires std::predicate<Pred, const Slot&> && std::invocable<Callback, const Slot&>
-    std::size_t remove(Pred&& pred, Callback&& callback) {
-        std::size_t original = slots.size();
-        auto [first, last] = std::ranges::remove_if(slots, std::forward<Pred>(pred));
-        std::ranges::for_each(first, last, std::forward<Callback>(callback));
-        slots.erase(first, last);
-        return original - slots.size();
-    }
     template<typename Pred>
     requires std::predicate<Pred, const Slot&>
     std::size_t remove(Pred&& pred) {
-        return remove(std::forward<Pred>(pred), [](const Slot&){});
+        return std::erase_if(slots, std::forward<Pred>(pred));
     }
 
     template<typename Pred>
@@ -395,6 +386,16 @@ struct DepthwiseStatistics {
             totalNodes.load(), expandedNodes.load(), finalChildren.load(), initialNonFinalChildren.load(), removedNonFinalChildren.load()
         );
     }
+};
+
+// A node has 3 types.
+// But actually 4 types exist.
+// IF YOU CHANGE THIS YOU MUST REFER TO Node!
+enum class NodeType: std::uint8_t {
+    Reducing = 0, // Generating reductions.
+    Growing = 1, // Now we have generated Reduce's, repeatedly add PrimitiveOp's.
+    Final = 2, // Finalization performed.
+    Contraction = 3, // Contraction stage.
 };
 
 } // namespace kas

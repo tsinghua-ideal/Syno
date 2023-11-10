@@ -55,7 +55,6 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
     for (auto op: ReduceOp::Generate(sampler.getOpStore(), reductions, {
         .ctx = sampler.getBindingContext(),
         .allowance = allowance,
-        .dimUpperBound = options.dimUpperBound,
         .outputSize = sampler.getTotalOutputSize(),
         .maxRDomSizeBase = sampler.getMaxRDomSize(),
         .maxRDomSizeMultiplier = options.maxRDomSizeMultiplier,
@@ -163,26 +162,11 @@ bool ReductionStage::canAcceptArcImpl(Arc arc) {
                 return nStage->canAcceptArc(arc);
             }
         },
-        [&](auto) -> bool {
+        [&](const ContractionOp *) -> bool {
             return nStage->canAcceptArc(arc);
-        }
-    );
-}
-
-std::optional<Node> ReductionStage::getChildImpl(Arc arc) {
-    KAS_ASSERT(expanded);
-    return arc.match<std::optional<Node>>(
-        [&](auto op) -> std::optional<Node> {
-            if (op->getType() == DimensionType::Reduce) {
-                auto stage = getNextOpWithoutLock(op);
-                if (stage == nullptr) return std::nullopt;
-                return std::make_optional<Node>(&sampler, stage);
-            } else {
-                return nStage->getChildImpl(arc);
-            }
         },
-        [&](auto op) -> std::optional<Node> {
-            return nStage->getChild(arc);
+        [&](const FinalizeOp *) -> bool {
+            return nStage->canAcceptArc(arc);
         }
     );
 }

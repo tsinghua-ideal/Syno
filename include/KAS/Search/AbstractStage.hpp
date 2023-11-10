@@ -83,6 +83,8 @@ protected:
 
     void requestFinalizabilityUpdate(const AbstractStage *requestor);
 
+    const std::vector<AbstractStage *>& getParents() const { return parents; }
+
 public:
     KAS_STATISTICS_DEF(
         Creations,
@@ -106,7 +108,7 @@ public:
 
     Lock addParent(AbstractStage &parent);
     void addParent(AbstractStage &parent, Lock &lock);
-    AbstractStage *arbitraryParent() const;
+    virtual AbstractStage *arbitraryParent() const = 0;
 
     // Disallow copy or move.
     AbstractStage(const AbstractStage&) = delete;
@@ -189,6 +191,8 @@ concept StageImpl = requires(DerivedStageType child, const DerivedStageType::Col
 
     // The standard functions required by AbstractStage.
     // They are the non-thread-safe versions. This class is a thread-safe wrapper for them.
+    { child.arbitraryParentImpl() } -> std::convertible_to<AbstractStage *>;
+    { child.getShapeDistanceImpl() } -> std::convertible_to<ShapeDistance>;
     { child.countChildrenImpl() } -> std::convertible_to<std::size_t>;
     { child.getChildrenHandlesImpl() } -> std::convertible_to<std::vector<Next>>;
     { child.getChildrenArcsImpl() } -> std::convertible_to<std::vector<Arc>>;
@@ -220,31 +224,39 @@ protected:
 
     using CollectedFinalizabilities = std::vector<Finalizability>;
 
-    CollectedFinalizabilities collectFinalizabilities() {
-        return nextSlotStore.map([&](const NextStageSlot& slot) {
+    template<typename Slot>
+    CollectedFinalizabilities collectFinalizabilities(GenericNextSlotStore<Slot>& slots) {
+        return slots.map([&](const Slot& slot) {
             return slot.nextStage->getFinalizability();
         });
     }
+    CollectedFinalizabilities collectFinalizabilities() {
+        return collectFinalizabilities(nextSlotStore);
+    }
 
-    void removeDeadChildrenFromSlots(const CollectedFinalizabilities& collected) {
-        std::size_t removed = nextSlotStore.removeByIndex([&](std::size_t index) {
+    template<typename Slot>
+    void removeDeadChildrenFromSlots(GenericNextSlotStore<Slot>& slots, const CollectedFinalizabilities& collected) {
+        std::size_t removed = slots.removeByIndex([&](std::size_t index) {
             return collected[index] == Finalizability::No;
         });
         getStats().removeNonFinalChildren(removed);
     }
+    void removeDeadChildrenFromSlots(const CollectedFinalizabilities& collected) {
+        removeDeadChildrenFromSlots(nextSlotStore, collected);
+    }
 
-    void removeAllChildrenFromSlots() {
-        std::size_t removed = nextSlotStore.clear();
+    template<typename Slot>
+    void removeAllChildrenFromSlots(GenericNextSlotStore<Slot>& slots) {
+        std::size_t removed = slots.clear();
         getStats().removeNonFinalChildren(removed);
+    }
+    void removeAllChildrenFromSlots() {
+        removeAllChildrenFromSlots(nextSlotStore);
     }
 
     Finalizability checkForFinalizableChildren(const CollectedFinalizabilities& collected) const {
         // Check children. Yes if any Yes, No if all No.
-        Finalizability fin = Finalizability::No;
-        for (Finalizability f: collected) {
-            fin += f;
-        }
-        return fin;
+        return ranges::fold_left(collected, Finalizability::No, std::plus<>{});
     }
 
 private:
@@ -343,12 +355,11 @@ protected:
             }
         }
     }
-    template<typename ChildStageType = DerivedStageType, GeneralizedOp Op>
-    ChildStageType *getNextOpWithoutLock(const Op *op) {
-        auto [childStage, lock] = getNextOp<ChildStageType, Op>(op);
-        return childStage;
-    }
 
+    AbstractStage *arbitraryParentImpl() const {
+        KAS_ASSERT(!parents.empty());
+        return parents.front();
+    }
     ShapeDistance getShapeDistanceImpl() const {
         return { remainingDepth(), 0 };
     }
@@ -379,8 +390,7 @@ protected:
                 return op->canApplyToInterface(interface);
             },
             [&](const ContractionOp *op) -> bool {
-                // TODO!!!
-                return true;
+                return op->canApplyToInterface(interface);
             },
             [&](const FinalizeOp *op) -> bool {
                 return op->toGraphHandle() == interface;
@@ -408,6 +418,10 @@ public:
         return { std::move(stage), std::move(lock) };
     }
 
+    AbstractStage *arbitraryParent() const final override {
+        Lock lock = acquireLock();
+        return derived().arbitraryParentImpl();
+    }
     ShapeDistance getShapeDistance() const final override {
         Lock lock = acquireLock();
         return derived().getShapeDistanceImpl();
@@ -445,6 +459,10 @@ public:
                 return derived().getChildImpl(next);
             })
         );
+    }
+    bool canAcceptArc(Arc arc) final override {	
+        Lock lock = acquireLock();	
+        return derived().canAcceptArcImpl(arc);	
     }
 };
 

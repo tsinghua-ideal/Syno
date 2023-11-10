@@ -65,6 +65,8 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const To
     ReshapeCanonicalizer canonicalizer;
     graph.accept(canonicalizer);
 
+    // TODO!!! Consider contraction stage canonicalization.
+
     std::vector<const SplitOp *> result;
     auto checkThenAdd = [&store, &canonicalizer, &result, &ctx = options.ctx, &graph](const Dimension& dimL, const Dimension& dimR) {
         // Perform canonicalization for reshape.

@@ -35,7 +35,6 @@ public:
     std::optional<Arc> getArcFromHandleImpl(Next next);
     std::optional<Node> getChildImpl(Next next);
     bool canAcceptArcImpl(Arc arc);
-    std::optional<Node> getChildImpl(Arc arc);
 };
 
 } // namespace kas

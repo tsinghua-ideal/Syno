@@ -341,6 +341,7 @@ concept GeneralizedOp =
     std::equality_comparable<Op> &&
     requires(const Op& op, const GraphHandle& interface, const BindingContext& ctx) {
         { op.opHash() } -> std::convertible_to<std::size_t>;
+        { op.canApplyToInterface(interface) } -> std::convertible_to<bool>;
         { op.applyToInterface(interface) } -> std::convertible_to<GraphHandle>;
         { op.description(ctx) } -> std::convertible_to<std::string>;
         { op.descendantsDescription(ctx) } -> std::convertible_to<std::string>;

@@ -9,6 +9,8 @@ class NormalStage final: public AbstractStageBase<NormalStage> {
     friend class AbstractStageBase<NormalStage>;
     friend struct FinalStage;
 
+    NodeType origin;
+
     // Lazily generate children.
     bool childrenGenerated = false;
     bool generatingChildren = false;
@@ -23,7 +25,7 @@ class NormalStage final: public AbstractStageBase<NormalStage> {
     void removeAllChildrenFromSlots();
     Finalizability checkForFinalizableChildren(const CollectedFinalizabilities& collected) const;
 
-    Topmost getSearchableInterface(const Graph& graph, const GraphHandle& interface) const;
+    void removeTooLongChains(ContractionOp::Analysis& analysis, const Graph& graph) const;
     Size getAllowanceUsage(const Graph& graph) const;
 
     // This checks whether the nexts are evaluated. If not, it evaluates them.
@@ -75,6 +77,13 @@ public:
     );
     // NormalStage cannot be root.
     NormalStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock);
+    // This checks the status of this stage.
+    // Currently there are 3 types of NormalStage.
+    // 1. Embedded in ReductionStage. Constructed with deltaOp == std::nullopt. In this case this function returns the ReductionStage rather than the direct parent, i.e., a NormalStage.
+    // 2. Child of ContractionStage. Constructed with deltaOp == Next::Type::Contraction. In this case we also just return the NormalStage because ContractionStage is simulated.
+    // 3. Child of NormalStage. Others.
+    AbstractStage *arbitraryParentImpl() const;
+    bool isFromContractionStage() const { return origin == NodeType::Contraction; }
 
     Finalizability experimentFinalizability(Lock& lock);
     ShapeDistance getShapeDistanceImpl() const;

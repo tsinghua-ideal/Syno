@@ -126,6 +126,7 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
 
     const BindingContext& ctx = options.ctx;
 
+    // TODO!!! Eliminate canBeWeight.
     std::vector<CurrentSize> mustBeInput, canBeWeight;
     std::vector<Dimension> mustBeInputDims;
     std::vector<ColoredDimension> canBeWeightDims;

@@ -30,13 +30,10 @@ class Node {
 
     Sampler *sampler;
 
-    // A node has 3 types.
-    enum class Type: std::uint8_t {
-        Reducing = 0, // Generating reductions.
-        Growing = 1, // Now we have generated Reduce's, repeatedly add PrimitiveOp's.
-        Final = 2, // Finalization performed.
-    };
+    using Type = NodeType;
+
     // This corresponds to the three types.
+    // IF YOU CHANGE THIS YOU MUST REFER TO NodeType!
     std::variant<ReductionStage *, NormalStage *, FinalStage *> inner;
     Type type() const noexcept {
         return static_cast<Type>(inner.index());

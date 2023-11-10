@@ -107,7 +107,7 @@ struct SampleOptions {
     int maximumShifts = -1;
     int maximumStrides = -1;
     int maximumUnfolds = -1;
-    int maximumShares = -1; // TODO!!!
+    int maximumShares = -1;
 
     void check() const;
 };

@@ -340,9 +340,9 @@ std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPre
         auto children = node.getChildrenHandles();
         if (type != std::nullopt) {
             // Filter by type.
-            children.erase(std::remove_if(children.begin(), children.end(), [type = *type](const Next &next) {
+            std::erase_if(children, [type = *type](const Next &next) {
                 return next.type != type;
-            }), children.end());
+            });
         }
         if (children.empty()) return;
 
