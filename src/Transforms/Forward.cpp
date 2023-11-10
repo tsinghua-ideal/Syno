@@ -92,7 +92,6 @@ void Factory::inputs(const std::vector<std::vector<Dimension>>& tensors) {
     std::vector<int> tensorIdToFinalTensorId(tensors.size(), -1);
     tensorIdToFinalTensorId[0] = 0;
 
-    // TODO!!! Add #shares to Dimension to track weight id.
     while (!unresolvedShareOps.empty()) {
         // First find next rhsOrigin.
         const Graph graph = buildGraph();
@@ -102,10 +101,15 @@ void Factory::inputs(const std::vector<std::vector<Dimension>>& tensors) {
 
         // Then find the tensor to label.
         std::optional<std::pair<BackwardDimension, ShareOp *>> least;
-        auto comp = BackwardDimension::GlobalLessThan(graph);
+        auto comp = [&](const auto& lhs, const auto& rhs) {
+            const auto numSharesComp = lhs.second->getShareOps() <=> rhs.second->getShareOps();
+            // Dimensions with greater number of ShareOp's above should be done earlier.
+            if (numSharesComp != 0) return numSharesComp > 0;
+            const auto globalComp = BackwardDimension::GlobalLessThan(graph);
+            return globalComp(lhs.first, rhs.first);
+        };
         for (const std::pair<BackwardDimension, ShareOp *>& pair: unresolvedShareOps) {
-            const auto& [dim, share] = pair;
-            if (!least || comp(dim, least->first)) {
+            if (!least || comp(pair, *least)) {
                 least = pair;
             }
         }

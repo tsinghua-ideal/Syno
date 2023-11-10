@@ -20,8 +20,8 @@ bool ExpandOp::canApplyToInterface(const GraphHandle& interface) const {
     return interface.contains(output);
 }
 
-GraphHandle ExpandOp::applyToInterface(const GraphHandle& interface) const {
-    return interface.moveToExpansions(this);
+void ExpandOp::applyToInterface(GraphHandle& interface) const {
+    interface.moveToExpansions(this);
 }
 
 bool ExpandOp::operator==(const ExpandOp& other) const noexcept {

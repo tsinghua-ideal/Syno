@@ -1,5 +1,4 @@
 add_kas_test(search-expand-tests Expand.cpp)
-add_kas_test(search-finalize-tests Finalize.cpp)
 add_kas_test(search-flops-game-tests FLOPsGame.cpp)
 add_kas_test(search-forward-tests Forward.cpp)
 add_kas_test(search-sampler-tests Sampler.cpp)

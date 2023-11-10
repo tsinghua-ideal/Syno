@@ -344,11 +344,11 @@ public:
     using Topmost::description;
 
     bool contains(const Dimension& value) const { return binarySearch(value) != interface.end(); }
-    GraphHandle insert1(const Dimension& value) const;
-    GraphHandle moveToExpansions(const Expand *value) const;
-    GraphHandle substitute1to1(const Dimension& fro, const Dimension& to) const;
-    GraphHandle substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2) const;
-    GraphHandle substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const;
+    void insert1(const Dimension& value);
+    void moveToExpansions(const Expand *value);
+    void substitute1to1(const Dimension& fro, const Dimension& to);
+    void substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2);
+    void substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to);
 
     Graph buildGraph() const;
 

@@ -35,8 +35,8 @@ bool ReduceOp::canApplyToInterface(const GraphHandle& interface) const {
     KAS_CRITICAL("You cannot decide whether a ReduceOp can be applied to an interface without the StageStore.");
 }
 
-GraphHandle ReduceOp::applyToInterface(const GraphHandle& interface) const {
-    return interface.insert1(getInput(getMultiplicity(interface)));
+void ReduceOp::applyToInterface(GraphHandle& interface) const {
+    interface.insert1(getInput(getMultiplicity(interface)));
 }
 
 std::string ReduceOp::description(const BindingContext& ctx) const {

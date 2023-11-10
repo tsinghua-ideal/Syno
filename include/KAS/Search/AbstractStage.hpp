@@ -315,7 +315,7 @@ protected:
         // When this gets called, we are holding the lock of this stage.
         StageStore& store = sampler.getStageStore();
         const bool nextLayer = op != nullptr;
-        GraphHandle newInterface = nextLayer ? op->applyToInterface(interface) : interface;
+        GraphHandle newInterface = nextLayer ? op->appliedToInterface(interface) : interface;
         const MutexIndex mutexIndex = getNextMutexIndex(nextLayer, newInterface);
         Lock lock = std::unique_lock { sampler.getMutex(mutexIndex) };
         if (AbstractStage *found = store.find(depth + nextLayer, newInterface, lock); found) {

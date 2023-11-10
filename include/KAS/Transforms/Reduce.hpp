@@ -36,7 +36,7 @@ public:
     std::size_t getMultiplicity(const GraphHandle& interface) const;
 
     bool canApplyToInterface(const GraphHandle& interface) const override;
-    GraphHandle applyToInterface(const GraphHandle& interface) const override;
+    void applyToInterface(GraphHandle& interface) const override;
 
     bool operator==(const ReduceOp& other) const noexcept {
         return ReduceBase::operator==(other);

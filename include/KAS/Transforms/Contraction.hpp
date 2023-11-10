@@ -15,22 +15,25 @@ class ContractionOpStore;
 
 class ContractionOp {
     struct Dimwise {
-        Dimension dim;
-        ContractionType type;
+        // Non-null.
+        const ShareOp *share;
+        // Optional.
+        // When there is ExpandOp, this is `i, j -> ij`, which can be outer product.
+        // Otherwise, this is `i, i -> i`, which can be hadamard product or contraction.
+        const ExpandOp *expand;
         bool operator==(const Dimwise& other) const noexcept = default;
-        std::weak_ordering operator<=>(const Dimwise& other) const noexcept {
-            auto hash = dim.hash() <=> other.dim.hash();
-            if (hash != 0) {
-                return hash;
-            }
-            return type <=> other.type;
-        }
+        std::weak_ordering operator<=>(const Dimwise& other) const noexcept;
+        std::size_t hash() const noexcept;
     };
+    std::vector<Dimwise> dimwiseOps;
 public:
-    bool operator==(const ContractionOp& other) const noexcept;
+    template<typename T>
+    ContractionOp(T&& dimwiseOps): dimwiseOps(std::forward<T>(dimwiseOps)) {}
+    bool operator==(const ContractionOp& other) const noexcept = default;
     std::size_t opHash() const noexcept;
     bool canApplyToInterface(const GraphHandle& interface) const;
-    GraphHandle applyToInterface(const GraphHandle& interface) const;
+    void applyToInterface(GraphHandle& interface) const;
+    GraphHandle appliedToInterface(const GraphHandle& interface) const;
     std::string description(const BindingContext& ctx) const;
     std::string descendantsDescription(const BindingContext& ctx) const;
     struct Analysis {

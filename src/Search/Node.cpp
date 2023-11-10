@@ -182,7 +182,11 @@ Node Node::arbitraryParent() const {
             if (auto rStage = dynamic_cast<ReductionStage *>(parent)) {
                 return Node(sampler, rStage);
             } else if (auto nStage = dynamic_cast<NormalStage *>(parent)) {
-                return Node(sampler, nStage);
+                if (nStage->isEmbeddedInReductionStage()) {
+                    return Node(sampler, dynamic_cast<ReductionStage *>(nStage->arbitraryParent()));
+                } else {
+                    return Node(sampler, nStage);
+                }
             } else {
                 KAS_UNREACHABLE();
             }
@@ -194,7 +198,35 @@ Node Node::arbitraryParent() const {
 }
 
 bool Node::isBottomOfLattice() const {
-    // TODO!!!
+    return match<bool>(
+        [](ReductionStage *stage) {
+            return stage->getDepth() == 0;
+        },
+        [](NormalStage *stage) {
+            return stage->isFromContractionStage();
+        },
+        [](FinalStage *) -> bool {
+            return false;
+        }
+    );
+}
+
+bool Node::parentIsBottomOfLattice() const {
+    return match<bool>(
+        [](ReductionStage *stage) {
+            return false;
+        },
+        [](NormalStage *stage) {
+            if (stage->isFromContractionStage()) {
+                return true;
+            } else {
+                return dynamic_cast<NormalStage&>(*stage->arbitraryParent()).isEmbeddedInReductionStage();
+            }
+        },
+        [](FinalStage *) -> bool {
+            return true;
+        }
+    );
 }
 
 void Node::recomputeShapeDistance() const {
@@ -371,8 +403,9 @@ std::vector<Node> Node::expandToSync(Node target) const {
 
     Node top = target;
     std::vector<Node> latticeEndPoints { top };
+    bool peek = false;
     while (target.depth() > bottom.depth()) {
-        if (target.isBottomOfLattice()) {
+        if (peek || target.isBottomOfLattice()) {
             if (top.depth() > target.depth() + 1) {
                 // Only if the lattice is worth expanding.
                 auto topArcs = ranges::to<Arcs>(top.getComposingArcs());
@@ -389,10 +422,12 @@ std::vector<Node> Node::expandToSync(Node target) const {
                 expander.add(LatticeTask { *latticePools.back(), target, std::move(remainingArcs) });
             }
             // Continue.
+            peek = target.parentIsBottomOfLattice();
             target = target.arbitraryParent();
             top = target;
             latticeEndPoints.emplace_back(top);
         } else {
+            peek = target.parentIsBottomOfLattice();
             target = target.arbitraryParent();
         }
     }
@@ -401,6 +436,8 @@ std::vector<Node> Node::expandToSync(Node target) const {
         latticeEndPoints.emplace_back(bottom);
     }
     std::ranges::reverse(latticeEndPoints);
+    const auto [uB, uE] = std::ranges::unique(latticeEndPoints);
+    latticeEndPoints.erase(uB, uE);
 
     expander.sync();
     sampler->getExpander().sync();

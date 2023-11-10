@@ -208,7 +208,7 @@ struct NextContractionSlot: Next {
         return op == rhs.op;
     }
     // Compare the slots as Next. That is, first compare the type, then compare the hash.
-    std::weak_ordering operator<=>(const NextStageSlot& rhs) const noexcept {
+    std::weak_ordering operator<=>(const NextContractionSlot& rhs) const noexcept {
         return static_cast<const Next&>(*this) <=> static_cast<const Next&>(rhs);
     }
     static std::size_t GetKey(const PrimitiveOp *op) { return op->opHash(); }
