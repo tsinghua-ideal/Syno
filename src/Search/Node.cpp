@@ -28,6 +28,10 @@ bool Arc::operator==(const Arc& rhs) const {
         [&](const PrimitiveOp *op) {
             return PrimitiveOpEqual{}(op, rhs.as<PrimitiveOp>());
         },
+        [&](const ContractionOp *op) {
+            // We have uniquify them.
+            return op == rhs.as<ContractionOp>();
+        },
         [&](const FinalizeOp *op) {
             return *op == *rhs.as<FinalizeOp>();
         }
@@ -37,9 +41,14 @@ std::size_t Arc::hash() const {
     using namespace std::string_view_literals;
     static const auto arcHash = std::hash<std::string_view>{}("Arc"sv);
     auto h = arcHash;
-    HashCombine(h, inner.index());
+    constexpr std::size_t NumVariants = std::variant_size_v<decltype(inner)>;
+    constexpr std::size_t NumBits = std::numeric_limits<std::size_t>::digits / NumVariants;
+    HashCombine(h, 1_uz << (NumBits * inner.index()));
     auto contentHash = match<std::size_t>(
         [](const PrimitiveOp *op) {
+            return op->opHash();
+        },
+        [](const ContractionOp *op) {
             return op->opHash();
         },
         [](const FinalizeOp *op) {
@@ -54,6 +63,9 @@ Next Arc::toNext() const {
         [&](const PrimitiveOp *op) -> Next {
             return Next::FromOp(op);
         },
+        [&](const ContractionOp *op) -> Next {
+            return Next::FromOp(op);
+        },
         [&](const FinalizeOp *op) -> Next {
             return { Next::Type::Finalize, op->hash() };
         }
@@ -62,6 +74,9 @@ Next Arc::toNext() const {
 std::string Arc::toString() const {
     const auto& ctx = sampler->getBindingContext();
     return match<std::string>(
+        [&](auto op) -> std::string {
+            return op->description(ctx);
+        },
         [&](auto op) -> std::string {
             return op->description(ctx);
         },
@@ -333,6 +348,7 @@ void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& 
 }
 
 Node Node::expandToSync(Node target) const {
+    // TODO!!! fix for contraction stage.
     if (*this == target) {
         return *this;
     }

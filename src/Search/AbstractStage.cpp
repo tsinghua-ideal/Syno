@@ -99,10 +99,16 @@ AbstractStage::AbstractStage(GraphHandle interface, AbstractStage& creator, std:
         case Next::Type::Split: ++CountChildrenSplit; break;
         case Next::Type::Unfold: ++CountChildrenUnfold; break;
         case Next::Type::Merge: ++CountChildrenMerge; break;
-        case Next::Type::Share: ++CountChildrenShare; break;
+        case Next::Type::Contraction: ++CountChildrenContraction; break;
         default: KAS_UNREACHABLE();
         }
     }
+}
+
+void AbstractStage::instantDestroy() const {
+    --CountCreations;
+    --CountFinalizabilityMaybe;
+    getStats().instantDestroy();
 }
 
 AbstractStage::Lock AbstractStage::addParent(AbstractStage &parent) {
@@ -139,6 +145,15 @@ void AbstractStage::recomputeShapeDistance() const {
 std::size_t AbstractStage::hash() const {
     return interface.hash();
 }
+
+std::optional<Node> AbstractStage::getChild(Arc arc) {
+    return getChild(arc.toNext());
+}
+
+std::vector<std::optional<Node>> AbstractStage::getChildren(const std::vector<Arc>& arcs) {
+    return getChildren(ranges::to<std::vector<Next>>(arcs | std::views::transform(&Arc::toNext)));
+}
+
 std::string AbstractStage::description() const {
     return interface.description(sampler.getBindingContext());
 }

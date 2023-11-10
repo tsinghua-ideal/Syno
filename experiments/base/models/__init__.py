@@ -48,8 +48,6 @@ def get_sampler(args, model) -> Sampler:
         if args.seed is None
         else args.seed,
         "depth": args.kas_depth,
-        "dim_lower": args.kas_min_dim,
-        "dim_upper": args.kas_max_dim,
         "maximum_tensors": args.kas_max_tensors,
         "maximum_reductions": args.kas_max_reductions,
         "maximum_expands": args.kas_max_expands,

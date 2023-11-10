@@ -13,8 +13,12 @@ class NormalStage final: public AbstractStageBase<NormalStage> {
     bool childrenGenerated = false;
     bool generatingChildren = false;
 
-    GenericNextSlotStore<NextFinalizeSlot> nextFinalizations;
-    using Base::CollectedFinalizabilities;
+    NextFinalizeSlotStore nextFinalizations;
+    NextContractionSlotStore nextContractions;
+    struct CollectedFinalizabilities: Base::CollectedFinalizabilities {
+        std::vector<Finalizability> contractionStageFinalizabilities;
+    };
+    CollectedFinalizabilities collectFinalizabilities();
     void removeDeadChildrenFromSlots(const CollectedFinalizabilities& collected);
     void removeAllChildrenFromSlots();
     Finalizability checkForFinalizableChildren(const CollectedFinalizabilities& collected) const;

@@ -62,8 +62,6 @@ class Sampler:
         seed: int = 42,
         depth: int = 4,
         max_chain_length: int = 5,
-        dim_lower: int = 2,
-        dim_upper: int = 8,
         maximum_tensors: int = 2,
         maximum_reductions: int = 2,
         max_flops: float = 1e15,
@@ -137,10 +135,6 @@ class Sampler:
             The maximum number of primitives (excluding FinalizeOp) allowed in a kernel. This is effectively the depth of the search tree, because we add one primitive at one time.
         max_chain_length : int, optional
             The length of each chain of primitives are not allowed to exceed this number.
-        dim_lower : int, optional
-            Minimum number of dimensions in any phase of searching.
-        dim_upper : int, optional
-            Maximum number of dimensions in any phase of searching.
         maximum_tensors : int, optional
             Maximum number of tensors that this kernel accepts. That is, the maximum number of weights plus 1.
         maximum_reductions : int, optional
@@ -248,8 +242,6 @@ class Sampler:
             seed=seed,
             depth=depth,
             max_chain_length=max_chain_length,
-            dim_lower=dim_lower,
-            dim_upper=dim_upper,
             maximum_tensors=maximum_tensors,
             maximum_reductions=maximum_reductions,
             max_flops=max_flops,

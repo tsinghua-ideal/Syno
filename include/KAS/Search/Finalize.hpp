@@ -121,4 +121,6 @@ struct NextFinalizeSlot: Next {
     Arc toArc(const Sampler *sampler) const { return Arc(sampler, &finalization); }
 };
 
+using NextFinalizeSlotStore = GenericNextSlotStore<NextFinalizeSlot>;
+
 } // namespace kas

@@ -31,8 +31,6 @@ struct SampleOptions {
     Seed seed = 42;
     std::size_t depth = 10;
     std::size_t maxChainLength = 5;
-    std::size_t dimLowerBound = 1;
-    std::size_t dimUpperBound = 8;
     std::size_t maximumTensors = 2;
     std::size_t maximumReductions = 2;
     std::size_t maxFLOPs = std::numeric_limits<std::size_t>::max();
@@ -109,7 +107,7 @@ struct SampleOptions {
     int maximumShifts = -1;
     int maximumStrides = -1;
     int maximumUnfolds = -1;
-    int maximumShares = -1;
+    int maximumShares = -1; // TODO!!!
 
     void check() const;
 };
@@ -193,6 +191,7 @@ class Sampler final {
     TensorExpression expressionOneTensor, expressionTwoTensors, expressionThreeTensors, expressionFourTensors;
 
     PrimitiveOpStore opStore;
+    ContractionOpStore contractionOpStore;
     StageStore stageStore;
 
     ReductionStage *rootStage;
@@ -216,6 +215,7 @@ public:
     const std::vector<Parser::Attributes>& getOutputAttributes() const { return outputAttributes; }
     const SampleOptions& getOptions() const { return options; }
     PrimitiveOpStore& getOpStore() { return opStore; }
+    ContractionOpStore& getContractionOpStore() { return contractionOpStore; }
     StageStore& getStageStore() { return stageStore; }
     DepthwiseStatistics& getStats(std::size_t depth) { return depthwiseStatistics[depth]; }
     std::size_t getExpandAtDepth();

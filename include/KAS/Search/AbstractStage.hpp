@@ -93,7 +93,7 @@ public:
         ChildrenSplit,
         ChildrenUnfold,
         ChildrenMerge,
-        ChildrenShare,
+        ChildrenContraction,
         FinalizabilityMaybe,
         FinalizabilityYes,
         FinalizabilityNo,
@@ -102,6 +102,8 @@ public:
     AbstractStage(Sampler &sampler, GraphHandle interface, Lock lock);
     // Create a non-root stage.
     AbstractStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> optionalDeltaOp, Lock lock);
+    void instantDestroy() const;
+
     Lock addParent(AbstractStage &parent);
     void addParent(AbstractStage &parent, Lock &lock);
     AbstractStage *arbitraryParent() const;
@@ -142,6 +144,7 @@ public:
     virtual void updateFinalizability(Lock& lock) = 0;
 
     virtual bool possibleToFinalizeByExperimenting() const { return true; }
+    // Mostly for debugging.
     void recomputeShapeDistance() const;
     virtual ShapeDistance getShapeDistance() const = 0;
 
@@ -155,9 +158,9 @@ public:
     virtual std::optional<Arc> getArcFromHandle(Next next) = 0;
     virtual std::optional<Node> getChild(Next next) = 0;
     virtual std::vector<std::optional<Node>> getChildren(const std::vector<Next>& nexts) = 0;
-    virtual std::vector<std::optional<Node>> getChildren(const std::vector<Arc>& arcs) = 0;
     virtual bool canAcceptArc(Arc arc) = 0;
-    virtual std::optional<Node> getChild(Arc arc) = 0;
+    std::optional<Node> getChild(Arc arc);
+    std::vector<std::optional<Node>> getChildren(const std::vector<Arc>& arcs);
     std::string description() const;
 
     inline MutexIndex getMutexIndex() const {
@@ -192,7 +195,6 @@ concept StageImpl = requires(DerivedStageType child, const DerivedStageType::Col
     { child.getArcFromHandleImpl(std::declval<Next>()) } -> std::convertible_to<std::optional<Arc>>;
     { child.getChildImpl(std::declval<Next>()) } -> std::convertible_to<std::optional<Node>>;
     { child.canAcceptArcImpl(std::declval<Arc>()) } -> std::convertible_to<bool>;
-    { child.getChildImpl(std::declval<Arc>()) } -> std::convertible_to<std::optional<Node>>;
 };
 
 // A CRTP template class for AbstractStage. All subclasses must inherit from this class.
@@ -296,8 +298,8 @@ private:
 
 protected:
     // Apply the Op to obtain the next Stage.
-    template<typename ChildStageType = DerivedStageType>
-    std::pair<ChildStageType *, Lock> getNextOp(const PrimitiveOp *op) {
+    template<typename ChildStageType = DerivedStageType, GeneralizedOp Op>
+    std::pair<ChildStageType *, Lock> getNextOp(const Op *op) {
         // When this gets called, we are holding the lock of this stage.
         StageStore& store = sampler.getStageStore();
         const bool nextLayer = op != nullptr;
@@ -310,19 +312,25 @@ protected:
             KAS_ASSERT(childStage);
             return { childStage, std::move(lock) };
         } else {
+            std::optional<Next::Type> optionalDeltaOp;
+            if (nextLayer) {
+                if constexpr (std::same_as<Op, PrimitiveOp>) {
+                    optionalDeltaOp = Next::TypeOf(op->getType());
+                } else {
+                    optionalDeltaOp = Next::TypeOf<Op>();
+                }
+            }
             auto [tempStage, newLock] = ChildStageType::Create(
                 mutexIndex,
                 std::move(newInterface),
                 *this,
-                nextLayer ? std::make_optional<Next::Type>(Next::TypeOf(op->getType())) : std::nullopt,
+                std::move(optionalDeltaOp),
                 std::move(lock)
             );
             // Perform experimental finalization, i.e., compute the ShapeComplexity of the interface.
             if (!tempStage->possibleToFinalizeByExperimenting()) {
                 // If proved to be not finalizable, no need to store this.
-                --CountCreations;
-                --CountFinalizabilityMaybe;
-                --tempStage->getStats().totalNodes;
+                tempStage->instantDestroy();
                 return { nullptr, Lock() };
             } else {
                 if (auto it = store.insert(depth + nextLayer, std::move(tempStage), newLock); it) {
@@ -335,9 +343,9 @@ protected:
             }
         }
     }
-    template<typename ChildStageType = DerivedStageType>
-    ChildStageType *getNextOpWithoutLock(const PrimitiveOp *op) {
-        auto [childStage, lock] = getNextOp<ChildStageType>(op);
+    template<typename ChildStageType = DerivedStageType, GeneralizedOp Op>
+    ChildStageType *getNextOpWithoutLock(const Op *op) {
+        auto [childStage, lock] = getNextOp<ChildStageType, Op>(op);
         return childStage;
     }
 
@@ -369,6 +377,10 @@ protected:
         return arc.match<bool>(
             [&](const PrimitiveOp *op) -> bool {
                 return op->canApplyToInterface(interface);
+            },
+            [&](const ContractionOp *op) -> bool {
+                // TODO!!!
+                return true;
             },
             [&](const FinalizeOp *op) -> bool {
                 return op->toGraphHandle() == interface;
@@ -433,23 +445,6 @@ public:
                 return derived().getChildImpl(next);
             })
         );
-    }
-    std::vector<std::optional<Node>> getChildren(const std::vector<Arc>& arcs) final override {
-        Lock lock = acquireLock();
-        return ranges::to<std::vector<std::optional<Node>>>(
-            arcs
-            | std::views::transform([&](Arc arc) -> std::optional<Node> {
-                return derived().getChildImpl(arc);
-            })
-        );
-    }
-    bool canAcceptArc(Arc arc) final override {
-        Lock lock = acquireLock();
-        return derived().canAcceptArcImpl(arc);
-    }
-    std::optional<Node> getChild(Arc arc) final override {
-        Lock lock = acquireLock();
-        return derived().getChildImpl(arc);
     }
 };
 

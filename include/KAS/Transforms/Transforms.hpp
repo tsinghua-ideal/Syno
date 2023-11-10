@@ -1,5 +1,6 @@
 #pragma once
 
+#include "KAS/Transforms/Contraction.hpp"
 #include "KAS/Transforms/Expand.hpp"
 #include "KAS/Transforms/Reduce.hpp"
 #include "KAS/Transforms/Merge.hpp"

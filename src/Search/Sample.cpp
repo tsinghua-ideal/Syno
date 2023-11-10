@@ -20,8 +20,6 @@
 namespace kas {
 
 void SampleOptions::check() const {
-    KAS_ASSERT(dimLowerBound >= 1);
-    KAS_ASSERT(dimUpperBound >= dimLowerBound);
     KAS_ASSERT(maximumTensors >= 1);
     KAS_ASSERT(maximumTensors <= 4);
     KAS_ASSERT(maxStridedDimSize > 1);

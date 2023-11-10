@@ -20,8 +20,6 @@ protected:
         SampleOptions options;
         options.seed = 42;
         options.depth = 12;
-        options.dimLowerBound = 2;
-        options.dimUpperBound = 10;
         options.maximumTensors = 4;
         options.maximumReductions = 2;
         options.maxFLOPs = 5e5;

@@ -16,47 +16,73 @@
 
 namespace kas {
 
-namespace detail {
+template<GeneralizedOp Op>
+using GeneralizedOpPointer = const Op *;
 
-template<PrimitiveOpImpl Op>
-using Pointer = const Op *;
-
-template<PrimitiveOpImpl Op>
-struct OpHash {
-    std::size_t operator()(Pointer<Op> op) const noexcept {
+template<GeneralizedOp Op>
+struct GeneralizedOpHash {
+    std::size_t operator()(GeneralizedOpPointer<Op> op) const noexcept {
         return op->opHash();
     }
 };
 
-template<PrimitiveOpImpl Op>
-struct PointeeEqual {
-    bool operator()(const Pointer<Op>& lhs, const Pointer<Op>& rhs) const noexcept {
+template<GeneralizedOp Op>
+struct GeneralizedOpPointeeEqual {
+    bool operator()(const GeneralizedOpPointer<Op>& lhs, const GeneralizedOpPointer<Op>& rhs) const noexcept {
         return *lhs == *rhs;
     }
 };
 
-template<PrimitiveOpImpl Op>
-struct OpStore {
-    std::unordered_set<Pointer<Op>, OpHash<Op>, PointeeEqual<Op>> store;
+template<GeneralizedOp Op>
+class GeneralizedOpStore {
+    std::unordered_set<GeneralizedOpPointer<Op>, GeneralizedOpHash<Op>, GeneralizedOpPointeeEqual<Op>> store;
     std::pmr::unsynchronized_pool_resource pool { std::pmr::pool_options {
         .max_blocks_per_chunk = Common::MemoryPoolSize,
         .largest_required_pool_block = sizeof(Op),
     }, std::pmr::new_delete_resource() };
     std::pmr::polymorphic_allocator<Op> allocator { &pool };
     std::mutex mutex;
-};
-
-template<typename... Ops>
-struct OpStores {
-    using Primitives = std::tuple<Ops...>;
-    std::tuple<OpStore<Ops>...> stores;
-    template<PrimitiveOpImpl Op>
-    auto& get() {
-        return std::get<OpStore<Op>>(stores);
+public:
+    GeneralizedOpStore() = default;
+    GeneralizedOpStore(const GeneralizedOpStore&) = delete;
+    GeneralizedOpStore(GeneralizedOpStore&&) = delete;
+    template<typename... Args>
+    const Op *get(Args&&... args) {
+        // Critical section here!
+        std::lock_guard lock { mutex };
+        auto op = allocator.template new_object<Op>(std::forward<Args>(args)...);
+        bool keep = false;
+        KAS_DEFER {
+            if (!keep) {
+                allocator.template delete_object<Op>(op);
+            }
+        };
+        auto [it, inserted] = store.insert(op);
+        if (inserted) {
+            keep = true;
+            return op;
+        }
+        // Newly allocated op automatically deleted by the deferred block.
+        return *it;
+    }
+    ~GeneralizedOpStore() {
+        std::lock_guard lock { mutex };
+        for (auto op: store) {
+            auto mutableOp = const_cast<Op *>(op);
+            allocator.template delete_object<Op>(mutableOp);
+        }
     }
 };
 
-} // namespace detail
+template<typename... Ops>
+struct GeneralizedOpStores {
+    using Primitives = std::tuple<Ops...>;
+    std::tuple<GeneralizedOpStore<Ops>...> stores;
+    template<PrimitiveOpImpl Op>
+    auto& get() {
+        return std::get<GeneralizedOpStore<Op>>(stores);
+    }
+};
 
 struct PrimitiveOpEqual {
     template<PrimitiveOpImpl Op>
@@ -84,7 +110,7 @@ struct PrimitiveOpEqual {
 
 class PrimitiveOpStore {
     // Remember to register the Ops!
-    detail::OpStores<
+    GeneralizedOpStores<
         ReduceOp,
         ExpandOp,
         ShiftOp, StrideOp,
@@ -92,44 +118,12 @@ class PrimitiveOpStore {
         MergeOp, ShareOp
     > stores;
 public:
-    PrimitiveOpStore() = default;
-    PrimitiveOpStore(const PrimitiveOpStore&) = delete;
-    PrimitiveOpStore(PrimitiveOpStore&&) = delete;
     template<PrimitiveOpImpl Op, typename... Args>
     const Op *get(Args&&... args) {
-        auto& [store, _, allocator, mutex] = stores.get<Op>();
-        static_assert(std::is_same_v<typename std::remove_reference_t<decltype(store)>::key_type, detail::Pointer<Op>>);
-        // Critical section here!
-        {
-            std::lock_guard lock { mutex };
-            auto op = allocator.template new_object<Op>(std::forward<Args>(args)...);
-            bool keep = false;
-            KAS_DEFER {
-                if (!keep) {
-                    allocator.template delete_object<Op>(op);
-                }
-            };
-            auto [it, inserted] = store.insert(op);
-            if (inserted) {
-                keep = true;
-                return op;
-            }
-            // Newly allocated op automatically deleted by the deferred block.
-            return *it;
-        }
-    }
-    ~PrimitiveOpStore() {
-        auto deleteOp = [](auto&& storage) {
-            auto& [store, _, allocator, mutex] = storage;
-            std::lock_guard lock { mutex };
-            for (auto op: store) {
-                using Op = typename std::remove_cvref_t<decltype(*op)>;
-                auto mutableOp = const_cast<Op *>(op);
-                allocator.template delete_object<Op>(mutableOp);
-            }
-        };
-        TupleForEach(stores.stores, deleteOp);
+        return stores.get<Op>().get(std::forward<Args>(args)...);
     }
 };
+
+class ContractionOpStore: public GeneralizedOpStore<ContractionOp> {};
 
 } // namespace kas

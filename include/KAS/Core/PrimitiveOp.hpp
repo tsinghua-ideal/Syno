@@ -261,15 +261,12 @@ public:
     using Values = Valuations<BranchCount>;
     virtual Values value(const Values& known) const = 0;
 
-    virtual std::tuple<bool, CompactColor, CompactColor>
-    transformColor(CompactColor fro) const;
+    virtual std::tuple<bool, CompactColor, CompactColor> transformColor(CompactColor fro) const;
     bool canApplyToInterface(const GraphHandle &interface) const final override;
-    GraphHandle
-    applyToInterface(const GraphHandle &interface) const final override;
+    GraphHandle applyToInterface(const GraphHandle &interface) const final override;
 
     std::string description(const BindingContext &ctx) const final override;
-    std::string
-    descendantsDescription(const BindingContext &ctx) const final override;
+    std::string descendantsDescription(const BindingContext &ctx) const final override;
 };
 
 // By merge-like, we refer to the primitives that have two input iterators and one output iterator.
@@ -330,16 +327,24 @@ public:
     using Values = Valuations<BranchCount>;
     virtual Values value(const Values& known) const = 0;
 
-    virtual std::pair<bool, CompactColor>
-    transformColor(CompactColor fro1, CompactColor fro2) const;
+    virtual std::pair<bool, CompactColor> transformColor(CompactColor fro1, CompactColor fro2) const;
     bool canApplyToInterface(const GraphHandle &interface) const final override;
-    GraphHandle
-    applyToInterface(const GraphHandle &interface) const final override;
+    GraphHandle applyToInterface(const GraphHandle &interface) const final override;
 
     std::string description(const BindingContext &ctx) const final override;
-    std::string
-    descendantsDescription(const BindingContext &ctx) const final override;
+    std::string descendantsDescription(const BindingContext &ctx) const final override;
 };
+
+template<typename Op>
+concept GeneralizedOp =
+    std::same_as<Op, std::remove_cvref_t<Op>> &&
+    std::equality_comparable<Op> &&
+    requires(const Op& op, const GraphHandle& interface, const BindingContext& ctx) {
+        { op.opHash() } -> std::convertible_to<std::size_t>;
+        { op.applyToInterface(interface) } -> std::convertible_to<GraphHandle>;
+        { op.description(ctx) } -> std::convertible_to<std::string>;
+        { op.descendantsDescription(ctx) } -> std::convertible_to<std::string>;
+    };
 
 } // namespace kas
 
