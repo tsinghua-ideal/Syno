@@ -88,6 +88,7 @@ def get_sampler(args, model) -> Sampler:
             "search_space_options": "1000",
         },
     }
+    logging.info(f"Sampler parameters={params}")
     sampler = Sampler(net=model, **params)
     sampler._bind_debug_context()
     return sampler
@@ -140,7 +141,9 @@ def get_model(
         logging.info(f"Replacing kernel with {args.kas_replace_placeholder} ...")
         if os.path.isdir(args.kas_replace_placeholder):
             logging.info(f"Loading from directory ...")
-            kernel_directory = os.path.join(args.kas_replace_placeholder, "kernel_scheduler_dir")
+            kernel_directory = os.path.join(
+                args.kas_replace_placeholder, "kernel_scheduler_dir"
+            )
             kernel_loader = KernelLoader.from_directory(kernel_directory)
         else:
             logging.info(f"Loading from class ...")
@@ -148,7 +151,9 @@ def get_model(
             assembler = sampler.create_assembler()
             assembled = getattr(placeholder, cls_name).impl(assembler)
             logging.debug(f"Assembled path: {assembled.convert_to_path(sampler)}")
-            logging.debug(f"Assembled path (serialized): {Path(assembled.convert_to_path(sampler)).serialize()}")
+            logging.debug(
+                f"Assembled path (serialized): {Path(assembled.convert_to_path(sampler)).serialize()}"
+            )
             if sampler.visit(assembled.convert_to_path(sampler)) is None:
                 path = Path(assembled.convert_to_path(sampler))
                 logging.warning(f"Path {path} is not valid, testing...")
@@ -156,7 +161,9 @@ def get_model(
                     if sampler.visit(subpath) is None:
                         logging.warning(f"Subpath {subpath} is not valid")
                         break
-            kernel_loader = sampler.realize(model, assembled, args.kas_replace_placeholder)
+            kernel_loader = sampler.realize(
+                model, assembled, args.kas_replace_placeholder
+            )
         model.load_kernel(
             kernel_loader,
             compile=args.compile,

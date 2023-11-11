@@ -160,17 +160,17 @@ if __name__ == "__main__":
     log.setup(level=logging.INFO)
 
     test_kernels = [
-        "Baseline",
-        # "Conv2d_simple",
+        # "Baseline",
+        "Conv2d_simple",
         # "Conv2d_dilation",
-        # "Conv2d_group",
-        # "Conv2d_group_oas",
+        "Conv2d_group",
+        "Conv2d_group_oas",
         # "Conv2d_pool",
         # "Conv2d_pool1d",
-        # "Conv1d_shift1d",
-        # "Shift2d",
+        "Conv1d_shift1d",
+        "Shift2d",
         "kernel_07923",
     ]
-    test_run = True
+    test_run = False
 
     test_semantic_conv2d(test_kernels, test_run)
