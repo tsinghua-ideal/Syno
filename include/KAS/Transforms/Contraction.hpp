@@ -12,9 +12,7 @@ enum class ContractionType: bool {
     Inner, // Basically a contraction.
 };
 
-class ContractionOpStore;
-
-class ContractionOp {
+class ContractionOp: public Operation {
     struct Dimwise {
         // Non-null.
         const ShareOp *share;
@@ -30,18 +28,17 @@ class ContractionOp {
         std::string descendantsDescription(const BindingContext& ctx) const;
     };
     std::vector<Dimwise> dimwiseOps;
+    bool isEqual(const Operation& other) const override;
 public:
     template<typename T>
     ContractionOp(T&& dimwiseOps): dimwiseOps(std::forward<T>(dimwiseOps)) {
         std::ranges::sort(this->dimwiseOps);
     }
-    bool operator==(const ContractionOp& other) const noexcept = default;
-    std::size_t opHash() const noexcept;
-    bool canApplyToInterface(const GraphHandle& interface) const;
-    void applyToInterface(GraphHandle& interface) const;
-    GraphHandle appliedToInterface(const GraphHandle& interface) const;
-    std::string description(const BindingContext& ctx) const;
-    std::string descendantsDescription(const BindingContext& ctx) const;
+    std::size_t opHash() const noexcept override;
+    bool canApplyToInterface(const GraphHandle& interface) const override;
+    void applyToInterface(GraphHandle& interface) const override;
+    std::string description(const BindingContext& ctx) const override;
+    std::string descendantsDescription(const BindingContext& ctx) const override;
 
     enum class SharedCandidateType {
         Normal, // Normal Share.
@@ -94,8 +91,7 @@ public:
     );
     struct Enumerator {
         struct Options {
-            PrimitiveOpStore& store;
-            ContractionOpStore& contractionStore;
+            OperationStore& store;
             const BindingContext& ctx;
             const Graph& graph;
             int weightId;
@@ -116,9 +112,9 @@ public:
         const ContractionOp *apply() const;
         Generator<const ContractionOp *> generate() const;
     };
-    static std::vector<const ContractionOp *> Generate(PrimitiveOpStore& store, ContractionOpStore& contractionStore, const GenerateOptions& options);
+    static std::vector<const ContractionOp *> Generate(OperationStore& store, const GenerateOptions& options);
 };
 
-static_assert(GeneralizedOp<ContractionOp>);
+static_assert(OperationImpl<ContractionOp>);
 
 } // namespace kas

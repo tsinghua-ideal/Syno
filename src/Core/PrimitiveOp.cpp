@@ -43,7 +43,7 @@ IteratorValue Valuation::tryValue() const {
     }
 }
 
-GraphHandle PrimitiveOp::appliedToInterface(const GraphHandle& interface) const {
+GraphHandle Operation::appliedToInterface(const GraphHandle& interface) const {
     auto newInterface = interface;
     applyToInterface(newInterface);
     return newInterface;

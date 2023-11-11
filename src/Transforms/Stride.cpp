@@ -1,12 +1,17 @@
 #include <algorithm>
 #include <functional>
 
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Transforms/Stride.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
 
 namespace kas {
+
+bool StrideOp::isEqual(const Operation& other) const {
+    const StrideOp& rhs = static_cast<const StrideOp&>(other);
+    return output == rhs.output && stride == rhs.stride;
+}
 
 Color StrideOp::Input::computeColor(const GraphBuilder &graphBuilder) const {
     // StrideOp discards data.
@@ -46,7 +51,7 @@ StrideOp::Values StrideOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for StrideOp: input = {}, output = {}", input, output);
 }
 
-std::vector<const StrideOp *> StrideOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
+std::vector<const StrideOp *> StrideOp::Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     using enum DimensionTypeWithOrder;

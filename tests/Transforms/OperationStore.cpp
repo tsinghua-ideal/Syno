@@ -4,7 +4,7 @@
 namespace kas {
 
 TEST_F(transforms_tests, primitive_op_store) {
-    PrimitiveOpStore store;
+    OperationStore store;
     Dimension s1 = store.get<ShiftOp>(dimH, 1)->getInput();
     Dimension s2 = store.get<ShiftOp>(dimH, 1)->getInput();
     ASSERT_EQ(s1, s2);

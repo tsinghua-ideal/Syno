@@ -25,12 +25,9 @@ bool Arc::operator==(const Arc& rhs) const {
         return false;
     }
     return match<bool>(
-        [&](const PrimitiveOp *op) {
-            return PrimitiveOpEqual{}(op, rhs.as<PrimitiveOp>());
-        },
-        [&](const ContractionOp *op) {
+        [&](const Operation *op) {
             // We have uniquify them.
-            return op == rhs.as<ContractionOp>();
+            return *op == *rhs.as<Operation>();
         },
         [&](const FinalizeOp *op) {
             return *op == *rhs.as<FinalizeOp>();
@@ -45,10 +42,7 @@ std::size_t Arc::hash() const {
     constexpr std::size_t NumBits = std::numeric_limits<std::size_t>::digits / NumVariants;
     HashCombine(h, 1_uz << (NumBits * inner.index()));
     auto contentHash = match<std::size_t>(
-        [](const PrimitiveOp *op) {
-            return op->opHash();
-        },
-        [](const ContractionOp *op) {
+        [](const Operation *op) {
             return op->opHash();
         },
         [](const FinalizeOp *op) {
@@ -60,10 +54,7 @@ std::size_t Arc::hash() const {
 }
 Next Arc::toNext() const {
     return match<Next>(
-        [&](const PrimitiveOp *op) -> Next {
-            return Next::FromOp(op);
-        },
-        [&](const ContractionOp *op) -> Next {
+        [&](const Operation *op) -> Next {
             return Next::FromOp(op);
         },
         [&](const FinalizeOp *op) -> Next {
@@ -74,9 +65,6 @@ Next Arc::toNext() const {
 std::string Arc::toString() const {
     const auto& ctx = sampler->getBindingContext();
     return match<std::string>(
-        [&](auto op) -> std::string {
-            return op->description(ctx);
-        },
         [&](auto op) -> std::string {
             return op->description(ctx);
         },

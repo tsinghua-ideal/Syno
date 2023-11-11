@@ -9,6 +9,7 @@
 namespace kas {
 
 class SplitOp final: public SplitLikeOp {
+    bool isEqual(const Operation& other) const override;
 public:
     static constexpr DimensionType Type = DimensionType::Split;
     class Input final: public SplitLikeOp::Input {
@@ -34,10 +35,6 @@ public:
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 
-    bool operator==(const SplitOp& other) const noexcept {
-        return outputLhs == other.outputLhs && outputRhs == other.outputRhs;
-    }
-
     struct GenerateOptions {
         const BindingContext& ctx;
         const Graph& graph;
@@ -57,7 +54,7 @@ public:
         InvalidProductSize,
         SuccessfulGenerations,
     )
-    static std::vector<const SplitOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
+    static std::vector<const SplitOp *> Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<SplitOp>);

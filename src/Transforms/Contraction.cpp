@@ -1,6 +1,6 @@
 #include "KAS/Transforms/Contraction.hpp"
 #include "KAS/Transforms/Expand.hpp"
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Transforms/Share.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
@@ -59,6 +59,10 @@ std::string ContractionOp::Dimwise::descendantsDescription(const BindingContext&
     }
 }
 
+bool ContractionOp::isEqual(const Operation& other) const {
+    return dimwiseOps == static_cast<const ContractionOp&>(other).dimwiseOps;
+}
+
 std::size_t ContractionOp::opHash() const noexcept {
     using namespace std::string_view_literals;
     static const std::size_t ContractionHash = std::hash<std::string_view>{}("Contraction"sv);
@@ -83,12 +87,6 @@ void ContractionOp::applyToInterface(GraphHandle& interface) const {
             dimwise.expand->applyToInterface(interface);
         }
     }
-}
-
-GraphHandle ContractionOp::appliedToInterface(const GraphHandle& interface) const {
-    auto newInterface = interface;
-    applyToInterface(newInterface);
-    return newInterface;
 }
 
 std::string ContractionOp::description(const BindingContext& ctx) const {
@@ -254,7 +252,6 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
     }
 
     auto& store = options.store;
-    auto& contractionStore = options.contractionStore;
     std::vector<Dimwise> result;
     for (std::size_t i: outer) {
         auto shareOp = store.get<ShareOp>(available[i].dim, options.weightId);
@@ -265,7 +262,7 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
         auto shareOp = store.get<ShareOp>(available[i].dim, options.weightId);
         result.emplace_back(shareOp, nullptr);
     }
-    return contractionStore.get(std::move(result));
+    return store.get<ContractionOp>(std::move(result));
 }
 
 Generator<const ContractionOp *> ContractionOp::Enumerator::generate() const {
@@ -323,7 +320,7 @@ Generator<const ContractionOp *> ContractionOp::Enumerator::generate() const {
     }
 }
 
-std::vector<const ContractionOp *> ContractionOp::Generate(PrimitiveOpStore& store, ContractionOpStore& contractionStore, const GenerateOptions& options) {
+std::vector<const ContractionOp *> ContractionOp::Generate(OperationStore& store, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     const Analysis& analysis = options.analysis;
@@ -353,7 +350,6 @@ std::vector<const ContractionOp *> ContractionOp::Generate(PrimitiveOpStore& sto
 
     Enumerator::Options enumeratorOptions {
         .store = store,
-        .contractionStore = contractionStore,
         .ctx = options.ctx,
         .graph = graph,
         .weightId = nextWeightId,

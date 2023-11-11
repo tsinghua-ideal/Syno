@@ -60,14 +60,18 @@ struct Next {
     // This can be hash, or any arbitrary fixed number, as long as this is invariant between runs.
     std::size_t key;
 
-    template<GeneralizedOp Op>
+    template<OperationImpl Op>
     static Next FromOp(const Op *op) {
         return { TypeOf<Op>(), op->opHash() };
     }
-    template<typename Op>
-    requires(!PrimitiveOpImpl<Op> && std::derived_from<Op, PrimitiveOp>)
-    static Next FromOp(const Op *op) {
-        return { TypeOf(op->getType()), op->opHash() };
+    static Next FromOp(const Operation *op) {
+        if (auto primitiveOp = dynamic_cast<const PrimitiveOp *>(op); primitiveOp) {
+            return { TypeOf(primitiveOp->getType()), primitiveOp->opHash() };
+        } else if (auto contractionOp = dynamic_cast<const ContractionOp *>(op); contractionOp) {
+            return FromOp(contractionOp);
+        } else {
+            KAS_UNREACHABLE("Unknown type of Operation.");
+        }
     }
 
     // For Python.
@@ -88,7 +92,7 @@ struct Next {
 
     static std::map<Type, std::size_t> CountTypes(const std::vector<Next>& nexts);
 
-    template<GeneralizedOp Op>
+    template<OperationImpl Op>
     static constexpr Type TypeOf() {
         if constexpr (std::same_as<Op, ReduceOp>) { return Type::Reduce; }
         else if constexpr (std::same_as<Op, ExpandOp>) { return Type::Expand; }
@@ -120,29 +124,26 @@ class FinalizeOp;
 
 class Arc {
     const Sampler *sampler;
-    std::variant<const PrimitiveOp *, const ContractionOp *, const FinalizeOp *> inner;
+    std::variant<const Operation *, const FinalizeOp *> inner;
 public:
-    Arc(const Sampler *sampler, const PrimitiveOp *op):
+    Arc(const Sampler *sampler, const Operation *op):
         sampler { sampler },
-        inner { op } {}
-    Arc(const Sampler *sampler, const ContractionOp *op):
-        sampler { sampler },
-        inner { op } {}
+        inner { op }
+    {
+        KAS_ASSERT(dynamic_cast<const ShareOp *>(op) == nullptr, "ShareOp must only be used indirectly in ContractionOp!");
+    }
     Arc(const Sampler *sampler, const FinalizeOp *op):
         sampler { sampler },
         inner { op } {}
 
-    template<typename R, typename FP, typename FC, typename FF>
+    template<typename R, typename FO, typename FF>
     requires
-        std::convertible_to<std::invoke_result_t<FP, const PrimitiveOp *>, R> &&
-        std::convertible_to<std::invoke_result_t<FC, const ContractionOp *>, R> &&
+        std::convertible_to<std::invoke_result_t<FO, const Operation *>, R> &&
         std::convertible_to<std::invoke_result_t<FF, const FinalizeOp *>, R>
-    R match(FP&& fp, FC&& fc, FF&& ff) const {
+    R match(FO&& fo, FF&& ff) const {
         return std::visit([&](auto arg) -> R {
-            if constexpr (std::is_same_v<decltype(arg), const PrimitiveOp *>) {
-                return std::invoke(fp, arg);
-            } else if constexpr (std::is_same_v<decltype(arg), const ContractionOp *>) {
-                return std::invoke(fc, arg);
+            if constexpr (std::is_same_v<decltype(arg), const Operation *>) {
+                return std::invoke(fo, arg);
             } else if constexpr (std::is_same_v<decltype(arg), const FinalizeOp *>) {
                 return std::invoke(ff, arg);
             } else {
@@ -153,17 +154,17 @@ public:
 
     template<typename T>
     const T *as() const {
-        if constexpr (std::derived_from<T, PrimitiveOp>) {
-            return &dynamic_cast<const T&>(*std::get<const PrimitiveOp *>(inner));
+        if constexpr (std::derived_from<T, Operation>) {
+            return &dynamic_cast<const T&>(*std::get<const Operation *>(inner));
         } else {
             return std::get<const T *>(inner);
         }
     }
     template<typename T>
     const T *tryAs() const {
-        if constexpr (std::derived_from<T, PrimitiveOp>) {
-            if (!std::holds_alternative<const PrimitiveOp *>(inner)) return nullptr;
-            return dynamic_cast<const T *>(std::get<const PrimitiveOp *>(inner));
+        if constexpr (std::derived_from<T, Operation>) {
+            if (!std::holds_alternative<const Operation *>(inner)) return nullptr;
+            return dynamic_cast<const T *>(std::get<const Operation *>(inner));
         } else {
             if (!std::holds_alternative<const T *>(inner)) return nullptr;
             return std::get<const T *>(inner);
@@ -184,7 +185,7 @@ public:
 class AbstractStage;
 
 struct NextStageSlot: Next {
-    const PrimitiveOp *op;
+    const Operation *op;
     AbstractStage *nextStage;
     bool operator==(const NextStageSlot& rhs) const noexcept {
         // This is enough for equality.
@@ -194,24 +195,7 @@ struct NextStageSlot: Next {
     std::weak_ordering operator<=>(const NextStageSlot& rhs) const noexcept {
         return static_cast<const Next&>(*this) <=> static_cast<const Next&>(rhs);
     }
-    static std::size_t GetKey(const PrimitiveOp *op) { return op->opHash(); }
-    Arc toArc(const Sampler *sampler) const { return Arc(sampler, op); }
-};
-
-class NormalStage;
-
-struct NextContractionSlot: Next {
-    const ContractionOp *op;
-    NormalStage *nextStage;
-    bool operator==(const NextContractionSlot& rhs) const noexcept {
-        // This is enough for equality.
-        return op == rhs.op;
-    }
-    // Compare the slots as Next. That is, first compare the type, then compare the hash.
-    std::weak_ordering operator<=>(const NextContractionSlot& rhs) const noexcept {
-        return static_cast<const Next&>(*this) <=> static_cast<const Next&>(rhs);
-    }
-    static std::size_t GetKey(const PrimitiveOp *op) { return op->opHash(); }
+    static std::size_t GetKey(const Operation *op) { return op->opHash(); }
     Arc toArc(const Sampler *sampler) const { return Arc(sampler, op); }
 };
 
@@ -358,7 +342,6 @@ public:
     }
 };
 using NextSlotStore = GenericNextSlotStore<NextStageSlot>;
-using NextContractionSlotStore = GenericNextSlotStore<NextContractionSlot>;
 
 // Call the methods in order due to memory order.
 struct DepthwiseStatistics {
@@ -393,7 +376,7 @@ struct DepthwiseStatistics {
 // IF YOU CHANGE THIS YOU MUST REFER TO Node!
 enum class NodeType: std::uint8_t {
     Reducing = 0, // Generating reductions.
-    Growing = 1, // Now we have generated Reduce's, repeatedly add PrimitiveOp's.
+    Growing = 1, // Now we have generated Reduce's, repeatedly add Operation's.
     Final = 2, // Finalization performed.
     Contraction = 3, // Contraction stage.
 };

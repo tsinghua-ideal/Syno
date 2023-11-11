@@ -153,18 +153,15 @@ std::optional<Node> ReductionStage::getChildImpl(Next next) {
 bool ReductionStage::canAcceptArcImpl(Arc arc) {
     KAS_ASSERT(expanded);
     return arc.match<bool>(
-        [&](const PrimitiveOp *op) -> bool {
-            if (op->getType() == DimensionType::Reduce) {
+        [&](const Operation *op) -> bool {
+            if (auto reduceOp = dynamic_cast<const ReduceOp *>(op); reduceOp) {
                 // We have to manually find if this is in the search space.
-                auto newInterface = op->appliedToInterface(getInterface());
+                auto newInterface = reduceOp->appliedToInterface(getInterface());
                 Lock lock = Lock { sampler.getMutex(getNextMutexIndex(true, newInterface)) };
                 return sampler.getStageStore().find(depth + 1, newInterface, lock) != nullptr;
             } else {
                 return nStage->canAcceptArc(arc);
             }
-        },
-        [&](const ContractionOp *) -> bool {
-            return nStage->canAcceptArc(arc);
         },
         [&](const FinalizeOp *) -> bool {
             return nStage->canAcceptArc(arc);

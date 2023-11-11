@@ -6,7 +6,7 @@
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
@@ -86,7 +86,7 @@ public:
 
 class Factory {
     const BindingContext& ctx;
-    PrimitiveOpStore store;
+    OperationStore store;
     std::vector<std::unique_ptr<Iterator>> iterators;
     std::vector<BackwardDimension> bottommost;
     std::vector<Topmost> topmosts;
@@ -130,7 +130,7 @@ public:
     }
 
     const BindingContext& getBindingContext() const { return ctx; }
-    PrimitiveOpStore& getStore() { return store; }
+    OperationStore& getStore() { return store; }
     const Iterator *createIterator(const Size& domain, std::size_t index);
     const Reduce *createReduce(const Size& domain, Reduce::ReduceType reduceType);
 

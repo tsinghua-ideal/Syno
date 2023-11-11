@@ -452,13 +452,6 @@ void Sampler::sortAllExpansionsAndWeightDimensions(std::vector<Topmost>& tensors
     });
     // Then sort the expansions in input tensor.
     tensors.at(0).sortExpansions();
-    // Then consider if we should disallow permutation of weights.
-    if (!options.allowWeightPermutation) {
-        auto weights = std::span<Topmost>(tensors.data() + 1, tensors.size() - 1);
-        std::ranges::sort(weights, std::less{}, [](const Topmost& topmost) {
-            return topmost.getDimensions().at(0).hash();
-        });
-    }
 }
 
 void Sampler::convertTensorsToSearchableForm(std::vector<Topmost>& tensors) const {
@@ -499,8 +492,8 @@ Next Sampler::ConvertSearchableTensorsToFinalNext(const std::vector<Topmost>& te
     return Next { Next::Type::Finalize, NextFinalizeSlot::GetKey(tensors) };
 }
 
-std::vector<const PrimitiveOp *> Sampler::ConvertGraphToOps(const Graph& graph) {
-    std::vector<const PrimitiveOp *> result;
+std::vector<const Operation *> Sampler::ConvertGraphToOps(const Graph& graph) {
+    std::vector<const Operation *> result;
     // To obtain the path, we need to follow the 3 stages of searching.
 
     // First, ReductionStage.
@@ -561,12 +554,14 @@ std::vector<const PrimitiveOp *> Sampler::ConvertGraphToOps(const Graph& graph) 
     return result;
 }
 
-std::vector<Next> Sampler::ConvertOpsToNexts(const std::vector<const PrimitiveOp *>& ops) {
-    return ranges::to<std::vector<Next>>(ops | std::views::transform(&Next::FromOp<PrimitiveOp>));
+std::vector<Next> Sampler::ConvertOpsToNexts(const std::vector<const Operation *>& ops) {
+    return ranges::to<std::vector<Next>>(ops | std::views::transform([](const Operation *op) {
+        return Next::FromOp(op);
+    }));
 }
 
-std::vector<Arc> Sampler::convertOpsToArcs(const std::vector<const PrimitiveOp *>& ops) const {
-    return ranges::to<std::vector<Arc>>(ops | std::views::transform([this](const PrimitiveOp *op) {
+std::vector<Arc> Sampler::convertOpsToArcs(const std::vector<const Operation *>& ops) const {
+    return ranges::to<std::vector<Arc>>(ops | std::views::transform([this](const Operation *op) {
         return Arc { this, op };
     }));
 }

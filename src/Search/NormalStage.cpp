@@ -8,25 +8,16 @@
 
 namespace kas {
 
-NormalStage::CollectedFinalizabilities NormalStage::collectFinalizabilities() {
-    return {
-        Base::collectFinalizabilities(),
-        Base::collectFinalizabilities(nextContractions),
-    };
-}
-
 void NormalStage::removeDeadChildrenFromSlots(const CollectedFinalizabilities& collected) {
     if (!childrenGenerated) {
         return;
     }
     Base::removeDeadChildrenFromSlots(collected);
-    Base::removeDeadChildrenFromSlots(nextContractions, collected.contractionStageFinalizabilities);
 }
 
 void NormalStage::removeAllChildrenFromSlots() {
     KAS_ASSERT(childrenGenerated);
     Base::removeAllChildrenFromSlots();
-    Base::removeAllChildrenFromSlots(nextContractions);
 }
 
 Finalizability NormalStage::checkForFinalizableChildren(const CollectedFinalizabilities& collected) const {
@@ -38,7 +29,7 @@ Finalizability NormalStage::checkForFinalizableChildren(const CollectedFinalizab
         return Finalizability::Yes;
     }
     // Otherwise, check children.
-    return Base::checkForFinalizableChildren(collected) + Base::checkForFinalizableChildren(collected.contractionStageFinalizabilities);
+    return Base::checkForFinalizableChildren(collected);
 }
 
 void NormalStage::removeTooLongChains(ContractionOp::Analysis& analysis, const Graph& graph) const {
@@ -116,8 +107,7 @@ void NormalStage::guardGeneratedChildren() {
 
     const BindingContext& ctx = sampler.getBindingContext();
     const SampleOptions& options = sampler.getOptions();
-    PrimitiveOpStore& store = sampler.getOpStore();
-    ContractionOpStore& contractionStore = sampler.getContractionOpStore();
+    OperationStore& store = sampler.getOpStore();
     Graph graph = interface.buildGraph();
 
     // First add finalizations.
@@ -138,11 +128,10 @@ void NormalStage::guardGeneratedChildren() {
     }, true);
     nextFinalizations.checkHashCollisionAndRemove();
 
-    std::vector<NextStageSlot> childrenView;
-    std::vector<NextContractionSlot> childrenContraction;
+    std::vector<NextStageSlot> children;
     std::map<AbstractStage *, Finalizability> childrenFinalizabilities;
     // Wrap the generated Op in a NextStageSlot or NextContractionSlot.
-    auto add = [&]<GeneralizedOp Op>(auto& children, const std::vector<const Op *>& newOps) {
+    auto add = [&]<OperationImpl Op>(const std::vector<const Op *>& newOps) {
         children.reserve(children.size() + newOps.size());
         for (const Op *op: newOps) {
             NormalStage *stage;
@@ -169,8 +158,8 @@ void NormalStage::guardGeneratedChildren() {
     if (remainingDepth() > 0) {
         // Contraction^{-1}
         if (!inCriticalState && (options.maximumShares == -1 || options.maximumShares > contractionAnalysis.numShares)) {
-            add(childrenContraction, ContractionOp::Generate(
-                store, contractionStore, {
+            add(ContractionOp::Generate(
+                store, {
                     .analysis = contractionAnalysis,
                     .ctx = ctx,
                     .graph = graph,
@@ -187,7 +176,7 @@ void NormalStage::guardGeneratedChildren() {
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}
         if (!inCriticalState && (options.maximumShifts == -1 || options.maximumShifts > existingOp<ShiftOp>())) {
-            add(childrenView, ShiftOp::Generate(store, prospectiveInterface, {
+            add(ShiftOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
                 .graph = graph,
                 .disallowShiftAboveUnfold = options.disallowShiftAboveUnfold,
@@ -196,7 +185,7 @@ void NormalStage::guardGeneratedChildren() {
         }
         // Stride^{-1}
         if (!inCriticalState && (options.maximumStrides == -1 || options.maximumStrides > existingOp<StrideOp>())) {
-            add(childrenView, StrideOp::Generate(store, prospectiveInterface, {
+            add(StrideOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
                 .allowance = allowance,
                 .maxStridedDimSize = options.maxStridedDimSize,
@@ -208,7 +197,7 @@ void NormalStage::guardGeneratedChildren() {
         // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s or `ExpandOp`^{-1}s.
         // Split^{-1}
         if (options.maximumSplits == -1 || options.maximumSplits > existingOp<SplitOp>()) {
-            add(childrenView, SplitOp::Generate(store, contractionAnalysis.full, {
+            add(SplitOp::Generate(store, contractionAnalysis.full, {
                 .ctx = ctx,
                 .graph = graph,
                 .couldHaveBeenDoneBeforeLastContractionStage = contractionAnalysis.other,
@@ -220,7 +209,7 @@ void NormalStage::guardGeneratedChildren() {
 
         // Unfold^{-1}
         if (options.maximumUnfolds == -1 || options.maximumUnfolds > existingOp<UnfoldOp>()) {
-            add(childrenView, UnfoldOp::Generate(store, contractionAnalysis.full, {
+            add(UnfoldOp::Generate(store, contractionAnalysis.full, {
                 .ctx = ctx,
                 .graph = graph,
                 .minimumRatio = options.minimumUnfoldRatio,
@@ -235,7 +224,7 @@ void NormalStage::guardGeneratedChildren() {
 
         // Expand^{-1}
         if (options.maximumExpands == -1 || options.maximumExpands > existingOp<ExpandOp>()) {
-            add(childrenView, ExpandOp::Generate(store, prospectiveInterface, {
+            add(ExpandOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
                 .disallowTile = options.disallowTile,
                 .maxExpansionRepeatMultiplier = options.maxExpansionRepeatMultiplier,
@@ -245,7 +234,7 @@ void NormalStage::guardGeneratedChildren() {
         // Try increasing dimensionality, by applying `MergeLikeOp`^{-1}s.
         // Merge^{-1}
         if (options.maximumMerges == -1 || options.maximumMerges > existingOp<MergeOp>()) {
-            add(childrenView, MergeOp::Generate(store, prospectiveInterface, {
+            add(MergeOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
                 .graph = graph,
                 .allowance = allowance,
@@ -269,9 +258,7 @@ void NormalStage::guardGeneratedChildren() {
             fin += f;
         });
     };
-
-    fill(nextContractions, childrenContraction);
-    fill(nextSlotStore, childrenView);
+    fill(nextSlotStore, children);
 
     CountChildrenFinalize += nextFinalizations.size();
 
@@ -349,24 +336,20 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
 }
 
 std::size_t NormalStage::uncheckedCountChildren() const {
-    return nextFinalizations.size() + nextContractions.size() + Base::countChildrenImpl();
+    return nextFinalizations.size() + Base::countChildrenImpl();
 }
 
 std::vector<Next> NormalStage::uncheckedGetChildrenHandles() const {
     auto nextF = nextFinalizations.toNexts();
-    auto nextC = nextContractions.toNexts();
     auto nexts = Base::getChildrenHandlesImpl();
     nexts.insert(nexts.begin(), nextF.begin(), nextF.end());
-    nexts.insert(nexts.begin(), nextC.begin(), nextC.end());
     return nexts;
 }
 
 std::vector<Arc> NormalStage::uncheckedGetChildrenArcs() const {
     auto arcsF = nextFinalizations.toArcs(&sampler);
-    auto arcsC = nextContractions.toArcs(&sampler);
     auto arcs = Base::getChildrenArcsImpl();
     arcs.insert(arcs.begin(), arcsF.begin(), arcsF.end());
-    arcs.insert(arcs.begin(), arcsC.begin(), arcsC.end());
     return arcs;
 }
 
@@ -452,10 +435,6 @@ std::optional<Arc> NormalStage::getArcFromHandleImpl(Next next) {
             return nextFinalizations.findTransform<Arc>(next, [this](const NextFinalizeSlot& slot) -> Arc {
                 return { &sampler, &slot.finalization };
             });
-        } else if (next.type == Next::Type::Contraction) {
-            return nextContractions.findTransform<Arc>(next, [this](const NextContractionSlot& slot) -> Arc {
-                return { &sampler, slot.op };
-            });
         }
         return Base::getArcFromHandleImpl(next);
     });
@@ -467,10 +446,6 @@ std::optional<Node> NormalStage::getChildImpl(Next next) {
             auto slot = nextFinalizations.getSlot(next);
             if (!slot) return std::optional<Node>();
             return std::optional<Node>(std::in_place, &sampler, slot->nextStage.get());
-        } else if (next.type == Next::Type::Contraction) {
-            auto slot = nextContractions.getSlot(next);
-            if (!slot) return std::optional<Node>();
-            return std::optional<Node>(std::in_place, &sampler, slot->nextStage);
         }
         return Base::getChildImpl(next);
     });

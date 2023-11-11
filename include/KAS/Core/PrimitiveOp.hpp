@@ -101,6 +101,28 @@ struct Valuations {
     }
 };
 
+class Operation {
+    // Assume that the other has the same type.
+    virtual bool isEqual(const Operation& other) const = 0;
+public:
+    inline bool operator==(const Operation& other) const {
+        return typeid(*this) == typeid(other) && isEqual(other);
+    }
+    virtual std::size_t opHash() const noexcept = 0;
+    virtual bool canApplyToInterface(const GraphHandle& interface) const = 0;
+    virtual void applyToInterface(GraphHandle& interface) const = 0;
+    GraphHandle appliedToInterface(const GraphHandle& interface) const;
+    virtual std::string description(const BindingContext& ctx) const = 0;
+    virtual std::string descendantsDescription(const BindingContext& ctx) const = 0;
+    virtual ~Operation() = default;
+};
+
+template<typename Op>
+concept OperationImpl =
+    std::same_as<Op, std::remove_cvref_t<Op>> &&
+    !std::same_as<Op, Operation> &&
+    std::derived_from<Op, Operation>;
+
 class ExpandOp;
 class ReduceOp;
 class MergeOp;
@@ -121,22 +143,15 @@ public:
     virtual void visit(const UnfoldOp& op) = 0;
 };
 
-class PrimitiveOpStore;
+class OperationStore;
 
 // There are 3 kinds of `PrimitiveOp`'s, listed below. Those classes can transform `Dimension`s, from those that index the output tensor, to forms that index the original tensors. So this is also kind of bottom-up.
 // First we define a common base class.
-class PrimitiveOp {
+class PrimitiveOp: public Operation {
 public:
     virtual DimensionType getType() const noexcept = 0;
     virtual std::size_t initialHash() const noexcept = 0;
-    virtual std::size_t opHash() const noexcept = 0;
     virtual void accept(OpVisitor& visitor) const = 0;
-    virtual bool canApplyToInterface(const GraphHandle& interface) const = 0;
-    virtual void applyToInterface(GraphHandle& interface) const = 0;
-    GraphHandle appliedToInterface(const GraphHandle& interface) const;
-    virtual std::string description(const BindingContext& ctx) const = 0;
-    virtual std::string descendantsDescription(const BindingContext& ctx) const = 0;
-    virtual ~PrimitiveOp() = default;
 };
 
 template<typename Op>
@@ -335,18 +350,6 @@ public:
     std::string description(const BindingContext& ctx) const final override;
     std::string descendantsDescription(const BindingContext& ctx) const final override;
 };
-
-template<typename Op>
-concept GeneralizedOp =
-    std::same_as<Op, std::remove_cvref_t<Op>> &&
-    std::equality_comparable<Op> &&
-    requires(const Op& op, GraphHandle& interface, const BindingContext& ctx) {
-        { op.opHash() } -> std::convertible_to<std::size_t>;
-        { op.canApplyToInterface(std::as_const(interface)) } -> std::convertible_to<bool>;
-        { op.applyToInterface(interface) };
-        { op.description(ctx) } -> std::convertible_to<std::string>;
-        { op.descendantsDescription(ctx) } -> std::convertible_to<std::string>;
-    };
 
 } // namespace kas
 

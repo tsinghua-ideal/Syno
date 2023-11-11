@@ -1,10 +1,14 @@
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Transforms/Expand.hpp"
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Transforms/Share.hpp"
 
 
 namespace kas {
+
+bool ExpandOp::isEqual(const Operation& other) const {
+    return output == static_cast<const ExpandOp&>(other).output;
+}
 
 std::size_t ExpandOp::initialHash() const noexcept {
     return DimensionTypeHash(Type);
@@ -24,10 +28,6 @@ void ExpandOp::applyToInterface(GraphHandle& interface) const {
     interface.moveToExpansions(this);
 }
 
-bool ExpandOp::operator==(const ExpandOp& other) const noexcept {
-    return output == other.output;
-}
-
 std::string ExpandOp::description(const BindingContext& ctx) const {
     return fmt::format("-> {}", output.description(ctx));
 }
@@ -35,7 +35,7 @@ std::string ExpandOp::descendantsDescription(const BindingContext& ctx) const {
     return fmt::format("-> {}", output.descendantsDescription(ctx));
 }
 
-std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
+std::vector<const ExpandOp *> ExpandOp::Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     const BindingContext& ctx = options.ctx;

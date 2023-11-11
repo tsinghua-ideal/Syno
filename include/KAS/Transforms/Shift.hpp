@@ -7,6 +7,7 @@
 namespace kas {
 
 class ShiftOp final: public RepeatLikeOp {
+    bool isEqual(const Operation& other) const override;
 public:
     static constexpr DimensionType Type = DimensionType::Shift;
     class Input final: public RepeatLikeOp::Input {
@@ -31,10 +32,6 @@ public:
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
 
-    bool operator==(const ShiftOp& other) const noexcept {
-        return output == other.output && shift == other.shift;
-    }
-
     static bool ExceedsMaxValidReshapeShiftPattern(const Size& block, int shift, const BindingContext& ctx, float maximumValidReshapeShiftPattern);
 
     struct GenerateOptions {
@@ -50,7 +47,7 @@ public:
         ExceedsMaxValidReshapeShiftPattern,
         SuccessfulGenerations,
     )
-    static std::vector<const ShiftOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
+    static std::vector<const ShiftOp *> Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<ShiftOp>);

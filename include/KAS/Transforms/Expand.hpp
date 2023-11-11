@@ -9,6 +9,7 @@
 namespace kas {
 
 class ExpandOp final: public Expand, public PrimitiveOp {
+    bool isEqual(const Operation& other) const override;
 public:
     static constexpr DimensionType Type = DimensionType::Expand;
 
@@ -28,8 +29,6 @@ public:
     bool canApplyToInterface(const GraphHandle& interface) const final override;
     void applyToInterface(GraphHandle& interface) const final override;
 
-    bool operator==(const ExpandOp& other) const noexcept;
-
     std::string description(const BindingContext& ctx) const final override;
     std::string descendantsDescription(const BindingContext& ctx) const final override;
 
@@ -44,7 +43,7 @@ public:
         DisallowedAttempts,
         SuccessfulGenerations,
     )
-    static std::vector<const ExpandOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
+    static std::vector<const ExpandOp *> Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<ExpandOp>);

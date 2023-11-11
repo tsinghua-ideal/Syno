@@ -21,7 +21,7 @@
 #include "KAS/Core/TensorView.hpp"
 #include "KAS/Search/Common.hpp"
 #include "KAS/Search/Node.hpp"
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 
 
 namespace kas {
@@ -190,8 +190,7 @@ class Sampler final {
 
     TensorExpression expressionOneTensor, expressionTwoTensors, expressionThreeTensors, expressionFourTensors;
 
-    PrimitiveOpStore opStore;
-    ContractionOpStore contractionOpStore;
+    OperationStore opStore;
     StageStore stageStore;
 
     ReductionStage *rootStage;
@@ -214,8 +213,7 @@ public:
     const std::vector<Parser::Attributes>& getInputAttributes() const { return inputAttributes; }
     const std::vector<Parser::Attributes>& getOutputAttributes() const { return outputAttributes; }
     const SampleOptions& getOptions() const { return options; }
-    PrimitiveOpStore& getOpStore() { return opStore; }
-    ContractionOpStore& getContractionOpStore() { return contractionOpStore; }
+    OperationStore& getOpStore() { return opStore; }
     StageStore& getStageStore() { return stageStore; }
     DepthwiseStatistics& getStats(std::size_t depth) { return depthwiseStatistics[depth]; }
     std::size_t getExpandAtDepth();
@@ -252,9 +250,9 @@ public:
     static Next ConvertSearchableTensorsToFinalNext(const std::vector<Topmost>& tensors);
 
     // This cannot figure out Finalize.
-    static std::vector<const PrimitiveOp *> ConvertGraphToOps(const Graph& graph);
-    static std::vector<Next> ConvertOpsToNexts(const std::vector<const PrimitiveOp *>& ops);
-    std::vector<Arc> convertOpsToArcs(const std::vector<const PrimitiveOp *>& ops) const;
+    static std::vector<const Operation *> ConvertGraphToOps(const Graph& graph);
+    static std::vector<Next> ConvertOpsToNexts(const std::vector<const Operation *>& ops);
+    std::vector<Arc> convertOpsToArcs(const std::vector<const Operation *>& ops) const;
 
     // For Forward.
     static std::vector<Next> ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors);

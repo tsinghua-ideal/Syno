@@ -121,7 +121,7 @@ public:
     std::size_t remainingDepth() const;
     DepthwiseStatistics& getStats() const;
 
-    template<PrimitiveOpImpl Op>
+    template<OperationImpl Op>
     int existingOp() const { return existingOps[Next::TypeOf<Op>()]; }
 
     // The state.
@@ -310,7 +310,7 @@ private:
 
 protected:
     // Apply the Op to obtain the next Stage.
-    template<typename ChildStageType = DerivedStageType, GeneralizedOp Op>
+    template<typename ChildStageType = DerivedStageType, OperationImpl Op>
     std::pair<ChildStageType *, Lock> getNextOp(const Op *op) {
         // When this gets called, we are holding the lock of this stage.
         StageStore& store = sampler.getStageStore();
@@ -386,10 +386,7 @@ protected:
     }
     bool canAcceptArcImpl(Arc arc) {
         return arc.match<bool>(
-            [&](const PrimitiveOp *op) -> bool {
-                return op->canApplyToInterface(interface);
-            },
-            [&](const ContractionOp *op) -> bool {
+            [&](const Operation *op) -> bool {
                 return op->canApplyToInterface(interface);
             },
             [&](const FinalizeOp *op) -> bool {

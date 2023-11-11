@@ -24,6 +24,10 @@ std::string ReduceBase::whatReduce() const {
     return what(reduceType);
 }
 
+bool ReduceBase::equalsTo(const ReduceBase& other) const noexcept {
+    return domain == other.domain && reduceType == other.reduceType;
+}
+
 std::size_t ReduceBase::pureHash() const noexcept {
     using namespace std::string_view_literals;
     std::size_t h = DimensionTypeHash(DimensionType::Reduce);

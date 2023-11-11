@@ -1,5 +1,5 @@
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Transforms/Reduce.hpp"
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
 
 
 namespace kas {
@@ -48,7 +48,7 @@ std::string ReduceOp::descendantsDescription(const BindingContext& ctx) const {
     return description(ctx);
 }
 
-std::vector<const ReduceOp *> ReduceOp::Generate(PrimitiveOpStore& store, const std::vector<const Reduce *>& current, const GenerateOptions& options) {
+std::vector<const ReduceOp *> ReduceOp::Generate(OperationStore& store, const std::vector<const Reduce *>& current, const GenerateOptions& options) {
     const BindingContext& ctx = options.ctx;
 
     auto shape = ReductionShapeView(current);
