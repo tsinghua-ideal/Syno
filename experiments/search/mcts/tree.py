@@ -419,21 +419,20 @@ class MCTSTree:
         # update rewards
         self.update_nodes(receipt, reward)
 
-        trial_node = self._sampler.visit(path_to_trial)
-        assert trial_node.is_final()
+        trial_node = self.visit(path_to_trial, on_tree=False)
+        assert trial_node and trial_node.is_final()
         try:
-            arcs = trial_node.get_composing_arcs()
+            arcs = trial_node.to_node().get_composing_arcs()
         except:
             logging.debug(f"get_composing_arcs failed for {path_to_trial}")
             return
 
         # update rave scores
         update_types = set([next.type for next in path_to_trial])
-        trial_node_on_tree = self.touch(trial_node.to_node(), path=path_to_trial)
 
         self.update_grave(arcs, update_types, reward)
         logging.debug("Grave updated. ")
-        self.update_lrave(trial_node_on_tree, arcs, reward)
+        self.update_lrave(trial_node, arcs, reward)
         logging.debug("Lrave updated. ")
         logging.debug("Back propagation end")
 
@@ -948,7 +947,9 @@ class MCTSTree:
         node_list = serialized["node_list"]
         tree = MCTSTree(sampler, **params)
 
-        for node_serial in node_list:
+        from tqdm import tqdm
+
+        for node_serial in tqdm(node_list):
             if node_serial["father"]["state"]["_is_dead"]:
                 if keep_dead_state:
                     path = Path.deserialize(node_serial["path"])
