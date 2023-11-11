@@ -512,7 +512,7 @@ class MCTSTree:
                         src_node._node.get_child_from_arc(arc),
                         path=self._path_store[src_node._node].concat(nxt),
                     )
-                    if child_node.to_node().is_dead_end(include_simulate_failure=False):
+                    if child_node.to_node().is_dead_end():
                         continue
                     if find_lattice(child_node, tgt_node, new_arc_pool):
                         updated.add((src_node, nxt.type))
