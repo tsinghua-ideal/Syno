@@ -12,7 +12,9 @@ enum class ContractionType: bool {
     Inner, // Basically a contraction.
 };
 
-class ContractionOp: public Operation {
+class ContractionOp final: public Operation {
+    bool isEqual(const Operation& other) const override;
+public:
     struct Dimwise {
         // Non-null.
         const ShareOp *share;
@@ -27,8 +29,8 @@ class ContractionOp: public Operation {
         std::string description(const BindingContext& ctx) const;
         std::string descendantsDescription(const BindingContext& ctx) const;
     };
+private:
     std::vector<Dimwise> dimwiseOps;
-    bool isEqual(const Operation& other) const override;
 public:
     template<typename T>
     ContractionOp(T&& dimwiseOps): dimwiseOps(std::forward<T>(dimwiseOps)) {

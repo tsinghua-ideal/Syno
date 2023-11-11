@@ -318,7 +318,7 @@ std::vector<Next> Node::getPossiblePath() const {
         }
     );
     const Graph graph = stage->getInterface().buildGraph();
-    auto result = Sampler::ConvertOpsToNexts(Sampler::ConvertGraphToOps(graph));
+    auto result = Sampler::ConvertOpsToNexts(Sampler::ConvertGraphToOps(graph, sampler->getOpStore()));
     if (finalNext) {
         result.emplace_back(*finalNext);
     }
@@ -338,7 +338,7 @@ std::vector<Arc> Node::getComposingArcs() const {
         }
     );
     const Graph graph = stage->getInterface().buildGraph();
-    auto result = sampler->convertOpsToArcs(Sampler::ConvertGraphToOps(graph));
+    auto result = sampler->convertOpsToArcs(Sampler::ConvertGraphToOps(graph, sampler->getOpStore()));
     if (finalArc) {
         result.emplace_back(*finalArc);
     }

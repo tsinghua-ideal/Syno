@@ -250,14 +250,14 @@ public:
     static Next ConvertSearchableTensorsToFinalNext(const std::vector<Topmost>& tensors);
 
     // This cannot figure out Finalize.
-    static std::vector<const Operation *> ConvertGraphToOps(const Graph& graph);
+    static std::vector<const Operation *> ConvertGraphToOps(const Graph& graph, OperationStore& store);
     static std::vector<Next> ConvertOpsToNexts(const std::vector<const Operation *>& ops);
     std::vector<Arc> convertOpsToArcs(const std::vector<const Operation *>& ops) const;
 
     // For Forward.
-    static std::vector<Next> ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors);
+    static std::vector<Next> ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors, OperationStore& store);
     // Convenience.
-    std::vector<Next> convertTensorViewToPath(const TensorView& tensorView) const;
+    std::vector<Next> convertTensorViewToPath(const TensorView& tensorView);
 
     class Pruner {
         std::mutex mutex;

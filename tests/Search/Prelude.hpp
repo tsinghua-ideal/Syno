@@ -13,20 +13,20 @@ namespace kas {
 
 class search_tests: public ::testing::Test {
 protected:
-    int dimH = 64, dimW = 64, dimK1 = 3, dimS1 = 2;
+    int dimC_in = 3, dimC_out = 8, dimH = 64, dimW = 64, dimK1 = 3, dimS1 = 2;
     bool doRealization = false;
-    std::map<std::string, std::size_t> dict { { "H", dimH }, { "W", dimW }, { "k_1", dimK1 }, { "s_1", dimS1 } };
+    std::map<std::string, std::size_t> dict { { "C_in", dimC_in }, { "C_out", dimC_out }, { "H", dimH }, { "W", dimW }, { "k_1", dimK1 }, { "s_1", dimS1 } };
     SampleOptions options = []() {
         SampleOptions options;
         options.seed = 42;
         options.depth = 12;
         options.maximumTensors = 4;
-        options.maximumReductions = 2;
-        options.maxFLOPs = 5e5;
+        options.maximumReductions = 3;
+        options.maxFLOPs = 5e6;
         options.maxChainLength = 5;
         return options;
     }();
-    Sampler sampler = {"[N,H,W]", "[N,H,W]", {"N=3:0", "H:0", "W:1"}, {"k_1=3:4", "s_1=2:2"}, {dict}, {{0, 0}}, options, 12};
+    Sampler sampler = {"[N,C_in:unordered,H,W]", "[N,C_out:unordered,H,W]", {"N=3:0", "C_in:2", "C_out:2", "H:0", "W:0"}, {"k_1=3:4", "s_1=2:0"}, {dict}, {{0, 0}}, options, 12};
     const BindingContext& ctx = sampler.getBindingContext();
     search_tests() {
         ctx.debug(); // For debugging.

@@ -7,6 +7,10 @@
 
 namespace kas {
 
+bool ContractionOp::isEqual(const Operation& other) const {
+    return dimwiseOps == static_cast<const ContractionOp&>(other).dimwiseOps;
+}
+
 std::weak_ordering ContractionOp::Dimwise::operator<=>(const Dimwise& other) const noexcept {
     auto hash = share->opHash() <=> other.share->opHash();
     if (hash != 0) {
@@ -57,10 +61,6 @@ std::string ContractionOp::Dimwise::descendantsDescription(const BindingContext&
     } else {
         return share->descendantsDescription(ctx);
     }
-}
-
-bool ContractionOp::isEqual(const Operation& other) const {
-    return dimwiseOps == static_cast<const ContractionOp&>(other).dimwiseOps;
 }
 
 std::size_t ContractionOp::opHash() const noexcept {

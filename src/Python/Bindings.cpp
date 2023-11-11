@@ -346,7 +346,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             "convert_assembled_to_path", [](Forward::Factory& self, const Sampler& sampler) -> std::vector<Next> {
                 auto backTensors = self.getInputs();
                 sampler.convertTensorsToSearchableForm(backTensors);
-                return Sampler::ConvertSearchableTensorsToPath(backTensors);
+                return Sampler::ConvertSearchableTensorsToPath(backTensors, self.getStore());
             }
         )
         .def(

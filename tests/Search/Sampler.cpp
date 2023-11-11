@@ -11,7 +11,7 @@ TEST_F(search_tests, sampler) {
     std::size_t successfulReconstruction = 0;
     std::size_t failedReconstruction = 0;
     for (int i = 0; i < trials; ++i) {
-        auto randomLeaves = sampler.randomFinalNodesWithPrefix({}, 32);
+        auto randomLeaves = sampler.randomFinalNodesWithPrefix({}, 1024);
         std::erase_if(randomLeaves, [](const auto& pair) { return pair.first.size() < 3; });
 
         for (auto& [sampledPath, node]: randomLeaves) {
