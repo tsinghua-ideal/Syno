@@ -11,6 +11,9 @@ class ReduceOp final: public ReduceBase, public PrimitiveOp {
     // So we can easily access them.
     std::array<Reduce, ExpectedMaximumReduces> reduces;
 
+    bool isEqual(const Operation& other) const override {
+        return equalsTo(static_cast<const ReduceOp&>(other));
+    }
 public:
     ReduceOp(const Size& domain, ReduceType reduceType):
         ReduceBase { domain, reduceType },
@@ -36,11 +39,7 @@ public:
     std::size_t getMultiplicity(const GraphHandle& interface) const;
 
     bool canApplyToInterface(const GraphHandle& interface) const override;
-    GraphHandle applyToInterface(const GraphHandle& interface) const override;
-
-    bool operator==(const ReduceOp& other) const noexcept {
-        return ReduceBase::operator==(other);
-    }
+    void applyToInterface(GraphHandle& interface) const override;
 
     std::string description(const BindingContext& ctx) const override;
     std::string descendantsDescription(const BindingContext& ctx) const override;
@@ -48,13 +47,12 @@ public:
     struct GenerateOptions {
         const BindingContext& ctx;
         const Allowance& allowance;
-        std::size_t dimUpperBound;
         Size outputSize;
         Size maxRDomSizeBase;
         std::size_t maxRDomSizeMultiplier;
         std::size_t maximumReductions;
     };
-    static std::vector<const ReduceOp *> Generate(PrimitiveOpStore& store, const std::vector<const Reduce *>& current, const GenerateOptions& options);
+    static std::vector<const ReduceOp *> Generate(OperationStore& store, const std::vector<const Reduce *>& current, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<ReduceOp>);

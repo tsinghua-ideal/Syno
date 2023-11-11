@@ -230,10 +230,9 @@ void PerformViewsIRPass::ViewPerformer::apply() {
         // Replace the input tensor.
         tensor.getInputs()[0] = viewTensor;
         auto& currentReductions = tensor.getReductions();
-        auto [removeBegin, removeEnd] = std::ranges::remove_if(currentReductions, [&](const Reduce *reduction) {
+        std::erase_if(currentReductions, [&](const Reduce *reduction) {
             return std::ranges::find(stage1Bottommost.getReductions(), reduction) != stage1Bottommost.getReductions().end();
         });
-        currentReductions.erase(removeBegin, removeEnd);
         // Now we have a new subgraph.
         subgraph = tensor.buildConstrainedGraph(subgraph.getGraph());
     }
@@ -276,10 +275,9 @@ void PerformViewsIRPass::ViewPerformer::apply() {
     // Replace the input tensor.
     tensor.getInputs() = { viewTensor };
     auto& currentReductions = tensor.getReductions();
-    auto [removeBegin, removeEnd] = std::ranges::remove_if(currentReductions, [&](const Reduce *reduction) {
+    std::erase_if(currentReductions, [&](const Reduce *reduction) {
         return std::ranges::find(stage2Bottommost.getReductions(), reduction) != stage2Bottommost.getReductions().end();
     });
-    currentReductions.erase(removeBegin, removeEnd);
 
     // Recursively perform another view.
     ViewPerformer(subgraph.getGraph(), tensor).shouldWarn(warn).apply();

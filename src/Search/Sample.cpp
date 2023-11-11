@@ -3,6 +3,7 @@
 
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Dimension.hpp"
+#include "KAS/Core/Pass.hpp"
 #include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
@@ -20,8 +21,6 @@
 namespace kas {
 
 void SampleOptions::check() const {
-    KAS_ASSERT(dimLowerBound >= 1);
-    KAS_ASSERT(dimUpperBound >= dimLowerBound);
     KAS_ASSERT(maximumTensors >= 1);
     KAS_ASSERT(maximumTensors <= 4);
     KAS_ASSERT(maxStridedDimSize > 1);
@@ -342,9 +341,9 @@ std::vector<std::pair<std::vector<Next>, Node>> Sampler::randomFinalNodesWithPre
         auto children = node.getChildrenHandles();
         if (type != std::nullopt) {
             // Filter by type.
-            children.erase(std::remove_if(children.begin(), children.end(), [type = *type](const Next &next) {
+            std::erase_if(children, [type = *type](const Next &next) {
                 return next.type != type;
-            }), children.end());
+            });
         }
         if (children.empty()) return;
 
@@ -454,13 +453,6 @@ void Sampler::sortAllExpansionsAndWeightDimensions(std::vector<Topmost>& tensors
     });
     // Then sort the expansions in input tensor.
     tensors.at(0).sortExpansions();
-    // Then consider if we should disallow permutation of weights.
-    if (!options.allowWeightPermutation) {
-        auto weights = std::span<Topmost>(tensors.data() + 1, tensors.size() - 1);
-        std::ranges::sort(weights, std::less{}, [](const Topmost& topmost) {
-            return topmost.getDimensions().at(0).hash();
-        });
-    }
 }
 
 void Sampler::convertTensorsToSearchableForm(std::vector<Topmost>& tensors) const {
@@ -501,8 +493,97 @@ Next Sampler::ConvertSearchableTensorsToFinalNext(const std::vector<Topmost>& te
     return Next { Next::Type::Finalize, NextFinalizeSlot::GetKey(tensors) };
 }
 
-std::vector<const PrimitiveOp *> Sampler::ConvertGraphToOps(const Graph& graph) {
-    std::vector<const PrimitiveOp *> result;
+namespace {
+
+struct ViewAndContraction {
+    std::vector<const PrimitiveOp *> views;
+    std::map<const ShareOp *, const ExpandOp *> dimwiseContractions;
+    void addView(const PrimitiveOp *op) {
+        views.emplace_back(op);
+    }
+    void addExpand(const ExpandOp *op) {
+        if (auto share = op->output.tryAs<ShareOp::Input>(); share) {
+            // This belongs to ContractionOp.
+            auto shareOp = share->getDerivedOp<ShareOp>();
+            auto [_, inserted] = dimwiseContractions.try_emplace(shareOp, op);
+            KAS_ASSERT(inserted);
+        } else {
+            // This is a Repeat.
+            addView(op);
+        }
+    }
+    void addShare(const ShareOp *op) {
+        // This belongs to ContractionOp.
+        auto [it, inserted] = dimwiseContractions.try_emplace(op, nullptr);
+        // If the ShareOp is already included, it must have been added by ExpandOp.
+        KAS_ASSERT(inserted || it->second != nullptr);
+    }
+    const ContractionOp *toContractionOp(OperationStore& store) const {
+        if (dimwiseContractions.empty()) return nullptr;
+        std::vector<ContractionOp::Dimwise> dimwiseOps;
+        for (const auto& [share, expand]: dimwiseContractions) {
+            dimwiseOps.emplace_back(share, expand);
+        }
+        return store.get<ContractionOp>(std::move(dimwiseOps));
+    }
+};
+
+struct ContractionExtractor: DependentCutSetDiscoverer {
+    OperationStore& store;
+    std::vector<ViewAndContraction> alternatingLayers;
+    ViewAndContraction& last() {
+        return alternatingLayers.back();
+    }
+    ContractionExtractor(OperationStore& store, const Graph& graph):
+        // Only the input in the beginning.
+        DependentCutSetDiscoverer(graph, graph.getTopmost().getDimensions()),
+        store { store } {}
+    void afterExclusionHook(const PrimitiveOp *op) override {
+        if (auto expand = dynamic_cast<const ExpandOp *>(op); expand) {
+            last().addExpand(expand);
+        } else if (auto share = dynamic_cast<const ShareOp *>(op); share) {
+            last().addShare(share);
+        } else {
+            last().addView(op);
+        }
+    }
+    void extract() {
+        std::map<int, std::vector<Dimension>> layers;
+        for (const ShareOp *shareOp: graph.getOpsOfType<ShareOp>()) {
+            layers[shareOp->getRhsOrigin()].emplace_back(shareOp->output);
+        }
+        KAS_ASSERT(layers.find(0) == layers.end());
+        for (Dimension output: graph.getOutputIterators()) {
+            layers[0].emplace_back(output);
+        }
+        for (Dimension reduce: graph.getReduceIterators()) {
+            layers[0].emplace_back(reduce);
+        }
+        for (const auto& [layer, dimensions]: layers | std::views::reverse) {
+            alternatingLayers.emplace_back();
+            include(dimensions);
+        }
+        std::ranges::reverse(alternatingLayers);
+        std::ranges::for_each(alternatingLayers, [](ViewAndContraction& layer) {
+            std::ranges::reverse(layer.views);
+        });
+    }
+    std::vector<const Operation *> dump() const {
+        std::vector<const Operation *> result;
+        for (const auto& layer: alternatingLayers) {
+            if (auto contraction = layer.toContractionOp(store); contraction) {
+                result.emplace_back(contraction);
+            }
+            std::ranges::copy(layer.views, std::back_inserter(result));
+        }
+        return result;
+    }
+};
+
+} // namespace
+
+std::vector<const Operation *> Sampler::ConvertGraphToOps(const Graph& graph, OperationStore& store) {
+    std::vector<const Operation *> result;
     // To obtain the path, we need to follow the 3 stages of searching.
 
     // First, ReductionStage.
@@ -513,69 +594,31 @@ std::vector<const PrimitiveOp *> Sampler::ConvertGraphToOps(const Graph& graph) 
     }
 
     // Next, NormalStage.
+    // Note that we need to extract the ContractionOp's.
     {
-        std::set<Dimension, Dimension::HashLessThan> completed;
-        Graph::AttributeMap<bool> added;
-        // Bottom-up.
-        auto dfs = [&](const auto& self, const Dimension& dim) -> void {
-            if (completed.contains(dim)) return;
-            completed.emplace(dim);
-            graph.visitAlong(dim, Direction::Down).match(
-                [&](const RepeatLikeVertex& v, auto) {
-                    bool& addedV = added[v];
-                    if (addedV) return;
-                    addedV = true;
-                    self(self, v[RepeatLikeOp::Branch::Output]);
-                    result.emplace_back(&v.op);
-                },
-                [&](const SplitLikeVertex& v, auto) {
-                    bool& addedV = added[v];
-                    if (addedV) return;
-                    addedV = true;
-                    self(self, v[SplitLikeOp::Branch::OutputLhs]);
-                    self(self, v[SplitLikeOp::Branch::OutputRhs]);
-                    result.emplace_back(&v.op);
-                },
-                [&](const MergeLikeVertex& v, auto) {
-                    bool& addedV = added[v];
-                    if (addedV) return;
-                    addedV = true;
-                    self(self, v[MergeLikeOp::Branch::Output]);
-                    result.emplace_back(&v.op);
-                },
-                [](const ExpandVertex& v, auto) {
-                    // Expand is left for later code to handle.
-                }
-            );
-        };
-        // We need to generate Next's in canonical order of ShareOp! We need to add ShareOp::IsSharedDimensionCanonical(). TODO.
-        for (const Dimension& dim: graph.getTopmost().getAllDimensions()) {
-            dfs(dfs, dim);
-        }
-        // Do not forget to add expansions.
-        for (const Expand *exp: graph.getTopmost().getExpansions()) {
-            result.emplace_back(dynamic_cast<const ExpandOp *>(exp));
-        }
+        auto contractionExtractor = ContractionExtractor(store, graph);
+        contractionExtractor.extract();
+        std::ranges::move(contractionExtractor.dump(), std::back_inserter(result));
     }
-
-    KAS_ASSERT(result.size() == graph.getOps().size() + graph.getReduceIterators().size());
 
     return result;
 }
 
-std::vector<Next> Sampler::ConvertOpsToNexts(const std::vector<const PrimitiveOp *>& ops) {
-    return ranges::to<std::vector<Next>>(ops | std::views::transform(&Next::FromOp<PrimitiveOp>));
+std::vector<Next> Sampler::ConvertOpsToNexts(const std::vector<const Operation *>& ops) {
+    return ranges::to<std::vector<Next>>(ops | std::views::transform([](const Operation *op) {
+        return Next::FromOp(op);
+    }));
 }
 
-std::vector<Arc> Sampler::convertOpsToArcs(const std::vector<const PrimitiveOp *>& ops) const {
-    return ranges::to<std::vector<Arc>>(ops | std::views::transform([this](const PrimitiveOp *op) {
+std::vector<Arc> Sampler::convertOpsToArcs(const std::vector<const Operation *>& ops) const {
+    return ranges::to<std::vector<Arc>>(ops | std::views::transform([this](const Operation *op) {
         return Arc { this, op };
     }));
 }
 
-std::vector<Next> Sampler::ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors) {
+std::vector<Next> Sampler::ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors, OperationStore& store) {
     auto handle = GraphHandle::FromInterfaces(tensors);
-    auto result = ConvertOpsToNexts(ConvertGraphToOps(handle.buildGraph()));
+    auto result = ConvertOpsToNexts(ConvertGraphToOps(handle.buildGraph(), store));
 
     // We have now done the previous two stages.
     // Finally, Finalize.
@@ -584,9 +627,9 @@ std::vector<Next> Sampler::ConvertSearchableTensorsToPath(const std::vector<Topm
     return result;
 }
 
-std::vector<Next> Sampler::convertTensorViewToPath(const TensorView& tensorView) const {
+std::vector<Next> Sampler::convertTensorViewToPath(const TensorView& tensorView) {
     auto tensors = convertTensorViewToSearchableTensors(tensorView);
-    return ConvertSearchableTensorsToPath(tensors);
+    return ConvertSearchableTensorsToPath(tensors, getOpStore());
 }
 
 void Sampler::Pruner::handleUpdates(std::set<AbstractStage *>& updates) {

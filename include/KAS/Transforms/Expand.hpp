@@ -9,6 +9,7 @@
 namespace kas {
 
 class ExpandOp final: public Expand, public PrimitiveOp {
+    bool isEqual(const Operation& other) const override;
 public:
     static constexpr DimensionType Type = DimensionType::Expand;
 
@@ -26,28 +27,15 @@ public:
     static const ExpandOp *FromRaw(const Expand *raw) { return &dynamic_cast<const ExpandOp&>(*raw); }
 
     bool canApplyToInterface(const GraphHandle& interface) const final override;
-    GraphHandle applyToInterface(const GraphHandle& interface) const final override;
-
-    bool operator==(const ExpandOp& other) const noexcept;
+    void applyToInterface(GraphHandle& interface) const final override;
 
     std::string description(const BindingContext& ctx) const final override;
     std::string descendantsDescription(const BindingContext& ctx) const final override;
 
-    struct Usage {
-        Graph::DimensionSet sharedWeightDims;
-        Size mergedInputAndWeight;
-    };
-    static Usage GetUsage(const BindingContext& ctx, const Graph& graph);
-
     struct GenerateOptions {
         const BindingContext& ctx;
-        bool disallowMergeInputAndWeight;
         bool disallowTile;
-        bool disallowShareWeights;
         std::size_t maxExpansionRepeatMultiplier;
-        std::size_t maxExpansionMergeMultiplier;
-        std::size_t maxExpansionWeightsSharingDimSize;
-        std::size_t minExpansionWeightsSharingDimSize;
     };
     KAS_STATISTICS_DEF(
         GenerateInvocations,
@@ -55,7 +43,7 @@ public:
         DisallowedAttempts,
         SuccessfulGenerations,
     )
-    static std::vector<const ExpandOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
+    static std::vector<const ExpandOp *> Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<ExpandOp>);

@@ -303,6 +303,7 @@ struct Allowance {
     Allowance(const BindingContext& ctx, const Size& currentUsage, bool countSharedCoefficientsAsAllowanceUsage);
     // Counts primary vars, and optionally coefficient vars.
     bool shareWithinAllowance(const Size& size) const;
+    Allowance shared(const Size& size) const;
     // Excludes 1.
     Generator<Size> enumerateSizes() const;
     // Return divisors of this Size. Guarantee that for all consts, the divisor and the quotient are realizable, and not equal to 1 or this.

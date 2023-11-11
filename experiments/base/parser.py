@@ -465,12 +465,6 @@ def arg_parse():
         help="KAS sampler minimum ratio between unfold kernel and unfolded dimension. ",
     )
     parser.add_argument(
-        "--kas-min-dim", default=1, type=int, help="KAS sampler minimum dimensions"
-    )
-    parser.add_argument(
-        "--kas-max-dim", default=12, type=int, help="KAS sampler maximum dimensions"
-    )
-    parser.add_argument(
         "--kas-scheduler-cache-dir",
         default=".scheduler-cache",
         help="KAS sampler saving directory",
@@ -618,11 +612,14 @@ def arg_parse():
     parser.add_argument("--gpt-max-minutes", default=0, type=float)
     parser.add_argument("--gpt-log-interval", default=10, type=int)
     parser.add_argument("--gpt-max-loss", default=3, type=float)
+    parser.add_argument("--gpt-loss-output", default="", type=str)
 
     # Imagenet related
     parser.add_argument("--imagenet-log-folder", default="logs", type=str)
     parser.add_argument(
-        "--imagenet-config-file", default="ffcv-imagenet/rn18_configs/rn18_88_epochs.yaml", type=str
+        "--imagenet-config-file",
+        default="ffcv-imagenet/rn18_configs/rn18_88_epochs.yaml",
+        type=str,
     )
 
     args = parser.parse_args()

@@ -26,13 +26,11 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     pybind11::class_<SampleOptions>(m, "SampleOptions")
         .def(
-            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t maxChainLength, std::size_t dimLowerBound, std::size_t dimUpperBound, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maxRDomSizeMultiplier, bool enableFLOPsBasedPruning, std::size_t maximumEnumerationsPerVar, std::size_t maximumVariablesInSize, std::size_t maximumVariablesPowersInSize, bool requiresExactDivision, bool requiresOddKernelSizeInUnfold, bool countCoefficientsInWeightsAsAllowanceUsage, std::string expressionOneTensor, std::string expressionTwoTensors, std::string expressionThreeTensors, std::string expressionFourTensors, std::size_t maximumFinalizations, bool allowWeightPermutation, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float maximumValidReshapeShiftPattern, bool disallowMergeInputAndWeight, bool disallowTile, bool disallowShareWeights, std::size_t maxExpansionRepeatMultiplier, std::size_t maxExpansionMergeMultiplier, std::size_t maxExpansionWeightsSharingDimSize, std::size_t minExpansionWeightsSharingDimSize, bool canonicalizeUnfoldOrder, bool disallowSplitLAboveUnfold, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumExpands, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
+            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t maxChainLength, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, std::size_t maxRDomSizeMultiplier, bool enableFLOPsBasedPruning, std::size_t maximumEnumerationsPerVar, std::size_t maximumVariablesInSize, std::size_t maximumVariablesPowersInSize, bool requiresExactDivision, bool requiresOddKernelSizeInUnfold, bool countCoefficientsInWeightsAsAllowanceUsage, std::string expressionOneTensor, std::string expressionTwoTensors, std::string expressionThreeTensors, std::string expressionFourTensors, std::size_t maximumFinalizations, bool allowWeightPermutation, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float maximumValidReshapeShiftPattern, bool disallowMergeInputAndWeight, bool disallowTile, bool disallowShareWeights, std::size_t maxExpansionRepeatMultiplier, std::size_t maxExpansionMergeMultiplier, std::size_t maxExpansionWeightsSharingDimSize, std::size_t minExpansionWeightsSharingDimSize, bool canonicalizeUnfoldOrder, bool disallowSplitLAboveUnfold, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumExpands, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
                 return SampleOptions {
                     .seed = seed,
                     .depth = depth,
                     .maxChainLength = maxChainLength,
-                    .dimLowerBound = dimLowerBound,
-                    .dimUpperBound = dimUpperBound,
                     .maximumTensors = maximumTensors,
                     .maximumReductions = maximumReductions,
                     .maxFLOPs = static_cast<std::size_t>(maxFLOPs),
@@ -85,8 +83,6 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("seed") = DefaultSampleOptions.seed,
             pybind11::arg("depth") = DefaultSampleOptions.depth,
             pybind11::arg("max_chain_length") = DefaultSampleOptions.maxChainLength,
-            pybind11::arg("dim_lower") = DefaultSampleOptions.dimLowerBound,
-            pybind11::arg("dim_upper") = DefaultSampleOptions.dimUpperBound,
             pybind11::arg("maximum_tensors") = DefaultSampleOptions.maximumTensors,
             pybind11::arg("maximum_reductions") = DefaultSampleOptions.maximumReductions,
             pybind11::arg("max_flops") = static_cast<float>(DefaultSampleOptions.maxFLOPs),
@@ -137,8 +133,6 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         )
         .def_readonly("seed", &SampleOptions::seed)
         .def_readonly("depth", &SampleOptions::depth)
-        .def_readonly("dim_lower", &SampleOptions::dimLowerBound)
-        .def_readonly("dim_upper", &SampleOptions::dimUpperBound)
         .def_readonly("maximum_tensors", &SampleOptions::maximumTensors);
 
     pybind11::class_<CodeGenOptions> cgOpts(m, "CodeGenOptions");
@@ -168,7 +162,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .value("Split", Next::Type::Split)
         .value("Unfold", Next::Type::Unfold)
         .value("Merge", Next::Type::Merge)
-        .value("Share", Next::Type::Share)
+        .value("Contraction", Next::Type::Contraction)
         .value("Finalize", Next::Type::Finalize)
         .export_values();
     next
@@ -254,10 +248,6 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def(
             "get_children", &Node::getChildren,
             pybind11::arg("nexts")
-        )
-        .def(
-            "can_accept_arc", &Node::canAcceptArc,
-            pybind11::arg("arc")
         )
         .def(
             "get_child_from_arc", &Node::getChildFromArc,
@@ -356,7 +346,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             "convert_assembled_to_path", [](Forward::Factory& self, const Sampler& sampler) -> std::vector<Next> {
                 auto backTensors = self.getInputs();
                 sampler.convertTensorsToSearchableForm(backTensors);
-                return Sampler::ConvertSearchableTensorsToPath(backTensors);
+                return Sampler::ConvertSearchableTensorsToPath(backTensors, self.getStore());
             }
         )
         .def(

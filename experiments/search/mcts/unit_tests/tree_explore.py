@@ -1,7 +1,6 @@
 import logging
 import torch
 import torch.nn as nn
-import json
 import os, sys
 from random import random
 

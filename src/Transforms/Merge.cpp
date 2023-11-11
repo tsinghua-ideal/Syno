@@ -1,11 +1,16 @@
 #include "KAS/Core/Dimension.hpp"
 #include "KAS/Core/Reduce.hpp"
 #include "KAS/Transforms/Merge.hpp"
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
 namespace kas {
+
+bool MergeOp::isEqual(const Operation& other) const {
+    const MergeOp& rhs = static_cast<const MergeOp&>(other);
+    return output == rhs.output && minorSize == rhs.minorSize;
+}
 
 const Size& MergeOp::Input::size() const {
     switch (order) {
@@ -66,7 +71,7 @@ MergeOp::Values MergeOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for MergeOp: inputLhs = {}, inputRhs = {}, output = {}", inputLhs, inputRhs, output);
 }
 
-std::vector<const MergeOp *> MergeOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
+std::vector<const MergeOp *> MergeOp::Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     // Canonicalization. Manually handle StrideOp(s<B) and UnfoldOp(k<B).

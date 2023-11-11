@@ -3,8 +3,7 @@
 #include <atomic>
 
 #include "KAS/Core/Dimension.hpp"
-#include "KAS/Core/PrimitiveOp.hpp"
-#include "KAS/Core/Size.hpp"
+#include "KAS/Transforms/Transforms.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
 
@@ -33,17 +32,18 @@ struct CurrentDimension {
 
 struct Next {
     enum class Type: std::uint8_t {
-        // Root -> Growing
+        // Root -> ViewStage
         Reduce,
-        // Growing -> Growing, i.e., PrimitiveOp's
+        // ViewStage -> ViewStage, i.e., views
         Expand,
         Shift,
         Stride,
         Split,
         Unfold,
         Merge,
-        Share,
-        // Growing -> Final
+        // ContractionStage
+        Contraction,
+        // ViewStage -> FinalStage
         Finalize,
     };
     static constexpr std::size_t NumTypes = 9;
@@ -60,15 +60,18 @@ struct Next {
     // This can be hash, or any arbitrary fixed number, as long as this is invariant between runs.
     std::size_t key;
 
-    // Constructor.
-    template<PrimitiveOpImpl Op>
+    template<OperationImpl Op>
     static Next FromOp(const Op *op) {
         return { TypeOf<Op>(), op->opHash() };
     }
-    template<typename Op>
-    requires(!PrimitiveOpImpl<Op> && std::derived_from<Op, PrimitiveOp>)
-    static Next FromOp(const Op *op) {
-        return { TypeOf(op->getType()), op->opHash() };
+    static Next FromOp(const Operation *op) {
+        if (auto primitiveOp = dynamic_cast<const PrimitiveOp *>(op); primitiveOp) {
+            return { TypeOf(primitiveOp->getType()), primitiveOp->opHash() };
+        } else if (auto contractionOp = dynamic_cast<const ContractionOp *>(op); contractionOp) {
+            return FromOp(contractionOp);
+        } else {
+            KAS_UNREACHABLE("Unknown type of Operation.");
+        }
     }
 
     // For Python.
@@ -89,7 +92,7 @@ struct Next {
 
     static std::map<Type, std::size_t> CountTypes(const std::vector<Next>& nexts);
 
-    template<PrimitiveOpImpl Op>
+    template<OperationImpl Op>
     static constexpr Type TypeOf() {
         if constexpr (std::same_as<Op, ReduceOp>) { return Type::Reduce; }
         else if constexpr (std::same_as<Op, ExpandOp>) { return Type::Expand; }
@@ -98,8 +101,8 @@ struct Next {
         else if constexpr (std::same_as<Op, SplitOp>) { return Type::Split; }
         else if constexpr (std::same_as<Op, UnfoldOp>) { return Type::Unfold; }
         else if constexpr (std::same_as<Op, MergeOp>) { return Type::Merge; }
-        else if constexpr (std::same_as<Op, ShareOp>) { return Type::Share; }
-        else { KAS_CRITICAL("Unknown type of Op."); }
+        else if constexpr (std::same_as<Op, ContractionOp>) { return Type::Contraction; }
+        else { static_assert(sizeof(Op) == 0, "Unknown type of Op."); }
     }
     static constexpr Type TypeOf(DimensionType t) {
         switch (t) {
@@ -110,7 +113,7 @@ struct Next {
         case DimensionType::Split: return Type::Split;
         case DimensionType::Unfold: return Type::Unfold;
         case DimensionType::Merge: return Type::Merge;
-        case DimensionType::Share: return Type::Share;
+        case DimensionType::Share: KAS_CRITICAL("ShareOp must be used indirectly in ContractionOp!");
         default: KAS_CRITICAL("Unknown type of DimensionType.");
         }
     }
@@ -121,25 +124,28 @@ class FinalizeOp;
 
 class Arc {
     const Sampler *sampler;
-    std::variant<const PrimitiveOp *, const FinalizeOp *> inner;
+    std::variant<const Operation *, const FinalizeOp *> inner;
 public:
-    Arc(const Sampler *sampler, const PrimitiveOp *op):
+    Arc(const Sampler *sampler, const Operation *op):
         sampler { sampler },
-        inner { op } {}
+        inner { op }
+    {
+        KAS_ASSERT(dynamic_cast<const ShareOp *>(op) == nullptr, "ShareOp must only be used indirectly in ContractionOp!");
+    }
     Arc(const Sampler *sampler, const FinalizeOp *op):
         sampler { sampler },
         inner { op } {}
 
-    template<typename R, typename FP, typename FF>
+    template<typename R, typename FO, typename FF>
     requires
-        std::convertible_to<std::invoke_result_t<FP, const PrimitiveOp *>, R> &&
+        std::convertible_to<std::invoke_result_t<FO, const Operation *>, R> &&
         std::convertible_to<std::invoke_result_t<FF, const FinalizeOp *>, R>
-    R match(FP&& fp, FF&& ff) const {
+    R match(FO&& fo, FF&& ff) const {
         return std::visit([&](auto arg) -> R {
-            if constexpr (std::is_same_v<decltype(arg), const PrimitiveOp *>) {
-                return fp(arg);
+            if constexpr (std::is_same_v<decltype(arg), const Operation *>) {
+                return std::invoke(fo, arg);
             } else if constexpr (std::is_same_v<decltype(arg), const FinalizeOp *>) {
-                return ff(arg);
+                return std::invoke(ff, arg);
             } else {
                 KAS_UNREACHABLE();
             }
@@ -148,17 +154,17 @@ public:
 
     template<typename T>
     const T *as() const {
-        if constexpr (std::derived_from<T, PrimitiveOp>) {
-            return &dynamic_cast<const T&>(*std::get<const PrimitiveOp *>(inner));
+        if constexpr (std::derived_from<T, Operation>) {
+            return &dynamic_cast<const T&>(*std::get<const Operation *>(inner));
         } else {
             return std::get<const T *>(inner);
         }
     }
     template<typename T>
     const T *tryAs() const {
-        if constexpr (std::derived_from<T, PrimitiveOp>) {
-            if (!std::holds_alternative<const PrimitiveOp *>(inner)) return nullptr;
-            return dynamic_cast<const T *>(std::get<const PrimitiveOp *>(inner));
+        if constexpr (std::derived_from<T, Operation>) {
+            if (!std::holds_alternative<const Operation *>(inner)) return nullptr;
+            return dynamic_cast<const T *>(std::get<const Operation *>(inner));
         } else {
             if (!std::holds_alternative<const T *>(inner)) return nullptr;
             return std::get<const T *>(inner);
@@ -179,7 +185,7 @@ public:
 class AbstractStage;
 
 struct NextStageSlot: Next {
-    const PrimitiveOp *op;
+    const Operation *op;
     AbstractStage *nextStage;
     bool operator==(const NextStageSlot& rhs) const noexcept {
         // This is enough for equality.
@@ -189,7 +195,7 @@ struct NextStageSlot: Next {
     std::weak_ordering operator<=>(const NextStageSlot& rhs) const noexcept {
         return static_cast<const Next&>(*this) <=> static_cast<const Next&>(rhs);
     }
-    static std::size_t GetKey(const PrimitiveOp *op) { return op->opHash(); }
+    static std::size_t GetKey(const Operation *op) { return op->opHash(); }
     Arc toArc(const Sampler *sampler) const { return Arc(sampler, op); }
 };
 
@@ -250,19 +256,10 @@ public:
     }
 
     // Remove all slots that satisfy the predicate.
-    template<typename Pred, typename Callback>
-    requires std::predicate<Pred, const Slot&> && std::invocable<Callback, const Slot&>
-    std::size_t remove(Pred&& pred, Callback&& callback) {
-        std::size_t original = slots.size();
-        auto [first, last] = std::ranges::remove_if(slots, std::forward<Pred>(pred));
-        std::ranges::for_each(first, last, std::forward<Callback>(callback));
-        slots.erase(first, last);
-        return original - slots.size();
-    }
     template<typename Pred>
     requires std::predicate<Pred, const Slot&>
     std::size_t remove(Pred&& pred) {
-        return remove(std::forward<Pred>(pred), [](const Slot&){});
+        return std::erase_if(slots, std::forward<Pred>(pred));
     }
 
     template<typename Pred>
@@ -359,6 +356,8 @@ struct DepthwiseStatistics {
     DepthwiseStatistics& addFinalChildren(std::size_t cnt) { finalChildren += cnt; return *this; }
     DepthwiseStatistics& addNonFinalChildren(std::size_t cnt) { initialNonFinalChildren += cnt; return *this; }
     DepthwiseStatistics& removeNonFinalChildren(std::size_t cnt) { removedNonFinalChildren += cnt; return *this; }
+    void instantDestroy() { --totalNodes; }
+    void removeEmbededRedundancy() { --expandedNodes; }
     float branchingFactor() const {
         const std::size_t total = expandedNodes.load();
         const std::size_t children = initialNonFinalChildren.load() + finalChildren.load();
@@ -370,6 +369,16 @@ struct DepthwiseStatistics {
             totalNodes.load(), expandedNodes.load(), finalChildren.load(), initialNonFinalChildren.load(), removedNonFinalChildren.load()
         );
     }
+};
+
+// A node has 3 types.
+// But actually 4 types exist.
+// IF YOU CHANGE THIS YOU MUST REFER TO Node!
+enum class NodeType: std::uint8_t {
+    Reducing = 0, // Generating reductions.
+    Growing = 1, // Now we have generated Reduce's, repeatedly add Operation's.
+    Final = 2, // Finalization performed.
+    Contraction = 3, // Contraction stage.
 };
 
 } // namespace kas
@@ -388,7 +397,7 @@ struct fmt::formatter<kas::Next::Type>: formatter<string_view> {
         case kas::Next::Type::Split: name = "Split"sv; break;
         case kas::Next::Type::Unfold: name = "Unfold"sv; break;
         case kas::Next::Type::Merge: name = "Merge"sv; break;
-        case kas::Next::Type::Share: name = "Share"sv; break;
+        case kas::Next::Type::Contraction: name = "Contraction"sv; break;
         case kas::Next::Type::Finalize: name = "Finalize"sv; break;
         }
         return formatter<string_view>::format(name, ctx);

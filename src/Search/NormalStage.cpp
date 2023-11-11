@@ -2,6 +2,7 @@
 #include "KAS/Search/Finalize.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/NormalStage.hpp"
+#include "KAS/Search/ReductionStage.hpp"
 #include "KAS/Search/Sample.hpp"
 
 
@@ -31,12 +32,21 @@ Finalizability NormalStage::checkForFinalizableChildren(const CollectedFinalizab
     return Base::checkForFinalizableChildren(collected);
 }
 
-Topmost NormalStage::getSearchableInterface(const Graph& graph, const GraphHandle& interface) const {
-    std::vector<Dimension> result;
-    std::ranges::remove_copy_if(interface.getDimensions(), std::back_inserter(result), [&](const Dimension& dim) {
-        return dim.is(DimensionTypeWithOrder::ShareR) || sampler.remainingChainLength(graph, dim) <= 0;
-    });
-    return Topmost(std::move(result), interface.getExpansions());
+void NormalStage::removeTooLongChains(ContractionOp::Analysis& analysis, const Graph& graph) const {
+    auto tooLongChain = [&](const Dimension& dim) {
+        return sampler.remainingChainLength(graph, dim) <= 0;
+    };
+    std::erase_if(analysis.simpleViewSearchable.getDimensions(), tooLongChain);
+    std::erase_if(analysis.other, tooLongChain);
+    auto& fullDims = analysis.full.getDimensions();
+    auto& candidateTypes = analysis.candidateTypes;
+    std::size_t i = fullDims.size();
+    while (i --> 0) {
+        if (tooLongChain(fullDims[i])) {
+            fullDims.erase(fullDims.begin() + i);
+            candidateTypes.erase(candidateTypes.begin() + i);
+        }
+    }
 }
 
 Size NormalStage::getAllowanceUsage(const Graph& graph) const {
@@ -97,7 +107,7 @@ void NormalStage::guardGeneratedChildren() {
 
     const BindingContext& ctx = sampler.getBindingContext();
     const SampleOptions& options = sampler.getOptions();
-    PrimitiveOpStore& store = sampler.getOpStore();
+    OperationStore& store = sampler.getOpStore();
     Graph graph = interface.buildGraph();
 
     // First add finalizations.
@@ -120,28 +130,49 @@ void NormalStage::guardGeneratedChildren() {
 
     std::vector<NextStageSlot> children;
     std::map<AbstractStage *, Finalizability> childrenFinalizabilities;
-    // Wrap the generated Op in a NextStageSlot.
-    auto add = [&]<PrimitiveOpImpl Op>(const std::vector<const Op *>& newOps) {
+    // Wrap the generated Op in a NextStageSlot or NextContractionSlot.
+    auto add = [&]<OperationImpl Op>(const std::vector<const Op *>& newOps) {
         children.reserve(children.size() + newOps.size());
         for (const Op *op: newOps) {
-            AbstractStage *stage;
-            Finalizability fin;
+            NormalStage *stage;
+            Finalizability f = Finalizability::No;
             {
                 Lock lock;
                 std::tie(stage, lock) = getNextOp(op);
-                fin = stage != nullptr ? stage->getFinalizability(lock) : Finalizability::No;
+                if (stage != nullptr) {
+                    f = stage->getFinalizability(lock);
+                }
             }
-            if (fin != Finalizability::No) {
+            if (f != Finalizability::No) {
                 children.emplace_back(Next::FromOp(op), op, stage);
-                childrenFinalizabilities.emplace(stage, fin);
+                childrenFinalizabilities.try_emplace(stage, f);
             }
         }
     };
 
-    auto prospectiveInterface = getSearchableInterface(graph, interface);
+    auto contractionAnalysis = ContractionOp::Analyze(ctx, graph, interface);
+    removeTooLongChains(contractionAnalysis, graph);
+    const auto& prospectiveInterface = contractionAnalysis.simpleViewSearchable;
     const auto allowance = Allowance { ctx, getAllowanceUsage(graph), options.countCoefficientsInWeightsAsAllowanceUsage };
 
     if (remainingDepth() > 0) {
+        // Contraction^{-1}
+        if (!inCriticalState && (options.maximumShares == -1 || options.maximumShares > contractionAnalysis.numShares)) {
+            add(ContractionOp::Generate(
+                store, {
+                    .analysis = contractionAnalysis,
+                    .ctx = ctx,
+                    .graph = graph,
+                    .allowance = allowance,
+                    .maximumTensors = options.maximumTensors,
+                    .maxShares = options.maximumShares == -1 ? std::numeric_limits<int>::max() : options.maximumShares - contractionAnalysis.numShares,
+                    .maxExpansionMergeMultiplier = options.maxExpansionMergeMultiplier,
+                    .maxExpansionWeightsSharingDimSize = options.maxExpansionWeightsSharingDimSize,
+                    .minExpansionWeightsSharingDimSize = options.minExpansionWeightsSharingDimSize,
+                }
+            ));
+        }
+
         // Keep dimensionality, by applying `RepeatLikeOp`^{-1}s.
         // Shift^{-1}
         if (!inCriticalState && (options.maximumShifts == -1 || options.maximumShifts > existingOp<ShiftOp>())) {
@@ -164,81 +195,70 @@ void NormalStage::guardGeneratedChildren() {
         }
 
         // Try decreasing dimensionality, by applying `SplitLikeOp`^{-1}s or `ExpandOp`^{-1}s.
-        if (interface.getDimensions().size() > options.dimLowerBound) {
-            // Split^{-1}
-            if (options.maximumSplits == -1 || options.maximumSplits > existingOp<SplitOp>()) {
-                add(SplitOp::Generate(store, prospectiveInterface, {
-                    .ctx = ctx,
-                    .graph = graph,
-                    .disallowSplitLAboveUnfold = options.disallowSplitLAboveUnfold,
-                    .disallowSplitRAboveUnfold = options.disallowSplitRAboveUnfold,
-                    .disallowSplitRAboveStride = options.disallowSplitRAboveStride,
-                }));
-            }
-            // Unfold^{-1}
-            if (options.maximumUnfolds == -1 || options.maximumUnfolds > existingOp<UnfoldOp>()) {
-                add(UnfoldOp::Generate(store, prospectiveInterface, {
-                    .ctx = ctx,
-                    .graph = graph,
-                    .minimumRatio = options.minimumUnfoldRatio,
-                    .maxUnfoldKernelSize = options.maxUnfoldKernelSize,
-                    .requiresOddKernelSizeInUnfold = options.requiresOddKernelSizeInUnfold,
-                    .disallowUnfoldLAboveSplit = options.disallowUnfoldLAboveSplit,
-                    .canonicalizeUnfoldOrder = options.canonicalizeUnfoldOrder,
-                    .disallowUnfoldLAboveShift = options.disallowUnfoldLAboveShift,
-                    .disallowUnfoldLAboveMergeR = options.disallowUnfoldLAboveMergeR,
-                }));
-            }
-            // Expand^{-1}
-            if (options.maximumExpands == -1 || options.maximumExpands > existingOp<ExpandOp>()) {
-                add(ExpandOp::Generate(store, prospectiveInterface, {
-                    .ctx = ctx,
-                    .disallowMergeInputAndWeight = options.disallowMergeInputAndWeight,
-                    .disallowTile = options.disallowTile,
-                    .disallowShareWeights = options.disallowShareWeights,
-                    .maxExpansionRepeatMultiplier = options.maxExpansionRepeatMultiplier,
-                    .maxExpansionMergeMultiplier = options.maxExpansionMergeMultiplier,
-                    .maxExpansionWeightsSharingDimSize = options.maxExpansionWeightsSharingDimSize,
-                    .minExpansionWeightsSharingDimSize = options.minExpansionWeightsSharingDimSize,
-                }));
-            }
+        // Split^{-1}
+        if (options.maximumSplits == -1 || options.maximumSplits > existingOp<SplitOp>()) {
+            add(SplitOp::Generate(store, contractionAnalysis.full, {
+                .ctx = ctx,
+                .graph = graph,
+                .couldHaveBeenDoneBeforeLastContractionStage = contractionAnalysis.other,
+                .disallowSplitLAboveUnfold = options.disallowSplitLAboveUnfold,
+                .disallowSplitRAboveUnfold = options.disallowSplitRAboveUnfold,
+                .disallowSplitRAboveStride = options.disallowSplitRAboveStride,
+            }));
+        }
+
+        // Unfold^{-1}
+        if (options.maximumUnfolds == -1 || options.maximumUnfolds > existingOp<UnfoldOp>()) {
+            add(UnfoldOp::Generate(store, contractionAnalysis.full, {
+                .ctx = ctx,
+                .graph = graph,
+                .minimumRatio = options.minimumUnfoldRatio,
+                .maxUnfoldKernelSize = options.maxUnfoldKernelSize,
+                .requiresOddKernelSizeInUnfold = options.requiresOddKernelSizeInUnfold,
+                .disallowUnfoldLAboveSplit = options.disallowUnfoldLAboveSplit,
+                .canonicalizeUnfoldOrder = options.canonicalizeUnfoldOrder,
+                .disallowUnfoldLAboveShift = options.disallowUnfoldLAboveShift,
+                .disallowUnfoldLAboveMergeR = options.disallowUnfoldLAboveMergeR,
+            }));
+        }
+
+        // Expand^{-1}
+        if (options.maximumExpands == -1 || options.maximumExpands > existingOp<ExpandOp>()) {
+            add(ExpandOp::Generate(store, prospectiveInterface, {
+                .ctx = ctx,
+                .disallowTile = options.disallowTile,
+                .maxExpansionRepeatMultiplier = options.maxExpansionRepeatMultiplier,
+            }));
         }
 
         // Try increasing dimensionality, by applying `MergeLikeOp`^{-1}s.
-        if (interface.getDimensions().size() < options.dimUpperBound) {
-            // Merge^{-1}
-            if (options.maximumMerges == -1 || options.maximumMerges > existingOp<MergeOp>()) {
-                add(MergeOp::Generate(store, prospectiveInterface, {
-                    .ctx = ctx,
-                    .graph = graph,
-                    .allowance = allowance,
-                    .disallowMergeWithLargeBlockAboveStride = options.disallowMergeWithLargeBlockAboveStride,
-                    .disallowMergeWithLargeBlockAboveUnfold = options.disallowMergeWithLargeBlockAboveUnfold,
-                    .maximumValidReshapeShiftPattern = options.maximumValidReshapeShiftPattern,
-                }));
-            }
-            // Share^{-1}
-            if (!inCriticalState && (options.maximumShares == -1 || options.maximumShares > existingOp<ShareOp>())) {
-                add(ShareOp::Generate(store, prospectiveInterface, {
-                    .graph = graph,
-                    .allowance = allowance,
-                    .maximumTensors = options.maximumTensors,
-                }));
-            }
+        // Merge^{-1}
+        if (options.maximumMerges == -1 || options.maximumMerges > existingOp<MergeOp>()) {
+            add(MergeOp::Generate(store, prospectiveInterface, {
+                .ctx = ctx,
+                .graph = graph,
+                .allowance = allowance,
+                .disallowMergeWithLargeBlockAboveStride = options.disallowMergeWithLargeBlockAboveStride,
+                .disallowMergeWithLargeBlockAboveUnfold = options.disallowMergeWithLargeBlockAboveUnfold,
+                .maximumValidReshapeShiftPattern = options.maximumValidReshapeShiftPattern,
+            }));
         }
     }
 
-    fillSlots(nextSlotStore, children, [](NextStageSlot& child) -> NextStageSlot&& { return std::move(child); });
-    const auto& rawSlots = nextSlotStore.getRawSlots();
-    if (auto it = std::ranges::adjacent_find(rawSlots); it != rawSlots.end()) {
-        KAS_REPORT_OP_HASH_COLLISION(*it->op, *std::next(it)->op);
-        nextSlotStore.checkHashCollisionAndRemove();
-    }
     Finalizability fin = nextFinalizations.size() > 0 ? Finalizability::Yes : Finalizability::No;
-    nextSlotStore.forEach([&](const NextStageSlot& slot) {
-        auto f = childrenFinalizabilities[slot.nextStage];
-        fin += f;
-    });
+    auto fill = [&]<typename Slot>(GenericNextSlotStore<Slot>& slotStore, std::vector<Slot>& children) {
+        fillSlots(slotStore, children, [](Slot& child) -> Slot&& { return std::move(child); });
+        const auto& rawSlots = slotStore.getRawSlots();
+        if (auto it = std::ranges::adjacent_find(rawSlots); it != rawSlots.end()) {
+            KAS_REPORT_OP_HASH_COLLISION(*it->op, *std::next(it)->op);
+            slotStore.checkHashCollisionAndRemove();
+        }
+        slotStore.forEach([&](const Slot& slot) {
+            auto f = childrenFinalizabilities.at(slot.nextStage);
+            fin += f;
+        });
+    };
+    fill(nextSlotStore, children);
 
     CountChildrenFinalize += nextFinalizations.size();
 
@@ -265,13 +285,7 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     const BindingContext& ctx = sampler.getBindingContext();
     const Graph graph = interface.buildGraph();
 
-    const std::size_t shareDist = ShareOp::LeastRemainingShares(getSearchableInterface(graph, interface), graph);
-    std::size_t remainingSteps = remainingDepth();
-    if (shareDist > remainingSteps) {
-        ++CountSharesUncanonical;
-        return false;
-    }
-    remainingSteps -= shareDist;
+    const std::size_t remainingSteps = remainingDepth();
 
     std::vector<CurrentDimension> current;
     std::vector<ColoredDimension> weightDims;
@@ -317,7 +331,6 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
     }
     // Save this information.
     shapeDistance = distance;
-    shapeDistance.steps += shareDist;
 
     return true;
 }
@@ -345,7 +358,7 @@ const NextFinalizeSlot *NormalStage::getChildFinalizeSlot(Next next) const {
 }
 
 NormalStage::NormalStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock):
-    Base { std::move(interface), creator, std::move(deltaOp), std::move(lock) }
+    Base { std::move(interface), creator, deltaOp, std::move(lock) }
 {
     auto it = std::ranges::adjacent_find(interface.getDimensions(), [](const Dimension& a, const Dimension& b) {
         return a.hash() == b.hash();
@@ -353,8 +366,38 @@ NormalStage::NormalStage(GraphHandle interface, AbstractStage& creator, std::opt
     if (it != interface.getDimensions().end()) {
         KAS_REPORT_DIMENSION_HASH_COLLISION(*it, *std::next(it));
     }
+    if (!deltaOp.has_value()) {
+        origin = NodeType::Reducing;
+    } else if (deltaOp == Next::Type::Contraction) {
+        origin = NodeType::Contraction;
+    } else {
+        origin = NodeType::Growing;
+    }
 }
 
+AbstractStage *NormalStage::arbitraryParentImpl() const {
+    if (origin == NodeType::Contraction) {
+        // We are from ContractionStage. There should be no other NormalStage that can reach this.
+        KAS_ASSERT(getParents().size() == 1);
+    }
+    AbstractStage *parent = Base::arbitraryParentImpl();
+    NormalStage *normalParent = dynamic_cast<NormalStage *>(parent);
+    if (!normalParent) {
+        KAS_ASSERT(origin == NodeType::Reducing);
+        // ReductionStage.
+        KAS_ASSERT(dynamic_cast<ReductionStage *>(parent));
+        return parent;
+    }
+    if (normalParent->origin == NodeType::Reducing) {
+        // Note that this is embedded! We had better jump this.
+        KAS_ASSERT(normalParent->getParents().size() == 1);
+        // But we must not jump directly to ReductionStage.
+        // Because to do that, we must call arbitraryParent() on that, which acquires the lock.
+        // Remember that we must not acquire ancestors' locks.
+        // So the dirty work is left for Node to do.
+    }
+    return normalParent;
+}
 
 Finalizability NormalStage::experimentFinalizability(Lock& lock) {
     if (!possibleToFinalizeByExperimenting()) {
@@ -365,7 +408,7 @@ Finalizability NormalStage::experimentFinalizability(Lock& lock) {
         determineFinalizability(Finalizability::No, false);
     } else {
         // Because we have added this in ReductionStage.
-        --getStats().expandedNodes;
+        getStats().removeEmbededRedundancy();
     }
     return getFinalizability(lock);
 }
@@ -414,22 +457,6 @@ bool NormalStage::canAcceptArcImpl(Arc arc) {
         return false;
     }
     return Base::canAcceptArcImpl(arc);
-}
-
-std::optional<Node> NormalStage::getChildImpl(Arc arc) {
-    return arc.match<std::optional<Node>>(
-        [&](auto op) -> std::optional<Node> {
-            auto stage = getNextOpWithoutLock(op);
-            if (!stage) { return std::nullopt; }
-            return std::make_optional<Node>(&sampler, stage);
-        },
-        [&](auto op) -> std::optional<Node> {
-            KAS_ASSERT(childrenGenerated);
-            auto key = NextFinalizeSlot::GetKey(op->tensors);
-            auto next = Next { Next::Type::Finalize, key };
-            return getChildImpl(next);
-        }
-    );
 }
 
 } // namespace kas

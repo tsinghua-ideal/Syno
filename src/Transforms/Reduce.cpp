@@ -1,5 +1,5 @@
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Transforms/Reduce.hpp"
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
 
 
 namespace kas {
@@ -35,8 +35,8 @@ bool ReduceOp::canApplyToInterface(const GraphHandle& interface) const {
     KAS_CRITICAL("You cannot decide whether a ReduceOp can be applied to an interface without the StageStore.");
 }
 
-GraphHandle ReduceOp::applyToInterface(const GraphHandle& interface) const {
-    return interface.insert1(getInput(getMultiplicity(interface)));
+void ReduceOp::applyToInterface(GraphHandle& interface) const {
+    interface.insert1(getInput(getMultiplicity(interface)));
 }
 
 std::string ReduceOp::description(const BindingContext& ctx) const {
@@ -48,7 +48,7 @@ std::string ReduceOp::descendantsDescription(const BindingContext& ctx) const {
     return description(ctx);
 }
 
-std::vector<const ReduceOp *> ReduceOp::Generate(PrimitiveOpStore& store, const std::vector<const Reduce *>& current, const GenerateOptions& options) {
+std::vector<const ReduceOp *> ReduceOp::Generate(OperationStore& store, const std::vector<const Reduce *>& current, const GenerateOptions& options) {
     const BindingContext& ctx = options.ctx;
 
     auto shape = ReductionShapeView(current);

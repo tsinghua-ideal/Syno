@@ -6,7 +6,7 @@ import time
 import threading
 import queue
 import traceback
-from KAS import KernelLoader, Node, Path, Sampler, Statistics, SearchSpaceExplorer
+from KAS import Path, Sampler, Statistics, SearchSpaceExplorer
 
 
 class Session:

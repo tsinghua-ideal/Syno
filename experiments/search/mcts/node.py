@@ -6,24 +6,12 @@ from functools import partial
 from typing import List, Union, Optional, Dict, Tuple, DefaultDict, Generator
 from time import time
 
-from KAS import Path, Node, AbsolutePath, Sampler, Next, Arc
+from KAS import Path, Node, AbsolutePath, Sampler, Next, Arc, NextSerializer
 
 from .avg_meter import AverageMeter
 
 PseudoTreeNext = Union[Next.Type, int]
 PseudoArc = Union[Next.Type, Arc]
-
-dimensions_type = [
-    "Reduce",
-    "Expand",
-    "Shift",
-    "Stride",
-    "Split",
-    "Unfold",
-    "Merge",
-    "Share",
-    "Finalize",
-]
 
 
 class TreePath(Path):
@@ -56,10 +44,7 @@ class TreePath(Path):
 
     @staticmethod
     def decode_next_type(repr_: str):
-        try:
-            pos = dimensions_type.index(repr_)
-        except ValueError:
-            raise Exception(f"Unexpected type {repr_}! ")
+        pos = NextSerializer().deserialize_type(repr_)
         return str(pos)
 
     @staticmethod

@@ -21,7 +21,7 @@
 #include "KAS/Core/TensorView.hpp"
 #include "KAS/Search/Common.hpp"
 #include "KAS/Search/Node.hpp"
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 
 
 namespace kas {
@@ -31,8 +31,6 @@ struct SampleOptions {
     Seed seed = 42;
     std::size_t depth = 10;
     std::size_t maxChainLength = 5;
-    std::size_t dimLowerBound = 1;
-    std::size_t dimUpperBound = 8;
     std::size_t maximumTensors = 2;
     std::size_t maximumReductions = 2;
     std::size_t maxFLOPs = std::numeric_limits<std::size_t>::max();
@@ -68,8 +66,8 @@ struct SampleOptions {
     bool disallowMergeInputAndWeight = false;
     bool disallowTile = true;
     bool disallowShareWeights = false;
-    std::size_t maxExpansionRepeatMultiplier = 10;
-    std::size_t maxExpansionMergeMultiplier = 128;
+    std::size_t maxExpansionRepeatMultiplier = 1;
+    std::size_t maxExpansionMergeMultiplier = 512;
     std::size_t maxExpansionWeightsSharingDimSize = 8;
     std::size_t minExpansionWeightsSharingDimSize = 3;
 
@@ -192,7 +190,7 @@ class Sampler final {
 
     TensorExpression expressionOneTensor, expressionTwoTensors, expressionThreeTensors, expressionFourTensors;
 
-    PrimitiveOpStore opStore;
+    OperationStore opStore;
     StageStore stageStore;
 
     ReductionStage *rootStage;
@@ -215,7 +213,7 @@ public:
     const std::vector<Parser::Attributes>& getInputAttributes() const { return inputAttributes; }
     const std::vector<Parser::Attributes>& getOutputAttributes() const { return outputAttributes; }
     const SampleOptions& getOptions() const { return options; }
-    PrimitiveOpStore& getOpStore() { return opStore; }
+    OperationStore& getOpStore() { return opStore; }
     StageStore& getStageStore() { return stageStore; }
     DepthwiseStatistics& getStats(std::size_t depth) { return depthwiseStatistics[depth]; }
     std::size_t getExpandAtDepth();
@@ -252,14 +250,14 @@ public:
     static Next ConvertSearchableTensorsToFinalNext(const std::vector<Topmost>& tensors);
 
     // This cannot figure out Finalize.
-    static std::vector<const PrimitiveOp *> ConvertGraphToOps(const Graph& graph);
-    static std::vector<Next> ConvertOpsToNexts(const std::vector<const PrimitiveOp *>& ops);
-    std::vector<Arc> convertOpsToArcs(const std::vector<const PrimitiveOp *>& ops) const;
+    static std::vector<const Operation *> ConvertGraphToOps(const Graph& graph, OperationStore& store);
+    static std::vector<Next> ConvertOpsToNexts(const std::vector<const Operation *>& ops);
+    std::vector<Arc> convertOpsToArcs(const std::vector<const Operation *>& ops) const;
 
     // For Forward.
-    static std::vector<Next> ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors);
+    static std::vector<Next> ConvertSearchableTensorsToPath(const std::vector<Topmost>& tensors, OperationStore& store);
     // Convenience.
-    std::vector<Next> convertTensorViewToPath(const TensorView& tensorView) const;
+    std::vector<Next> convertTensorViewToPath(const TensorView& tensorView);
 
     class Pruner {
         std::mutex mutex;

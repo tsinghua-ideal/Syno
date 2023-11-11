@@ -25,8 +25,9 @@ bool Arc::operator==(const Arc& rhs) const {
         return false;
     }
     return match<bool>(
-        [&](const PrimitiveOp *op) {
-            return PrimitiveOpEqual{}(op, rhs.as<PrimitiveOp>());
+        [&](const Operation *op) {
+            // We have uniquify them.
+            return *op == *rhs.as<Operation>();
         },
         [&](const FinalizeOp *op) {
             return *op == *rhs.as<FinalizeOp>();
@@ -37,9 +38,11 @@ std::size_t Arc::hash() const {
     using namespace std::string_view_literals;
     static const auto arcHash = std::hash<std::string_view>{}("Arc"sv);
     auto h = arcHash;
-    HashCombine(h, inner.index());
+    constexpr std::size_t NumVariants = std::variant_size_v<decltype(inner)>;
+    constexpr std::size_t NumBits = std::numeric_limits<std::size_t>::digits / NumVariants;
+    HashCombine(h, 1_uz << (NumBits * inner.index()));
     auto contentHash = match<std::size_t>(
-        [](const PrimitiveOp *op) {
+        [](const Operation *op) {
             return op->opHash();
         },
         [](const FinalizeOp *op) {
@@ -51,7 +54,7 @@ std::size_t Arc::hash() const {
 }
 Next Arc::toNext() const {
     return match<Next>(
-        [&](const PrimitiveOp *op) -> Next {
+        [&](const Operation *op) -> Next {
             return Next::FromOp(op);
         },
         [&](const FinalizeOp *op) -> Next {
@@ -70,6 +73,16 @@ std::string Arc::toString() const {
         }
     );
 }
+
+Node::Node(Sampler *sampler, ReductionStage *rStage):
+    sampler { sampler }, inner { rStage } {}
+Node::Node(Sampler *sampler, NormalStage *nStage):
+    sampler { sampler }, inner { nStage }
+{
+    KAS_ASSERT(!nStage->isEmbeddedInReductionStage(), "You should not use the embedded stage in Node!");
+}
+Node::Node(Sampler *sampler, FinalStage *fStage):
+    sampler { sampler }, inner { fStage } {}
 
 bool Node::operator==(const Node& rhs) const {
     if (inner.index() != rhs.inner.index()) {
@@ -157,13 +170,49 @@ Node Node::arbitraryParent() const {
             if (auto rStage = dynamic_cast<ReductionStage *>(parent)) {
                 return Node(sampler, rStage);
             } else if (auto nStage = dynamic_cast<NormalStage *>(parent)) {
-                return Node(sampler, nStage);
+                if (nStage->isEmbeddedInReductionStage()) {
+                    return Node(sampler, dynamic_cast<ReductionStage *>(nStage->arbitraryParent()));
+                } else {
+                    return Node(sampler, nStage);
+                }
             } else {
                 KAS_UNREACHABLE();
             }
         },
         [&](FinalStage *stage) {
             return Node(sampler, &stage->parent);
+        }
+    );
+}
+
+bool Node::isBottomOfLattice() const {
+    return match<bool>(
+        [](ReductionStage *stage) {
+            return stage->getDepth() == 0;
+        },
+        [](NormalStage *stage) {
+            return stage->isFromContractionStage();
+        },
+        [](FinalStage *) -> bool {
+            return false;
+        }
+    );
+}
+
+bool Node::parentIsBottomOfLattice() const {
+    return match<bool>(
+        [](ReductionStage *stage) {
+            return false;
+        },
+        [](NormalStage *stage) {
+            if (stage->isFromContractionStage()) {
+                return true;
+            } else {
+                return dynamic_cast<NormalStage&>(*stage->arbitraryParent()).isEmbeddedInReductionStage();
+            }
+        },
+        [](FinalStage *) -> bool {
+            return true;
         }
     );
 }
@@ -269,7 +318,7 @@ std::vector<Next> Node::getPossiblePath() const {
         }
     );
     const Graph graph = stage->getInterface().buildGraph();
-    auto result = Sampler::ConvertOpsToNexts(Sampler::ConvertGraphToOps(graph));
+    auto result = Sampler::ConvertOpsToNexts(Sampler::ConvertGraphToOps(graph, sampler->getOpStore()));
     if (finalNext) {
         result.emplace_back(*finalNext);
     }
@@ -289,7 +338,7 @@ std::vector<Arc> Node::getComposingArcs() const {
         }
     );
     const Graph graph = stage->getInterface().buildGraph();
-    auto result = sampler->convertOpsToArcs(Sampler::ConvertGraphToOps(graph));
+    auto result = sampler->convertOpsToArcs(Sampler::ConvertGraphToOps(graph, sampler->getOpStore()));
     if (finalArc) {
         result.emplace_back(*finalArc);
     }
@@ -332,60 +381,56 @@ void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& 
     // KAS_ASSERT(success > 0);
 }
 
-Node Node::expandToSync(Node target) const {
-    if (*this == target) {
-        return *this;
-    }
-    if (target.isFinal()) {
-        target = target.arbitraryParent();
-    }
-    if (*this == target) {
-        return *this;
-    }
-    std::vector<Arc> remainingReductions, remainingOthers;
-    {
-        auto bottomArcs = ranges::to<std::unordered_set<Arc, Arc::Hash>>(match<std::vector<Arc>>(
-            [&](AbstractStage *) { return getComposingArcs(); },
-            [](FinalStage *) -> std::vector<Arc> { KAS_UNREACHABLE(); }
-        ));
-        auto topArcs = ranges::to<std::unordered_set<Arc, Arc::Hash>>(target.match<std::vector<Arc>>(
-            [&](AbstractStage *) { return target.getComposingArcs(); },
-            // If the target is a TensorView, we only need to expand to its predecessor.
-            [&](FinalStage *stage) -> std::vector<Arc> { KAS_UNREACHABLE(); }
-        ));
-        std::size_t removed = 0;
-        for (const Arc& arc: topArcs) {
-            if (bottomArcs.contains(arc)) {
-                ++removed;
-            } else {
-                if (arc.tryAs<ReduceOp>()) {
-                    remainingReductions.emplace_back(arc);
-                } else {
-                    remainingOthers.emplace_back(arc);
-                }
-            }
-        }
-        KAS_ASSERT(removed == bottomArcs.size());
-    }
+std::vector<Node> Node::expandToSync(Node target) const {
+    // We have partitioned the huge lattice into several smaller lattices.
+    // We need to find the bottom node of each lattice.
+    using Arcs = std::unordered_multiset<Arc, Arc::Hash>;
+    const Node& bottom = *this;
+    std::vector<std::unique_ptr<LatticePool>> latticePools;
     auto& expander = sampler->getLatticeExpander();
-    LatticePool poolBottom { remainingReductions.size() }, poolTop { remainingOthers.size() };
-    if (!remainingReductions.empty()) {
-        expander.add(LatticeTask { poolBottom, *this, remainingReductions });
+
+    Node top = target;
+    std::vector<Node> latticeEndPoints { top };
+    bool peek = false;
+    while (target.depth() > bottom.depth()) {
+        if (peek || target.isBottomOfLattice()) {
+            if (top.depth() > target.depth() + 1) {
+                // Only if the lattice is worth expanding.
+                auto topArcs = ranges::to<Arcs>(top.getComposingArcs());
+                const auto bottomArcs = ranges::to<Arcs>(target.getComposingArcs());
+                KAS_ASSERT(topArcs.size() == top.depth() && bottomArcs.size() == target.depth());
+                for (const Arc& arc: bottomArcs) {
+                    auto it = topArcs.find(arc);
+                    KAS_ASSERT(it != topArcs.end());
+                    topArcs.erase(it);
+                }
+                auto remainingArcs = ranges::to<std::vector<Arc>>(topArcs);
+                KAS_ASSERT(remainingArcs.size() == top.depth() - bottomArcs.size());
+                latticePools.emplace_back(std::make_unique<LatticePool>(remainingArcs.size()));
+                expander.add(LatticeTask { *latticePools.back(), target, std::move(remainingArcs) });
+            }
+            // Continue.
+            peek = target.parentIsBottomOfLattice();
+            target = target.arbitraryParent();
+            top = target;
+            latticeEndPoints.emplace_back(top);
+        } else {
+            peek = target.parentIsBottomOfLattice();
+            target = target.arbitraryParent();
+        }
     }
-    Node normalBottom = target;
-    std::size_t distance = 0;
-    while (!normalBottom.isReduction()) {
-        normalBottom = normalBottom.arbitraryParent();
-        ++distance;
+    KAS_ASSERT(target == bottom);
+    if (latticeEndPoints.back() != bottom) {
+        latticeEndPoints.emplace_back(bottom);
     }
-    // One more due to the nStage embedded in rStage.
-    KAS_ASSERT(distance == remainingOthers.size() + !target.isReduction());
-    if (!remainingOthers.empty()) {
-        expander.add(LatticeTask { poolTop, normalBottom, remainingOthers });
-    }
+    std::ranges::reverse(latticeEndPoints);
+    const auto [uB, uE] = std::ranges::unique(latticeEndPoints);
+    latticeEndPoints.erase(uB, uE);
+
     expander.sync();
     sampler->getExpander().sync();
-    return normalBottom;
+
+    return latticeEndPoints;
 }
 
 void Node::expand(int layers) const {

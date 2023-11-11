@@ -2,13 +2,18 @@
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Transforms/Share.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Ranges.hpp"
 
 
 namespace kas {
+
+bool ShareOp::isEqual(const Operation& other) const {
+    const ShareOp& rhs = static_cast<const ShareOp&>(other);
+    return output == rhs.output && rhsOrigin == rhs.rhsOrigin;
+}
 
 Color ShareOp::Input::computeColor(const GraphBuilder& graphBuilder) const {
     // Add constraint.
@@ -151,7 +156,7 @@ std::size_t ShareOp::LeastRemainingShares(const Topmost& interface, const Graph&
     return requiredAdditionalShares;
 }
 
-std::vector<const ShareOp *> ShareOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
+std::vector<const ShareOp *> ShareOp::Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     const Graph& graph = options.graph;

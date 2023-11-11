@@ -5,34 +5,41 @@ namespace kas {
 
 TEST_F(search_tests, forward) {
     Forward::Factory factory { ctx };
-    auto [sizeN, sizeH, sizeW, sizeK] = factory.getSizes("N", "H", "W", "k_1");
+    auto [sizeN, sizeH, sizeW, sizeK, sizeC_in, sizeC_out] = factory.getSizes("N", "H", "W", "k_1", "C_in", "C_out");
 
-    auto [dimN, dimH, dimW] = factory.makeDimsOfSizes(sizeN, sizeH, sizeW);
-    // [N, H, W], the input.
+    auto [dimN, dimC_in_in, dimH, dimW] = factory.makeDimsOfSizes(sizeN, sizeC_in, sizeH, sizeW);
+    // [N, C_in, H, W], the input.
 
-    auto [dimK1, dimK2] = factory.makeDimsOfSizes(sizeK, sizeK);
-    // [K, K], the filter.
+    auto [dimC_out_w, dimC_in_w, dimK1, dimK2] = factory.makeDimsOfSizes(sizeC_out, sizeC_in, sizeK, sizeK);
+    // [C_out, C_in, K, K], the filter.
 
-    // The input tensors are blended into [N, H, W, K, K].
+    // The input tensors are blended into [N, C_in, H, W, C_out, C_in, K, K].
 
     auto [dimH_over_K, dimH_dot_K] = Forward::UnfoldOp::Create(dimH, sizeK);
     auto [dimW_over_K, dimW_dot_K] = Forward::UnfoldOp::Create(dimW, sizeK);
-    // [N, H, K, W, K, K, K], where H and W are unfolded.
+    // [N, C_in, H, K, W, K, C_out, C_in, K, K], where H and W are unfolded.
 
     auto dimK1_shared = Forward::ShareOp::Create(dimH_dot_K, dimK1);
     auto dimK2_shared = Forward::ShareOp::Create(dimW_dot_K, dimK2);
-    // [N, H, W, K, K], where K1, and K2 are shared.
+    auto dimC_in_shared = Forward::ShareOp::Create(dimC_in_in, dimC_in_w);
+    // [N, H, W, C_out, C_in, K, K], where K1, K2 and C_in are shared.
+
+    auto dimC_out_expand = Forward::ExpandOp::Create(factory, sizeC_out);
+    auto dimC_out = Forward::ShareOp::Create(dimC_out_expand, dimC_out_w);
+    // [N, C_out, H, W, C_in, K, K], where C_out is merged.
 
     dimN.output(0);
-    dimH_over_K.output(1);
-    dimW_over_K.output(2);
-    dimK2_shared.reduce(Reduce::ReduceType::Sum);
+    dimC_out.output(1);
+    dimH_over_K.output(2);
+    dimW_over_K.output(3);
+    dimC_in_shared.reduce(Reduce::ReduceType::Sum);
     dimK1_shared.reduce(Reduce::ReduceType::Sum);
-    // [N, H, W], the output.
+    dimK2_shared.reduce(Reduce::ReduceType::Sum);
+    // [N, C_out, H, W], the output.
 
     factory.inputs({
-        {dimN, dimH, dimW},
-        {dimK1, dimK2},
+        {dimN, dimC_in_in, dimH, dimW, dimC_out_expand},
+        {dimC_out_w, dimC_in_w, dimK1, dimK2},
     });
     std::vector<Topmost> tensors = factory.getInputs();
     sampler.sortAllExpansionsAndWeightDimensions(tensors);
@@ -44,7 +51,7 @@ TEST_F(search_tests, forward) {
         ASSERT_EQ(tensors[i].description(ctx), obtainedTensors[i].description(ctx));
     }
     sampler.removeFixedDimensions(tensors);
-    auto path = Sampler::ConvertSearchableTensorsToPath(tensors);
+    auto path = Sampler::ConvertSearchableTensorsToPath(tensors, sampler.getOpStore());
     fmt::print("A possible path is:\n");
     for (auto&& next: path) {
         fmt::print("{}\n", next.toString());

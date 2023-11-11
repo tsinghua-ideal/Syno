@@ -173,50 +173,34 @@ GraphHandle GraphHandle::FromInterfaces(const std::vector<Topmost>& interfaces) 
     return GraphHandle(std::move(interface), std::move(expansions));
 }
 
-GraphHandle GraphHandle::insert1(const Dimension& value) const {
-    auto newHandle = *this;
-    auto& newInterface = newHandle.interface;
-    auto insertionPoint = std::lower_bound(newInterface.begin(), newInterface.end(), value, Dimension::HashLessThan{});
-    newInterface.insert(insertionPoint, value);
-    return newHandle;
+void GraphHandle::insert1(const Dimension& value) {
+    auto insertionPoint = std::lower_bound(interface.begin(), interface.end(), value, Dimension::HashLessThan{});
+    interface.insert(insertionPoint, value);
 }
 
-GraphHandle GraphHandle::moveToExpansions(const Expand *value) const {
-    auto newHandle = *this;
-    auto& newInterface = newHandle.interface;
-    auto& newExpansions = newHandle.expansions;
-    auto removed = newHandle.binarySearch(value->output);
-    KAS_ASSERT(removed != newInterface.end());
-    newInterface.erase(removed);
-    auto insertionPoint = std::lower_bound(newExpansions.begin(), newExpansions.end(), value, [](const Expand *lhs, const Expand *rhs) {
+void GraphHandle::moveToExpansions(const Expand *value) {
+    auto removed = binarySearch(value->output);
+    KAS_ASSERT(removed != interface.end());
+    interface.erase(removed);
+    auto insertionPoint = std::lower_bound(expansions.begin(), expansions.end(), value, [](const Expand *lhs, const Expand *rhs) {
         return Dimension::HashLessThan{}(lhs->output, rhs->output);
     });
-    newExpansions.insert(insertionPoint, value);
-    return newHandle;
+    expansions.insert(insertionPoint, value);
 }
 
-GraphHandle GraphHandle::substitute1to1(const Dimension& fro, const Dimension& to) const {
-    auto newHandle = *this;
-    auto& newInterface = newHandle.interface;
-    bool res = WeakOrderedSubstituteVector1To1IfAny(newInterface, fro, to, Dimension::HashLessThan{});
+void GraphHandle::substitute1to1(const Dimension& fro, const Dimension& to) {
+    bool res = WeakOrderedSubstituteVector1To1IfAny(interface, fro, to, Dimension::HashLessThan{});
     KAS_ASSERT(res);
-    return newHandle;
 }
 
-GraphHandle GraphHandle::substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2) const {
-    auto newHandle = *this;
-    auto& newInterface = newHandle.interface;
-    bool res = WeakOrderedSubstituteVector1To2IfAny(newInterface, fro, to1, to2, Dimension::HashLessThan{});
+void GraphHandle::substitute1to2(const Dimension& fro, const Dimension& to1, const Dimension& to2) {
+    bool res = WeakOrderedSubstituteVector1To2IfAny(interface, fro, to1, to2, Dimension::HashLessThan{});
     KAS_ASSERT(res);
-    return newHandle;
 }
 
-GraphHandle GraphHandle::substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) const {
-    auto newHandle = *this;
-    auto& newInterface = newHandle.interface;
-    bool res = WeakOrderedSubstituteVector2To1IfAny(newInterface, fro1, fro2, to, Dimension::HashLessThan{});
+void GraphHandle::substitute2to1(const Dimension& fro1, const Dimension& fro2, const Dimension& to) {
+    bool res = WeakOrderedSubstituteVector2To1IfAny(interface, fro1, fro2, to, Dimension::HashLessThan{});
     KAS_ASSERT(res);
-    return newHandle;
 }
 
 Graph GraphHandle::buildGraph() const {

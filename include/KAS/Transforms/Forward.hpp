@@ -6,7 +6,7 @@
 #include "KAS/Core/Iterator.hpp"
 #include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/Shape.hpp"
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Utils/Common.hpp"
 
 
@@ -27,10 +27,12 @@ protected:
     Factory& factory;
     Size size;
     const BackwardDimensionImpl *value = nullptr;
+    int shareOpsAbove;
     virtual void notifyParent() = 0;
-    DimensionImpl(Factory& factory, auto&& size):
+    DimensionImpl(Factory& factory, auto&& size, int shareOpsAbove):
         factory { factory },
-        size { std::forward<decltype(size)>(size) }
+        size { std::forward<decltype(size)>(size) },
+        shareOpsAbove { shareOpsAbove }
     {}
 public:
     Factory& getFactory() const { return factory; }
@@ -41,6 +43,7 @@ public:
     BackwardDimension get() const;
     // Remove from cut set.
     BackwardDimension acquire() const;
+    int getShareOpsAbove() const { return shareOpsAbove; }
     virtual ~DimensionImpl() = default;
 };
 
@@ -48,7 +51,7 @@ class Pure final: public DimensionImpl {
     void notifyParent() override {}
 public:
     Pure(Factory& factory, auto&& size):
-        DimensionImpl { factory, std::forward<decltype(size)>(size) }
+        DimensionImpl { factory, std::forward<decltype(size)>(size), 0 }
     {}
 };
 
@@ -57,7 +60,7 @@ class Expand final: public DimensionImpl {
     void notifyParent() override;
 public:
     Expand(Factory& factory, auto&& size):
-        DimensionImpl { factory, std::forward<decltype(size)>(size) }
+        DimensionImpl { factory, std::forward<decltype(size)>(size), 0 }
     {}
     const ::kas::ExpandOp *getOp() const;
 };
@@ -75,6 +78,7 @@ public:
     BackwardDimension get() const { return inner->get(); }
     operator BackwardDimension() const { return get(); }
     BackwardDimension acquire() const { return inner->acquire(); }
+    int getShareOpsAbove() const { return inner->getShareOpsAbove(); }
     std::strong_ordering operator<=>(const Dimension& other) const noexcept = default;
     void output(std::size_t index);
     void reduce(Reduce::ReduceType reduceType);
@@ -82,7 +86,7 @@ public:
 
 class Factory {
     const BindingContext& ctx;
-    PrimitiveOpStore store;
+    OperationStore store;
     std::vector<std::unique_ptr<Iterator>> iterators;
     std::vector<BackwardDimension> bottommost;
     std::vector<Topmost> topmosts;
@@ -126,7 +130,7 @@ public:
     }
 
     const BindingContext& getBindingContext() const { return ctx; }
-    PrimitiveOpStore& getStore() { return store; }
+    OperationStore& getStore() { return store; }
     const Iterator *createIterator(const Size& domain, std::size_t index);
     const Reduce *createReduce(const Size& domain, Reduce::ReduceType reduceType);
 
@@ -163,7 +167,7 @@ public:
             op->onNotification(factory);
         }
         Output(Factory& factory, auto&& size, std::unique_ptr<RepeatLikeOp> op):
-            DimensionImpl { factory, std::forward<decltype(size)>(size) },
+            DimensionImpl { factory, std::forward<decltype(size)>(size), op->getShareOps() },
             op { std::move(op) }
         {}
     public:
@@ -180,6 +184,7 @@ protected:
         this->output = std::move(output);
     }
     RepeatLikeOp(const Dimension& input): input { input } {}
+    int getShareOps() const { return input.getShareOpsAbove(); }
 };
 
 class SplitLikeOp: public Op {
@@ -190,7 +195,7 @@ public:
             op->onNotification(factory);
         }
         Output(Factory& factory, auto&& size, std::shared_ptr<SplitLikeOp> op, Order order):
-            DimensionImpl { factory, std::forward<decltype(size)>(size) },
+            DimensionImpl { factory, std::forward<decltype(size)>(size), op->getShareOps() },
             op { std::move(op) }
         {}
     public:
@@ -214,6 +219,7 @@ protected:
         }
     }
     SplitLikeOp(const Dimension& input): input { input } {}
+    int getShareOps() const { return input.getShareOpsAbove(); }
 };
 
 class MergeLikeOp: public Op {
@@ -224,7 +230,7 @@ public:
             op->onNotification(factory);
         }
         Output(Factory& factory, auto&& size, std::unique_ptr<MergeLikeOp> op):
-            DimensionImpl { factory, std::forward<decltype(size)>(size) },
+            DimensionImpl { factory, std::forward<decltype(size)>(size), op->getShareOps() },
             op { std::move(op) }
         {}
     public:
@@ -241,6 +247,7 @@ protected:
         this->output = std::move(output);
     }
     MergeLikeOp(const Dimension& lhs, const Dimension& rhs): inputLhs { lhs }, inputRhs { rhs } {}
+    virtual int getShareOps() const { return std::max(inputLhs.getShareOpsAbove(), inputRhs.getShareOpsAbove()); }
 };
 
 class MergeOp final: public MergeLikeOp {
@@ -259,6 +266,7 @@ public:
     const Dimension& getInputRhs() const { return inputRhs; }
     // After rhsOrigin resolved, continue.
     void proceedNotification(Factory& factory);
+    int getShareOps() const override { return MergeLikeOp::getShareOps() + 1;}
     [[nodiscard]] static Dimension Create(const Dimension& lhs, const Dimension& rhs);
 };
 

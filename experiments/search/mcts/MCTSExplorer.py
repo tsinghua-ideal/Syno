@@ -1,10 +1,9 @@
 import os
-import tempfile
 from torch import nn
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 from copy import deepcopy
 
-from KAS import NextSerializer, Node, Path, Sampler, Statistics, Next
+from KAS import NextSerializer, Sampler, Statistics, Next
 
 from KAS.AbstractExplorer import (
     AbstractChild,

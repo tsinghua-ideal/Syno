@@ -7,6 +7,7 @@
 namespace kas {
 
 class UnfoldOp final: public SplitLikeOp {
+    bool isEqual(const Operation& other) const override;
 public:
     static constexpr DimensionType Type = DimensionType::Unfold;
     class Input final: public SplitLikeOp::Input {
@@ -30,10 +31,6 @@ public:
     void accept(OpVisitor& visitor) const override { visitor.visit(*this); }
     Dimension getInput() const override { return &input; }
     Values value(const Values& known) const override;
-
-    bool operator==(const UnfoldOp& other) const noexcept {
-        return outputLhs == other.outputLhs && outputRhs == other.outputRhs;
-    }
 
     struct GenerateOptions {
         const BindingContext& ctx;
@@ -59,7 +56,7 @@ public:
         CanonicalizedUnfoldChains,
         SuccessfulGenerations,
     )
-    static std::vector<const UnfoldOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
+    static std::vector<const UnfoldOp *> Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<UnfoldOp>);

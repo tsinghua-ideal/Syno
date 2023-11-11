@@ -1,7 +1,7 @@
 import time
 import math
 import logging
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 from KAS import Path, Node
 
 from .tree import MCTSTree
