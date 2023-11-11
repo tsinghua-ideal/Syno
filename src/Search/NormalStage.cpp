@@ -47,7 +47,15 @@ void NormalStage::removeTooLongChains(ContractionOp::Analysis& analysis, const G
     };
     std::erase_if(analysis.simpleViewSearchable.getDimensions(), tooLongChain);
     std::erase_if(analysis.other, tooLongChain);
-    std::erase_if(analysis.full.getDimensions(), tooLongChain);
+    auto& fullDims = analysis.full.getDimensions();
+    auto& candidateTypes = analysis.candidateTypes;
+    std::size_t i = fullDims.size();
+    while (i --> 0) {
+        if (tooLongChain(fullDims[i])) {
+            fullDims.erase(fullDims.begin() + i);
+            candidateTypes.erase(candidateTypes.begin() + i);
+        }
+    }
 }
 
 Size NormalStage::getAllowanceUsage(const Graph& graph) const {
@@ -132,20 +140,23 @@ void NormalStage::guardGeneratedChildren() {
 
     std::vector<NextStageSlot> childrenView;
     std::vector<NextContractionSlot> childrenContraction;
+    std::map<AbstractStage *, Finalizability> childrenFinalizabilities;
     // Wrap the generated Op in a NextStageSlot or NextContractionSlot.
     auto add = [&]<GeneralizedOp Op>(auto& children, const std::vector<const Op *>& newOps) {
         children.reserve(children.size() + newOps.size());
         for (const Op *op: newOps) {
             NormalStage *stage;
+            Finalizability f = Finalizability::No;
             {
                 Lock lock;
                 std::tie(stage, lock) = getNextOp(op);
                 if (stage != nullptr) {
-                    KAS_ASSERT(stage->getFinalizability(lock) == Finalizability::Maybe);
+                    f = stage->getFinalizability(lock);
                 }
             }
-            if (stage) {
+            if (f != Finalizability::No) {
                 children.emplace_back(Next::FromOp(op), op, stage);
+                childrenFinalizabilities.try_emplace(stage, f);
             }
         }
     };
@@ -226,13 +237,8 @@ void NormalStage::guardGeneratedChildren() {
         if (options.maximumExpands == -1 || options.maximumExpands > existingOp<ExpandOp>()) {
             add(childrenView, ExpandOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
-                .disallowMergeInputAndWeight = options.disallowMergeInputAndWeight,
                 .disallowTile = options.disallowTile,
-                .disallowShareWeights = options.disallowShareWeights,
                 .maxExpansionRepeatMultiplier = options.maxExpansionRepeatMultiplier,
-                .maxExpansionMergeMultiplier = options.maxExpansionMergeMultiplier,
-                .maxExpansionWeightsSharingDimSize = options.maxExpansionWeightsSharingDimSize,
-                .minExpansionWeightsSharingDimSize = options.minExpansionWeightsSharingDimSize,
             }));
         }
 
@@ -258,10 +264,10 @@ void NormalStage::guardGeneratedChildren() {
             KAS_REPORT_OP_HASH_COLLISION(*it->op, *std::next(it)->op);
             slotStore.checkHashCollisionAndRemove();
         }
-        if (slotStore.size()) {
-            // Since we already know that all of the finalizabilities are Maybe.
-            fin += Finalizability::Maybe;
-        }
+        slotStore.forEach([&](const Slot& slot) {
+            auto f = childrenFinalizabilities.at(slot.nextStage);
+            fin += f;
+        });
     };
 
     fill(nextContractions, childrenContraction);

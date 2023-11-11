@@ -25,6 +25,9 @@ class ContractionOp {
         bool operator==(const Dimwise& other) const noexcept = default;
         std::weak_ordering operator<=>(const Dimwise& other) const noexcept;
         std::size_t hash() const noexcept;
+        ContractionType type() const noexcept;
+        std::string description(const BindingContext& ctx) const;
+        std::string descendantsDescription(const BindingContext& ctx) const;
     };
     std::vector<Dimwise> dimwiseOps;
 public:
@@ -49,10 +52,13 @@ public:
     struct CandidateDimension {
         Dimension dim;
         SharedCandidateType type;
+        int lastWeight;
     };
     struct Analysis {
         // 0 means not contracted yet.
         int maxWeightId;
+        // For canonicalization.
+        std::optional<Dimension> lastWeightLeader;
         // Number of ShareOp's.
         int numShares;
         // Dims above the latest Share lhs if there is any contraction. If not, all the interface.
@@ -91,7 +97,9 @@ public:
             PrimitiveOpStore& store;
             ContractionOpStore& contractionStore;
             const BindingContext& ctx;
+            const Graph& graph;
             int weightId;
+            std::optional<Dimension> lastWeightLeader;
             int maxShares;
             std::size_t maxExpansionMergeMultiplier;
             std::size_t maxExpansionWeightsSharingDimSize;

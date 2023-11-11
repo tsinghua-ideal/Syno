@@ -417,7 +417,7 @@ std::vector<Node> Node::expandToSync(Node target) const {
                     topArcs.erase(it);
                 }
                 auto remainingArcs = ranges::to<std::vector<Arc>>(topArcs);
-                KAS_ASSERT(remainingArcs.size() == topArcs.size() - bottomArcs.size());
+                KAS_ASSERT(remainingArcs.size() == top.depth() - bottomArcs.size());
                 latticePools.emplace_back(std::make_unique<LatticePool>(remainingArcs.size()));
                 expander.add(LatticeTask { *latticePools.back(), target, std::move(remainingArcs) });
             }

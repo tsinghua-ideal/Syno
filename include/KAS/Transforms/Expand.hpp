@@ -33,21 +33,10 @@ public:
     std::string description(const BindingContext& ctx) const final override;
     std::string descendantsDescription(const BindingContext& ctx) const final override;
 
-    struct Usage {
-        Graph::DimensionSet sharedWeightDims;
-        Size mergedInputAndWeight;
-    };
-    static Usage GetUsage(const BindingContext& ctx, const Graph& graph);
-
     struct GenerateOptions {
         const BindingContext& ctx;
-        bool disallowMergeInputAndWeight;
         bool disallowTile;
-        bool disallowShareWeights;
         std::size_t maxExpansionRepeatMultiplier;
-        std::size_t maxExpansionMergeMultiplier;
-        std::size_t maxExpansionWeightsSharingDimSize;
-        std::size_t minExpansionWeightsSharingDimSize;
     };
     KAS_STATISTICS_DEF(
         GenerateInvocations,
@@ -55,7 +44,6 @@ public:
         DisallowedAttempts,
         SuccessfulGenerations,
     )
-    // TODO!!! Only repeat here!
     static std::vector<const ExpandOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 

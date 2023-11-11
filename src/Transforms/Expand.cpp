@@ -35,26 +35,6 @@ std::string ExpandOp::descendantsDescription(const BindingContext& ctx) const {
     return fmt::format("-> {}", output.descendantsDescription(ctx));
 }
 
-ExpandOp::Usage ExpandOp::GetUsage(const BindingContext& ctx, const Graph& graph) {
-    Usage result { {}, Size::Identity(ctx) };
-    for (const Expand *expand: graph.getTopmost().getExpansions()) {
-        if (auto share = expand->output.tryAs<ShareOp::Input>(); share) {
-            auto belowThisShare = share->getOp()->output.type();
-            if (belowThisShare == DimensionType::Share) {
-                // A chain of ShareOp.
-                while (share != nullptr) {
-                    result.sharedWeightDims.emplace(share->getOther());
-                    share = share->getOp()->output.tryAs<ShareOp::Input>();
-                }
-            } else if (belowThisShare == DimensionType::Merge) {
-                // Merge input and weight.
-                result.mergedInputAndWeight *= share->size();
-            }
-        }
-    }
-    return result;
-}
-
 std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
@@ -62,7 +42,6 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
 
     // We need to check if there are too many Expand's.
     auto currentExpansionRepeat = Size::Identity(ctx);
-    auto currentExpansionMerge = Size::Identity(ctx);
     // Also record all the weight dims brought by Expand. Weight dims cannot be Merge'd with weight dims.
     // Moreover, I cannot see what is useful for Merging expanded dims with expanded dims or weight dims.
     // I think expanded dims are only useful when they merge with data dims. TODO: think over this.
@@ -83,14 +62,11 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
             }
             auto bottommostType = weightDim.type();
             if (bottommostType == DimensionType::Merge) {
-                currentExpansionMerge = currentExpansionMerge * weightDim.size();
                 expandedDims.emplace(weightDim);
             } else {
                 // Multiple weights contribute to a single dim.
                 // Currently we only allow this for Iterator and Reduce.
                 KAS_ASSERT(bottommostType == DimensionType::Iterator || bottommostType == DimensionType::Reduce);
-                // And if there is only one weight, this is not allowed, since this does not need Expand.
-                KAS_ASSERT(weightDim != expansion->output.as<ShareOp::Input>().getOp()->output);
             }
         }
     }
@@ -101,10 +77,6 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
     if (!options.disallowTile) {
         allows.emplace_back(T::MergeL);
     }
-    if (!options.disallowMergeInputAndWeight || !options.disallowShareWeights) {
-        // We later look for the Merge pattern or weights-Sharing pattern.
-        allows.emplace_back(T::ShareL);
-    }
     auto plausible = interface.filterIn(std::move(allows));
 
     std::vector<const ExpandOp *> res;
@@ -112,90 +84,36 @@ std::vector<const ExpandOp *> ExpandOp::Generate(PrimitiveOpStore& store, const 
     std::size_t countPlausible = 0;
     for (auto&& dim: plausible) {
         ++countPlausible;
-        // If this is not a simple repeat,
-        if (auto share = dim.tryAs<ShareOp::Input>(); share) {
-            // this may be a merge across tensors, or weights sharing.
-            auto weightDim = share->getOp()->output;
-            bool isWeightsSharing = false;
-            if (!options.disallowShareWeights) {
-                // Get the bottommost dim, if there is weights sharing.
-                while (weightDim.is(DimensionTypeWithOrder::ShareL)) {
-                    weightDim = weightDim.as<ShareOp::Input>().getOp()->output;
-                    isWeightsSharing = true; // Only upon chained ShareOp, this is true.
-                }
-            }
+        const auto& dimMerge = dim.as<MergeOp::Input>();
+        auto otherInputOfMerge = dimMerge.getOther();
+        // Check if the other is undesired.
+        if (expandedDims.contains(otherInputOfMerge)) {
+            continue;
+        }
 
-            auto weightDimType = weightDim.type();
-            if (weightDimType == DimensionType::Merge) {
-                if (options.disallowMergeInputAndWeight) {
-                    continue;
-                }
-                // If `isWeightsSharing` is true, this is both weights-sharing and input-and-weight-merging!
-                auto otherInputOfMerge = weightDim.as<MergeOp::Input>().getOther();
-                // Check if the other is undesired.
-                if (expandedDims.contains(otherInputOfMerge)) {
-                    continue;
-                }
-                // Check if it exceeds the maximum.
-                if (
-                    options.maxExpansionMergeMultiplier &&
-                    // Do not make expansions too large.
-                    (currentExpansionMerge * dim.size()).upperBoundEst(ctx) > options.maxExpansionMergeMultiplier
-                ) {
-                    continue;
-                }
-            } else if (weightDimType == DimensionType::Iterator) {
-                // This case is only allowed in weights-sharing.
-                if (!isWeightsSharing) {
-                    continue;
-                }
-            } else if (weightDimType == DimensionType::Reduce) {
-                // This case is only allowed in weights-sharing.
-                if (!isWeightsSharing) {
-                    continue;
-                }
-                // We need to restrict this pattern.
-                auto weightsSharing = weightDim.size().upperBoundEst(ctx);
-                if (weightsSharing < options.minExpansionWeightsSharingDimSize || weightsSharing > options.maxExpansionWeightsSharingDimSize) {
-                    // Only allow sizes in this interval.
-                    continue;
-                }
-            } else {
-                // Not Merge, Iterator or Reduce.
+        // Certain cases are redundant.
+        Dimension outputDim = dimMerge.getOp()->output;
+        if (outputDim.is(DimensionType::Merge)) {
+            // This must be a tile.
+            if (options.disallowTile) {
                 continue;
             }
-        } else {
-            const auto& dimMerge = dim.as<MergeOp::Input>();
-            auto otherInputOfMerge = dimMerge.getOther();
-            // Check if the other is undesired.
-            if (expandedDims.contains(otherInputOfMerge)) {
-                continue;
+            // Get the bottommost output dim.
+            while (outputDim.is(DimensionType::Merge)) {
+                outputDim = outputDim.as<MergeOp::Input>().getOp()->output;
             }
+        }
+        if (outputDim.type() == DimensionType::Iterator) {
+            // Data replication.
+            continue;
+        }
 
-            // Certain cases are redundant.
-            Dimension outputDim = dimMerge.getOp()->output;
-            if (outputDim.is(DimensionType::Merge)) {
-                // This must be a tile.
-                if (options.disallowTile) {
-                    continue;
-                }
-                // Get the bottommost output dim.
-                while (outputDim.is(DimensionType::Merge)) {
-                    outputDim = outputDim.as<MergeOp::Input>().getOp()->output;
-                }
-            }
-            if (outputDim.type() == DimensionType::Iterator) {
-                // Data replication.
-                continue;
-            }
-
-            if (
-                options.maxExpansionRepeatMultiplier &&
-                // Do not make expansions too large.
-                (currentExpansionRepeat * dim.size()).upperBoundEst(ctx) > options.maxExpansionRepeatMultiplier
-            ) {
-                continue;
-            }
+        if (
+            options.maxExpansionRepeatMultiplier &&
+            // Do not make expansions too large.
+            (currentExpansionRepeat * dim.size()).upperBoundEst(ctx) > options.maxExpansionRepeatMultiplier
+        ) {
+            continue;
         }
         ++CountSuccessfulGenerations;
         res.emplace_back(store.get<ExpandOp>(dim));

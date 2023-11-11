@@ -371,18 +371,14 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
         }
     }
 
-    const ExpandOp::Usage expandOpUsage = ExpandOp::GetUsage(ctx, graph);
-
     TopKFinalizations result { ctx, options.maximumFinalizations, options.finalStageBuilder, options.maxFLOPs };
-    auto addToResults = [&result, &expansions, &graph, &expandOpUsage](std::vector<std::vector<Dimension>>&& tensors) {
+    auto addToResults = [&result, &expansions](std::vector<std::vector<Dimension>>&& tensors) {
         // Currently, we only allow expansions to be added to the input tensor.
         std::vector<Topmost> realTensors;
         realTensors.emplace_back(std::move(tensors.at(0)), expansions);
         for (auto&& tensor: tensors | std::views::drop(1)) {
             realTensors.emplace_back(std::move(tensor), std::vector<const Expand *>{});
         }
-        // Redundant weights.
-        if (!FinalizationIsCanonicalGivenSharedWeights(graph, realTensors, expandOpUsage.sharedWeightDims)) return;
         result.emplace(std::move(realTensors));
     };
     const auto& desired = options.desired;

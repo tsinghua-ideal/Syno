@@ -7,20 +7,67 @@
 
 namespace kas {
 
-std::size_t ContractionOp::Dimwise::hash() const noexcept {
-    // TODO!!!
-}
-
 std::weak_ordering ContractionOp::Dimwise::operator<=>(const Dimwise& other) const noexcept {
-    auto hash = share->output.hash() <=> other.share->output.hash();
+    auto hash = share->opHash() <=> other.share->opHash();
     if (hash != 0) {
         return hash;
     }
     return (expand != nullptr) <=> (other.expand != nullptr);
 }
 
+std::size_t ContractionOp::Dimwise::hash() const noexcept {
+    using namespace std::string_view_literals;
+    static const std::size_t ContractionDimwiseHash = std::hash<std::string_view>{}("ContractionDimwise"sv);
+    std::size_t h = ContractionDimwiseHash;
+    HashCombineRaw(h, share->opHash());
+    static const std::size_t ContractionHasExpansionHash = std::hash<std::string_view>{}("ContractionHasExpansion"sv);
+    static const std::size_t ContractionNoExpansionHash = std::hash<std::string_view>{}("ContractionNoExpansion"sv);
+    if (expand != nullptr) {
+        HashCombineRaw(h, ContractionHasExpansionHash);
+    } else {
+        HashCombineRaw(h, ContractionNoExpansionHash);
+    }
+    return h;
+}
+
+ContractionType ContractionOp::Dimwise::type() const noexcept {
+    return expand ? ContractionType::Outer : ContractionType::Inner;
+}
+
+std::string ContractionOp::Dimwise::description(const BindingContext& ctx) const {
+    if (expand) {
+        return fmt::format(
+            "[], {} -> {}",
+            share->getInputR().description(ctx),
+            share->output.description(ctx)
+        );
+    } else {
+        return share->description(ctx);
+    }
+}
+
+std::string ContractionOp::Dimwise::descendantsDescription(const BindingContext& ctx) const {
+    if (expand) {
+        return fmt::format(
+            "{}, {} -> {}",
+            expand->descendantsDescription(ctx),
+            share->getInputR().descendantsDescription(ctx),
+            share->output.descendantsDescription(ctx)
+        );
+    } else {
+        return share->descendantsDescription(ctx);
+    }
+}
+
 std::size_t ContractionOp::opHash() const noexcept {
-    // TODO!!!
+    using namespace std::string_view_literals;
+    static const std::size_t ContractionHash = std::hash<std::string_view>{}("Contraction"sv);
+    std::size_t h = ContractionHash;
+    HashCombine(h, dimwiseOps.size());
+    for (const Dimwise& dimwise: dimwiseOps) {
+        HashCombineRaw(h, dimwise.hash());
+    }
+    return h;
 }
 
 bool ContractionOp::canApplyToInterface(const GraphHandle& interface) const {
@@ -45,11 +92,29 @@ GraphHandle ContractionOp::appliedToInterface(const GraphHandle& interface) cons
 }
 
 std::string ContractionOp::description(const BindingContext& ctx) const {
-    // TODO!!!
+    return fmt::format(
+        "[{}]@Contraction{}",
+        fmt::join(
+            dimwiseOps | std::views::transform([&ctx](const Dimwise& dimwise) {
+                return dimwise.description(ctx);
+            }),
+            "]["
+        ),
+        opHash()
+    );
 }
 
 std::string ContractionOp::descendantsDescription(const BindingContext& ctx) const {
-    // TODO!!!
+    return fmt::format(
+        "[{}]@Contraction{}",
+        fmt::join(
+            dimwiseOps | std::views::transform([&ctx](const Dimwise& dimwise) {
+                return dimwise.descendantsDescription(ctx);
+            }),
+            "]["
+        ),
+        opHash()
+    );
 }
 
 ContractionOp::SharedCandidateType ContractionOp::GetSharedCandidateType(Dimension dim) {
@@ -70,10 +135,19 @@ ContractionOp::SharedCandidateType ContractionOp::GetSharedCandidateType(Dimensi
 
 ContractionOp::Analysis ContractionOp::Analyze(const BindingContext& ctx, const Graph& graph, const GraphHandle& interface) {
     int maxWeightId = 0;
+    std::optional<Dimension> lastWeightLeader;
     int numShares = 0;
     Size numelOuter = Size::Identity(ctx);
+    auto globalComp = Dimension::GlobalLessThan(graph);
     for (const ShareOp *shareOp: graph.getOpsOfType<ShareOp>()) {
-        maxWeightId = std::max(maxWeightId, shareOp->getRhsOrigin());
+        int newWeightId = shareOp->getRhsOrigin();
+        const Dimension& newWeightDim = shareOp->output;
+        if (maxWeightId < newWeightId) {
+            maxWeightId = newWeightId;
+            lastWeightLeader = newWeightDim;
+        } else if (maxWeightId == newWeightId && globalComp(newWeightDim, lastWeightLeader.value())) {
+            lastWeightLeader = newWeightDim;
+        }
         ++numShares;
         graph.visitAlong(shareOp->getInputL(), Direction::Up).match(Match {
             [&](const ExpandVertex&, auto) {
@@ -115,6 +189,7 @@ ContractionOp::Analysis ContractionOp::Analyze(const BindingContext& ctx, const 
     }
     return {
         .maxWeightId = maxWeightId,
+        .lastWeightLeader = std::move(lastWeightLeader),
         .numShares = numShares,
         .simpleViewSearchable = std::move(simpleViewSearchable),
         .other = std::move(other),
@@ -143,9 +218,17 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
     // Why not allow 1? Later explained.
     if (numShares <= 1) return nullptr;
     std::vector<std::size_t> outer, inner;
+    int lastWeight = 0;
+    std::optional<Dimension> leader;
+    auto globalComp = Dimension::GlobalLessThan(options.graph);
     for (std::size_t i = 0; i < available.size(); ++i) {
         const auto& assignment = assigned[i];
         if (!assignment.has_value()) continue;
+        const auto& selection = available[i];
+        lastWeight = std::max(lastWeight, selection.lastWeight);
+        if (!leader || globalComp(selection.dim, *leader)) {
+            leader = selection.dim;
+        }
         switch (*assignment) {
         case ContractionType::Outer:
             outer.emplace_back(i);
@@ -162,7 +245,13 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
     // TODO! Think over this.
     if (outer.empty() || inner.empty()) return nullptr;
 
-    // TODO!!! Canonical order of ContractionOp!
+    // Canonical order of ContractionOp.
+    if (lastWeight + 1 != options.weightId) {
+        // Require the leader of weights to be ordered.
+        if (!globalComp(options.lastWeightLeader.value(), leader.value())) {
+            return nullptr;
+        }
+    }
 
     auto& store = options.store;
     auto& contractionStore = options.contractionStore;
@@ -249,18 +338,26 @@ std::vector<const ContractionOp *> ContractionOp::Generate(PrimitiveOpStore& sto
     const std::vector<Dimension>& fullDims = analysis.full.getDimensions();
     const std::vector<SharedCandidateType>& candidateTypes = analysis.candidateTypes;
 
-    // TODO!!! Canonicalization of contractions!
     std::vector<CandidateDimension> available;
     for (std::size_t i = 0; i < fullDims.size(); ++i) {
-        if (graph.colorOf(fullDims[i]).isDataDiscarding()) continue;
-        available.emplace_back(fullDims[i], candidateTypes[i]);
+        const auto& color = graph.colorOf(fullDims[i]);
+        if (color.isDataDiscarding()) continue;
+        int lastWeight = ranges::fold_left(
+            color.getTags()
+            | std::views::transform([](const MergeLikeOp *op) { return dynamic_cast<const ShareOp *>(op)->getRhsOrigin(); }),
+            0,
+            [](int a, int b) { return std::max(a, b); }
+        );
+        available.emplace_back(fullDims[i], candidateTypes[i], lastWeight);
     }
 
     Enumerator::Options enumeratorOptions {
         .store = store,
         .contractionStore = contractionStore,
         .ctx = options.ctx,
+        .graph = graph,
         .weightId = nextWeightId,
+        .lastWeightLeader = analysis.lastWeightLeader,
         .maxShares = options.maxShares,
         .maxExpansionMergeMultiplier = options.maxExpansionMergeMultiplier,
         .maxExpansionWeightsSharingDimSize = options.maxExpansionWeightsSharingDimSize,

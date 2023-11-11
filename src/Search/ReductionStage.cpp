@@ -65,11 +65,12 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
         {
             Lock lock;
             std::tie(stage, lock) = getNextOp(op);
+            KAS_ASSERT(stage != nullptr); // Because we expand later.
             f = stage->getFinalizability(lock);
         }
         if (f != Finalizability::No) {
             nextReductions.emplace_back(Next::FromOp(op), op, stage);
-            childrenFinalizabilities.emplace(stage, f);
+            childrenFinalizabilities.try_emplace(stage, f);
         }
     }
     fillSlots(nextSlotStore, nextReductions, [](NextStageSlot& slot) -> NextStageSlot&& {
@@ -77,7 +78,7 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
     });
     nextSlotStore.checkHashCollisionAndRemove();
     nextSlotStore.forEach([&](const NextStageSlot& slot) {
-        auto f = childrenFinalizabilities[slot.nextStage];
+        auto f = childrenFinalizabilities.at(slot.nextStage);
         fin += f;
     });
     expanded = true;
