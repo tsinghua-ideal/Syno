@@ -1,10 +1,9 @@
 import os
-import tempfile
 from torch import nn
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 from copy import deepcopy
 
-from KAS import NextSerializer, Node, Path, Sampler, Statistics, Next
+from KAS import NextSerializer, Sampler, Statistics, Next
 
 from KAS.AbstractExplorer import (
     AbstractChild,
@@ -122,7 +121,9 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
         trials = int(trials)
         assert trials > 0, f"Trials must be positive, but got {trials}."
         # TODO: add TreePath to state, and avoid this conversion
-        results = self.sampler.random_final_nodes_with_prefix(state.to_node().get_possible_path(), trials, None, 2)
+        results = self.sampler.random_final_nodes_with_prefix(
+            state.to_node().get_possible_path(), trials, None, 2
+        )
         if len(results) == 0:
             return AbstractResponse("All trials failed.")
         result = max(results, key=lambda result: len(result.path))
@@ -144,9 +145,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             f"Generated graphviz file {filename}.", returned_file=filename
         )
 
-    def goto(
-        self, state: Optional[TreeNode], serialized_path: str
-    ) -> AbstractResponse:
+    def goto(self, state: Optional[TreeNode], serialized_path: str) -> AbstractResponse:
         path = TreePath.deserialize(serialized_path)
         explorer_path = self._tree_path_to_explorer_path(path)
         return AbstractResponse(
@@ -160,9 +159,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             + "".join(f"\t{arc}\n" for arc in state.to_node().get_composing_arcs())
         )
 
-    def statistics(
-        self, state: Optional[TreeNode]
-    ) -> AbstractResponse:
+    def statistics(self, state: Optional[TreeNode]) -> AbstractResponse:
         return AbstractResponse(Statistics.Summary(self.sampler))
 
     def realize(self, state: TreeNode) -> AbstractResponse:

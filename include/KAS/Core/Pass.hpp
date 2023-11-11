@@ -29,7 +29,7 @@ protected:
 
     // Helper function for `include`.
     void excludeUpwards(const Dimension& dimension);
-    // This is called whenever `excludeUpwards` handles an Op, before DFS..
+    // This is called whenever `excludeUpwards` handles an Op, before DFS.
     virtual void beforeExclusionHook(const PrimitiveOp *op) {}
     // This is called whenever `excludeUpwards` handles an Op, after DFS.
     virtual void afterExclusionHook(const PrimitiveOp *op) {}

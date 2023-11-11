@@ -34,7 +34,4 @@ struct UnorderednessCanonicalizer: public TopBottomDimVisitor<UnorderednessCanon
 // Sometimes we can determine that the unordered dims are from a specific source.
 bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionMap<std::size_t>& unorderedDims);
 
-// Weights-sharing can lead to redundancy. We need to check that.
-bool FinalizationIsCanonicalGivenSharedWeights(const Graph& graph, const std::vector<Topmost>& tensors, const Graph::DimensionSet& sharedWeightDims);
-
 } // namespace kas

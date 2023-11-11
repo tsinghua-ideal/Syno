@@ -154,19 +154,4 @@ bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionMap
     return true;
 }
 
-bool FinalizationIsCanonicalGivenSharedWeights(const Graph& graph, const std::vector<Topmost>& tensors, const Graph::DimensionSet& sharedWeightDims) {
-    return std::ranges::none_of(
-        tensors | std::views::drop(1), // only weights.
-        [&](const Topmost& tensor) {
-            return std::ranges::all_of(
-                tensor.getDimensions(),
-                [&](const Dimension& dim) {
-                    // All dims of this weight are shared among weights.
-                    return sharedWeightDims.contains(dim);
-                }
-            );
-        }
-    );
-}
-
 } // namespace kas

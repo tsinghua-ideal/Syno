@@ -1,4 +1,4 @@
-add_kas_test(transforms-dimension_store-tests PrimitiveOpStore.cpp)
+add_kas_test(transforms-dimension_store-tests OperationStore.cpp)
 
 add_kas_test(transforms-expand-tests Expand.cpp)
 add_kas_test(transforms-reduce-tests Reduce.cpp)

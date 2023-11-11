@@ -6,24 +6,12 @@ from functools import partial
 from typing import List, Union, Optional, Dict, Tuple, DefaultDict, Generator
 from time import time
 
-from KAS import Path, Node, AbsolutePath, Sampler, Next, Arc
+from KAS import Path, Node, AbsolutePath, Sampler, Next, Arc, NextSerializer
 
 from .avg_meter import AverageMeter
 
 PseudoTreeNext = Union[Next.Type, int]
 PseudoArc = Union[Next.Type, Arc]
-
-dimensions_type = [
-    "Reduce",
-    "Expand",
-    "Shift",
-    "Stride",
-    "Split",
-    "Unfold",
-    "Merge",
-    "Share",
-    "Finalize",
-]
 
 
 class TreePath(Path):
@@ -56,10 +44,7 @@ class TreePath(Path):
 
     @staticmethod
     def decode_next_type(repr_: str):
-        try:
-            pos = dimensions_type.index(repr_)
-        except ValueError:
-            raise Exception(f"Unexpected type {repr_}! ")
+        pos = NextSerializer().deserialize_type(repr_)
         return str(pos)
 
     @staticmethod
@@ -330,7 +315,7 @@ class TreeNode:
             is_fully_in_tree -> is_dead_end -> is_final
             reveal_new_children -> get_unrevealed_children -> get_children -> get_child -> is_dead_end -> is_final
         """
-        Tp = math.floor(T ** self._tree._b)
+        Tp = math.floor(T**self._tree._b)
         # print(f"Got Tp={Tp}, child_count={self.children_count(on_tree=True, filter_exhausted=filter_exhausted)}, i {'am' if self.is_fully_in_tree() else 'am not'} fully in tree")
         while Tp > self.children_count(
             on_tree=True,
@@ -421,7 +406,7 @@ class TreeNode:
 
         Dependencies: get_unrevealed_children -> get_children -> get_child -> is_dead_end -> is_final -> None
         """
-        
+
         grave_list = []
         lrave_list = []
         beta_list = []
@@ -431,31 +416,42 @@ class TreeNode:
                 assert isinstance(next, int)
                 arc = self._node.get_arc_from_handle(Next(self._type, next))
                 if arc is None:  # the next is already dead
-                    grave_list.append(-100.)
-                    lrave_list.append(-100.)
-                    beta_list.append(-100.)
+                    grave_list.append(-100.0)
+                    lrave_list.append(-100.0)
+                    beta_list.append(-100.0)
                     continue
             else:
                 assert isinstance(next, Next.Type)
                 arc = next
-            
-            grave = self._tree.g_rave[arc].mean if arc in self._tree.g_rave else -1.
-            lrave = self.l_rave[arc].mean if arc in self.l_rave else -1.
-            beta = self._tree._c_l / (self._tree._c_l + self.l_rave[arc].N) if arc in self.l_rave else 1.
+
+            grave = self._tree.g_rave[arc].mean if arc in self._tree.g_rave else -1.0
+            lrave = self.l_rave[arc].mean if arc in self.l_rave else -1.0
+            beta = (
+                self._tree._c_l / (self._tree._c_l + self.l_rave[arc].N)
+                if arc in self.l_rave
+                else 1.0
+            )
             grave_list.append(grave)
             lrave_list.append(lrave)
             beta_list.append(beta)
-        
-        def replace_mean(lst: List[float], placeholder: float, ignored_value: float) -> List[float]:
+
+        def replace_mean(
+            lst: List[float], placeholder: float, ignored_value: float
+        ) -> List[float]:
             counted_elems = [x for x in lst if x not in [placeholder, ignored_value]]
-            mean_value = sum(counted_elems) / len(counted_elems) if len(counted_elems) > 0 else 0.
+            mean_value = (
+                sum(counted_elems) / len(counted_elems)
+                if len(counted_elems) > 0
+                else 0.0
+            )
             return [mean_value if x == placeholder else x for x in lst]
-        
-        grave_list = replace_mean(grave_list, -1., -100.)
-        lrave_list = replace_mean(lrave_list, -1., -100.)
-        
+
+        grave_list = replace_mean(grave_list, -1.0, -100.0)
+        lrave_list = replace_mean(lrave_list, -1.0, -100.0)
+
         rave_scores = [
-            ((1 - beta) * l_rave + beta * g_rave) * (1 - self._tree._rave_random_ratio) + self._tree._rave_random_ratio * random()
+            ((1 - beta) * l_rave + beta * g_rave) * (1 - self._tree._rave_random_ratio)
+            + self._tree._rave_random_ratio * random()
             for g_rave, l_rave, beta in zip(grave_list, lrave_list, beta_list)
         ]
         unrevealed_children_with_rave = [
@@ -465,10 +461,12 @@ class TreeNode:
         ]
         if len(unrevealed_children_with_rave) == 0:
             logging.debug("No new children to be added")
-            assert self.is_fully_in_tree(), f"{self} is not fully expanded but no children can be revealed"
+            assert (
+                self.is_fully_in_tree()
+            ), f"{self} is not fully expanded but no children can be revealed"
             return False
         selected_child, score = max(unrevealed_children_with_rave, key=lambda x: x[1])
-        if score == -100.:
+        if score == -100.0:
             return False
         selected_child._isin_tree = True
         return True
@@ -540,7 +538,12 @@ class TreeNode:
                 if handle.type == self._type
             ]
             children = [
-                self.get_child(nxt, auto_initialize=auto_initialize, on_tree=on_tree, include_simulate_failure=filter_simulate_failure)
+                self.get_child(
+                    nxt,
+                    auto_initialize=auto_initialize,
+                    on_tree=on_tree,
+                    include_simulate_failure=filter_simulate_failure,
+                )
                 for nxt in nexts
             ]
 
@@ -569,7 +572,7 @@ class TreeNode:
         next: PseudoTreeNext,
         auto_initialize: bool = False,
         on_tree: bool = False,
-        include_simulate_failure: bool = True
+        include_simulate_failure: bool = True,
     ) -> Optional[Tuple["TreeNode", AverageMeter]]:
         """
         Get the child node of a node with a Next. When the node is dead, return None.
@@ -586,10 +589,9 @@ class TreeNode:
                 or not self._tree._treenode_store[child]._isin_tree
             ):
                 return None
-            if (
-                child in self._tree._treenode_store
-                and self._tree._treenode_store[child].is_dead_end(include_simulate_failure=include_simulate_failure)
-            ):
+            if child in self._tree._treenode_store and self._tree._treenode_store[
+                child
+            ].is_dead_end(include_simulate_failure=include_simulate_failure):
                 return None
             if child not in self._tree._treenode_store:
                 if auto_initialize:
@@ -609,7 +611,10 @@ class TreeNode:
                     return (
                         child,
                         child.state
-                        if (not on_tree or child._isin_tree) and not child.is_dead_end(include_simulate_failure=include_simulate_failure)
+                        if (not on_tree or child._isin_tree)
+                        and not child.is_dead_end(
+                            include_simulate_failure=include_simulate_failure
+                        )
                         else None,
                     )
             return None
@@ -676,7 +681,7 @@ class TreeNode:
 
     def set_dead(self) -> None:
         self._is_dead = True
-        
+
     def set_simulate_fail(self) -> None:
         self._simulate_fail = True
 

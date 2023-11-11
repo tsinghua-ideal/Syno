@@ -1,6 +1,6 @@
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/Reduce.hpp"
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Transforms/Reshape.hpp"
 #include "KAS/Transforms/Share.hpp"
 #include "KAS/Transforms/Split.hpp"
@@ -8,6 +8,11 @@
 
 
 namespace kas {
+
+bool SplitOp::isEqual(const Operation& other) const {
+    const SplitOp& rhs = static_cast<const SplitOp&>(other);
+    return outputLhs == rhs.outputLhs && outputRhs == rhs.outputRhs;
+}
 
 SplitOp::SplitOp(const Dimension& outputLhs, const Dimension& outputRhs):
     SplitLikeOp { outputLhs, outputRhs },
@@ -47,7 +52,7 @@ SplitOp::Values SplitOp::value(const Values &known) const {
     KAS_CRITICAL("Conflicting values for SplitOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
-std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
+std::vector<const SplitOp *> SplitOp::Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     const Graph& graph = options.graph;
@@ -66,7 +71,11 @@ std::vector<const SplitOp *> SplitOp::Generate(PrimitiveOpStore& store, const To
     graph.accept(canonicalizer);
 
     std::vector<const SplitOp *> result;
-    auto checkThenAdd = [&store, &canonicalizer, &result, &ctx = options.ctx, &graph](const Dimension& dimL, const Dimension& dimR) {
+    auto checkThenAdd = [&store, &canonicalizer, &result, &ctx = options.ctx, &graph, &old = options.couldHaveBeenDoneBeforeLastContractionStage](const Dimension& dimL, const Dimension& dimR) {
+        if (old.contains(dimL) && old.contains(dimR)) {
+            ++CountCouldHaveBeenDoneBeforeLastContractionStage;
+            return;
+        }
         // Perform canonicalization for reshape.
         if (canonicalizer.at(dimL).isAdjacentTo(canonicalizer.at(dimR))) {
             // They are redundant!

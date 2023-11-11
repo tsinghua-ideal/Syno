@@ -41,7 +41,7 @@ public:
     ReduceType getReduce() const { return reduceType; }
     std::string whatReduce() const;
 
-    bool operator==(const ReduceBase& other) const noexcept = default;
+    bool equalsTo(const ReduceBase& other) const noexcept;
     // Excludes multiplicity.
     std::size_t pureHash() const noexcept;
 
@@ -69,7 +69,7 @@ public:
 
     const Size& size() const override { return base.getDomain(); }
     bool operator==(const Reduce& other) const noexcept {
-        return base == other.base && multiplicity == other.multiplicity;
+        return base.equalsTo(other.base) && multiplicity == other.multiplicity;
     }
     // Includes multiplicity.
     std::size_t hash() const noexcept override;

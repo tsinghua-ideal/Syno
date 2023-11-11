@@ -7,6 +7,7 @@
 namespace kas {
 
 class MergeOp final: public MergeLikeOp {
+    bool isEqual(const Operation& other) const override;
 public:
     static constexpr DimensionType Type = DimensionType::Merge;
     class Input final: public MergeLikeOp::Input {
@@ -38,10 +39,6 @@ public:
     Dimension getInputR() const override { return &inputRhs; }
     Values value(const Values& known) const override;
 
-    bool operator==(const MergeOp& other) const noexcept {
-        return output == other.output && minorSize == other.minorSize;
-    }
-
     struct GenerateOptions {
         const BindingContext& ctx;
         const Graph& graph;
@@ -63,7 +60,7 @@ public:
         UnorderedSizeOrderingViolated,
         SuccessfulGenerations,
     )
-    static std::vector<const MergeOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
+    static std::vector<const MergeOp *> Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<MergeOp>);

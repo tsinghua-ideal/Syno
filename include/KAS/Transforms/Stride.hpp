@@ -7,6 +7,7 @@
 namespace kas {
 
 class StrideOp final: public RepeatLikeOp {
+    bool isEqual(const Operation& other) const override;
 public:
     static constexpr DimensionType Type = DimensionType::Stride;
     class Input final: public RepeatLikeOp::Input {
@@ -34,10 +35,6 @@ public:
 
     const Size& getStride() const { return stride; }
 
-    bool operator==(const StrideOp& other) const noexcept {
-        return output == other.output && stride == other.stride;
-    }
-
     struct GenerateOptions {
         const BindingContext& ctx;
         const Allowance& allowance;
@@ -54,7 +51,7 @@ public:
         InvalidProductSize,
         SuccessfulGenerations,
     )
-    static std::vector<const StrideOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
+    static std::vector<const StrideOp *> Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<StrideOp>);

@@ -94,10 +94,6 @@ public:
         LegalFinalizations,
         UncanonicalWeight,
     )
-    struct WeightOptions {
-        std::size_t maxWeights;
-        bool allowWeightPermutation;
-    };
     using FinalStageBuilder = std::function<std::unique_ptr<FinalStage>(const FinalizeOp& op)>;
     struct GenerateOptions {
         const BindingContext& ctx;
@@ -109,7 +105,7 @@ public:
         FinalStageBuilder finalStageBuilder;
         std::size_t maxFLOPs;
     };
-    static Generator<std::vector<std::vector<Dimension>>> AssignToWeights(const std::vector<ColoredDimension>& weightDims, WeightOptions options);
+    static std::vector<std::vector<Dimension>> AssignToWeights(const std::vector<ColoredDimension>& weightDims);
     static std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> Generate(const GraphHandle& interface, const Graph& graph, const GenerateOptions& options);
 };
 
@@ -120,5 +116,7 @@ struct NextFinalizeSlot: Next {
     static std::size_t GetKey(TR&& tensors) { return std::hash<std::vector<Topmost>>{}(tensors); }
     Arc toArc(const Sampler *sampler) const { return Arc(sampler, &finalization); }
 };
+
+using NextFinalizeSlotStore = GenericNextSlotStore<NextFinalizeSlot>;
 
 } // namespace kas

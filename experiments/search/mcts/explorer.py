@@ -1,11 +1,9 @@
-import itertools
 import os
 import json
 import math
-from tqdm import tqdm
 from time import time
 from typing import List, Callable
-from KAS import Next, NextSerializer, Node
+from KAS import Next, NextSerializer
 
 from .node import TreePath
 from .tree import MCTSTree
@@ -41,8 +39,7 @@ class MCTSExplorer:
                         0.25, edge.std * edge.std + math.sqrt(2 * log_N_vertex / edge.N)
                     )
                 )
-                - self._mcts.virtual_loss_constant
-                * self._mcts.child._virtual_loss
+                - self._mcts.virtual_loss_constant * self._mcts.child._virtual_loss
             )
 
         return ucb1_tuned
@@ -164,7 +161,9 @@ class MCTSExplorer:
                     print("Dead end, no need to simulate. ")
                 else:
                     max_final_iterations = int(command.split()[1])
-                    result = self._mcts.simulate(path, current_node, max_final_iterations=max_final_iterations)
+                    result = self._mcts.simulate(
+                        path, current_node, max_final_iterations=max_final_iterations
+                    )
                     print(f"Results={result}.")
             except Exception as e:
                 print(f"Invalid command. {e}")

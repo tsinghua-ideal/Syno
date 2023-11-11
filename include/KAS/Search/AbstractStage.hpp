@@ -83,6 +83,8 @@ protected:
 
     void requestFinalizabilityUpdate(const AbstractStage *requestor);
 
+    const std::vector<AbstractStage *>& getParents() const { return parents; }
+
 public:
     KAS_STATISTICS_DEF(
         Creations,
@@ -93,7 +95,7 @@ public:
         ChildrenSplit,
         ChildrenUnfold,
         ChildrenMerge,
-        ChildrenShare,
+        ChildrenContraction,
         FinalizabilityMaybe,
         FinalizabilityYes,
         FinalizabilityNo,
@@ -102,9 +104,11 @@ public:
     AbstractStage(Sampler &sampler, GraphHandle interface, Lock lock);
     // Create a non-root stage.
     AbstractStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> optionalDeltaOp, Lock lock);
+    void instantDestroy() const;
+
     Lock addParent(AbstractStage &parent);
     void addParent(AbstractStage &parent, Lock &lock);
-    AbstractStage *arbitraryParent() const;
+    virtual AbstractStage *arbitraryParent() const = 0;
 
     // Disallow copy or move.
     AbstractStage(const AbstractStage&) = delete;
@@ -117,7 +121,7 @@ public:
     std::size_t remainingDepth() const;
     DepthwiseStatistics& getStats() const;
 
-    template<PrimitiveOpImpl Op>
+    template<OperationImpl Op>
     int existingOp() const { return existingOps[Next::TypeOf<Op>()]; }
 
     // The state.
@@ -142,6 +146,7 @@ public:
     virtual void updateFinalizability(Lock& lock) = 0;
 
     virtual bool possibleToFinalizeByExperimenting() const { return true; }
+    // Mostly for debugging.
     void recomputeShapeDistance() const;
     virtual ShapeDistance getShapeDistance() const = 0;
 
@@ -155,9 +160,9 @@ public:
     virtual std::optional<Arc> getArcFromHandle(Next next) = 0;
     virtual std::optional<Node> getChild(Next next) = 0;
     virtual std::vector<std::optional<Node>> getChildren(const std::vector<Next>& nexts) = 0;
-    virtual std::vector<std::optional<Node>> getChildren(const std::vector<Arc>& arcs) = 0;
     virtual bool canAcceptArc(Arc arc) = 0;
-    virtual std::optional<Node> getChild(Arc arc) = 0;
+    std::optional<Node> getChild(Arc arc);
+    std::vector<std::optional<Node>> getChildren(const std::vector<Arc>& arcs);
     std::string description() const;
 
     inline MutexIndex getMutexIndex() const {
@@ -186,13 +191,14 @@ concept StageImpl = requires(DerivedStageType child, const DerivedStageType::Col
 
     // The standard functions required by AbstractStage.
     // They are the non-thread-safe versions. This class is a thread-safe wrapper for them.
+    { child.arbitraryParentImpl() } -> std::convertible_to<AbstractStage *>;
+    { child.getShapeDistanceImpl() } -> std::convertible_to<ShapeDistance>;
     { child.countChildrenImpl() } -> std::convertible_to<std::size_t>;
     { child.getChildrenHandlesImpl() } -> std::convertible_to<std::vector<Next>>;
     { child.getChildrenArcsImpl() } -> std::convertible_to<std::vector<Arc>>;
     { child.getArcFromHandleImpl(std::declval<Next>()) } -> std::convertible_to<std::optional<Arc>>;
     { child.getChildImpl(std::declval<Next>()) } -> std::convertible_to<std::optional<Node>>;
     { child.canAcceptArcImpl(std::declval<Arc>()) } -> std::convertible_to<bool>;
-    { child.getChildImpl(std::declval<Arc>()) } -> std::convertible_to<std::optional<Node>>;
 };
 
 // A CRTP template class for AbstractStage. All subclasses must inherit from this class.
@@ -218,31 +224,39 @@ protected:
 
     using CollectedFinalizabilities = std::vector<Finalizability>;
 
-    CollectedFinalizabilities collectFinalizabilities() {
-        return nextSlotStore.map([&](const NextStageSlot& slot) {
+    template<typename Slot>
+    CollectedFinalizabilities collectFinalizabilities(GenericNextSlotStore<Slot>& slots) {
+        return slots.map([&](const Slot& slot) {
             return slot.nextStage->getFinalizability();
         });
     }
+    CollectedFinalizabilities collectFinalizabilities() {
+        return collectFinalizabilities(nextSlotStore);
+    }
 
-    void removeDeadChildrenFromSlots(const CollectedFinalizabilities& collected) {
-        std::size_t removed = nextSlotStore.removeByIndex([&](std::size_t index) {
+    template<typename Slot>
+    void removeDeadChildrenFromSlots(GenericNextSlotStore<Slot>& slots, const CollectedFinalizabilities& collected) {
+        std::size_t removed = slots.removeByIndex([&](std::size_t index) {
             return collected[index] == Finalizability::No;
         });
         getStats().removeNonFinalChildren(removed);
     }
+    void removeDeadChildrenFromSlots(const CollectedFinalizabilities& collected) {
+        removeDeadChildrenFromSlots(nextSlotStore, collected);
+    }
 
-    void removeAllChildrenFromSlots() {
-        std::size_t removed = nextSlotStore.clear();
+    template<typename Slot>
+    void removeAllChildrenFromSlots(GenericNextSlotStore<Slot>& slots) {
+        std::size_t removed = slots.clear();
         getStats().removeNonFinalChildren(removed);
+    }
+    void removeAllChildrenFromSlots() {
+        removeAllChildrenFromSlots(nextSlotStore);
     }
 
     Finalizability checkForFinalizableChildren(const CollectedFinalizabilities& collected) const {
         // Check children. Yes if any Yes, No if all No.
-        Finalizability fin = Finalizability::No;
-        for (Finalizability f: collected) {
-            fin += f;
-        }
-        return fin;
+        return ranges::fold_left(collected, Finalizability::No, std::plus<>{});
     }
 
 private:
@@ -296,12 +310,12 @@ private:
 
 protected:
     // Apply the Op to obtain the next Stage.
-    template<typename ChildStageType = DerivedStageType>
-    std::pair<ChildStageType *, Lock> getNextOp(const PrimitiveOp *op) {
+    template<typename ChildStageType = DerivedStageType, OperationImpl Op>
+    std::pair<ChildStageType *, Lock> getNextOp(const Op *op) {
         // When this gets called, we are holding the lock of this stage.
         StageStore& store = sampler.getStageStore();
         const bool nextLayer = op != nullptr;
-        GraphHandle newInterface = nextLayer ? op->applyToInterface(interface) : interface;
+        GraphHandle newInterface = nextLayer ? op->appliedToInterface(interface) : interface;
         const MutexIndex mutexIndex = getNextMutexIndex(nextLayer, newInterface);
         Lock lock = std::unique_lock { sampler.getMutex(mutexIndex) };
         if (AbstractStage *found = store.find(depth + nextLayer, newInterface, lock); found) {
@@ -310,19 +324,25 @@ protected:
             KAS_ASSERT(childStage);
             return { childStage, std::move(lock) };
         } else {
+            std::optional<Next::Type> optionalDeltaOp;
+            if (nextLayer) {
+                if constexpr (std::same_as<Op, PrimitiveOp>) {
+                    optionalDeltaOp = Next::TypeOf(op->getType());
+                } else {
+                    optionalDeltaOp = Next::TypeOf<Op>();
+                }
+            }
             auto [tempStage, newLock] = ChildStageType::Create(
                 mutexIndex,
                 std::move(newInterface),
                 *this,
-                nextLayer ? std::make_optional<Next::Type>(Next::TypeOf(op->getType())) : std::nullopt,
+                std::move(optionalDeltaOp),
                 std::move(lock)
             );
             // Perform experimental finalization, i.e., compute the ShapeComplexity of the interface.
             if (!tempStage->possibleToFinalizeByExperimenting()) {
                 // If proved to be not finalizable, no need to store this.
-                --CountCreations;
-                --CountFinalizabilityMaybe;
-                --tempStage->getStats().totalNodes;
+                tempStage->instantDestroy();
                 return { nullptr, Lock() };
             } else {
                 if (auto it = store.insert(depth + nextLayer, std::move(tempStage), newLock); it) {
@@ -335,12 +355,11 @@ protected:
             }
         }
     }
-    template<typename ChildStageType = DerivedStageType>
-    ChildStageType *getNextOpWithoutLock(const PrimitiveOp *op) {
-        auto [childStage, lock] = getNextOp<ChildStageType>(op);
-        return childStage;
-    }
 
+    AbstractStage *arbitraryParentImpl() const {
+        KAS_ASSERT(!parents.empty());
+        return parents.front();
+    }
     ShapeDistance getShapeDistanceImpl() const {
         return { remainingDepth(), 0 };
     }
@@ -367,7 +386,7 @@ protected:
     }
     bool canAcceptArcImpl(Arc arc) {
         return arc.match<bool>(
-            [&](const PrimitiveOp *op) -> bool {
+            [&](const Operation *op) -> bool {
                 return op->canApplyToInterface(interface);
             },
             [&](const FinalizeOp *op) -> bool {
@@ -396,6 +415,10 @@ public:
         return { std::move(stage), std::move(lock) };
     }
 
+    AbstractStage *arbitraryParent() const final override {
+        Lock lock = acquireLock();
+        return derived().arbitraryParentImpl();
+    }
     ShapeDistance getShapeDistance() const final override {
         Lock lock = acquireLock();
         return derived().getShapeDistanceImpl();
@@ -434,22 +457,9 @@ public:
             })
         );
     }
-    std::vector<std::optional<Node>> getChildren(const std::vector<Arc>& arcs) final override {
-        Lock lock = acquireLock();
-        return ranges::to<std::vector<std::optional<Node>>>(
-            arcs
-            | std::views::transform([&](Arc arc) -> std::optional<Node> {
-                return derived().getChildImpl(arc);
-            })
-        );
-    }
-    bool canAcceptArc(Arc arc) final override {
-        Lock lock = acquireLock();
-        return derived().canAcceptArcImpl(arc);
-    }
-    std::optional<Node> getChild(Arc arc) final override {
-        Lock lock = acquireLock();
-        return derived().getChildImpl(arc);
+    bool canAcceptArc(Arc arc) final override {	
+        Lock lock = acquireLock();	
+        return derived().canAcceptArcImpl(arc);	
     }
 };
 

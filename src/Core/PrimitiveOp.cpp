@@ -43,6 +43,12 @@ IteratorValue Valuation::tryValue() const {
     }
 }
 
+GraphHandle Operation::appliedToInterface(const GraphHandle& interface) const {
+    auto newInterface = interface;
+    applyToInterface(newInterface);
+    return newInterface;
+}
+
 Color RepeatLikeOp::Input::computeColor(const GraphBuilder& graphBuilder) const {
     return Color::Repeat(graphBuilder.colorOf(op->output));
 }
@@ -55,8 +61,8 @@ bool RepeatLikeOp::canApplyToInterface(const GraphHandle& interface) const {
     return interface.contains(output);
 }
 
-GraphHandle RepeatLikeOp::applyToInterface(const GraphHandle& interface) const {
-    return interface.substitute1to1(output, getInput());
+void RepeatLikeOp::applyToInterface(GraphHandle& interface) const {
+    interface.substitute1to1(output, getInput());
 }
 
 std::string RepeatLikeOp::description(const BindingContext& ctx) const {
@@ -79,8 +85,8 @@ bool SplitLikeOp::canApplyToInterface(const GraphHandle &interface) const {
     return interface.contains(outputLhs) && interface.contains(outputRhs);
 }
 
-GraphHandle SplitLikeOp::applyToInterface(const GraphHandle &interface) const {
-    return interface.substitute2to1(outputLhs, outputRhs, getInput());
+void SplitLikeOp::applyToInterface(GraphHandle &interface) const {
+    interface.substitute2to1(outputLhs, outputRhs, getInput());
 }
 
 std::string SplitLikeOp::description(const BindingContext &ctx) const {
@@ -103,8 +109,8 @@ bool MergeLikeOp::canApplyToInterface(const GraphHandle &interface) const {
     return interface.contains(output);
 }
 
-GraphHandle MergeLikeOp::applyToInterface(const GraphHandle &interface) const {
-    return interface.substitute1to2(output, getInputL(), getInputR());
+void MergeLikeOp::applyToInterface(GraphHandle &interface) const {
+    interface.substitute1to2(output, getInputL(), getInputR());
 }
 
 std::string MergeLikeOp::description(const BindingContext &ctx) const {

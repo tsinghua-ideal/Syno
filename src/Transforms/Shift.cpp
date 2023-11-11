@@ -1,8 +1,13 @@
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Transforms/Shift.hpp"
 
 
 namespace kas {
+
+bool ShiftOp::isEqual(const Operation& other) const {
+    const ShiftOp& rhs = static_cast<const ShiftOp&>(other);
+    return output == rhs.output && shift == rhs.shift;
+}
 
 ShiftOp::ShiftOp(const Dimension& output, int shift):
     RepeatLikeOp { output },
@@ -50,7 +55,7 @@ bool ShiftOp::ExceedsMaxValidReshapeShiftPattern(const Size& block, int shift, c
     return boost::rational_cast<float>(block.lowerBoundEst(ctx)) / std::abs(shift) > maximumValidReshapeShiftPattern;
 }
 
-std::vector<const ShiftOp *> ShiftOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
+std::vector<const ShiftOp *> ShiftOp::Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     const Graph& graph = options.graph;

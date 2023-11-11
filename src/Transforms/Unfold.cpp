@@ -1,10 +1,15 @@
 #include <algorithm>
 
-#include "KAS/Transforms/PrimitiveOpStore.hpp"
+#include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Transforms/Unfold.hpp"
 
 
 namespace kas {
+
+bool UnfoldOp::isEqual(const Operation& other) const {
+    const UnfoldOp& rhs = static_cast<const UnfoldOp&>(other);
+    return outputLhs == rhs.outputLhs && outputRhs == rhs.outputRhs;
+}
 
 Color UnfoldOp::Input::computeColor(const GraphBuilder& graphBuilder) const {
     // Absorb dataDiscardingFlag in outputRhs.
@@ -54,7 +59,7 @@ UnfoldOp::Values UnfoldOp::value(const Values& known) const {
     KAS_CRITICAL("Conflicting values for UnfoldOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
-std::vector<const UnfoldOp *> UnfoldOp::Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options) {
+std::vector<const UnfoldOp *> UnfoldOp::Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
     const Graph& graph = options.graph;

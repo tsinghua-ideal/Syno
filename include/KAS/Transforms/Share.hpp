@@ -7,6 +7,7 @@
 namespace kas {
 
 class ShareOp final: public MergeLikeOp {
+    bool isEqual(const Operation& other) const override;
 public:
     static constexpr DimensionType Type = DimensionType::Share;
     class Input final: public MergeLikeOp::Input {
@@ -43,10 +44,6 @@ public:
 
     std::pair<bool, CompactColor> transformColor(CompactColor fro1, CompactColor fro2) const override;
 
-    bool operator==(const ShareOp& other) const noexcept {
-        return output == other.output && rhsOrigin == other.rhsOrigin;
-    }
-
     static std::set<int> GetRhsOrigins(const Graph& graph);
     // A leader of a weight is the least dimension, defined by Dimension::GlobalLessThan.
     static std::map<int, Dimension> GetWeightLeaders(const Graph& graph);
@@ -77,7 +74,7 @@ public:
         MaximumTensorsExceeded,
         SuccessfulGenerations,
     )
-    static std::vector<const ShareOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
+    static std::vector<const ShareOp *> Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<ShareOp>);

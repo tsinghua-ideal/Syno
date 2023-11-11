@@ -55,7 +55,6 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
     for (auto op: ReduceOp::Generate(sampler.getOpStore(), reductions, {
         .ctx = sampler.getBindingContext(),
         .allowance = allowance,
-        .dimUpperBound = options.dimUpperBound,
         .outputSize = sampler.getTotalOutputSize(),
         .maxRDomSizeBase = sampler.getMaxRDomSize(),
         .maxRDomSizeMultiplier = options.maxRDomSizeMultiplier,
@@ -66,11 +65,12 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
         {
             Lock lock;
             std::tie(stage, lock) = getNextOp(op);
+            KAS_ASSERT(stage != nullptr); // Because we expand later.
             f = stage->getFinalizability(lock);
         }
         if (f != Finalizability::No) {
             nextReductions.emplace_back(Next::FromOp(op), op, stage);
-            childrenFinalizabilities.emplace(stage, f);
+            childrenFinalizabilities.try_emplace(stage, f);
         }
     }
     fillSlots(nextSlotStore, nextReductions, [](NextStageSlot& slot) -> NextStageSlot&& {
@@ -78,7 +78,7 @@ void ReductionStage::expand(ThreadPool<ReductionStage *>& expander) {
     });
     nextSlotStore.checkHashCollisionAndRemove();
     nextSlotStore.forEach([&](const NextStageSlot& slot) {
-        auto f = childrenFinalizabilities[slot.nextStage];
+        auto f = childrenFinalizabilities.at(slot.nextStage);
         fin += f;
     });
     expanded = true;
@@ -153,36 +153,18 @@ std::optional<Node> ReductionStage::getChildImpl(Next next) {
 bool ReductionStage::canAcceptArcImpl(Arc arc) {
     KAS_ASSERT(expanded);
     return arc.match<bool>(
-        [&](const PrimitiveOp *op) -> bool {
-            if (op->getType() == DimensionType::Reduce) {
+        [&](const Operation *op) -> bool {
+            if (auto reduceOp = dynamic_cast<const ReduceOp *>(op); reduceOp) {
                 // We have to manually find if this is in the search space.
-                auto newInterface = op->applyToInterface(getInterface());
+                auto newInterface = reduceOp->appliedToInterface(getInterface());
                 Lock lock = Lock { sampler.getMutex(getNextMutexIndex(true, newInterface)) };
                 return sampler.getStageStore().find(depth + 1, newInterface, lock) != nullptr;
             } else {
                 return nStage->canAcceptArc(arc);
             }
         },
-        [&](auto) -> bool {
+        [&](const FinalizeOp *) -> bool {
             return nStage->canAcceptArc(arc);
-        }
-    );
-}
-
-std::optional<Node> ReductionStage::getChildImpl(Arc arc) {
-    KAS_ASSERT(expanded);
-    return arc.match<std::optional<Node>>(
-        [&](auto op) -> std::optional<Node> {
-            if (op->getType() == DimensionType::Reduce) {
-                auto stage = getNextOpWithoutLock(op);
-                if (stage == nullptr) return std::nullopt;
-                return std::make_optional<Node>(&sampler, stage);
-            } else {
-                return nStage->getChildImpl(arc);
-            }
-        },
-        [&](auto op) -> std::optional<Node> {
-            return nStage->getChild(arc);
         }
     );
 }
