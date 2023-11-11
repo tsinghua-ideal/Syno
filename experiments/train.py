@@ -19,6 +19,10 @@ if __name__ == '__main__':
     losses = trainer.train(model, train_dataloader, val_dataloader, args)
 
     if 'gpt' in args.model:
+        if args.gpt_loss_output:
+            with open(args.gpt_loss_output, "w") as f:
+                f.write(f"{losses}")
+        
         losses = list(map(lambda t: t[1], losses))
         assert len(losses) >= 1
         len_not_avg = max(int(len(losses) * 0.8), 1)

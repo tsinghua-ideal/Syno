@@ -618,6 +618,7 @@ def arg_parse():
     parser.add_argument("--gpt-max-minutes", default=0, type=float)
     parser.add_argument("--gpt-log-interval", default=10, type=int)
     parser.add_argument("--gpt-max-loss", default=3, type=float)
+    parser.add_argument("--gpt-loss-output", default="", type=str)
 
     # Imagenet related
     parser.add_argument("--imagenet-log-folder", default="logs", type=str)

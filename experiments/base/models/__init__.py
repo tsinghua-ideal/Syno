@@ -4,7 +4,7 @@ import os, sys
 import torch
 from typing import Tuple, Optional, Union
 from transformers import GPT2Tokenizer
-from KAS import Sampler, Path, CodeGenOptions
+from KAS import Sampler, Path, CodeGenOptions, KernelLoader
 from KAS.Placeholder import build_placeholder_mappings, remove_unsatisfied_placeholders
 
 from . import placeholder
@@ -140,21 +140,25 @@ def get_model(
     # Replace kernel
     if args.kas_replace_placeholder is not None:
         logging.info(f"Replacing kernel with {args.kas_replace_placeholder} ...")
-        cls_name = args.kas_replace_placeholder.capitalize() + "Placeholder"
-        assembler = sampler.create_assembler()
-        assembled = getattr(placeholder, cls_name).impl(assembler)
-        logging.debug(f"Assembled path: {assembled.convert_to_path(sampler)}")
-        logging.debug(
-            f"Assembled path (serialized): {Path(assembled.convert_to_path(sampler)).serialize()}"
-        )
-        if sampler.visit(assembled.convert_to_path(sampler)) is None:
-            path = Path(assembled.convert_to_path(sampler))
-            logging.warning(f"Path {path} is not valid, testing...")
-            for subpath in path.hierarchy:
-                if sampler.visit(subpath) is None:
-                    logging.warning(f"Subpath {subpath} is not valid")
-                    break
-        kernel_loader = sampler.realize(model, assembled, args.kas_replace_placeholder)
+        if os.path.isdir(args.kas_replace_placeholder):
+            logging.info(f"Loading from directory ...")
+            kernel_directory = os.path.join(args.kas_replace_placeholder, "kernel_scheduler_dir")
+            kernel_loader = KernelLoader.from_directory(kernel_directory)
+        else:
+            logging.info(f"Loading from class ...")
+            cls_name = args.kas_replace_placeholder.capitalize() + "Placeholder"
+            assembler = sampler.create_assembler()
+            assembled = getattr(placeholder, cls_name).impl(assembler)
+            logging.debug(f"Assembled path: {assembled.convert_to_path(sampler)}")
+            logging.debug(f"Assembled path (serialized): {Path(assembled.convert_to_path(sampler)).serialize()}")
+            if sampler.visit(assembled.convert_to_path(sampler)) is None:
+                path = Path(assembled.convert_to_path(sampler))
+                logging.warning(f"Path {path} is not valid, testing...")
+                for subpath in path.hierarchy:
+                    if sampler.visit(subpath) is None:
+                        logging.warning(f"Subpath {subpath} is not valid")
+                        break
+            kernel_loader = sampler.realize(model, assembled, args.kas_replace_placeholder)
         model.load_kernel(
             kernel_loader,
             compile=args.compile,
