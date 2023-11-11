@@ -1,7 +1,7 @@
 import time
 import math
 import logging
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 from KAS import Path, Node
 
 from .tree import MCTSTree
@@ -40,9 +40,9 @@ class MCTSAlgorithm:
             max_final_iterations=self.max_final_iterations,
             simulate_retry_period=self.simulate_retry_period,
             sample_retry_times=self.sample_retry_times,
-            simulate_decay_time=self.simulate_decay_time, 
+            simulate_decay_time=self.simulate_decay_time,
             max_depth=args.kas_depth,
-            rave_random_ratio=self.rave_random_ratio
+            rave_random_ratio=self.rave_random_ratio,
         )
         self.sampler = sampler
         self.explorer = MCTSExplorer(model, sampler, self.mcts)
@@ -52,7 +52,7 @@ class MCTSAlgorithm:
 
         self.sample_num = 0
         self.time_stamp = time.time()
-        
+
         self.stuck = None
 
         self.preconditioned = "gpt" in args.model
@@ -63,15 +63,13 @@ class MCTSAlgorithm:
     def deserialize(self, serialized_dict):
         # self.preconditioned = True
         self.mcts.deserialize(serialized_dict, self.sampler, keep_dead_state=False)
-        
+
     def dump_eval_result(self):
         return self.mcts.get_eval_results()
-    
+
     def load_eval_result(self, path_serialized, reward, leaf_path=None):
         path = Path.deserialize(path_serialized)
-        node = self.mcts.visit(
-            path, on_tree=False, put_in_tree=True
-        )
+        node = self.mcts.visit(path, on_tree=False, put_in_tree=True)
         if node is None:
             return
         if leaf_path is None:
@@ -79,7 +77,7 @@ class MCTSAlgorithm:
                 n = self.mcts.visit(leaf_path, on_tree=False, put_in_tree=True)
                 if n.N == 0:
                     break
-            
+
         self.path_toupd[node.to_node()] = (TreePath(path), [leaf_path])
         self.mcts._increment_virtual_loss(leaf_path, 1)
         self.update(path, reward)
@@ -92,7 +90,9 @@ class MCTSAlgorithm:
 
         tree_path, leaf_tree_paths = self.path_toupd.pop(tree_node.to_node())
 
-        logging.info(f"Updating path: {leaf_tree_paths} ({tree_path}), reward: {reward}")
+        logging.info(
+            f"Updating path: {leaf_tree_paths} ({tree_path}), reward: {reward}"
+        )
         tree_node.reward = reward
 
         # Back propagate

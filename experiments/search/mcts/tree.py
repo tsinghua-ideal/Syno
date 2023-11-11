@@ -54,7 +54,6 @@ class MCTSTree:
         self._sample_retry_times = sample_retry_times
         self._max_depth = max_depth
         self._rave_random_ratio = rave_random_ratio
-        assert policy in ["update-all", "update-descent"]
         assert 0 <= rave_random_ratio <= 1
         random.seed(sampler._seed)
 
@@ -460,127 +459,10 @@ class MCTSTree:
                 tree_node.update(reward, arc)
 
             final_node = tree_node
-        elif self._policy == "update-all":
-            logging.warning(
-                "Update-all policy is still not fully implemented. Please do not use it for now!"
+        else:
+            raise NotImplementedError(
+                f"Update policy {self._policy} is not implemented."
             )
-            for tree_next in path:
-                arc = tree_node._node.get_arc_from_handle(tree_next)
-                tree_node, _ = tree_node.get_child(tree_next.type, on_tree=True)
-                if tree_next.key == 0:
-                    break
-                tree_node, _ = tree_node.get_child(tree_next.key, on_tree=True)
-            assert tree_node is not None
-            final_node = tree_node
-            logging.debug(f"final node is {final_node}")
-            arcs = final_node._node.get_composing_arcs()
-
-            # Mark Ancestors
-            ancestors: List[TreeNode] = []
-
-            def mark_ancestors(
-                src_node: TreeNode, tgt_node: TreeNode, arc_pool: Set[Arc]
-            ) -> bool:
-                logging.debug(f"mark_ancestors({src_node}, {tgt_node}, {arc_pool})")
-                if src_node == tgt_node or tgt_node in src_node.children:
-                    return True
-
-                updated_flag = False
-                for arc in arc_pool:
-                    if src_node._node.can_accept_arc(arc):
-                        arc_pool.remove(arc)
-                        nxt = arc.to_next()
-                        mid_child = src_node.get_child(nxt.type, auto_initialize=True)[
-                            0
-                        ]
-                        assert mid_child is not None
-                        child_node = self.touch(
-                            src_node._node.get_child_from_arc(arc),
-                            path=self._path_store[src_node._node].concat(nxt),
-                        )
-                        if (
-                            mark_ancestors(child_node, tgt_node, arc_pool)
-                            and not updated_flag
-                        ):
-                            ancestors.append(child_node)
-                            updated_flag = True
-                        arc_pool.add(arc)
-                return updated_flag
-
-            assert mark_ancestors(self.tree_root, final_node, set(arcs))
-            ancestors = set(ancestors)
-
-            # Compute Weights
-            node_weights: DefaultDict[TreeNode, float] = defaultdict(float)
-            edge_buffer: DefaultDict[TreeNode, Set[int]] = defaultdict(set)
-            node_weights[self.tree_root] = 1.0
-            node_weights[final_node] = 1.0
-
-            def compute_weights(
-                src_node: TreeNode,
-                tgt_node: TreeNode,
-                arc_pool: Set[Arc],
-                current_weight: float,
-                alpha: float,
-            ) -> bool:
-                logging.debug(
-                    f"compute_weights({src_node}, {tgt_node}, {arc_pool}, {current_weight})"
-                )
-                if src_node == tgt_node or tgt_node in src_node.children:
-                    return True
-
-                updated_flag = False
-                potential_children: Dict[TreeNode, Set[TreeNode]] = defaultdict(set)
-
-                for arc in arc_pool:
-                    if src_node._node.can_accept_arc(arc):
-                        arc_pool.remove(arc)
-                        nxt = arc.to_next()
-                        mid_child = src_node.get_child(nxt.type, auto_initialize=True)[
-                            0
-                        ]
-                        assert mid_child is not None
-                        child_node = self.touch(
-                            src_node._node.get_child_from_arc(arc),
-                            path=self._path_store[src_node._node].concat(nxt),
-                        )
-                        if child_node in ancestors and not updated_flag:
-                            potential_children[mid_child].add(child_node)
-                            edge_buffer[mid_child].add(nxt.key)
-                            updated_flag = True
-                        arc_pool.add(arc)
-
-                if updated_flag:
-                    mid_child_weight: float = current_weight / len(
-                        potential_children.keys()
-                    )
-                    for child_node, child_nodes in potential_children.items():
-                        node_weights[child_node] += mid_child_weight
-                        for child_node in child_nodes:
-                            child_weight = mid_child_weight / len(child_nodes)
-                            node_weights[child_node] += child_weight
-                            logging.debug(
-                                f"node_weights[{child_node}] += {child_weight}"
-                            )
-
-                return updated_flag
-
-            queue = [self.tree_root]
-            while len(queue) > 0:
-                node = queue.pop(0)
-                compute_weights(node, final_node, set(arcs), node_weights[node], 1.0)
-            logging.debug(
-                f"weights computed. node_weights: {node_weights}, edge_buffer: {edge_buffer}"
-            )
-
-            # Update
-            for tree_node_toupd, weight in node_weights.items():
-                tree_node_toupd.update(reward * weight)
-                if tree_node_toupd._is_mid:
-                    for key in edge_buffer[tree_node_toupd]:
-                        tree_node_toupd.update_edge(
-                            reward * weight / len(edge_buffer[tree_node_toupd]), key
-                        )
 
         return final_node
 
@@ -597,7 +479,7 @@ class MCTSTree:
     ) -> None:
         assert isinstance(final_node, TreeNode), f"{final_node} is not TreeNode!"
 
-        reduction_end = self.touch(self._root.expand_to(final_node.to_node()))
+        lattice_ends = self._root.expand_to(final_node.to_node())
         attempt_record: Dict[TreeNode, Tuple[bool, Multiset[Arc]]] = dict()
 
         def find_lattice(
@@ -612,28 +494,30 @@ class MCTSTree:
             if src_node not in attempt_record:
                 updated: Set[Tuple[TreeNode, Union[Next.Type, Arc]]] = set()
                 for arc in list(arc_pool):
-                    if src_node._node.can_accept_arc(arc):
-                        new_arc_pool = arc_pool.copy()
-                        new_arc_pool.remove(arc, 1)
-                        nxt = arc.to_next()
-                        mid_child = src_node.get_child(
-                            nxt.type,
-                            auto_initialize=True,
-                            include_simulate_failure=False,
-                        )
-                        if mid_child is None:
-                            continue
-                        mid_child = mid_child[0]
-                        assert src_node._node in self._path_store, src_node._node
-                        child_node = self.touch(
-                            src_node._node.get_child_from_arc(arc),
-                            path=self._path_store[src_node._node].concat(nxt),
-                        )
-                        if child_node.is_dead_end(include_simulate_failure=False):
-                            continue
-                        if find_lattice(child_node, tgt_node, new_arc_pool):
-                            updated.add((src_node, nxt.type))
-                            updated.add((mid_child, arc))
+                    child = src_node._node.get_child_from_arc(arc)
+                    if child is None:
+                        continue
+                    new_arc_pool = arc_pool.copy()
+                    new_arc_pool.remove(arc, 1)
+                    nxt = arc.to_next()
+                    mid_child = src_node.get_child(
+                        nxt.type,
+                        auto_initialize=True,
+                        include_simulate_failure=False,
+                    )
+                    if mid_child is None:
+                        continue
+                    mid_child = mid_child[0]
+                    assert src_node._node in self._path_store, src_node._node
+                    child_node = self.touch(
+                        src_node._node.get_child_from_arc(arc),
+                        path=self._path_store[src_node._node].concat(nxt),
+                    )
+                    if child_node.is_dead_end(include_simulate_failure=False):
+                        continue
+                    if find_lattice(child_node, tgt_node, new_arc_pool):
+                        updated.add((src_node, nxt.type))
+                        updated.add((mid_child, arc))
 
                 for node, nxt in updated:
                     node.update_lrave(reward, nxt)
@@ -642,16 +526,21 @@ class MCTSTree:
             assert arc_pool == attempt_record[src_node][1]
             return attempt_record[src_node][0]
 
-        reduce_arcs = Multiset(reduction_end.to_node().get_composing_arcs())
-        other_arcs = Multiset(arcs) - reduce_arcs
-        first_lattice_attempt = find_lattice(self.tree_root, reduction_end, reduce_arcs)
-        assert (
-            first_lattice_attempt
-        ), f"Failed to go from {self.tree_root} to {reduction_end}"
-        second_lattice_attempt = find_lattice(reduction_end, final_node, other_arcs)
-        assert (
-            second_lattice_attempt
-        ), f"Failed to go from {reduction_end} to {final_node}"
+        composing_arcs_buffer = {
+            lattice_end: Multiset(lattice_end.get_composing_arcs())
+            for lattice_end in lattice_ends
+        }
+        for lattice_start, lattice_end in zip(lattice_ends[:-1], lattice_ends[1:]):
+            lattice_arcs = (
+                composing_arcs_buffer[lattice_end]
+                - composing_arcs_buffer[lattice_start]
+            )
+            start = self.touch(lattice_start)
+            end = self.touch(lattice_end)
+            attempt = find_lattice(start, end, lattice_arcs)
+            assert (
+                attempt
+            ), f"Failed to go from {self._path_store[lattice_start]} to {self._path_store[lattice_end]} with lattice_arcs={lattice_arcs}"
 
     def touch(self, node: Node, path: Path = None) -> TreeNode:
         """
@@ -661,9 +550,10 @@ class MCTSTree:
         assert path is None or isinstance(path, Path)
         if node not in self._treenode_store:
             self._treenode_store[node] = TreeNode(self, node)
-        if path is None:
-            path = node.get_possible_path()
-        self._path_store[node] = path
+        if node not in self._path_store:
+            if path is None:
+                path = node.get_possible_path()
+            self._path_store[node] = path
         return self._treenode_store[node]
 
     def remove(self, receipt: Receipt, trial: TreeNode) -> None:

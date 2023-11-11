@@ -1,5 +1,5 @@
 import math
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 
 class AverageMeter:
@@ -62,12 +62,6 @@ class AverageMeter:
                 _sum, _N = state
                 self.sum = float(_sum)
                 self.N = int(_N)
-        # else:
-        #     assert self.support_std == std_flag, f"g_rave inconsistency found! {std_flag} v.s. {self.support_std}"
-        #     if std_flag:
-        #         assert [self.sum, self.sumsq, self.N] == state, f"g_rave inconsistency found! {state} v.s. {[self.sum, self.sumsq, self.N]}"
-        #     else:
-        #         assert [self.sum, self.N] == state, f"g_rave inconsistency found! {state} v.s. {[self.sum, self.N]}"
 
     def empty(self) -> bool:
         if self.support_std:

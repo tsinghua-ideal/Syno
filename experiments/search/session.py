@@ -6,7 +6,7 @@ import time
 import threading
 import queue
 import traceback
-from KAS import KernelLoader, Node, Path, Sampler, Statistics, SearchSpaceExplorer
+from KAS import Path, Sampler, Statistics, SearchSpaceExplorer
 
 
 class Session:
@@ -165,7 +165,7 @@ class Session:
             # Update with reward
             if self.target == "loss":
                 reward = max((self.max_loss - loss), 0) / self.max_loss
-                reward = reward ** self.reward_power
+                reward = reward**self.reward_power
                 if loss >= self.max_loss:
                     reward = -1
             elif accuracy > 0:
@@ -182,7 +182,7 @@ class Session:
                         / (1 - self.reward_lower_bound)
                         / self.reward_upper_bound
                     )
-                reward = reward ** self.reward_power
+                reward = reward**self.reward_power
             else:
                 reward = -1
 
@@ -276,7 +276,7 @@ class Session:
         # Update with reward
         if self.target == "loss":
             reward = max((self.max_loss - loss), 0) / self.max_loss
-            reward = reward ** self.reward_power
+            reward = reward**self.reward_power
             if loss >= self.max_loss:
                 reward = -1
         elif accuracy > 0:
@@ -290,7 +290,7 @@ class Session:
                     / (1 - self.reward_lower_bound)
                     / self.reward_upper_bound
                 )
-            reward = reward ** self.reward_power
+            reward = reward**self.reward_power
         else:
             reward = -1
 

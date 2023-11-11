@@ -1,8 +1,7 @@
 """
-Not finished test. 
+Evaluate kernels in manual kernels. 
 """
 
-import torch
 import os, sys, json
 import logging
 from argparse import Namespace
