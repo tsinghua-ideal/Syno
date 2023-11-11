@@ -436,7 +436,7 @@ def arg_parse():
     )
     parser.add_argument(
         "--kas-max-expansion-repeat-multiplier",
-        default=10,
+        default=1,
         type=int,
         help="KAS sampler maximum expansion multiplier",
     )
