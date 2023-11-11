@@ -537,12 +537,30 @@ bool Allowance::shareWithinAllowance(const Size& size) const {
             return false;
         }
     }
-    for (std::size_t i = 0; i < coefficientCount; ++i) {
-        if (std::abs(coefficient[i]) > this->coefficientAllowance[i]) {
-            return false;
+    if (countSharedCoefficientsAsAllowanceUsage) {
+        for (std::size_t i = 0; i < coefficientCount; ++i) {
+            if (std::abs(coefficient[i]) > this->coefficientAllowance[i]) {
+                return false;
+            }
         }
     }
     return true;
+}
+
+Allowance Allowance::shared(const Size& size) const {
+    auto newAllowance = *this;
+    auto primary = size.getPrimary();
+    auto coefficient = size.getCoefficient();
+    const std::size_t primaryCount = primary.size(), coefficientCount = coefficient.size();
+    for (std::size_t i = 0; i < primaryCount; ++i) {
+        newAllowance.primaryAllowance[i] -= std::abs(primary[i]);
+    }
+    if (countSharedCoefficientsAsAllowanceUsage) {
+        for (std::size_t i = 0; i < coefficientCount; ++i) {
+            newAllowance.coefficientAllowance[i] -= std::abs(coefficient[i]);
+        }
+    }
+    return newAllowance;
 }
 
 Generator<Size> Allowance::enumerateSizes() const {

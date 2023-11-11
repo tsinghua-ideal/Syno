@@ -150,7 +150,7 @@ void NormalStage::guardGeneratedChildren() {
         }
     };
 
-    auto contractionAnalysis = ContractionOp::Analyze(interface, graph);
+    auto contractionAnalysis = ContractionOp::Analyze(ctx, graph, interface);
     removeTooLongChains(contractionAnalysis, graph);
     const auto& prospectiveInterface = contractionAnalysis.simpleViewSearchable;
     const auto allowance = Allowance { ctx, getAllowanceUsage(graph), options.countCoefficientsInWeightsAsAllowanceUsage };
@@ -161,10 +161,14 @@ void NormalStage::guardGeneratedChildren() {
             add(childrenContraction, ContractionOp::Generate(
                 store, contractionStore, {
                     .analysis = contractionAnalysis,
+                    .ctx = ctx,
                     .graph = graph,
                     .allowance = allowance,
                     .maximumTensors = options.maximumTensors,
                     .maxShares = options.maximumShares == -1 ? std::numeric_limits<int>::max() : options.maximumShares - contractionAnalysis.numShares,
+                    .maxExpansionMergeMultiplier = options.maxExpansionMergeMultiplier,
+                    .maxExpansionWeightsSharingDimSize = options.maxExpansionWeightsSharingDimSize,
+                    .minExpansionWeightsSharingDimSize = options.minExpansionWeightsSharingDimSize,
                 }
             ));
         }

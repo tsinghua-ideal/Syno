@@ -55,6 +55,7 @@ public:
         DisallowedAttempts,
         SuccessfulGenerations,
     )
+    // TODO!!! Only repeat here!
     static std::vector<const ExpandOp *> Generate(PrimitiveOpStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 

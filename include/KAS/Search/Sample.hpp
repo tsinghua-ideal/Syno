@@ -67,7 +67,7 @@ struct SampleOptions {
     bool disallowTile = true;
     bool disallowShareWeights = false;
     std::size_t maxExpansionRepeatMultiplier = 1;
-    std::size_t maxExpansionMergeMultiplier = 128;
+    std::size_t maxExpansionMergeMultiplier = 512;
     std::size_t maxExpansionWeightsSharingDimSize = 8;
     std::size_t minExpansionWeightsSharingDimSize = 3;
 
