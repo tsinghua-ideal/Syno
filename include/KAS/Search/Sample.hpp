@@ -251,6 +251,7 @@ public:
 
     // This cannot figure out Finalize.
     static std::vector<const Operation *> ConvertGraphToOps(const Graph& graph, OperationStore& store);
+    static std::vector<std::vector<const Operation *>> ConvertGraphToOpLayers(const Graph& graph, OperationStore& store);
     static std::vector<Next> ConvertOpsToNexts(const std::vector<const Operation *>& ops);
     std::vector<Arc> convertOpsToArcs(const std::vector<const Operation *>& ops) const;
 

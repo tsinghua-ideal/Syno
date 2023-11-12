@@ -104,8 +104,7 @@ public:
     std::string getNestedLoopsAsFinal() const;
 
     Node arbitraryParent() const;
-    bool isBottomOfLattice() const;
-    bool parentIsBottomOfLattice() const;
+    GraphHandle getInterface() const;
     void recomputeShapeDistance() const;
     ShapeDistance getShapeDistance() const;
     // The count of children nodes.

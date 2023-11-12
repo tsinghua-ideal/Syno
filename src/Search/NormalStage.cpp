@@ -375,30 +375,6 @@ NormalStage::NormalStage(GraphHandle interface, AbstractStage& creator, std::opt
     }
 }
 
-AbstractStage *NormalStage::arbitraryParentImpl() const {
-    if (origin == NodeType::Contraction) {
-        // We are from ContractionStage. There should be no other NormalStage that can reach this.
-        KAS_ASSERT(getParents().size() == 1);
-    }
-    AbstractStage *parent = Base::arbitraryParentImpl();
-    NormalStage *normalParent = dynamic_cast<NormalStage *>(parent);
-    if (!normalParent) {
-        KAS_ASSERT(origin == NodeType::Reducing);
-        // ReductionStage.
-        KAS_ASSERT(dynamic_cast<ReductionStage *>(parent));
-        return parent;
-    }
-    if (normalParent->origin == NodeType::Reducing) {
-        // Note that this is embedded! We had better jump this.
-        KAS_ASSERT(normalParent->getParents().size() == 1);
-        // But we must not jump directly to ReductionStage.
-        // Because to do that, we must call arbitraryParent() on that, which acquires the lock.
-        // Remember that we must not acquire ancestors' locks.
-        // So the dirty work is left for Node to do.
-    }
-    return normalParent;
-}
-
 Finalizability NormalStage::experimentFinalizability(Lock& lock) {
     if (!possibleToFinalizeByExperimenting()) {
         // If proved to be not finalizable, no need to generate children.

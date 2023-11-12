@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KAS/Core/Graph.hpp"
+#include "KAS/Core/Pass.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Utils/Statistics.hpp"
 
@@ -118,5 +119,28 @@ public:
 };
 
 static_assert(OperationImpl<ContractionOp>);
+
+// But we have to extract ContractionOp from Graph.
+
+struct ViewAndContraction {
+    std::vector<const PrimitiveOp *> views;
+    std::map<const ShareOp *, const ExpandOp *> dimwiseContractions;
+    bool empty() const { return views.empty() && dimwiseContractions.empty(); }
+    void addView(const PrimitiveOp *op);
+    void addExpand(const ExpandOp *op);
+    void addShare(const ShareOp *op);
+    const ContractionOp *toContractionOp(OperationStore& store) const;
+};
+
+struct ContractionExtractor: DependentCutSetDiscoverer {
+    OperationStore& store;
+    std::vector<ViewAndContraction> alternatingLayers;
+    ViewAndContraction& last() { return alternatingLayers.back(); }
+    ContractionExtractor(OperationStore& store, const Graph& graph);
+    void afterExclusionHook(const PrimitiveOp *op) override;
+    void extract(const Topmost& bottommost);
+    std::vector<const Operation *> serialize() const;
+    std::vector<std::vector<const Operation *>> layers() const;
+};
 
 } // namespace kas
