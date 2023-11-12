@@ -104,6 +104,7 @@ public:
         // For pruning.
         FinalStageBuilder finalStageBuilder;
         std::size_t maxFLOPs;
+        std::size_t minFLOPs;
     };
     static std::vector<std::vector<Dimension>> AssignToWeights(const std::vector<ColoredDimension>& weightDims);
     static std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> Generate(const GraphHandle& interface, const Graph& graph, const GenerateOptions& options);
