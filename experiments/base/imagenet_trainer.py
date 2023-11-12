@@ -296,7 +296,7 @@ class ImageNetTrainer:
             batch_size=batch_size,
             num_workers=num_workers,
             order=OrderOption.SEQUENTIAL,
-            drop_last=False,
+            drop_last=True,
             pipelines={"image": image_pipeline, "label": label_pipeline},
             distributed=distributed,
         )
