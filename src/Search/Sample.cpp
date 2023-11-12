@@ -3,7 +3,6 @@
 
 #include "KAS/Core/BindingContext.hpp"
 #include "KAS/Core/Dimension.hpp"
-#include "KAS/Core/Pass.hpp"
 #include "KAS/Core/Reduce.hpp"
 #include "KAS/Core/Parser.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
@@ -493,112 +492,35 @@ Next Sampler::ConvertSearchableTensorsToFinalNext(const std::vector<Topmost>& te
     return Next { Next::Type::Finalize, NextFinalizeSlot::GetKey(tensors) };
 }
 
-namespace {
-
-struct ViewAndContraction {
-    std::vector<const PrimitiveOp *> views;
-    std::map<const ShareOp *, const ExpandOp *> dimwiseContractions;
-    void addView(const PrimitiveOp *op) {
-        views.emplace_back(op);
-    }
-    void addExpand(const ExpandOp *op) {
-        if (auto share = op->output.tryAs<ShareOp::Input>(); share) {
-            // This belongs to ContractionOp.
-            auto shareOp = share->getDerivedOp<ShareOp>();
-            auto [_, inserted] = dimwiseContractions.try_emplace(shareOp, op);
-            KAS_ASSERT(inserted);
-        } else {
-            // This is a Repeat.
-            addView(op);
-        }
-    }
-    void addShare(const ShareOp *op) {
-        // This belongs to ContractionOp.
-        auto [it, inserted] = dimwiseContractions.try_emplace(op, nullptr);
-        // If the ShareOp is already included, it must have been added by ExpandOp.
-        KAS_ASSERT(inserted || it->second != nullptr);
-    }
-    const ContractionOp *toContractionOp(OperationStore& store) const {
-        if (dimwiseContractions.empty()) return nullptr;
-        std::vector<ContractionOp::Dimwise> dimwiseOps;
-        for (const auto& [share, expand]: dimwiseContractions) {
-            dimwiseOps.emplace_back(share, expand);
-        }
-        return store.get<ContractionOp>(std::move(dimwiseOps));
-    }
-};
-
-struct ContractionExtractor: DependentCutSetDiscoverer {
-    OperationStore& store;
-    std::vector<ViewAndContraction> alternatingLayers;
-    ViewAndContraction& last() {
-        return alternatingLayers.back();
-    }
-    ContractionExtractor(OperationStore& store, const Graph& graph):
-        // Only the input in the beginning.
-        DependentCutSetDiscoverer(graph, graph.getTopmost().getDimensions()),
-        store { store } {}
-    void afterExclusionHook(const PrimitiveOp *op) override {
-        if (auto expand = dynamic_cast<const ExpandOp *>(op); expand) {
-            last().addExpand(expand);
-        } else if (auto share = dynamic_cast<const ShareOp *>(op); share) {
-            last().addShare(share);
-        } else {
-            last().addView(op);
-        }
-    }
-    void extract() {
-        std::map<int, std::vector<Dimension>> layers;
-        for (const ShareOp *shareOp: graph.getOpsOfType<ShareOp>()) {
-            layers[shareOp->getRhsOrigin()].emplace_back(shareOp->output);
-        }
-        KAS_ASSERT(layers.find(0) == layers.end());
-        for (Dimension output: graph.getOutputIterators()) {
-            layers[0].emplace_back(output);
-        }
-        for (Dimension reduce: graph.getReduceIterators()) {
-            layers[0].emplace_back(reduce);
-        }
-        for (const auto& [layer, dimensions]: layers | std::views::reverse) {
-            alternatingLayers.emplace_back();
-            include(dimensions);
-        }
-        std::ranges::reverse(alternatingLayers);
-        std::ranges::for_each(alternatingLayers, [](ViewAndContraction& layer) {
-            std::ranges::reverse(layer.views);
-        });
-    }
-    std::vector<const Operation *> dump() const {
-        std::vector<const Operation *> result;
-        for (const auto& layer: alternatingLayers) {
-            if (auto contraction = layer.toContractionOp(store); contraction) {
-                result.emplace_back(contraction);
-            }
-            std::ranges::copy(layer.views, std::back_inserter(result));
-        }
-        return result;
-    }
-};
-
-} // namespace
-
 std::vector<const Operation *> Sampler::ConvertGraphToOps(const Graph& graph, OperationStore& store) {
     std::vector<const Operation *> result;
     // To obtain the path, we need to follow the 3 stages of searching.
 
     // First, ReductionStage.
-    {
-        for (const Reduce *op: graph.getReduceIterators()) {
-            result.emplace_back(ReduceOp::FromRaw(op));
-        }
+    for (const Reduce *op: graph.getReduceIterators()) {
+        result.emplace_back(ReduceOp::FromRaw(op));
     }
 
     // Next, NormalStage.
     // Note that we need to extract the ContractionOp's.
-    {
-        auto contractionExtractor = ContractionExtractor(store, graph);
-        contractionExtractor.extract();
-        std::ranges::move(contractionExtractor.dump(), std::back_inserter(result));
+    auto contractionExtractor = ContractionExtractor(store, graph);
+    contractionExtractor.extract(graph.getBottommost());
+    std::ranges::move(contractionExtractor.serialize(), std::back_inserter(result));
+
+    return result;
+}
+
+std::vector<std::vector<const Operation *>> Sampler::ConvertGraphToOpLayers(const Graph& graph, OperationStore& store) {
+    auto contractionExtractor = ContractionExtractor(store, graph);
+    contractionExtractor.extract(graph.getBottommost());
+    auto result = contractionExtractor.layers();
+
+    if (!graph.getReduceIterators().empty()) {
+        result.emplace(result.begin());
+        auto& layer = result.front();
+        for (const Reduce *op: graph.getReduceIterators()) {
+            layer.emplace_back(ReduceOp::FromRaw(op));
+        }
     }
 
     return result;

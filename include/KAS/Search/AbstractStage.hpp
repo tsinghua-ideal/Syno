@@ -83,8 +83,6 @@ protected:
 
     void requestFinalizabilityUpdate(const AbstractStage *requestor);
 
-    const std::vector<AbstractStage *>& getParents() const { return parents; }
-
 public:
     KAS_STATISTICS_DEF(
         Creations,

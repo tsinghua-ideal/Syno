@@ -185,35 +185,10 @@ Node Node::arbitraryParent() const {
     );
 }
 
-bool Node::isBottomOfLattice() const {
-    return match<bool>(
-        [](ReductionStage *stage) {
-            return stage->getDepth() == 0;
-        },
-        [](NormalStage *stage) {
-            return stage->isFromContractionStage();
-        },
-        [](FinalStage *) -> bool {
-            return false;
-        }
-    );
-}
-
-bool Node::parentIsBottomOfLattice() const {
-    return match<bool>(
-        [](ReductionStage *stage) {
-            return false;
-        },
-        [](NormalStage *stage) {
-            if (stage->isFromContractionStage()) {
-                return true;
-            } else {
-                return dynamic_cast<NormalStage&>(*stage->arbitraryParent()).isEmbeddedInReductionStage();
-            }
-        },
-        [](FinalStage *) -> bool {
-            return true;
-        }
+GraphHandle Node::getInterface() const {
+    return match<GraphHandle>(
+        [&](AbstractStage *stage) { return stage->getInterface(); },
+        [&](FinalStage *stage) { return stage->parent.getInterface(); }
     );
 }
 
@@ -382,50 +357,38 @@ void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& 
 }
 
 std::vector<Node> Node::expandToSync(Node target) const {
+    if (target.isFinal()) target = target.arbitraryParent();
+
     // We have partitioned the huge lattice into several smaller lattices.
     // We need to find the bottom node of each lattice.
-    using Arcs = std::unordered_multiset<Arc, Arc::Hash>;
-    const Node& bottom = *this;
-    std::vector<std::unique_ptr<LatticePool>> latticePools;
+    const Graph targetGraph = target.getInterface().buildGraph();
+    auto& store = sampler->getOpStore();
+
+    // TODO: we simply expand from root. We really should only expand from this node.
+    const auto latticesOps = Sampler::ConvertGraphToOpLayers(targetGraph, store);
+    KAS_ASSERT(ranges::fold_left(latticesOps | std::views::transform([](const auto& l) { return l.size(); }), 0_uz, std::plus<>{}) == target.depth());
+
+    std::vector<std::vector<Arc>> latticesArcs;
+    std::vector<LatticePool> latticePools;
+    for (const auto& ops: latticesOps) {
+        latticesArcs.emplace_back(sampler->convertOpsToArcs(ops));
+        latticePools.emplace_back(ops.size());
+    }
     auto& expander = sampler->getLatticeExpander();
 
-    Node top = target;
-    std::vector<Node> latticeEndPoints { top };
-    bool peek = false;
-    while (target.depth() > bottom.depth()) {
-        if (peek || target.isBottomOfLattice()) {
-            if (top.depth() > target.depth() + 1) {
-                // Only if the lattice is worth expanding.
-                auto topArcs = ranges::to<Arcs>(top.getComposingArcs());
-                const auto bottomArcs = ranges::to<Arcs>(target.getComposingArcs());
-                KAS_ASSERT(topArcs.size() == top.depth() && bottomArcs.size() == target.depth());
-                for (const Arc& arc: bottomArcs) {
-                    auto it = topArcs.find(arc);
-                    KAS_ASSERT(it != topArcs.end());
-                    topArcs.erase(it);
-                }
-                auto remainingArcs = ranges::to<std::vector<Arc>>(topArcs);
-                KAS_ASSERT(remainingArcs.size() == top.depth() - bottomArcs.size());
-                latticePools.emplace_back(std::make_unique<LatticePool>(remainingArcs.size()));
-                expander.add(LatticeTask { *latticePools.back(), target, std::move(remainingArcs) });
-            }
-            // Continue.
-            peek = target.parentIsBottomOfLattice();
-            target = target.arbitraryParent();
-            top = target;
-            latticeEndPoints.emplace_back(top);
-        } else {
-            peek = target.parentIsBottomOfLattice();
-            target = target.arbitraryParent();
-        }
-    }
-    KAS_ASSERT(target == bottom);
-    if (latticeEndPoints.back() != bottom) {
+    Node bottom = sampler->visit({}).value(); // root.
+    std::vector<Node> latticeEndPoints { bottom };
+    for (std::size_t i = 0; i < latticesArcs.size(); ++i) {
+        const auto& arcs = latticesArcs[i];
+        auto& pool = latticePools[i];
+        Node top = ranges::fold_left(arcs, bottom, [&](Node node, const Arc& arc) {
+            return node.getChildFromArc(arc).value();
+        });
+        expander.add(LatticeTask { pool, bottom, arcs });
+        bottom = top;
         latticeEndPoints.emplace_back(bottom);
     }
-    std::ranges::reverse(latticeEndPoints);
-    const auto [uB, uE] = std::ranges::unique(latticeEndPoints);
-    latticeEndPoints.erase(uB, uE);
+    KAS_ASSERT(bottom == target);
 
     expander.sync();
     sampler->getExpander().sync();
