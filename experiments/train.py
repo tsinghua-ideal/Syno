@@ -9,11 +9,14 @@ if __name__ == '__main__':
 
     args = parser.arg_parse()
 
-    logging.info('Preparing model ...')
-    model = models.get_model(args)
-
     logging.info('Loading dataset ...')
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
+
+    logging.info('Preparing model ...')
+    sample_input = None
+    if 'gcn' in args.model:
+        sample_input = train_dataloader
+    model = models.get_model(args, sample_input=sample_input)
 
     logging.info('Start training ...')
     losses = trainer.train(model, train_dataloader, val_dataloader, args)

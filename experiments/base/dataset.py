@@ -99,7 +99,9 @@ class FuncDataloader:
 
 
 def get_dataloader(args):
-    if "gpt" in args.model:
+    if "Cora" in args.dataset:
+        return get_gnn_dataloader(args)
+    if "lm1b" in args.dataset:
         return get_gpt_dataloader(args)
     if "imagenet" in args.dataset:
         return None, None
@@ -109,7 +111,7 @@ def get_dataloader(args):
     dataset_name = str(args.dataset).upper()
     assert hasattr(
         sys.modules[__name__], dataset_name
-    ), f"Could not find dataset {args.model}"
+    ), f"Could not find dataset {dataset_name}"
     func = getattr(sys.modules[__name__], dataset_name)
     train_data = func(root=args.root, download=True, train=True, transform=transform)
     eval_data = func(root=args.root, download=False, train=False, transform=transform)
@@ -305,3 +307,9 @@ def get_imagenet_dataloader(args):
     )
 
     return train_loader, eval_loader
+
+
+def get_gnn_dataloader(args):
+    from torch_geometric.datasets import Planetoid
+    dataset = Planetoid(root=args.root, name=args.dataset)[0].cuda()
+    return dataset, dataset

@@ -34,6 +34,34 @@ class LinearPlaceholder(Placeholder):
         return {'N': n, 'seq_len': seq_len, 'H_in': in_features}
 
 
+class GNNLinearPlaceholder(Placeholder):
+    def __init__(self, in_features, out_features) -> None:
+        super(GNNLinearPlaceholder, self).__init__(
+            referred_layer=nn.Linear(in_features, out_features, bias=False),
+            mapping_func=GNNLinearPlaceholder.mapping
+        )
+
+    @staticmethod
+    def impl(assembler):
+        N, H_in, H_out = assembler.get_sizes('N', 'H_in', 'H_out')
+        in_N, in_H_in, w_H_in, w_H_out = assembler.make_dims_of_sizes(N, H_in, H_in, H_out)
+        
+        shared_H_in = assembler.create_share(in_H_in, w_H_in)
+
+        in_N.output(0)
+        w_H_out.output(1)
+        shared_H_in.sum()
+
+        return assembler.assemble('linear', 'in_0 * in_1', [in_N, in_H_in], [w_H_in, w_H_out])
+
+    @staticmethod
+    def mapping(in_size, out_size):
+        n, in_features = in_size
+        n2, out_features = out_size
+        assert n == n2
+        return {'N': n, 'H_in': in_features, 'H_out': out_features}
+
+
 class ConvPlaceholder(Placeholder):
     def __init__(self, in_features, out_features, kernel_size) -> None:
         if isinstance(kernel_size, tuple):

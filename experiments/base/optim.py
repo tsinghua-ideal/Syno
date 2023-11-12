@@ -1,5 +1,5 @@
 import torch
-from torch import nn
+from torch import nn, optim
 from timm.optim import create_optimizer_v2, optimizer_kwargs
 
 
@@ -35,3 +35,7 @@ def get_gpt_optimizer(model: nn.Module, args):
     ]
     optimizer = torch.optim.AdamW(optim_groups, lr=args.lr, betas=(0.9, 0.95))
     return optimizer
+
+
+def get_gnn_optimizer(model: nn.Module, args):
+    return optim.Adam(filter(lambda p : p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.weight_decay)

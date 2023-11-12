@@ -6,10 +6,10 @@ from torch import nn
 from typing import Tuple, List
 from timm.utils import AverageMeter
 from transformers import GPT2Tokenizer
-from KAS import Placeholder
+from KAS import Placeholder, init_weights
 
-from .loss import get_loss_func
-from .optim import get_optimizer, get_gpt_optimizer
+from .loss import get_loss_func, get_gnn_loss_func
+from .optim import get_optimizer, get_gpt_optimizer, get_gnn_optimizer
 from .sche import get_schedule
 from .models import KASModel
 
@@ -31,6 +31,8 @@ def train(
 ) -> List[float]:
     if "gpt" in args.model:
         return train_gpt(model, train_dataloader, val_dataloader, args)
+    if "gcn" in args.model:
+        return train_gnn(model, train_dataloader, val_dataloader, args)
 
     assert isinstance(model, KASModel)
 
@@ -202,3 +204,36 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
             break
 
     return losses
+
+
+def train_gnn(model: nn.Module, train_dataloader, val_dataloader, args) -> List[float]:
+    assert torch.cuda.is_available(), "CUDA is not supported."
+    torch_opt_on()
+    model.cuda()
+
+    model.apply(init_weights)
+    loss_func = get_gnn_loss_func(args)
+    optimizer = get_gnn_optimizer(model, args)
+    data = train_dataloader
+
+    accuracy = []
+    for epoch in range(args.epochs):
+        # Forward
+        model.train()
+        out = model(data)
+        loss = loss_func(out[data.train_mask], data.y[data.train_mask])
+
+        # Backward
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(parameters=model.parameters(), max_norm=args.grad_norm_clip, norm_type=2)
+        optimizer.step()
+        optimizer.zero_grad()
+        
+        # Validation
+        model.eval()
+        pred = model(data).argmax(dim=1)
+        correct = (pred[data.test_mask] == data.y[data.test_mask]).sum()
+        accuracy.append(int(correct) / int(data.test_mask.sum()))
+    
+    logging.info(f"Training completed, accuracy: {max(accuracy)}")
+    return accuracy

@@ -13,6 +13,7 @@ from .conv_net import ConvNet, SpeedyResNet
 from .fc_net import FCNet
 from .common import get_common_model
 from .gpt import GPTConfig, GPT
+from .gcn import GCN
 from .manual_kernels import ManualImpl
 
 
@@ -21,6 +22,7 @@ def get_sampler(args, model) -> Sampler:
     raw_flops, _ = model.profile(not_count_placeholder=True, seq_len=args.gpt_seq_len)
     flops, _ = model.profile(seq_len=args.gpt_seq_len)
     max_flops = args.kas_max_flops_ratio * flops
+    max_flops = 1e20 if max_flops == 0 else max_flops
     assert (
         max_flops > raw_flops
     ), f"Maximum FLOPs {max_flops} is smaller than raw FLOPs {raw_flops}"
@@ -94,7 +96,7 @@ def get_sampler(args, model) -> Sampler:
 
 
 def get_model(
-    args, return_sampler=False
+    args, return_sampler=False, sample_input=None
 ) -> Union[Tuple[KASModel, Optional[Sampler]], KASModel]:
     # Create model instance
     if args.model.startswith("torchvision/"):
@@ -105,6 +107,8 @@ def get_model(
         config.vocab_size = GPT2Tokenizer.from_pretrained(args.gpt_tokenizer).vocab_size
         config.block_size = args.gpt_seq_len
         model = GPT(config)
+    elif args.model == "gcn":
+        model = GCN()
     else:
         assert hasattr(
             sys.modules[__name__], args.model
@@ -118,11 +122,10 @@ def get_model(
     )
 
     # Build mapping for usages
-    sample_input = torch.ones(
-        (args.batch_size, *model.sample_input_shape(args.gpt_seq_len))
-    ).cuda()
-    if args.gpt_seq_len:
-        sample_input = sample_input.long()
+    if sample_input is None:
+        sample_input = torch.ones((args.batch_size, *model.sample_input_shape(args.gpt_seq_len))).cuda()
+        if args.gpt_seq_len:
+            sample_input = sample_input.long()
     build_placeholder_mappings(model, sample_input)
     count = remove_unsatisfied_placeholders(model)
     logging.info(f"Recovered {count} unsatisfied placeholders")
@@ -144,7 +147,7 @@ def get_model(
             kernel_loader = KernelLoader.from_directory(kernel_directory)
         else:
             logging.info(f"Loading from class ...")
-            cls_name = args.kas_replace_placeholder.capitalize() + "Placeholder"
+            cls_name = args.kas_replace_placeholder + "Placeholder"
             assembler = sampler.create_assembler()
             assembled = getattr(placeholder, cls_name).impl(assembler)
             logging.debug(f"Assembled path: {assembled.convert_to_path(sampler)}")
