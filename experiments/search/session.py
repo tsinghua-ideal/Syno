@@ -117,6 +117,8 @@ class Session:
         with open(self.evaluation_result_file) as f:
             dirs = [l[:-1] for l in f.readlines() if l[-1] == "\n"]
 
+        time_offset = 0
+
         kernels = []
         for directory in dirs:
             if not os.path.exists(directory):
@@ -155,13 +157,17 @@ class Session:
 
         for kernel in kernels:
             logging.info(f"Fast updating with {kernel[1]}")
-            path, accuracy, loss, flops, params = (
+            time, path, accuracy, loss, flops, params = (
                 kernel[1],
                 kernel[2],
                 kernel[3],
                 kernel[4],
                 kernel[5],
             )
+
+            if time > time_offset:
+                time_offset = time
+
             # Update with reward
             if self.target == "loss":
                 reward = max((self.max_loss - loss), 0) / self.max_loss
@@ -190,6 +196,7 @@ class Session:
             except Exception as e:
                 logging.error(e)
                 traceback.print_exc()
+        self.start_time -= time_offset
 
     def load(self):
         if not os.path.exists(self.save_dir):
