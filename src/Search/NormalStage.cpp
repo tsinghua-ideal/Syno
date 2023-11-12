@@ -121,6 +121,7 @@ void NormalStage::guardGeneratedChildren() {
             return getFinalize(op);
         },
         .maxFLOPs = options.maxFLOPs,
+        .minFLOPs = options.minFLOPs,
     }), [](std::pair<FinalizeOp, std::unique_ptr<FinalStage>>& opAndStage) {
         auto& [op, stage] = opAndStage;
         auto key = NextFinalizeSlot::GetKey(op.tensors);

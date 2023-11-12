@@ -34,6 +34,7 @@ struct SampleOptions {
     std::size_t maximumTensors = 2;
     std::size_t maximumReductions = 2;
     std::size_t maxFLOPs = std::numeric_limits<std::size_t>::max();
+    std::size_t minFLOPs = 0;
     std::size_t maxRDomSizeMultiplier = 32;
 
     bool enableFLOPsBasedPruning = true;
