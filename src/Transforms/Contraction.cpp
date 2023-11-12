@@ -116,16 +116,22 @@ std::string ContractionOp::descendantsDescription(const BindingContext& ctx) con
 }
 
 ContractionOp::SharedCandidateType ContractionOp::GetSharedCandidateType(Dimension dim) {
-    while (auto s = dim.tryAs<ShareOp::Input>()) {
+    Dimension bottom = dim;
+    while (auto s = bottom.tryAs<ShareOp::Input>()) {
         KAS_ASSERT(s->getOrder() == Order::Left);
-        dim = s->getOp()->output;
+        bottom = s->getOp()->output;
     }
-    switch (dim.type()) {
+    switch (bottom.type()) {
     case DimensionType::Merge:
     case DimensionType::Iterator:
         return SharedCandidateType::Merge;
     case DimensionType::Reduce:
-        return SharedCandidateType::WeightsSharing;
+        if (bottom == dim) {
+            // Not yet.
+            return SharedCandidateType::Normal;
+        } else {
+            return SharedCandidateType::WeightsSharing;
+        }
     default:
         return SharedCandidateType::Normal;
     }
@@ -336,6 +342,7 @@ std::vector<const ContractionOp *> ContractionOp::Generate(OperationStore& store
     const std::vector<SharedCandidateType>& candidateTypes = analysis.candidateTypes;
 
     std::vector<CandidateDimension> available;
+    KAS_ASSERT(fullDims.size() == candidateTypes.size());
     for (std::size_t i = 0; i < fullDims.size(); ++i) {
         const auto& color = graph.colorOf(fullDims[i]);
         if (color.isDataDiscarding()) continue;
