@@ -67,7 +67,7 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(OperationStore& store, const To
     // In addition, canonicalization can require that UnfoldOp chain be structured in ascending order of kernel size. This changes semantics but it seems to be fine.
     using enum DimensionTypeWithOrder;
     std::vector<DimensionTypeWithOrder> disallowsL { ShareR };
-    std::vector<DimensionTypeWithOrder> disallowsR { ShareR };
+    std::vector<DimensionTypeWithOrder> disallowsR { Reduce, ShareR };
     if (options.disallowUnfoldLAboveSplit) disallowsL.push_back(Split);
     if (options.disallowUnfoldLAboveShift) disallowsL.push_back(Shift);
     if (options.disallowUnfoldLAboveMergeR) disallowsL.push_back(MergeR);
