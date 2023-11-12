@@ -158,6 +158,7 @@ class Session:
         for kernel in kernels:
             logging.info(f"Fast updating with {kernel[1]}")
             time, path, accuracy, loss, flops, params = (
+                kernel[0],
                 kernel[1],
                 kernel[2],
                 kernel[3],
