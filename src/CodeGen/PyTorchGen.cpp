@@ -599,10 +599,10 @@ PyTorchGen::PyTorchGen(const BindingContext& ctx, const TensorView& tensorView):
         tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent)
     );
     ir = IR::Build(tensors, ctx, true);
-    // We want rfactor to be applied so that each stage has at most 1 reduction.
-    (RFactorIRPass(ctx, graph, true))(this->ir);
     // Perform views. Because PyTorch wants the dimensions to be contracted to be explicit.
     (PerformViewsIRPass(graph))(this->ir);
+    // We want rfactor to be applied so that each stage has at most 1 reduction.
+    (RFactorIRPass(ctx, graph, true))(this->ir);
     // Now that the tensors are in a mess again, optimize layout one more time.
     (OptimizeLayoutIRPass(graph))(this->ir);
 
