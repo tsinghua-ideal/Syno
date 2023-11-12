@@ -237,7 +237,7 @@ class MCTSTree:
                     f"Successful rollout: {path} {trials}. Evaluation to be done."
                 )
                 assert all(trial.is_final() for _, trial in trials)
-                assert len(trials) == self.leaf_num
+                assert len(trials) <= self.leaf_num
                 return path, trials
             else:
                 logging.debug(f"During rollout, dead end encountered. Retrying...")
@@ -266,8 +266,8 @@ class MCTSTree:
             if leaf.N >= 100:
                 self.stuck_path = path
                 return None
-            self._increment_virtual_loss(path, self.leaf_num)
-            return path, [(path, leaf) for _ in range(self.leaf_num)]
+            self._increment_virtual_loss(path)
+            return path, [(path, leaf)]
 
         if len(leaf.get_unexpanded_children()) == 0:
             if not leaf.is_fully_in_tree():
@@ -292,9 +292,9 @@ class MCTSTree:
         leaves = self.simulate(path, leaf_expanded)
 
         if leaves is not None:
-            assert len(leaves) == self.leaf_num, leaves
+            assert len(leaves) <= self.leaf_num, leaves
             leaf_expanded.set_alive()
-            self._increment_virtual_loss(path, self.leaf_num)
+            self._increment_virtual_loss(path, len(leaves))
             return path, leaves
         else:
             return None
@@ -381,17 +381,18 @@ class MCTSTree:
             f"Got {len(final_nodes)} final nodes ({sample_times} samples) for path({tree_path}) after {trial_attempt+1} attempts. "
         )
 
-        if len(final_nodes) < self.leaf_num or leaf_expanded.is_dead_end():
-            logging.info(f"Simulation from {tree_path} failed, flushing failure time. ")
+        if leaf_expanded.is_dead_end():
+            logging.info(f"Simulation from {tree_path} failed. ")
             leaf_expanded.set_simulate_fail()
             return None
 
         self.simulate_time_ema /= 2
 
-        final_nodes = [
-            (TreePath(path), self.touch(node, path=path))
-            for path, node in random.choices(final_nodes, k=self.leaf_num)
-        ]
+        if len(final_nodes) > self.leaf_num:
+            final_nodes = [
+                (TreePath(path), self.touch(node, path=path))
+                for path, node in random.choices(final_nodes, k=self.leaf_num)
+            ]
 
         return final_nodes
 
