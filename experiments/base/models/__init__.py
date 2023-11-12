@@ -36,6 +36,9 @@ def get_sampler(args, model) -> Sampler:
     logging.info(
         f"Maximum total placeholder FLOPs per batch: {max_placeholder_flops / 1e9:.5f}G"
     )
+    logging.info(
+        f"Minimum total placeholder FLOPs per batch: {min_placeholder_flops / 1e9:.5f}G"
+    )
     logging.info(f"Enable soft FLOPs limit: {args.kas_soft_flops_limit}")
     setattr(args, "original_flops", flops)
 
