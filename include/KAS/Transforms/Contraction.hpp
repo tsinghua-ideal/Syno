@@ -116,6 +116,7 @@ public:
         Generator<const ContractionOp *> generate() const;
     };
     static std::vector<const ContractionOp *> Generate(OperationStore& store, const GenerateOptions& options);
+    static bool NoMoreContractions(const Graph& graph, std::size_t maximumTensors);
 };
 
 static_assert(OperationImpl<ContractionOp>);

@@ -168,6 +168,7 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
     auto extendedGame = ExtendedFLOPsGame(ctx, flopsOptions.totalInputSize, graph);
     auto enumerator = ShapeComplexity::Enumerator(desired, mustBeInput, {
         .ctx = ctx,
+        .requiresOnlyOddNumelIncrease = options.requiresOnlyOddNumelIncrease,
         .remainingMerges = options.remainingMerges,
         .remainingSplits = options.remainingSplits,
         .remainingUnfoldsAndExpands = options.remainingUnfoldsAndExpands - (strideDist > 0),

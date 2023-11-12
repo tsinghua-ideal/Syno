@@ -374,6 +374,17 @@ std::vector<const ContractionOp *> ContractionOp::Generate(OperationStore& store
     return result;
 }
 
+bool ContractionOp::NoMoreContractions(const Graph& graph, std::size_t maximumTensors) {
+    int maxWeightId = 0;
+    for (const ShareOp *shareOp: graph.getOpsOfType<ShareOp>()) {
+        int newWeightId = shareOp->getRhsOrigin();
+        if (maxWeightId < newWeightId) {
+            maxWeightId = newWeightId;
+        }
+    }
+    return maximumTensors <= maxWeightId + 1;
+}
+
 void ViewAndContraction::addView(const PrimitiveOp *op) {
     views.emplace_back(op);
 }

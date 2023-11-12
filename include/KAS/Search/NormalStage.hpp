@@ -67,8 +67,6 @@ public:
     KAS_STATISTICS_DEF(
         ChildrenFinalize,
         FinalizabilityCheckInvocations,
-        TooManyWeights,
-        SharesUncanonical,
         ShapeDeviatesTooMuch,
     );
     // NormalStage cannot be root.

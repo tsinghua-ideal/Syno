@@ -10,6 +10,7 @@ TEST_F(search_tests, shape_complexity) {
     auto desired = std::vector<DesiredSize> {{N}, {H}, {W}};
     ShapeComplexity::DistanceOptions options = {
         .ctx = ctx,
+        .requiresOnlyOddNumelIncrease = false,
         .remainingMerges = 0,
         .remainingSplits = 0,
         .remainingUnfoldsAndExpands = 0,
