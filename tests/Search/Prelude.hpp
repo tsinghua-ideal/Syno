@@ -20,7 +20,7 @@ protected:
         SampleOptions options;
         options.seed = 42;
         options.depth = 12;
-        options.maximumTensors = 4;
+        options.maximumTensors = 3;
         options.maximumReductions = 3;
         options.maxFLOPs = 5e6;
         options.maxChainLength = 5;

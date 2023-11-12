@@ -52,7 +52,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             return [
                 AbstractChild(
                     str(nxt),
-                    f"{state.to_node().get_arc_from_handle(Next(state._type, nxt))} {edge_state} with l-rave {state.l_rave[state.to_node().get_arc_from_handle(Next(state._type, nxt))]} {'(simulation failed)' if child_node._simulate_fail else ''}",
+                    f"{state.to_node().get_arc_from_handle(Next(state._type, nxt))} {edge_state} with g-rave {self._mcts.g_rave[state.to_node().get_arc_from_handle(Next(state._type, nxt))]} and l-rave {state.l_rave[state.to_node().get_arc_from_handle(Next(state._type, nxt))]} {'(simulation failed)' if child_node._simulate_fail else ''}",
                 )
                 for nxt, child_node, edge_state in handles
             ]
@@ -60,7 +60,7 @@ class MCTSExplorer(AbstractExplorer[TreeNode]):
             return [
                 AbstractChild(
                     self._serializer.serialize_type(nxt),
-                    f"{str(nxt).split('.')[-1]} {edge_state} {'(simulation failed)' if child_node._simulate_fail else ''}",
+                    f"{str(nxt).split('.')[-1]} {edge_state} with g-rave {self._mcts.g_rave[nxt]} and l-rave {state.l_rave[nxt]} {'(simulation failed)' if child_node._simulate_fail else ''}",
                 )
                 for nxt, child_node, edge_state in handles
             ]

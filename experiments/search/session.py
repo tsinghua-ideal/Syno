@@ -185,8 +185,11 @@ class Session:
                 reward = reward**self.reward_power
             else:
                 reward = -1
-
-            self.algo.load_eval_result(path, reward)
+            try:
+                self.algo.load_eval_result(path, reward)
+            except Exception as e:
+                logging.error(e)
+                traceback.print_exc()
 
     def load(self):
         if not os.path.exists(self.save_dir):
@@ -203,12 +206,16 @@ class Session:
         if path in self.timeout_samples:
             logging.debug(f"{path} is removed due to timeout...")
             return
-        if path not in self.waiting:
-            logging.warning(f"{path} is not in our waiting queue")
+        fast_load_flag = path not in self.waiting
+        if fast_load_flag:
+            logging.warning(
+                f"{path} is not in our waiting queue, will do a fast update"
+            )
             return
 
         # Not more waiting
-        self.waiting.remove(path)
+        if path in self.waiting:
+            self.waiting.remove(path)
         self.time_buffer.pop(path)
 
         # Get implementation
@@ -295,7 +302,10 @@ class Session:
             reward = -1
 
         logging.info(f"Updating with reward {reward} ...")
-        self.algo.update(path, reward)
+        if fast_load_flag:
+            self.algo.load_eval_result(path, reward)
+        else:
+            self.algo.update(path, reward)
 
     def prefetcher_main(self):
         try:

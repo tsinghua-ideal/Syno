@@ -436,13 +436,13 @@ def arg_parse():
     )
     parser.add_argument(
         "--kas-max-expansion-repeat-multiplier",
-        default=10,
+        default=1,
         type=int,
         help="KAS sampler maximum expansion multiplier",
     )
     parser.add_argument(
         "--kas-max-expansion-merge-multiplier",
-        default=256,
+        default=512,
         type=int,
         help="KAS sampler maximum expansion multiplier",
     )

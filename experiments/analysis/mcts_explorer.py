@@ -14,17 +14,17 @@ if __name__ == "__main__":
     args = parser.arg_parse()
 
     # Sampler
-    _, sampler = models.get_model(args, return_sampler=True)
+    model, sampler = models.get_model(args, return_sampler=True)
 
     # Explorer
     if args.kas_mcts_explorer_path:
         with open(args.kas_mcts_explorer_path, "r") as file:
             mcts = MCTSTree.deserialize(
-                json.load(file), sampler, keep_virtual_loss=True, keep_dead_state=True
+                json.load(file), sampler, keep_virtual_loss=False, keep_dead_state=False
             )
     else:
         mcts = MCTSAlgorithm(sampler, args).mcts
-    explorer = MCTSExplorer(mcts)
+    explorer = MCTSExplorer(model, sampler, mcts)
 
     prefix = []
     if args.kas_mcts_explorer_script:
@@ -35,4 +35,4 @@ if __name__ == "__main__":
             for command in f:
                 if not command.startswith("#"):
                     prefix.append(command.rstrip("\n"))
-    explorer.interactive(prefix=prefix)
+    explorer.interactive()

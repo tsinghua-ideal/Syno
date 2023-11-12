@@ -418,11 +418,22 @@ Enumerator::Enumerator(const std::vector<DesiredSize>& desired, const std::vecto
     Size quotient = Size::Product(current | std::views::transform(&CurrentSize::value)); // current numel.
     auto quotientSpec = quotient.testDividedBy(desiredElements);
     if (
-        !quotientSpec
-        || *quotientSpec == Size::Trait::IllegalCoefficient
-        || (options.ctx.requiresExactDivision() && quotient.lowerBoundEst(options.ctx) < 1_uz)
+        !quotientSpec ||
+        *quotientSpec == Size::Trait::IllegalCoefficient ||
+        (options.ctx.requiresExactDivision() && std::ranges::any_of(
+            quotient.evalFractionAllConsts<std::size_t>(options.ctx),
+            [](auto x) { return x.denominator() != 1; }
+        ))
     ) {
         // Not enough elements.
+        done = true;
+        return;
+    }
+    if (options.requiresOnlyOddNumelIncrease && std::ranges::any_of(
+        quotient.evalFractionAllConsts<std::size_t>(options.ctx),
+        [](auto x) { return x.numerator() % 2 == 0; }
+    )) {
+        // We require only odd numel increase, but this is not satisfied.
         done = true;
         return;
     }

@@ -10,7 +10,7 @@ from fastargs import get_current_config
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
-from base import ImageNetTrainer, make_config
+from base.imagenet_trainer import ImageNetTrainer, make_config
 
 if __name__ == "__main__":
     make_config()

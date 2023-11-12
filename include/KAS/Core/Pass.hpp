@@ -55,6 +55,7 @@ public:
 
     // Returns the number of dimensions removed.
     std::size_t removeReductions();
+    void removeSingleReduction(const Reduce *reduction);
 
     std::vector<Dimension> build() const;
 };
@@ -140,19 +141,20 @@ private:
     Tensor tensor;
     const Graph& graph;
     const BindingContext& ctx;
+    bool singleReductionPerStage;
     const std::vector<Dimension> contractedInterface;
 
     static Generator<Scheme> PlausibleRFactorSchemes(std::vector<const Reduce *> remaining, bool allowEmpty);
     static Generator<Scheme> PlausibleSingleReductionRFactorSchemes(std::vector<const Reduce *> remaining, bool firstEmpty);
-    Generator<Scheme> plausibleRFactorSchemes(bool singleReductionPerStage) const;
+    Generator<Scheme> plausibleRFactorSchemes() const;
     // If > overflow, treated as infinity.
     static constexpr std::size_t Infinity = std::numeric_limits<std::size_t>::max();
     std::size_t getFLOPs(const Scheme& scheme, std::size_t overflow = Infinity) const;
 
 public:
     // Never pass a view here!
-    RFactorSolver(Tensor& tensor, const Graph& graph, const BindingContext& ctx);
-    std::optional<Scheme> optimalRFactorScheme(bool singleReductionPerStage) const;
+    RFactorSolver(Tensor& tensor, const Graph& graph, const BindingContext& ctx, bool singleReductionPerStage);
+    std::optional<Scheme> optimalRFactorScheme() const;
     void apply(const Scheme& scheme);
 };
 

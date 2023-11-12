@@ -13,6 +13,8 @@ from .avg_meter import AverageMeter
 PseudoTreeNext = Union[Next.Type, int]
 PseudoArc = Union[Next.Type, Arc]
 
+next_serializer = NextSerializer()
+
 
 class TreePath(Path):
     """
@@ -44,19 +46,15 @@ class TreePath(Path):
 
     @staticmethod
     def decode_next_type(repr_: str):
-        pos = NextSerializer().deserialize_type(repr_)
+        pos = next_serializer.deserialize_type(repr_)
         return str(pos)
 
     @staticmethod
     def decode_str(str_repr: str) -> "TreePath":
-        str_repr = str_repr[1:-1].split(", ")
-        str_repr = "_".join(
-            [
-                TreePath.decode_next_type(r[:-1].split("(")[0]) + r[:-1].split("(")[1]
-                for r in str_repr
-            ]
+        str_repr = [r[:-1].split("(") for r in str_repr[1:-1].split(", ")]
+        return TreePath(
+            [Next(next_serializer.deserialize_type(r[0]), int(r[1])) for r in str_repr]
         )
-        return TreePath.deserialize(str_repr)
 
     def __init__(self, path: List[PseudoTreeNext]) -> None:
         """abs_path records [(op, hash)]"""
@@ -784,7 +782,7 @@ class TreeNode:
         """
         Dependencies: None
         """
-        return self._node.to_node()
+        return self._node
 
     # Temporally functions
     @property

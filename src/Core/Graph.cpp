@@ -113,6 +113,13 @@ VisitedVertex Graph::visitAlong(const Dimension& dim, Direction dir) const {
     }
 }
 
+Topmost Graph::getBottommost() const {
+    std::vector<Dimension> bottommost;
+    std::ranges::copy(getOutputIterators(), std::back_inserter(bottommost));
+    std::ranges::copy(getReduceIterators(), std::back_inserter(bottommost));
+    return Topmost(std::move(bottommost), std::vector<const Expand *>{});
+}
+
 const PrimitiveOp *Graph::getOpAbove(const Dimension& dim) const {
     return dimMeta.at(dim).opAbove.visit(Match {
         [](std::monostate) -> const PrimitiveOp * { return nullptr; },

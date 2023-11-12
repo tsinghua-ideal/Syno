@@ -41,7 +41,7 @@ class ManualImpl:
         return self.assembler.assemble(
             "conv",
             "in_0 * in_1",
-            [in_N, in_C, in_H, in_W],
+            [in_N, in_C, in_H, in_W, tmp_dim],
             [w_out_C, w_in_C, w_k_1, w_k_2],
         )
 
@@ -84,7 +84,7 @@ class ManualImpl:
         return self.assembler.assemble(
             "conv",
             "in_0 * in_1",
-            [in_N, in_C, in_H, in_W],
+            [in_N, in_C, in_H, in_W, tmp_dim],
             [w_out_C, w_in_C, w_k_1, w_k_2],
         )
 
@@ -153,7 +153,7 @@ class ManualImpl:
             w_interm_out_C_group,
             w_out_C,
         ) = self.assembler.make_dims_of_sizes(
-            N, H, W, C_in, C_in / g / s, C_in, k, k, g, C_in / g / s, C_out
+            N, H, W, C_in, C_out / g / s, C_in, k, k, g, C_out / g / s, C_out
         )
 
         # Spatial dimensions
@@ -167,15 +167,15 @@ class ManualImpl:
         shared_G_C_in = self.assembler.create_share(in_C, w_out_G_in_C)
         shared_G, shared_C_in = self.assembler.create_split(shared_G_C_in, C_in / g)
 
-        tmp_dim = self.assembler.create_expand(C_in / g / s)
-        out_C_group_masked = self.assembler.create_share(tmp_dim, out_C_group)
+        tmp_dim1 = self.assembler.create_expand(C_out / g / s)
+        out_C_group_masked = self.assembler.create_share(tmp_dim1, out_C_group)
         interm_G_contracted = self.assembler.create_share(shared_G, w_interm_out_G)
         interm_C_out_group_contracted = self.assembler.create_share(
             out_C_group_masked, w_interm_out_C_group
         )
 
-        tmp_dim = self.assembler.create_expand(C_out)
-        out_C = self.assembler.create_share(tmp_dim, w_out_C)
+        tmp_dim2 = self.assembler.create_expand(C_out)
+        out_C = self.assembler.create_share(tmp_dim2, w_out_C)
 
         in_N.output(0)
         out_C.output(1)
@@ -190,7 +190,7 @@ class ManualImpl:
         return self.assembler.assemble(
             "conv",
             "in_0 * in_1 * in_2",
-            [in_N, in_C, in_H, in_W, tmp_dim],
+            [in_N, in_C, in_H, in_W, tmp_dim1, tmp_dim2],
             [out_C_group, w_out_G_in_C, w_k_1, w_k_2],
             [w_out_C, w_interm_out_G, w_interm_out_C_group],
         )
@@ -246,7 +246,7 @@ class ManualImpl:
         return self.assembler.assemble(
             "conv",
             "in_0 * in_1",
-            [in_N, in_C, in_H, in_W, s_H_expand, s_W_expand],
+            [in_N, in_C, in_H, in_W, s_H_expand, s_W_expand, tmp_dim],
             [w_out_C, w_in_C, w_k_1, w_k_2],
         )
 
@@ -293,7 +293,7 @@ class ManualImpl:
         return self.assembler.assemble(
             "conv",
             "in_0 * in_1",
-            [in_N, in_C, in_H, in_W, s_H_expand],
+            [in_N, in_C, in_H, in_W, s_H_expand, tmp_dim],
             [w_out_C, w_in_C, w_k_1, w_k_2],
         )
 
@@ -330,8 +330,8 @@ class ManualImpl:
         return self.assembler.assemble(
             "conv",
             "in_0 * in_1",
-            [in_N, in_C, in_H, in_W],
-            [out_C, w_in_C, w_k_1],
+            [in_N, in_C, in_H, in_W, tmp_dim],
+            [w_out_C, w_in_C, w_k_1],
         )
 
     def Shift2d(self) -> Assembled:
@@ -357,7 +357,7 @@ class ManualImpl:
         return self.assembler.assemble(
             "conv",
             "in_0 * in_1",
-            [in_N, in_C, in_H, in_W],
+            [in_N, in_C, in_H, in_W, tmp_dim],
             [w_out_C, w_in_C],
         )
 
@@ -402,6 +402,6 @@ class ManualImpl:
         return self.assembler.assemble(
             "07923",
             "in_0 * in_1",
-            [in_N, in_C, in_H, in_W, expanded_s],
+            [in_N, in_C, in_H, in_W, expanded_s, tmp_dim],
             [w_s, w_out_C, w_k, w_in_C],
         )

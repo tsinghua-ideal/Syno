@@ -83,7 +83,9 @@ class MCTSTree:
 
     def _increment_virtual_loss(self, path: TreePath, delta: int = 1) -> None:
         assert delta > 0
-        # logging.debug(f"increment virtual loss by {delta} of {path}")
+        logging.debug(
+            f"increment virtual loss by {delta} of {path}, total {self.tree_root._virtual_loss}"
+        )
         tree_node = self.tree_root
         tree_node._virtual_loss += delta
         # logging.debug(
@@ -113,7 +115,9 @@ class MCTSTree:
 
     def _decrement_virtual_loss(self, path: TreePath, delta: int = 1) -> None:
         assert delta > 0
-        # logging.debug(f"decrement virtual loss by {delta} of {path}")
+        logging.debug(
+            f"decrement virtual loss by {delta} of {path}, total {self.tree_root._virtual_loss}"
+        )
         tree_node = self.tree_root
         tree_node._virtual_loss -= delta
         # logging.debug(
@@ -418,21 +422,20 @@ class MCTSTree:
         # update rewards
         self.update_nodes(receipt, reward)
 
-        trial_node = self._sampler.visit(path_to_trial)
-        assert trial_node.is_final()
+        trial_node = self.visit(path_to_trial, on_tree=False)
+        assert trial_node and trial_node.is_final()
         try:
-            arcs = trial_node.get_composing_arcs()
+            arcs = trial_node.to_node().get_composing_arcs()
         except:
             logging.debug(f"get_composing_arcs failed for {path_to_trial}")
             return
 
         # update rave scores
         update_types = set([next.type for next in path_to_trial])
-        trial_node_on_tree = self.touch(trial_node.to_node(), path=path_to_trial)
 
         self.update_grave(arcs, update_types, reward)
         logging.debug("Grave updated. ")
-        self.update_lrave(trial_node_on_tree, arcs, reward)
+        self.update_lrave(trial_node, arcs, reward)
         logging.debug("Lrave updated. ")
         logging.debug("Back propagation end")
 
@@ -480,6 +483,7 @@ class MCTSTree:
         assert isinstance(final_node, TreeNode), f"{final_node} is not TreeNode!"
 
         lattice_ends = self._root.expand_to(final_node.to_node())
+        logging.info("Expansion finished")
         attempt_record: Dict[TreeNode, Tuple[bool, Multiset[Arc]]] = dict()
 
         def find_lattice(
@@ -513,7 +517,7 @@ class MCTSTree:
                         src_node._node.get_child_from_arc(arc),
                         path=self._path_store[src_node._node].concat(nxt),
                     )
-                    if child_node.is_dead_end(include_simulate_failure=False):
+                    if child_node.to_node().is_dead_end():
                         continue
                     if find_lattice(child_node, tgt_node, new_arc_pool):
                         updated.add((src_node, nxt.type))
@@ -541,6 +545,9 @@ class MCTSTree:
             assert (
                 attempt
             ), f"Failed to go from {self._path_store[lattice_start]} to {self._path_store[lattice_end]} with lattice_arcs={lattice_arcs}"
+            logging.info(
+                f"Succeed from {lattice_start} to {lattice_end} through {lattice_arcs}"
+            )
 
     def touch(self, node: Node, path: Path = None) -> TreeNode:
         """
@@ -600,7 +607,7 @@ class MCTSTree:
             if edge.N == 0:
                 return 1e9 - self.virtual_loss_constant * child._virtual_loss
             # If the edge is chosen multiple times but the resulting std is very small
-            if edge.N > 30 and edge.std <= 0.01:
+            if edge.N > 30 and edge.std <= 0.001:
                 logging.info(
                     f"At {path}, encountered {nxt} with {edge} and it is suppressed. "
                 )
@@ -837,7 +844,9 @@ class MCTSTree:
         node_list = serialized["node_list"]
         tree = MCTSTree(sampler, **params)
 
-        for node_serial in node_list:
+        from tqdm import tqdm
+
+        for node_serial in tqdm(node_list):
             if node_serial["father"]["state"]["_is_dead"]:
                 if keep_dead_state:
                     path = Path.deserialize(node_serial["path"])

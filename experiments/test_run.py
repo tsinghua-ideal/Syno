@@ -7,7 +7,7 @@ import sys
 import torch
 from KAS import Path
 
-from base import log, models, parser, dataset, trainer, ImageNetTrainer
+from base import log, models, parser, dataset, trainer
 
 
 if __name__ == "__main__":
@@ -61,6 +61,7 @@ if __name__ == "__main__":
 
     if "imagenet" in args.dataset:
         from fastargs import get_current_config
+        from base.imagenet_trainer import ImageNetTrainer
 
         config = get_current_config()
         config.collect_config_file(args.imagenet_config_file)

@@ -67,18 +67,14 @@ public:
     KAS_STATISTICS_DEF(
         ChildrenFinalize,
         FinalizabilityCheckInvocations,
-        TooManyWeights,
-        SharesUncanonical,
         ShapeDeviatesTooMuch,
     );
     // NormalStage cannot be root.
     NormalStage(GraphHandle interface, AbstractStage& creator, std::optional<Next::Type> deltaOp, Lock lock);
-    // This checks the status of this stage.
     // Currently there are 3 types of NormalStage.
     // 1. Embedded in ReductionStage. Constructed with deltaOp == std::nullopt. In this case this function returns the ReductionStage rather than the direct parent, i.e., a NormalStage.
     // 2. Child of ContractionStage. Constructed with deltaOp == Next::Type::Contraction. In this case we also just return the NormalStage because ContractionStage is simulated.
     // 3. Child of NormalStage. Others.
-    AbstractStage *arbitraryParentImpl() const;
     bool isEmbeddedInReductionStage() const { return origin == NodeType::Reducing; }
     bool isFromContractionStage() const { return origin == NodeType::Contraction; }
 

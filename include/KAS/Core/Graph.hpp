@@ -331,6 +331,7 @@ public:
     const std::vector<const Iterator *>& getOutputIterators() const { return outputIterators; }
     std::vector<const Reduce *>& getReduceIterators() { return reduceIterators; }
     const std::vector<const Reduce *>& getReduceIterators() const { return reduceIterators; }
+    Topmost getBottommost() const;
 
     // Includes ExpandOp.
     const PrimitiveOp *getOpAbove(const Dimension& dim) const;

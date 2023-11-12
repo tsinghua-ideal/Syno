@@ -374,4 +374,113 @@ std::vector<const ContractionOp *> ContractionOp::Generate(OperationStore& store
     return result;
 }
 
+bool ContractionOp::NoMoreContractions(const Graph& graph, std::size_t maximumTensors) {
+    int maxWeightId = 0;
+    for (const ShareOp *shareOp: graph.getOpsOfType<ShareOp>()) {
+        int newWeightId = shareOp->getRhsOrigin();
+        if (maxWeightId < newWeightId) {
+            maxWeightId = newWeightId;
+        }
+    }
+    return maximumTensors <= maxWeightId + 1;
+}
+
+void ViewAndContraction::addView(const PrimitiveOp *op) {
+    views.emplace_back(op);
+}
+
+void ViewAndContraction::addExpand(const ExpandOp *op) {
+    if (auto share = op->output.tryAs<ShareOp::Input>(); share) {
+        // This belongs to ContractionOp.
+        auto shareOp = share->getDerivedOp<ShareOp>();
+        auto [_, inserted] = dimwiseContractions.try_emplace(shareOp, op);
+        KAS_ASSERT(inserted);
+    } else {
+        // This is a Repeat.
+        addView(op);
+    }
+}
+
+void ViewAndContraction::addShare(const ShareOp *op) {
+    // This belongs to ContractionOp.
+    auto [it, inserted] = dimwiseContractions.try_emplace(op, nullptr);
+    // If the ShareOp is already included, it must have been added by ExpandOp.
+    KAS_ASSERT(inserted || it->second != nullptr);
+}
+
+const ContractionOp *ViewAndContraction::toContractionOp(OperationStore& store) const {
+    if (dimwiseContractions.empty()) return nullptr;
+    std::vector<ContractionOp::Dimwise> dimwiseOps;
+    for (const auto& [share, expand]: dimwiseContractions) {
+        dimwiseOps.emplace_back(share, expand);
+    }
+    return store.get<ContractionOp>(std::move(dimwiseOps));
+}
+
+ContractionExtractor::ContractionExtractor(OperationStore& store, const Graph& graph):
+    // Only the input in the beginning.
+    DependentCutSetDiscoverer(graph, graph.getTopmost().getDimensions()),
+    store { store } {}
+
+void ContractionExtractor::afterExclusionHook(const PrimitiveOp *op) {
+    if (auto expand = dynamic_cast<const ExpandOp *>(op); expand) {
+        last().addExpand(expand);
+    } else if (auto share = dynamic_cast<const ShareOp *>(op); share) {
+        last().addShare(share);
+    } else {
+        last().addView(op);
+    }
+}
+
+void ContractionExtractor::extract(const Topmost& bottommost) {
+    std::map<int, std::vector<Dimension>> layers;
+    for (const ShareOp *shareOp: graph.getOpsOfType<ShareOp>()) {
+        layers[shareOp->getRhsOrigin()].emplace_back(shareOp->output);
+    }
+    KAS_ASSERT(layers.find(0) == layers.end());
+    for (const Dimension& output: bottommost.getDimensions()) {
+        layers[0].emplace_back(output);
+    }
+    for (const auto& [layer, dimensions]: layers | std::views::reverse) {
+        alternatingLayers.emplace_back();
+        include(dimensions);
+        if (last().empty()) {
+            alternatingLayers.pop_back();
+        }
+    }
+    std::ranges::reverse(alternatingLayers);
+    std::ranges::for_each(alternatingLayers, [](ViewAndContraction& layer) {
+        std::ranges::reverse(layer.views);
+    });
+}
+
+std::vector<const Operation *> ContractionExtractor::serialize() const {
+    std::vector<const Operation *> result;
+    for (const auto& layer: alternatingLayers) {
+        if (auto contraction = layer.toContractionOp(store); contraction) {
+            result.emplace_back(contraction);
+        }
+        std::ranges::copy(layer.views, std::back_inserter(result));
+    }
+    return result;
+}
+
+std::vector<std::vector<const Operation *>> ContractionExtractor::layers() const {
+    std::vector<std::vector<const Operation *>> layers;
+    for (const auto& lattice: alternatingLayers) {
+        if (auto contraction = lattice.toContractionOp(store); contraction) {
+            layers.emplace_back();
+            layers.back().emplace_back(contraction);
+        }
+        if (!lattice.views.empty()) {
+            layers.emplace_back();
+            auto& layer = layers.back();
+            for (const PrimitiveOp *view: lattice.views) {
+                layer.emplace_back(view);
+            }
+        }
+    }
+    return layers;
+}
+
 } // namespace kas

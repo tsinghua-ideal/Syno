@@ -63,6 +63,11 @@ std::size_t DependentCutSetDiscoverer::removeReductions() {
     return std::erase_if(cutSet, [](const Dimension& dim) { return dim.is(DimensionType::Reduce); });
 }
 
+void DependentCutSetDiscoverer::removeSingleReduction(const Reduce *reduction) {
+    auto erased = cutSet.erase(reduction);
+    KAS_ASSERT(erased == 1);
+}
+
 std::vector<Dimension> DependentCutSetDiscoverer::build() const {
     return std::vector<Dimension>(cutSet.begin(), cutSet.end());
 }
@@ -198,7 +203,7 @@ Generator<RFactorSolver::Scheme> RFactorSolver::PlausibleSingleReductionRFactorS
     } while (std::ranges::next_permutation(remaining).found);
 }
 
-Generator<RFactorSolver::Scheme> RFactorSolver::plausibleRFactorSchemes(bool singleReductionPerStage) const {
+Generator<RFactorSolver::Scheme> RFactorSolver::plausibleRFactorSchemes() const {
     const auto contractedReductions = ranges::to<std::vector<const Reduce *>>(
         contractedInterface
         | std::views::transform([](const Dimension& dim) { return dim.tryAs<Reduce>(); })
@@ -233,7 +238,7 @@ std::size_t RFactorSolver::getFLOPs(const Scheme& scheme, std::size_t overflow) 
 
     bool isContraction = tensor.hasContraction();
     std::size_t flops = 0;
-    for (const auto& reductionGroup: scheme.reductions) {
+    for (std::size_t reductionGroupIndex = 0; const auto& reductionGroup: scheme.reductions) {
         KAS_ASSERT(isContraction || !reductionGroup.empty(), "Only rfactor is allowed for non-contraction subgraphs.");
 
         // 1 tensor : 1 add -> 1 add.
@@ -260,17 +265,28 @@ std::size_t RFactorSolver::getFLOPs(const Scheme& scheme, std::size_t overflow) 
         }
 
         // remove all reductions from discoverer
-        auto removedReductions = discoverer.removeReductions();
-        if (removedReductions != reductionGroup.size()) {
-            // It seems there are some other reductions that had better get reduced at the same time.
-            KAS_ASSERT(removedReductions > reductionGroup.size());
-            // This is to say that this reduction scheme is actually invalid.
-            // We only need to return infinity here.
-            return Infinity;
+        if (singleReductionPerStage) {
+            if (reductionGroup.size() == 1) {
+                discoverer.removeSingleReduction(reductionGroup.front());
+            } else {
+                KAS_ASSERT(reductionGroupIndex == 0);
+                auto removedReductions = discoverer.removeReductions();
+                KAS_ASSERT(removedReductions == reductionGroup.size());
+            }
+        } else {
+            auto removedReductions = discoverer.removeReductions();
+            if (removedReductions != reductionGroup.size()) {
+                // It seems there are some other reductions that had better get reduced at the same time.
+                KAS_ASSERT(removedReductions > reductionGroup.size());
+                // This is to say that this reduction scheme is actually invalid.
+                // We only need to return infinity here.
+                return Infinity;
+            }
         }
 
         // Later on, only reductions.
         isContraction = false;
+        ++reductionGroupIndex;
     }
 
     // After all these, we should obtain the output of the tensor.
@@ -280,15 +296,15 @@ std::size_t RFactorSolver::getFLOPs(const Scheme& scheme, std::size_t overflow) 
     return flops;
 }
 
-RFactorSolver::RFactorSolver(Tensor& tensor, const Graph& graph, const BindingContext& ctx):
-    tensor { tensor }, graph { graph }, ctx { ctx },
+RFactorSolver::RFactorSolver(Tensor& tensor, const Graph& graph, const BindingContext& ctx, bool singleReductionPerStage):
+    tensor { tensor }, graph { graph }, ctx { ctx }, singleReductionPerStage { singleReductionPerStage },
     contractedInterface(TensorContractor::Contract(graph, tensor.inputs() | std::views::transform(&Tensor::output)))
 {
     KAS_ASSERT(tensor.hasReduction());
 }
 
-std::optional<RFactorSolver::Scheme> RFactorSolver::optimalRFactorScheme(bool singleReductionPerStage) const {
-    auto schemes = plausibleRFactorSchemes(singleReductionPerStage);
+std::optional<RFactorSolver::Scheme> RFactorSolver::optimalRFactorScheme() const {
+    auto schemes = plausibleRFactorSchemes();
 
     std::size_t overflow = Infinity;
     std::optional<Scheme> optimal;
@@ -345,9 +361,9 @@ RFactorIRPass::RFactorIRPass(const BindingContext& ctx, const Graph& graph, bool
 void RFactorIRPass::operator()(IR& ir) const {
     ir.topBottomForEach([&](Tensor& tensor) {
         if (!tensor.hasReduction()) return;
-        auto solver = RFactorSolver(tensor, graph, ctx);
+        auto solver = RFactorSolver(tensor, graph, ctx, singleReductionPerStage);
         // TODO: Add overflow.
-        auto optimal = solver.optimalRFactorScheme(singleReductionPerStage);
+        auto optimal = solver.optimalRFactorScheme();
         if (!optimal.has_value()) {
             KAS_WARNING("RFactor failed for {}! reductions = [{}]", tensor.toString(ctx), fmt::join(tensor.reductions() | std::views::transform([this](const Reduce *reduction) { return reduction->getBase().getDomain().toString(ctx); }), ", "));
         } else {

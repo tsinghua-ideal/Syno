@@ -8,6 +8,7 @@ namespace kas::ShapeComplexity {
 
 struct DistanceOptions {
     const BindingContext& ctx;
+    bool requiresOnlyOddNumelIncrease;
     int remainingMerges;
     int remainingSplits;
     int remainingUnfoldsAndExpands;
