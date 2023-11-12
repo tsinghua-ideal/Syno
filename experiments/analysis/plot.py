@@ -19,6 +19,8 @@ if __name__ == "__main__":
     for dir in args.dirs:
         assert os.path.exists(dir) and os.path.isdir(dir)
 
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+
     # Read
     all_kernels = []
     for dir in args.dirs:
@@ -58,7 +60,6 @@ if __name__ == "__main__":
 
     # Accuracy vs FLOPs/param distirbution
     for i, (name, kernels) in enumerate(all_kernels):
-
         x, y, flops, params, hash_value = zip(
             *filter(lambda x: x[1] > args.min_acc, kernels)
         )
@@ -86,7 +87,7 @@ if __name__ == "__main__":
         fig_id += 1
         plt.figure(fig_id, figsize=(10, 6), dpi=300)
         plt.scatter(params, y, label=name, s=3)
-        if args.reference_hash is not None: 
+        if args.reference_hash is not None:
             plt.scatter([params[ind]], [y[ind]], s=5, c="r", marker="^")
         plt.xlabel("Params")
         plt.ylabel("Accuracy")

@@ -185,8 +185,11 @@ class Session:
                 reward = reward**self.reward_power
             else:
                 reward = -1
-
-            self.algo.load_eval_result(path, reward)
+            try:
+                self.algo.load_eval_result(path, reward)
+            except Exception as e:
+                logging.error(e)
+                traceback.print_exc()
 
     def load(self):
         if not os.path.exists(self.save_dir):

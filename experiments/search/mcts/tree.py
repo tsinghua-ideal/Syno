@@ -83,7 +83,9 @@ class MCTSTree:
 
     def _increment_virtual_loss(self, path: TreePath, delta: int = 1) -> None:
         assert delta > 0
-        # logging.debug(f"increment virtual loss by {delta} of {path}")
+        logging.debug(
+            f"increment virtual loss by {delta} of {path}, total {self.tree_root._virtual_loss}"
+        )
         tree_node = self.tree_root
         tree_node._virtual_loss += delta
         # logging.debug(
@@ -113,7 +115,9 @@ class MCTSTree:
 
     def _decrement_virtual_loss(self, path: TreePath, delta: int = 1) -> None:
         assert delta > 0
-        # logging.debug(f"decrement virtual loss by {delta} of {path}")
+        logging.debug(
+            f"decrement virtual loss by {delta} of {path}, total {self.tree_root._virtual_loss}"
+        )
         tree_node = self.tree_root
         tree_node._virtual_loss -= delta
         # logging.debug(
@@ -479,6 +483,7 @@ class MCTSTree:
         assert isinstance(final_node, TreeNode), f"{final_node} is not TreeNode!"
 
         lattice_ends = self._root.expand_to(final_node.to_node())
+        logging.info("Expansion finished")
         attempt_record: Dict[TreeNode, Tuple[bool, Multiset[Arc]]] = dict()
 
         def find_lattice(
@@ -540,6 +545,9 @@ class MCTSTree:
             assert (
                 attempt
             ), f"Failed to go from {self._path_store[lattice_start]} to {self._path_store[lattice_end]} with lattice_arcs={lattice_arcs}"
+            logging.info(
+                f"Succeed from {lattice_start} to {lattice_end} through {lattice_arcs}"
+            )
 
     def touch(self, node: Node, path: Path = None) -> TreeNode:
         """

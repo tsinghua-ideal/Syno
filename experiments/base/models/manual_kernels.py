@@ -153,7 +153,7 @@ class ManualImpl:
             w_interm_out_C_group,
             w_out_C,
         ) = self.assembler.make_dims_of_sizes(
-            N, H, W, C_in, C_in / g / s, C_in, k, k, g, C_in / g / s, C_out
+            N, H, W, C_in, C_out / g / s, C_in, k, k, g, C_out / g / s, C_out
         )
 
         # Spatial dimensions
@@ -167,7 +167,7 @@ class ManualImpl:
         shared_G_C_in = self.assembler.create_share(in_C, w_out_G_in_C)
         shared_G, shared_C_in = self.assembler.create_split(shared_G_C_in, C_in / g)
 
-        tmp_dim1 = self.assembler.create_expand(C_in / g / s)
+        tmp_dim1 = self.assembler.create_expand(C_out / g / s)
         out_C_group_masked = self.assembler.create_share(tmp_dim1, out_C_group)
         interm_G_contracted = self.assembler.create_share(shared_G, w_interm_out_G)
         interm_C_out_group_contracted = self.assembler.create_share(
