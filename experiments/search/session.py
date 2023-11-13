@@ -118,6 +118,7 @@ class Session:
             dirs = [l[:-1] for l in f.readlines() if l[-1] == "\n"]
 
         time_offset = 0
+        num_loaded = 0
 
         kernels = []
         for directory in dirs:
@@ -194,9 +195,12 @@ class Session:
                 reward = -1
             try:
                 self.algo.load_eval_result(path, reward)
+                num_loaded += 1
             except Exception as e:
                 logging.error(e)
                 traceback.print_exc()
+
+        logging.info(f"Kernels loaded. {num_loaded} kernels in total. ")
         self.start_time -= time_offset
 
     def load(self):
