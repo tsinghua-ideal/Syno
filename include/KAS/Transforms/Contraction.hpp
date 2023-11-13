@@ -3,14 +3,18 @@
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/Pass.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Transforms/Reshape.hpp"
 #include "KAS/Utils/Statistics.hpp"
 
 
 namespace kas {
 
-enum class ContractionType: bool {
-    Outer, // Basically a tensor product.
-    Inner, // Basically a contraction.
+enum class SharedCandidateType {
+    Normal, // Normal Share.
+    // The following 2 types require Expand.
+    // It is worth noting they can be used as normal as well, without Expand.
+    Merge, // Merge input and weight, i.e., outer product. This is counted in numelOuter.
+    WeightsSharing, // Low-rank decomposition.
 };
 
 class ContractionOp final: public Operation {
@@ -26,7 +30,6 @@ public:
         bool operator==(const Dimwise& other) const noexcept = default;
         std::weak_ordering operator<=>(const Dimwise& other) const noexcept;
         std::size_t hash() const noexcept;
-        ContractionType type() const noexcept;
         std::string description(const BindingContext& ctx) const;
         std::string descendantsDescription(const BindingContext& ctx) const;
     };
@@ -43,11 +46,6 @@ public:
     std::string description(const BindingContext& ctx) const override;
     std::string descendantsDescription(const BindingContext& ctx) const override;
 
-    enum class SharedCandidateType {
-        Normal, // Normal Share.
-        Merge, // Merge input and weight, i.e., outer product.
-        WeightsSharing, // Low-rank decomposition.
-    };
     static SharedCandidateType GetSharedCandidateType(Dimension dim);
     struct CandidateDimension {
         Dimension dim;
@@ -87,6 +85,7 @@ public:
         std::size_t maxExpansionMergeMultiplier;
         std::size_t maxExpansionWeightsSharingDimSize;
         std::size_t minExpansionWeightsSharingDimSize;
+        std::size_t minSingleWeightParams;
     };
     KAS_STATISTICS_DEF(
         GenerateInvocations,
@@ -97,20 +96,22 @@ public:
             OperationStore& store;
             const BindingContext& ctx;
             const Graph& graph;
+            const ReshapeCanonicalizer& canonicalizer;
             int weightId;
             std::optional<Dimension> lastWeightLeader;
             int maxShares;
             std::size_t maxExpansionMergeMultiplier;
             std::size_t maxExpansionWeightsSharingDimSize;
             std::size_t minExpansionWeightsSharingDimSize;
+            std::size_t minSingleWeightParams;
             const std::vector<CandidateDimension>& available;
         };
         const Options& options;
         const Allowance& allowance;
         const Size& numelOuter;
         std::size_t numShares;
-        std::vector<std::optional<ContractionType>> assigned;
-        Enumerator assign(std::optional<ContractionType> type, const Allowance& newAllowance, const Size& newNumelOuter) const;
+        std::vector<std::optional<SharedCandidateType>> assigned;
+        Enumerator assign(std::optional<SharedCandidateType> type, const Allowance& newAllowance, const Size& newNumelOuter) const;
         // Return nullptr if invalid.
         const ContractionOp *apply() const;
         Generator<const ContractionOp *> generate() const;

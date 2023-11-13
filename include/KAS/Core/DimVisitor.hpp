@@ -58,8 +58,11 @@ public:
     BottomTopDimVisitor() {
         static_assert(BottomTopDimPropagator<Derived, AttributeType>);
     }
-    AttributeType& at(const Dimension& dim) { return attributes.at(dim); }
     const AttributeType& at(const Dimension& dim) const { return attributes.at(dim); }
+    AttributeType operator[](Dimension dim) {
+        guard(dim);
+        return attributes.at(dim);
+    }
     void visit(const Iterator& dim) final override {
         assertEmplace(&dim, derived().transform(dim));
     }

@@ -355,24 +355,6 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
         return {};
     }
 
-    auto shareOpOrigins = ShareOp::GetWeightLeaders(graph);
-    if (!shareOpOrigins.empty()) {
-        // First check the count of weights.
-        if (shareOpOrigins.rbegin()->first != shareOpOrigins.size()) {
-            // The ShareOp's labeling is not canonical (1, 2, ..., #weights).
-            ++CountFailedInvocations;
-            return {};
-        }
-        auto comp = Dimension::GlobalLessThan(graph);
-        if (std::ranges::adjacent_find(shareOpOrigins, [&comp](const auto& lhs, const auto& rhs) {
-            return !comp(lhs.second, rhs.second);
-        }) != shareOpOrigins.end()) {
-            // The weights are not canonical.
-            ++CountFailedInvocations;
-            return {};
-        }
-    }
-
     TopKFinalizations result { ctx, options.maximumFinalizations, options.finalStageBuilder, options.maxFLOPs, options.minFLOPs };
     auto addToResults = [&result, &expansions](std::vector<std::vector<Dimension>>&& tensors) {
         // Currently, we only allow expansions to be added to the input tensor.

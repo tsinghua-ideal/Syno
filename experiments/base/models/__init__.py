@@ -11,7 +11,7 @@ from . import placeholder
 from .model import KASModel
 from .conv_net import ConvNet, SpeedyResNet
 from .fc_net import FCNet
-from .common import get_common_model
+from .common import get_common_model, get_vanilla_common_model
 from .gpt import GPTConfig, GPT
 from .gcn import GCN
 from .manual_kernels import ManualImpl
@@ -104,6 +104,11 @@ def get_sampler(args, model) -> Sampler:
     sampler._bind_debug_context()
     return sampler
 
+def get_vanilla_model(args) -> torch.nn.Module:
+    if args.model.startswith("torchvision/"):
+        return get_vanilla_common_model(args)
+    else:
+        assert False, f"Could not find model {args.model}"
 
 def get_model(
     args, return_sampler=False, sample_input=None

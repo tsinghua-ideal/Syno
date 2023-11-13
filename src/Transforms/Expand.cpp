@@ -1,6 +1,7 @@
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Transforms/Expand.hpp"
 #include "KAS/Transforms/OperationStore.hpp"
+#include "KAS/Transforms/Reshape.hpp"
 #include "KAS/Transforms/Share.hpp"
 
 
@@ -38,36 +39,29 @@ std::string ExpandOp::descendantsDescription(const BindingContext& ctx) const {
 std::vector<const ExpandOp *> ExpandOp::Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
+    // Fast path.
+    if (options.maxExpansionRepeatMultiplier == 1) {
+        return {};
+    }
+
     const BindingContext& ctx = options.ctx;
+    const Graph& graph = options.graph;
+
+    ReshapeCanonicalizer canonicalizer;
+    graph.accept(canonicalizer);
+    auto combined = ReshapeBlockNeighbors::Community(
+        interface.getExpansions()
+        | std::views::transform([&](const Expand *expand) -> decltype(auto) {
+            return canonicalizer.at(expand->output);
+        })
+    );
 
     // We need to check if there are too many Expand's.
     auto currentExpansionRepeat = Size::Identity(ctx);
-    // Also record all the weight dims brought by Expand. Weight dims cannot be Merge'd with weight dims.
-    // Moreover, I cannot see what is useful for Merging expanded dims with expanded dims or weight dims.
-    // I think expanded dims are only useful when they merge with data dims. TODO: think over this.
-    Graph::DimensionSet expandedDims;
     for (auto expansion: interface.getExpansions()) {
         if (expansion->output.is(DimensionType::Merge)) {
             // Expand + Merge == Repeat.
             currentExpansionRepeat = currentExpansionRepeat * expansion->output.size();
-            expandedDims.emplace(expansion->output);
-        } else {
-            // Merge input and weight, or else.
-            Dimension weightDim = expansion->output;
-            KAS_ASSERT(weightDim.is(DimensionTypeWithOrder::ShareL));
-            // Note that the weight dim can be shared by multiple weights.
-            // So we have to find the bottommost Share.
-            while (weightDim.is(DimensionTypeWithOrder::ShareL)) {
-                weightDim = weightDim.as<ShareOp::Input>().getOp()->output;
-            }
-            auto bottommostType = weightDim.type();
-            if (bottommostType == DimensionType::Merge) {
-                expandedDims.emplace(weightDim);
-            } else {
-                // Multiple weights contribute to a single dim.
-                // Currently we only allow this for Iterator and Reduce.
-                KAS_ASSERT(bottommostType == DimensionType::Iterator || bottommostType == DimensionType::Reduce);
-            }
         }
     }
 
@@ -84,14 +78,13 @@ std::vector<const ExpandOp *> ExpandOp::Generate(OperationStore& store, const To
     std::size_t countPlausible = 0;
     for (auto&& dim: plausible) {
         ++countPlausible;
-        const auto& dimMerge = dim.as<MergeOp::Input>();
-        auto otherInputOfMerge = dimMerge.getOther();
         // Check if the other is undesired.
-        if (expandedDims.contains(otherInputOfMerge)) {
+        if (canonicalizer.at(dim).isAdjacentTo(combined)) {
             continue;
         }
 
         // Certain cases are redundant.
+        const auto& dimMerge = dim.as<MergeOp::Input>();
         Dimension outputDim = dimMerge.getOp()->output;
         if (outputDim.is(DimensionType::Merge)) {
             // This must be a tile.

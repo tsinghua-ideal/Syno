@@ -80,6 +80,7 @@ class Sampler:
         expression_four_tensors: str = "in_0 * in_1 * in_2 * in_3",
         maximum_finalizations: int = 5,
         allow_weight_permutation: bool = False,
+        min_single_weight_params: int = 100,
         max_strided_dim_size: int = 30,
         max_unfold_kernel_size: int = 30,
         minimum_unfold_ratio: float = 2.0,
@@ -174,6 +175,8 @@ class Sampler:
             Maximum number of FinalizeOp's in a final node. This keeps the top-`k` (`k == maximum_finalizations`) finalizations, which minimize the variance of weights.
         allow_weight_permutation : bool, optional
             Since the analysis of tensor expressions is still not complete, you have to manually tell KAS whether the weights are commutative. If you set this to `True`, then KAS will try all permutations of weights in the tensor expressions. Otherwise, KAS will sort the weights in order of hash.
+        min_single_weight_params : int, optional
+            Minimum numel in a single weight.
         max_strided_dim_size : int, optional
             Maximum size of a strided dimension. For example, `Stride s*H -> H` will not be sampled if `s*H > max_strided_dim_size`.
         max_unfold_kernel_size : int, optional
@@ -263,6 +266,7 @@ class Sampler:
             expression_four_tensors=expression_four_tensors,
             maximum_finalizations=maximum_finalizations,
             allow_weight_permutation=allow_weight_permutation,
+            min_single_weight_params=min_single_weight_params,
             max_strided_dim_size=max_strided_dim_size,
             max_unfold_kernel_size=max_unfold_kernel_size,
             minimum_unfold_ratio=minimum_unfold_ratio,

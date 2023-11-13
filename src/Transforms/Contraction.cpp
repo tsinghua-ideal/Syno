@@ -34,10 +34,6 @@ std::size_t ContractionOp::Dimwise::hash() const noexcept {
     return h;
 }
 
-ContractionType ContractionOp::Dimwise::type() const noexcept {
-    return expand ? ContractionType::Outer : ContractionType::Inner;
-}
-
 std::string ContractionOp::Dimwise::description(const BindingContext& ctx) const {
     if (expand) {
         return fmt::format(
@@ -115,7 +111,7 @@ std::string ContractionOp::descendantsDescription(const BindingContext& ctx) con
     );
 }
 
-ContractionOp::SharedCandidateType ContractionOp::GetSharedCandidateType(Dimension dim) {
+SharedCandidateType ContractionOp::GetSharedCandidateType(Dimension dim) {
     Dimension bottom = dim;
     while (auto s = bottom.tryAs<ShareOp::Input>()) {
         KAS_ASSERT(s->getOrder() == Order::Left);
@@ -203,7 +199,7 @@ ContractionOp::Analysis ContractionOp::Analyze(const BindingContext& ctx, const 
     };
 }
 
-ContractionOp::Enumerator ContractionOp::Enumerator::assign(std::optional<ContractionType> type, const Allowance& newAllowance, const Size& newNumelOuter) const {
+ContractionOp::Enumerator ContractionOp::Enumerator::assign(std::optional<SharedCandidateType> type, const Allowance& newAllowance, const Size& newNumelOuter) const {
     auto newAssigned = assigned;
     newAssigned.emplace_back(type);
     return {
@@ -216,6 +212,7 @@ ContractionOp::Enumerator ContractionOp::Enumerator::assign(std::optional<Contra
 }
 
 const ContractionOp *ContractionOp::Enumerator::apply() const {
+    const BindingContext& ctx = options.ctx;
     const auto& available = options.available;
     KAS_ASSERT(available.size() == assigned.size());
 
@@ -225,6 +222,7 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
     int lastWeight = 0;
     std::optional<Dimension> leader;
     auto globalComp = Dimension::GlobalLessThan(options.graph);
+    auto numel = Size::Identity(ctx);
     for (std::size_t i = 0; i < available.size(); ++i) {
         const auto& assignment = assigned[i];
         if (!assignment.has_value()) continue;
@@ -233,12 +231,14 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
         if (!leader || globalComp(selection.dim, *leader)) {
             leader = selection.dim;
         }
+        numel *= selection.dim.size();
         switch (*assignment) {
-        case ContractionType::Outer:
-            outer.emplace_back(i);
-            break;
-        case ContractionType::Inner:
+        case SharedCandidateType::Normal:
             inner.emplace_back(i);
+            break;
+        case SharedCandidateType::Merge:
+        case SharedCandidateType::WeightsSharing:
+            outer.emplace_back(i);
             break;
         }
     }
@@ -248,6 +248,18 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
     // Without matmul, we can only get outer product or hadamard product or weighted sum.
     // TODO! Think over this.
     if (outer.empty() || inner.empty()) return nullptr;
+
+    // Reject too small weights.
+    if (numel.lowerBoundEst(ctx) < options.minSingleWeightParams) return nullptr;
+
+    if (ReshapeBlockNeighbors::AnyAdjacent(
+        outer | std::views::transform([&](std::size_t i) {
+            return options.canonicalizer.at(available[i].dim);
+        })
+    )) {
+        // Same rule as ExpandOp.
+        return nullptr;
+    }
 
     // Canonical order of ContractionOp.
     if (lastWeight + 1 != options.weightId) {
@@ -299,19 +311,23 @@ Generator<const ContractionOp *> ContractionOp::Enumerator::generate() const {
             co_return;
         }
         const auto newAllowance = allowance.shared(next.dim.size());
-        // Anyhow, a simple Share is OK.
+        // Anyhow, a simple Share is OK, no matter next.type is Normal or other.
         {
-            auto withThis = assign(ContractionType::Inner, newAllowance, numelOuter);
+            auto withThis = assign(SharedCandidateType::Normal, newAllowance, numelOuter);
             for (const ContractionOp *op: withThis.generate()) co_yield op;
         }
-        if (next.type == SharedCandidateType::Merge) {
+        switch (next.type) {
+        case SharedCandidateType::Normal: break;
+        case SharedCandidateType::Merge: {
             // Outer product.
             const auto newNumelOuter = numelOuter * next.dim.size();
             if (newNumelOuter.upperBoundEst(options.ctx) <= options.maxExpansionMergeMultiplier) {
-                auto withThis = assign(ContractionType::Outer, newAllowance, newNumelOuter);
+                auto withThis = assign(SharedCandidateType::Merge, newAllowance, newNumelOuter);
                 for (const ContractionOp *op: withThis.generate()) co_yield op;
             }
-        } else if (next.type == SharedCandidateType::WeightsSharing) {
+            break;
+        }
+        case SharedCandidateType::WeightsSharing: {
             // Low-rank decomposition.
             // We need to restrict this pattern.
             auto weightsSharing = next.dim.size().upperBoundEst(options.ctx);
@@ -319,9 +335,11 @@ Generator<const ContractionOp *> ContractionOp::Enumerator::generate() const {
                 weightsSharing >= options.minExpansionWeightsSharingDimSize &&
                 weightsSharing <= options.maxExpansionWeightsSharingDimSize
             ) {
-                auto withThis = assign(ContractionType::Outer, newAllowance, numelOuter);
+                auto withThis = assign(SharedCandidateType::WeightsSharing, newAllowance, numelOuter);
                 for (const ContractionOp *op: withThis.generate()) co_yield op;
             }
+            break;
+        }
         }
     }
 }
@@ -355,16 +373,21 @@ std::vector<const ContractionOp *> ContractionOp::Generate(OperationStore& store
         available.emplace_back(fullDims[i], candidateTypes[i], lastWeight);
     }
 
+    ReshapeCanonicalizer canonicalizer;
+    graph.accept(canonicalizer);
+
     Enumerator::Options enumeratorOptions {
         .store = store,
         .ctx = options.ctx,
         .graph = graph,
+        .canonicalizer = canonicalizer,
         .weightId = nextWeightId,
         .lastWeightLeader = analysis.lastWeightLeader,
         .maxShares = options.maxShares,
         .maxExpansionMergeMultiplier = options.maxExpansionMergeMultiplier,
         .maxExpansionWeightsSharingDimSize = options.maxExpansionWeightsSharingDimSize,
         .minExpansionWeightsSharingDimSize = options.minExpansionWeightsSharingDimSize,
+        .minSingleWeightParams = options.minSingleWeightParams,
         .available = available,
     };
 
