@@ -252,11 +252,11 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
     // Reject too small weights.
     if (numel.lowerBoundEst(ctx) < options.minSingleWeightParams) return nullptr;
 
-    if (ReshapeBlockNeighbors::AnyAdjacent(
+    if (ReshapeBlockNeighbors::AnyAdjacent(ranges::to<std::vector<ReshapeBlockNeighbors>>(
         outer | std::views::transform([&](std::size_t i) {
             return options.canonicalizer.at(available[i].dim);
         })
-    )) {
+    ))) {
         // Same rule as ExpandOp.
         return nullptr;
     }
