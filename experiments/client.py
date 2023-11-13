@@ -48,14 +48,19 @@ class Handler:
     def reward(self, path, accuracy, flops, params, kernel_flag, loss):
         message = f"{self.addr}/reward?path={path}&accuracy={accuracy}&flops={flops}&params={params}&kernel_flag={kernel_flag}&loss={loss}"
         logging.info("Post: " + message)
-        self.session.post(message, timeout=self.timeout)
+        while True:
+            try:
+                self.session.post(message, timeout=self.timeout)
+                return
+            except:
+                pass
 
 
 def main():
     sample_input = None
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
-    if 'gcn' in args.model:
+    if "gcn" in args.model:
         sample_input = train_dataloader
 
     logging.info("Preparing model ...")

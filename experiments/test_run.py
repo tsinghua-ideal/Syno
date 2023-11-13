@@ -34,8 +34,11 @@ if __name__ == "__main__":
     else:
         try:
             model, sampler = models.get_model(args, return_sampler=True)
+            node = sampler.visit(Path.deserialize(path))
+            if node is None:
+                exit(1)
+            node = node.to_node()
             if path:
-                node = sampler.visit(Path.deserialize(path)).to_node()
                 kernel_loader = sampler.realize(model, node)
                 model.load_kernel(
                     kernel_loader,
