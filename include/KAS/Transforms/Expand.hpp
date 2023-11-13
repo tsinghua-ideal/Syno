@@ -34,6 +34,7 @@ public:
 
     struct GenerateOptions {
         const BindingContext& ctx;
+        const Graph& graph;
         bool disallowTile;
         std::size_t maxExpansionRepeatMultiplier;
     };

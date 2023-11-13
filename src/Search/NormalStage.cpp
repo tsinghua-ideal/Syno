@@ -227,6 +227,7 @@ void NormalStage::guardGeneratedChildren() {
         if (options.maximumExpands == -1 || options.maximumExpands > existingOp<ExpandOp>()) {
             add(ExpandOp::Generate(store, prospectiveInterface, {
                 .ctx = ctx,
+                .graph = graph,
                 .disallowTile = options.disallowTile,
                 .maxExpansionRepeatMultiplier = options.maxExpansionRepeatMultiplier,
             }));
