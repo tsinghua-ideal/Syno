@@ -340,8 +340,18 @@ void RFactorSolver::apply(const Scheme& scheme) {
         }
 
         // remove all reductions from discoverer
-        auto removedReductions = discoverer.removeReductions();
-        KAS_ASSERT(removedReductions == reductionGroup.size(), "The number of applied reductions ({}) is not equal to the size ({}) of the reduction group.", removedReductions, reductionGroup.size());
+        if (singleReductionPerStage) {
+            if (reductionGroup.size() == 1) {
+                discoverer.removeSingleReduction(reductionGroup.front());
+            } else {
+                KAS_ASSERT(isFirst);
+                auto removedReductions = discoverer.removeReductions();
+                KAS_ASSERT(removedReductions == reductionGroup.size());
+            }
+        } else {
+            auto removedReductions = discoverer.removeReductions();
+            KAS_ASSERT(removedReductions == reductionGroup.size(), "The number of applied reductions ({}) is not equal to the size ({}) of the reduction group.", removedReductions, reductionGroup.size());
+        }
 
         isFirst = false;
     }
