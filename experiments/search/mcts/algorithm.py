@@ -16,7 +16,7 @@ class MCTSAlgorithm:
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
     max_final_iterations = (12, 1.5, 3000)
-    b = 0.5
+    b = 0.8
     c_l = 3.0
     simulate_retry_period = 1e9
     sample_retry_times = 5

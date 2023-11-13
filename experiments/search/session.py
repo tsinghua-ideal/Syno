@@ -254,39 +254,40 @@ class Session:
                 )
             hash_str = f"{ctypes.c_size_t(hash(path)).value}"
             kernel_save_dir = os.path.join(self.save_dir, "_".join([acc_str, hash_str]))
-            os.makedirs(kernel_save_dir, exist_ok=True)
+            if not (os.path.exists(kernel_save_dir) and acc_str == "ERROR"):
+                os.makedirs(kernel_save_dir, exist_ok=True)
 
-            # GraphViz
-            node._node.generate_graphviz_as_final(
-                os.path.join(kernel_save_dir, "graph.dot"), "kernel"
-            )
-
-            # Loop
-            with open(os.path.join(kernel_save_dir, "loop.txt"), "w") as f:
-                f.write(str(node._node.get_nested_loops_as_final()))
-
-            # Meta information
-            with open(os.path.join(kernel_save_dir, "meta.json"), "w") as f:
-                json.dump(
-                    {
-                        "path": path.serialize(),
-                        "accuracy": accuracy,
-                        "flops": flops,
-                        "params": params,
-                        "kernel_flag": kernel_flag,
-                        "time": time.time() - self.start_time,
-                        "loss": loss,
-                    },
-                    f,
-                    indent=2,
+                # GraphViz
+                node._node.generate_graphviz_as_final(
+                    os.path.join(kernel_save_dir, "graph.dot"), "kernel"
                 )
 
-            # copying kernel dir
-            if kernel_flag != "MOCKPATH":
-                shutil.copytree(
-                    self.sampler.realize(self.model, node).get_directory(),
-                    os.path.join(kernel_save_dir, "kernel_scheduler_dir"),
-                )
+                # Loop
+                with open(os.path.join(kernel_save_dir, "loop.txt"), "w") as f:
+                    f.write(str(node._node.get_nested_loops_as_final()))
+
+                # Meta information
+                with open(os.path.join(kernel_save_dir, "meta.json"), "w") as f:
+                    json.dump(
+                        {
+                            "path": path.serialize(),
+                            "accuracy": accuracy,
+                            "flops": flops,
+                            "params": params,
+                            "kernel_flag": kernel_flag,
+                            "time": time.time() - self.start_time,
+                            "loss": loss,
+                        },
+                        f,
+                        indent=2,
+                    )
+
+                # copying kernel dir
+                if kernel_flag != "MOCKPATH":
+                    shutil.copytree(
+                        self.sampler.realize(self.model, node).get_directory(),
+                        os.path.join(kernel_save_dir, "kernel_scheduler_dir"),
+                    )
 
         # Update with reward
         if self.target == "loss":

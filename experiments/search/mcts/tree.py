@@ -292,7 +292,7 @@ class MCTSTree:
         leaves = self.simulate(path, leaf_expanded)
 
         if leaves is not None:
-            assert len(leaves) <= self.leaf_num, leaves
+            assert 0 < len(leaves) <= self.leaf_num, leaves
             leaf_expanded.set_alive()
             self._increment_virtual_loss(path, len(leaves))
             return path, leaves
@@ -381,7 +381,7 @@ class MCTSTree:
             f"Got {len(final_nodes)} final nodes ({sample_times} samples) for path({tree_path}) after {trial_attempt+1} attempts. "
         )
 
-        if leaf_expanded.is_dead_end():
+        if len(final_nodes) == 0 or leaf_expanded.is_dead_end():
             logging.info(f"Simulation from {tree_path} failed. ")
             leaf_expanded.set_simulate_fail()
             return None
@@ -389,10 +389,11 @@ class MCTSTree:
         self.simulate_time_ema /= 2
 
         if len(final_nodes) > self.leaf_num:
-            final_nodes = [
-                (TreePath(path), self.touch(node, path=path))
-                for path, node in random.choices(final_nodes, k=self.leaf_num)
-            ]
+            final_nodes = random.choices(final_nodes, k=self.leaf_num)
+
+        final_nodes = [
+            (TreePath(path), self.touch(node, path=path)) for path, node in final_nodes
+        ]
 
         return final_nodes
 
@@ -591,6 +592,7 @@ class MCTSTree:
                 node.set_dead()
             else:
                 assert node.reveal_new_children()
+                children = node.get_children(on_tree=True, filter_simulate_failure=True)
             logging.debug("Selection failed. ")
             return None
 
@@ -625,7 +627,11 @@ class MCTSTree:
                 - self.virtual_loss_constant * child._virtual_loss
             )
 
+        random.shuffle(children)
         selected_child = max(children, key=ucb1_tuned)
+        logging.info(
+            f"Selected {selected_child} with score {ucb1_tuned(selected_child)}"
+        )
 
         return selected_child
 
