@@ -6,7 +6,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from KAS import AbstractExplorer
-from base import log, parser, models, mem
+from base import log, parser, models, mem, dataset
 from search import get_session, Session
 
 
@@ -148,9 +148,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    sample_input = None
+    if 'gcn' in args.model:
+        train_dataloader, _ = dataset.get_dataloader(args)
+        sample_input = train_dataloader
 
     # Sampler
-    model, sampler = models.get_model(args, return_sampler=True)
+    logging.info('Preparing sampler ...')
+    model, sampler = models.get_model(args, return_sampler=True, sample_input=sample_input)
 
     # Get search session
     logging.info("Starting search session ...")

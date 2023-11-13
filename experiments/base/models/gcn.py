@@ -54,8 +54,8 @@ class GCN(KASModel):
             'input_shape': '[N, H_in: unordered]',
             'output_shape': '[N, H_out: unordered]',
             'primary_specs': ['N: 0', 'H_in: 2', 'H_out: 2'],
-            'coefficient_specs': ['k_1=2: 2', 'k_2=3: 2', 'k_3=5: 2', 'g=32: 2'],
-            'fixed_io_pairs': [(0, 0)],
+            'coefficient_specs': ['k_1=2: 2', 'k_2=3: 2', 'k_3=5: 2'],
+            'fixed_io_pairs': [],
         }
 
     def forward(self, data):

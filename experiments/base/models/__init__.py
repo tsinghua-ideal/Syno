@@ -22,7 +22,7 @@ def get_sampler(args, model) -> Sampler:
     raw_flops, _ = model.profile(not_count_placeholder=True, seq_len=args.gpt_seq_len)
     flops, _ = model.profile(seq_len=args.gpt_seq_len)
     max_flops = args.kas_max_flops_ratio * flops
-    max_flops = 1e20 if max_flops == 0 else max_flops
+    max_flops = 1e12 if max_flops == 0 else max_flops
     assert (
         max_flops > raw_flops
     ), f"Maximum FLOPs {max_flops} is smaller than raw FLOPs {raw_flops}"
