@@ -52,11 +52,14 @@ class Handler:
 
 
 def main():
-    logging.info("Preparing model ...")
-    model = models.get_model(args, return_sampler=False)
-
+    sample_input = None
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
+    if 'gcn' in args.model:
+        sample_input = train_dataloader
+
+    logging.info("Preparing model ...")
+    model = models.get_model(args, return_sampler=False, sample_input=sample_input)
 
     logging.info("Starting server ...")
     client = Handler(args)
