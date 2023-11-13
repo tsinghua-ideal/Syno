@@ -1,5 +1,11 @@
 # Ansor for KAS
 
+## Exporting the Network
+
+```bash
+python export_relax.py --batch-size 1 --model torchvision/resnet18
+```
+
 ## How to setup
 
 On the host, run
@@ -26,4 +32,8 @@ to start the client.
 
 ## How to run
 
-Follow the example in `tests/`.
+```bash
+python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --kernels-dir "/path/to/kernels/dir"
+```
+
+If `--kernels-dir` is not specified, the original network will be benchmarked.

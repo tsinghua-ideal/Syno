@@ -109,6 +109,7 @@ class MetaScheduleTuner:
     def __init__(
         self,
         model: str,
+        vanilla: bool,
         batch_size: int,
         target: str,
         rpc_host: Optional[str] = "127.0.0.1",
@@ -121,6 +122,7 @@ class MetaScheduleTuner:
     ) -> None:
         # Basic configurations.
         self.model_name = model
+        self.vanilla = vanilla
         self.batch_size = batch_size
         self.target = tvm.target.Target(target)
         if self.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
@@ -142,14 +144,14 @@ class MetaScheduleTuner:
             ), "Please set all 'rpc_host', 'rpc_port' and 'rpc_key' to use PRC server"
             self.rpc_config = None
             self.workers = 1
-        self.specialized_dir_name = get_specialized_model_name(self.model_name, self.batch_size)
+        self.specialized_dir_name = get_specialized_model_name(self.model_name, self.batch_size, vanilla=self.vanilla)
         self.working_dir = os.path.join(working_dir, self.specialized_dir_name)
         os.makedirs(self.working_dir, exist_ok=True)
         self.num_measurement_repeats = num_measurement_repeats
         self.num_measurements = num_measurements
 
         # Load the model.
-        self.templated_mod, self.all_mappings, self.input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self.model_name, self.batch_size)
+        self.templated_mod, self.all_mappings, self.input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self.model_name, self.batch_size, vanilla=self.vanilla)
 
         # Input shape for runtime.
         self.input_dtype = "float32"
@@ -293,6 +295,7 @@ if __name__ == "__main__":
     args = _parse_args()
     tuner = MetaScheduleTuner(
         model=args.model,
+        vanilla=args.kernels_dir is None,
         batch_size=args.batch_size,
         target=args.target,
         rpc_host=args.rpc_host,

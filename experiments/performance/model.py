@@ -17,9 +17,9 @@ class KernelMetadata:
     sinfo_input: relax.StructInfo
     sinfo_output: relax.StructInfo
 
-def import_templated_model(working_dir: os.PathLike, model_name: str, batch_size: int) -> Tuple[IRModule, List[Dict[str, int]], Tuple]:
+def import_templated_model(working_dir: os.PathLike, model_name: str, batch_size: int, vanilla: bool = False) -> Tuple[IRModule, List[Dict[str, int]], Tuple]:
     """Import an exported model. Returns the imported model, all mappings and the input shape."""
-    specialized_mode_name = get_specialized_model_name(model_name, batch_size)
+    specialized_mode_name = get_specialized_model_name(model_name, batch_size, vanilla=vanilla)
     # import the Relax model
     py_mod_name = f"model_relax_{specialized_mode_name.replace('/', '_').replace('=', '_')}"
     if py_mod_name not in sys.modules:
