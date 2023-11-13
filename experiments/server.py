@@ -3,6 +3,7 @@ import logging
 import os
 import urllib.parse
 import sys
+from traceback import print_exc
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from KAS import AbstractExplorer
@@ -74,7 +75,17 @@ class Handler(BaseHTTPRequestHandler):
         """
         Fetch a record.
         """
-        file_directory = self.session.path_to_file(path)
+        try:
+            file_directory = self.session.path_to_file(path)
+        except Exception as e:
+            logging.debug(f"Encountered {e}, fetching failed. ")
+            print_exc()
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"Exception": str(e)}).encode())
+            return
         try:
             self._send_file(file_directory)
         except BrokenPipeError:
@@ -149,13 +160,15 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     sample_input = None
-    if 'gcn' in args.model:
+    if "gcn" in args.model:
         train_dataloader, _ = dataset.get_dataloader(args)
         sample_input = train_dataloader
 
     # Sampler
-    logging.info('Preparing sampler ...')
-    model, sampler = models.get_model(args, return_sampler=True, sample_input=sample_input)
+    logging.info("Preparing sampler ...")
+    model, sampler = models.get_model(
+        args, return_sampler=True, sample_input=sample_input
+    )
 
     # Get search session
     logging.info("Starting search session ...")

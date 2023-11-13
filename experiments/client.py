@@ -29,9 +29,15 @@ class Handler:
         assert "path" in j
         return j["path"]
 
-    def fetch(self, path: str) -> str:
+    def fetch(self, path: str) -> str | None:
         logging.info(f"Fetch: {self.addr}/fetch/{path}")
         response = self.session.get(f"{self.addr}/fetch/{path}", timeout=self.timeout)
+        try:
+            exc = response.json()["Exception"]
+            logging.info(f"Fetch failed because of {exc}")
+            return None
+        except requests.exceptions.JSONDecodeError:
+            pass
         file_name = os.path.join(self.cache_dir, "kernel.tar.gz")
         folder_name = os.path.join(self.cache_dir, "kernel_dir")
         if os.path.exists(file_name):
@@ -110,6 +116,9 @@ def main():
                         f"Fetching {path} failed because of {e}. Retrying......"
                     )
                     time.sleep(10)
+
+            if kernel_directory is None:
+                continue
 
             # Mock evaluate
             if args.kas_mock_evaluate:
