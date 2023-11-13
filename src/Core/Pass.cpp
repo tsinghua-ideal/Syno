@@ -331,12 +331,16 @@ void RFactorSolver::apply(const Scheme& scheme) {
         // Add dependencies required by the reductions.
         discoverer.include(reductionGroup);
         auto cutSet = discoverer.build();
+        for (Dimension r: reductionGroup) {
+            auto erased = std::erase(cutSet, r);
+            KAS_ASSERT(erased == 1);
+        }
 
         // Apply rfactor.
         if (isFirst) {
-            current = TensorImpl::CreateView(tensor.inputs(), Bottommost(cutSet));
+            current = TensorImpl::CreateView(tensor.inputs(), std::move(cutSet), reductionGroup);
         } else {
-            current = TensorImpl::CreateView(std::vector{current}, Bottommost(cutSet));
+            current = TensorImpl::CreateView(std::vector{current}, std::move(cutSet), reductionGroup);
         }
 
         // remove all reductions from discoverer
