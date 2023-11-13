@@ -12,6 +12,12 @@ void ReshapeBlockNeighbors::Multiple::add(const ReshapeBlockNeighbors& neighbors
     if (!std::holds_alternative<std::monostate>(neighbors.right)) rights.insert(neighbors.right);
 }
 
+bool ReshapeBlockNeighbors::Multiple::hasAdjacent() const {
+    std::vector<Side> result;
+    std::ranges::set_difference(lefts, rights, std::back_inserter(result));
+    return !result.empty();
+}
+
 auto ReshapeBlockNeighbors::separatedBy(const MergeOp *separator) const -> std::pair<Self, Self> {
     KAS_ASSERT(separator);
     return {

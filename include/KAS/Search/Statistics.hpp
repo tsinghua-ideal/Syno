@@ -24,7 +24,6 @@ struct StatisticsCollector {
         KAS_COLLECT_STATS_FOR_OP(DimensionEvaluator)
         KAS_COLLECT_STATS_FOR_OP(ExpandOp)
         KAS_COLLECT_STATS_FOR_OP(MergeOp)
-        KAS_COLLECT_STATS_FOR_OP(ShareOp)
         KAS_COLLECT_STATS_FOR_OP(ShiftOp)
         KAS_COLLECT_STATS_FOR_OP(SplitOp)
         KAS_COLLECT_STATS_FOR_OP(StrideOp)

@@ -45,9 +45,6 @@ public:
     std::pair<bool, CompactColor> transformColor(CompactColor fro1, CompactColor fro2) const override;
 
     static std::set<int> GetRhsOrigins(const Graph& graph);
-    // A leader of a weight is the least dimension, defined by Dimension::GlobalLessThan.
-    static std::map<int, Dimension> GetWeightLeaders(const Graph& graph);
-    static std::size_t LeastRemainingShares(const Topmost& interface, const Graph& graph);
 
     // Due to canonicalization reasons, we require ShareOp's to be chained, and RHS to be from weight.
     // Just like this:
@@ -58,23 +55,6 @@ public:
     //               └────┬────┘
     //                  Share
     //
-    struct GenerateOptions {
-        const Graph& graph;
-        const Allowance& allowance;
-        std::size_t maximumTensors;
-        std::size_t maxColorTags() const {
-            return maximumTensors - 1;
-        }
-    };
-    KAS_STATISTICS_DEF(
-        GenerateInvocations,
-        GenerateAttempts,
-        DisallowedAttempts,
-        AllowanceExceeded,
-        MaximumTensorsExceeded,
-        SuccessfulGenerations,
-    )
-    static std::vector<const ShareOp *> Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options);
 };
 
 static_assert(PrimitiveOpImpl<ShareOp>);

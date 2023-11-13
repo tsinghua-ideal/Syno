@@ -24,6 +24,7 @@ protected:
         options.maximumReductions = 3;
         options.maxFLOPs = 5e6;
         options.maxChainLength = 5;
+        options.minSingleWeightParams = 1;
         return options;
     }();
     Sampler sampler = {"[N,C_in:unordered,H,W]", "[N,C_out:unordered,H,W]", {"N=3:0", "C_in:2", "C_out:2", "H:0", "W:0"}, {"k_1=3:4", "s_1=2:0"}, {dict}, {{0, 0}}, options, 12};

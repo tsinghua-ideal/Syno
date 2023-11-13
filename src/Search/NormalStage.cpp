@@ -170,6 +170,7 @@ void NormalStage::guardGeneratedChildren() {
                     .maxExpansionMergeMultiplier = options.maxExpansionMergeMultiplier,
                     .maxExpansionWeightsSharingDimSize = options.maxExpansionWeightsSharingDimSize,
                     .minExpansionWeightsSharingDimSize = options.minExpansionWeightsSharingDimSize,
+                    .minSingleWeightParams = options.minSingleWeightParams,
                 }
             ));
         }

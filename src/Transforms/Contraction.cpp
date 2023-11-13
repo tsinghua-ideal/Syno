@@ -216,6 +216,7 @@ ContractionOp::Enumerator ContractionOp::Enumerator::assign(std::optional<Contra
 }
 
 const ContractionOp *ContractionOp::Enumerator::apply() const {
+    const BindingContext& ctx = options.ctx;
     const auto& available = options.available;
     KAS_ASSERT(available.size() == assigned.size());
 
@@ -225,6 +226,7 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
     int lastWeight = 0;
     std::optional<Dimension> leader;
     auto globalComp = Dimension::GlobalLessThan(options.graph);
+    auto numel = Size::Identity(ctx);
     for (std::size_t i = 0; i < available.size(); ++i) {
         const auto& assignment = assigned[i];
         if (!assignment.has_value()) continue;
@@ -233,6 +235,7 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
         if (!leader || globalComp(selection.dim, *leader)) {
             leader = selection.dim;
         }
+        numel *= selection.dim.size();
         switch (*assignment) {
         case ContractionType::Outer:
             outer.emplace_back(i);
@@ -248,6 +251,18 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
     // Without matmul, we can only get outer product or hadamard product or weighted sum.
     // TODO! Think over this.
     if (outer.empty() || inner.empty()) return nullptr;
+
+    // Reject too small weights.
+    if (numel.lowerBoundEst(ctx) < options.minSingleWeightParams) return nullptr;
+
+    if (ReshapeBlockNeighbors::AnyAdjacent(
+        outer | std::views::transform([&](std::size_t i) {
+            return options.canonicalizer.at(available[i].dim);
+        })
+    )) {
+        // Same rule as ExpandOp.
+        return nullptr;
+    }
 
     // Canonical order of ContractionOp.
     if (lastWeight + 1 != options.weightId) {
@@ -355,16 +370,21 @@ std::vector<const ContractionOp *> ContractionOp::Generate(OperationStore& store
         available.emplace_back(fullDims[i], candidateTypes[i], lastWeight);
     }
 
+    ReshapeCanonicalizer canonicalizer;
+    graph.accept(canonicalizer);
+
     Enumerator::Options enumeratorOptions {
         .store = store,
         .ctx = options.ctx,
         .graph = graph,
+        .canonicalizer = canonicalizer,
         .weightId = nextWeightId,
         .lastWeightLeader = analysis.lastWeightLeader,
         .maxShares = options.maxShares,
         .maxExpansionMergeMultiplier = options.maxExpansionMergeMultiplier,
         .maxExpansionWeightsSharingDimSize = options.maxExpansionWeightsSharingDimSize,
         .minExpansionWeightsSharingDimSize = options.minExpansionWeightsSharingDimSize,
+        .minSingleWeightParams = options.minSingleWeightParams,
         .available = available,
     };
 

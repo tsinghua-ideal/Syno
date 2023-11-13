@@ -3,6 +3,7 @@
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/Pass.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Transforms/Reshape.hpp"
 #include "KAS/Utils/Statistics.hpp"
 
 
@@ -87,6 +88,7 @@ public:
         std::size_t maxExpansionMergeMultiplier;
         std::size_t maxExpansionWeightsSharingDimSize;
         std::size_t minExpansionWeightsSharingDimSize;
+        std::size_t minSingleWeightParams;
     };
     KAS_STATISTICS_DEF(
         GenerateInvocations,
@@ -97,12 +99,14 @@ public:
             OperationStore& store;
             const BindingContext& ctx;
             const Graph& graph;
+            const ReshapeCanonicalizer& canonicalizer;
             int weightId;
             std::optional<Dimension> lastWeightLeader;
             int maxShares;
             std::size_t maxExpansionMergeMultiplier;
             std::size_t maxExpansionWeightsSharingDimSize;
             std::size_t minExpansionWeightsSharingDimSize;
+            std::size_t minSingleWeightParams;
             const std::vector<CandidateDimension>& available;
         };
         const Options& options;

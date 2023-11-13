@@ -49,7 +49,7 @@ std::vector<const ExpandOp *> ExpandOp::Generate(OperationStore& store, const To
 
     ReshapeCanonicalizer canonicalizer;
     graph.accept(canonicalizer);
-    auto combined = ReshapeBlockNeighbors::Combine(
+    auto combined = ReshapeBlockNeighbors::Community(
         interface.getExpansions()
         | std::views::transform([&](const Expand *expand) -> decltype(auto) {
             return canonicalizer.at(expand->output);
