@@ -6,8 +6,8 @@ import time
 import os, sys, shutil
 import tarfile
 import numpy as np
-from KAS import Path, KernelLoader
-from typing import List, Dict, Tuple, Union
+from KAS import KernelLoader
+from requests.exceptions import ConnectionError
 
 from base import log, models, parser, dataset, trainer, mem
 
@@ -52,14 +52,11 @@ class Handler:
 
 
 def main():
+    logging.info("Preparing model ...")
+    model = models.get_model(args, return_sampler=False)
+
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
-
-    logging.info("Preparing model ...")
-    sample_input = None
-    if 'gcn' in args.model:
-        sample_input = train_dataloader
-    model = models.get_model(args, return_sampler=False, sample_input=sample_input)
 
     logging.info("Starting server ...")
     client = Handler(args)
@@ -85,7 +82,7 @@ def main():
                         time.sleep(args.kas_retry_interval)
                         continue
                     break
-                except Exception as e:
+                except ConnectionError as e:
                     logging.info(f"Sample failed because of {e}, retrying")
                     time.sleep(10)
 

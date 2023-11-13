@@ -520,6 +520,12 @@ def arg_parse():
         help="Maximum FLOPs ratio to be counted as reward",
     )
     parser.add_argument(
+        "--kas-min-flops-ratio",
+        default=0.1,
+        type=float,
+        help="Maximum FLOPs ratio to be counted as reward",
+    )
+    parser.add_argument(
         "--kas-acc-lower-bound", default=0, type=float, help="Reward lower bound"
     )
     parser.add_argument(

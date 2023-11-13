@@ -22,14 +22,22 @@ def get_sampler(args, model) -> Sampler:
     raw_flops, _ = model.profile(not_count_placeholder=True, seq_len=args.gpt_seq_len)
     flops, _ = model.profile(seq_len=args.gpt_seq_len)
     max_flops = args.kas_max_flops_ratio * flops
+    min_flops = args.kas_min_flops_ratio * flops
     max_flops = 1e20 if max_flops == 0 else max_flops
     assert (
         max_flops > raw_flops
     ), f"Maximum FLOPs {max_flops} is smaller than raw FLOPs {raw_flops}"
+    assert (
+        min_flops >= raw_flops
+    ), f"Minimum FLOPs {min_flops} is smaller than raw FLOPs {raw_flops}"
     max_placeholder_flops = max_flops - raw_flops
+    min_placeholder_flops = min_flops - raw_flops
     logging.info(f"Raw FLOPs per batch: {raw_flops / 1e9:.5f}G")
     logging.info(
         f"Maximum total placeholder FLOPs per batch: {max_placeholder_flops / 1e9:.5f}G"
+    )
+    logging.info(
+        f"Minimum total placeholder FLOPs per batch: {min_placeholder_flops / 1e9:.5f}G"
     )
     logging.info(f"Enable soft FLOPs limit: {args.kas_soft_flops_limit}")
     setattr(args, "original_flops", flops)
@@ -66,6 +74,7 @@ def get_sampler(args, model) -> Sampler:
         "min_expansion_weights_sharing_dim_size": args.kas_min_weight_share_dim,
         "maximum_valid_reshape_shift_pattern": args.kas_max_shift_rhs,
         "max_flops": max_placeholder_flops * args.batch_size,
+        "min_flops": min_placeholder_flops * args.batch_size,
         "maximum_enumerations_per_var": args.kas_max_enumerations,
         "maximum_variables_in_size": args.kas_max_variables_in_size,
         "max_chain_length": args.kas_max_chain_length,
@@ -124,7 +133,9 @@ def get_model(
 
     # Build mapping for usages
     if sample_input is None:
-        sample_input = torch.ones((args.batch_size, *model.sample_input_shape(args.gpt_seq_len))).cuda()
+        sample_input = torch.ones(
+            (args.batch_size, *model.sample_input_shape(args.gpt_seq_len))
+        ).cuda()
         if args.gpt_seq_len:
             sample_input = sample_input.long()
     build_placeholder_mappings(model, sample_input)
