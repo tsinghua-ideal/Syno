@@ -31,7 +31,7 @@ def train(
 ) -> None:
     if name == "Baseline":
         if args.model.startswith("torchvision/"):
-            model = models.common.get_common_model(args, replace=False).cuda()
+            model = models.common.get_vanilla_common_model(args).cuda()
         else:
             assert hasattr(
                 sys.modules[__name__], args.model

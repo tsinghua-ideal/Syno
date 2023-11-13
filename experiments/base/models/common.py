@@ -1,7 +1,7 @@
 import logging
 from torch import nn
 from torchvision import models
-from typing import Optional
+from typing import Dict, Optional, Tuple
 import math
 
 from .model import KASModel
@@ -50,19 +50,29 @@ def replace_conv2d_to_placeholder(module: nn.Module):
     return count
 
 
+def _get_vanilla_common_model(
+    name: str,
+    num_classes: int,
+    input_size: Tuple[int, int, int],
+) -> nn.Module:
+    assert hasattr(models, name), f"Could not find model {name} in torchvision"
+    return getattr(models, name)(num_classes=num_classes)
+
+
 class CommonModel(KASModel):
     def __init__(
-        self, name, num_classes, input_size=(3, 224, 224), replace=True
+        self,
+        name: str,
+        num_classes: int,
+        input_size: Tuple[int, int, int] = (3, 224, 224),
     ) -> None:
         super().__init__()
-        assert hasattr(models, name), f"Could not find model {name} in torchvision"
 
         # Replace conv2d
-        self.model = getattr(models, name)(num_classes=num_classes)
+        self.model = _get_vanilla_common_model(name, num_classes, input_size)
+        count = replace_conv2d_to_placeholder(self.model)
         self.input_size = input_size
-        if replace:
-            count = replace_conv2d_to_placeholder(self.model)
-            logging.info(f"Replaced {count} Conv2D layers to Placeholder")
+        logging.info(f"Replaced {count} Conv2D layers to Placeholder")
 
     def sample_input_shape(self, seq_len=None):
         return self.input_size
@@ -80,11 +90,18 @@ class CommonModel(KASModel):
         return self.model(x)
 
 
-def get_common_model(args, replace=True):
+def get_common_model_args(args) -> Dict:
     assert args.model.startswith("torchvision/")
-    return CommonModel(
-        args.model[len("torchvision/") :],
-        args.num_classes,
-        args.input_size,
-        replace=replace,
-    )
+    return {
+        "name": args.model[len("torchvision/") :],
+        "num_classes": args.num_classes,
+        "input_size": args.input_size,
+    }
+
+
+def get_vanilla_common_model(args) -> nn.Module:
+    return _get_vanilla_common_model(**get_common_model_args(args))
+
+
+def get_common_model(args) -> KASModel:
+    return CommonModel(**get_common_model_args(args))
