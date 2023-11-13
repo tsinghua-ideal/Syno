@@ -143,6 +143,20 @@ auto ReshapeBlockNeighbors::isAdjacentTo(const Multiple& multiple) const -> bool
     return sides.isAdjacentTo(multiple.sidesSet);
 }
 
+auto ReshapeBlockNeighbors::AnyAdjacent(const std::vector<Self>& neighbors) -> bool {
+    for (std::size_t i = 0; i < neighbors.size(); ++i) {
+        for (std::size_t j = i + 1; j < neighbors.size(); ++j) {
+            if (
+                neighbors[i].isAdjacentTo(neighbors[j]) ||
+                neighbors[j].isAdjacentTo(neighbors[i])
+            ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 auto ReshapeBlockNeighbors::combinedWith(const Self& rhs) const -> Self {
     return { sides.combinedWith(rhs.sides) };
 }

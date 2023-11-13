@@ -59,11 +59,7 @@ struct ReshapeBlockNeighbors {
         return result;
     }
     auto isAdjacentTo(const Multiple& rhs) const -> bool;
-    template<ReshapeBlockNeighborsRange R>
-    static auto AnyAdjacent(R&& neighbors) -> bool {
-        auto community = Community(std::forward<R>(neighbors));
-        return community.hasAdjacent();
-    }
+    static auto AnyAdjacent(const std::vector<Self>& neighbors) -> bool;
     auto combinedWith(const Self& rhs) const -> Self;
 };
 
