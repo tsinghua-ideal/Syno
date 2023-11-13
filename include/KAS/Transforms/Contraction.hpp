@@ -9,9 +9,12 @@
 
 namespace kas {
 
-enum class ContractionType: bool {
-    Outer, // Basically a tensor product.
-    Inner, // Basically a contraction.
+enum class SharedCandidateType {
+    Normal, // Normal Share.
+    // The following 2 types require Expand.
+    // It is worth noting they can be used as normal as well, without Expand.
+    Merge, // Merge input and weight, i.e., outer product. This is counted in numelOuter.
+    WeightsSharing, // Low-rank decomposition.
 };
 
 class ContractionOp final: public Operation {
@@ -27,7 +30,6 @@ public:
         bool operator==(const Dimwise& other) const noexcept = default;
         std::weak_ordering operator<=>(const Dimwise& other) const noexcept;
         std::size_t hash() const noexcept;
-        ContractionType type() const noexcept;
         std::string description(const BindingContext& ctx) const;
         std::string descendantsDescription(const BindingContext& ctx) const;
     };
@@ -44,11 +46,6 @@ public:
     std::string description(const BindingContext& ctx) const override;
     std::string descendantsDescription(const BindingContext& ctx) const override;
 
-    enum class SharedCandidateType {
-        Normal, // Normal Share.
-        Merge, // Merge input and weight, i.e., outer product.
-        WeightsSharing, // Low-rank decomposition.
-    };
     static SharedCandidateType GetSharedCandidateType(Dimension dim);
     struct CandidateDimension {
         Dimension dim;
@@ -113,8 +110,8 @@ public:
         const Allowance& allowance;
         const Size& numelOuter;
         std::size_t numShares;
-        std::vector<std::optional<ContractionType>> assigned;
-        Enumerator assign(std::optional<ContractionType> type, const Allowance& newAllowance, const Size& newNumelOuter) const;
+        std::vector<std::optional<SharedCandidateType>> assigned;
+        Enumerator assign(std::optional<SharedCandidateType> type, const Allowance& newAllowance, const Size& newNumelOuter) const;
         // Return nullptr if invalid.
         const ContractionOp *apply() const;
         Generator<const ContractionOp *> generate() const;

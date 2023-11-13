@@ -34,10 +34,6 @@ std::size_t ContractionOp::Dimwise::hash() const noexcept {
     return h;
 }
 
-ContractionType ContractionOp::Dimwise::type() const noexcept {
-    return expand ? ContractionType::Outer : ContractionType::Inner;
-}
-
 std::string ContractionOp::Dimwise::description(const BindingContext& ctx) const {
     if (expand) {
         return fmt::format(
@@ -115,7 +111,7 @@ std::string ContractionOp::descendantsDescription(const BindingContext& ctx) con
     );
 }
 
-ContractionOp::SharedCandidateType ContractionOp::GetSharedCandidateType(Dimension dim) {
+SharedCandidateType ContractionOp::GetSharedCandidateType(Dimension dim) {
     Dimension bottom = dim;
     while (auto s = bottom.tryAs<ShareOp::Input>()) {
         KAS_ASSERT(s->getOrder() == Order::Left);
@@ -203,7 +199,7 @@ ContractionOp::Analysis ContractionOp::Analyze(const BindingContext& ctx, const 
     };
 }
 
-ContractionOp::Enumerator ContractionOp::Enumerator::assign(std::optional<ContractionType> type, const Allowance& newAllowance, const Size& newNumelOuter) const {
+ContractionOp::Enumerator ContractionOp::Enumerator::assign(std::optional<SharedCandidateType> type, const Allowance& newAllowance, const Size& newNumelOuter) const {
     auto newAssigned = assigned;
     newAssigned.emplace_back(type);
     return {
@@ -237,11 +233,12 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
         }
         numel *= selection.dim.size();
         switch (*assignment) {
-        case ContractionType::Outer:
-            outer.emplace_back(i);
-            break;
-        case ContractionType::Inner:
+        case SharedCandidateType::Normal:
             inner.emplace_back(i);
+            break;
+        case SharedCandidateType::Merge:
+        case SharedCandidateType::WeightsSharing:
+            outer.emplace_back(i);
             break;
         }
     }
@@ -314,19 +311,23 @@ Generator<const ContractionOp *> ContractionOp::Enumerator::generate() const {
             co_return;
         }
         const auto newAllowance = allowance.shared(next.dim.size());
-        // Anyhow, a simple Share is OK.
+        // Anyhow, a simple Share is OK, no matter next.type is Normal or other.
         {
-            auto withThis = assign(ContractionType::Inner, newAllowance, numelOuter);
+            auto withThis = assign(SharedCandidateType::Normal, newAllowance, numelOuter);
             for (const ContractionOp *op: withThis.generate()) co_yield op;
         }
-        if (next.type == SharedCandidateType::Merge) {
+        switch (next.type) {
+        case SharedCandidateType::Normal: break;
+        case SharedCandidateType::Merge: {
             // Outer product.
             const auto newNumelOuter = numelOuter * next.dim.size();
             if (newNumelOuter.upperBoundEst(options.ctx) <= options.maxExpansionMergeMultiplier) {
-                auto withThis = assign(ContractionType::Outer, newAllowance, newNumelOuter);
+                auto withThis = assign(SharedCandidateType::Merge, newAllowance, newNumelOuter);
                 for (const ContractionOp *op: withThis.generate()) co_yield op;
             }
-        } else if (next.type == SharedCandidateType::WeightsSharing) {
+            break;
+        }
+        case SharedCandidateType::WeightsSharing: {
             // Low-rank decomposition.
             // We need to restrict this pattern.
             auto weightsSharing = next.dim.size().upperBoundEst(options.ctx);
@@ -334,9 +335,11 @@ Generator<const ContractionOp *> ContractionOp::Enumerator::generate() const {
                 weightsSharing >= options.minExpansionWeightsSharingDimSize &&
                 weightsSharing <= options.maxExpansionWeightsSharingDimSize
             ) {
-                auto withThis = assign(ContractionType::Outer, newAllowance, numelOuter);
+                auto withThis = assign(SharedCandidateType::WeightsSharing, newAllowance, numelOuter);
                 for (const ContractionOp *op: withThis.generate()) co_yield op;
             }
+            break;
+        }
         }
     }
 }
