@@ -298,11 +298,12 @@ struct TopKFinalizations {
     const std::size_t k;
     const FinalizeOp::FinalStageBuilder& finalStageBuilder;
     const std::size_t maxFLOPs;
+    const std::size_t minFLOPs;
     // Sorted by variance, from lowest to highest.
     std::vector<Finalization> topK;
 
-    TopKFinalizations(const BindingContext& ctx, std::size_t k, const FinalizeOp::FinalStageBuilder& finalStageBuilder, std::size_t maxFLOPs):
-        ctx { ctx }, k { k }, finalStageBuilder { finalStageBuilder }, maxFLOPs { maxFLOPs } {}
+    TopKFinalizations(const BindingContext& ctx, std::size_t k, const FinalizeOp::FinalStageBuilder& finalStageBuilder, std::size_t maxFLOPs, std::size_t minFLOPs):
+        ctx { ctx }, k { k }, finalStageBuilder { finalStageBuilder }, maxFLOPs { maxFLOPs }, minFLOPs { minFLOPs } {}
     bool empty() const noexcept { return topK.empty(); }
     std::size_t size() const noexcept { return topK.size(); }
     void emplace(auto&& tensors) {
@@ -314,7 +315,7 @@ struct TopKFinalizations {
             return;
         }
         f.build(ctx, finalStageBuilder);
-        if (f.flops > maxFLOPs) {
+        if (f.flops > maxFLOPs || f.flops < minFLOPs) {
             return;
         }
 
@@ -372,7 +373,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
         }
     }
 
-    TopKFinalizations result { ctx, options.maximumFinalizations, options.finalStageBuilder, options.maxFLOPs };
+    TopKFinalizations result { ctx, options.maximumFinalizations, options.finalStageBuilder, options.maxFLOPs, options.minFLOPs };
     auto addToResults = [&result, &expansions](std::vector<std::vector<Dimension>>&& tensors) {
         // Currently, we only allow expansions to be added to the input tensor.
         std::vector<Topmost> realTensors;

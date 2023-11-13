@@ -65,6 +65,7 @@ class Sampler:
         maximum_tensors: int = 2,
         maximum_reductions: int = 2,
         max_flops: float = 1e15,
+        min_flops: float = 0,
         max_rdom_size_multiplier: int = 32,
         enable_flops_based_pruning: bool = True,
         maximum_enumerations_per_var: int = 5,
@@ -140,7 +141,9 @@ class Sampler:
         maximum_reductions : int, optional
             Maximum number of ReduceOp's.
         max_flops : float, optional
-            Maximum number of floating point operations allowed in a kernel. This is a soft constraint, because we do not know the exact number of floating point operations in a kernel until we finalize it.
+            Maximum number of floating point operations allowed in a kernel.
+        min_flops : float, optional
+            Minimum number of floating point operations allowed in a kernel.
         max_rdom_size_multiplier : int, optional
             We allow for a matmul, times this multiplier at most in ReductionStage.
         enable_flops_based_pruning : bool, optional
@@ -245,6 +248,7 @@ class Sampler:
             maximum_tensors=maximum_tensors,
             maximum_reductions=maximum_reductions,
             max_flops=max_flops,
+            min_flops=min_flops,
             max_rdom_size_multiplier=max_rdom_size_multiplier,
             enable_flops_based_pruning=enable_flops_based_pruning,
             maximum_enumerations_per_var=maximum_enumerations_per_var,

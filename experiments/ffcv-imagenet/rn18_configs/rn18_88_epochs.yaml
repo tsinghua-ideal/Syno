@@ -24,7 +24,7 @@ training:
   batch_size: 1024
   bn_wd: 0
   distributed: 0
-  epochs: 2
+  epochs: 90
   label_smoothing: 0.1
   momentum: 0.9
   optimizer: sgd
