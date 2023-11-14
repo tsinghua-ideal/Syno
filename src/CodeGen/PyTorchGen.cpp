@@ -642,6 +642,9 @@ void PyTorchGen::loadWeights(PythonCodePrinter& printer) const {
         KAS_ASSERT(ir.expansions.at(index).empty(), "Expansion for weights unsupported.");
         ++index;
     }
+    if (ir.inputTensors.size() > 1) {
+        printer.writeLn();
+    }
 }
 
 void PyTorchGen::padInputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const {
