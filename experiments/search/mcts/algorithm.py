@@ -71,7 +71,7 @@ class MCTSAlgorithm:
         path = Path.deserialize(path_serialized)
         node = self.mcts.visit(path, on_tree=False, put_in_tree=True)
         if node is None:
-            return
+            return False
         if leaf_path is None:
             for leaf_path in path.hierarchy:
                 n = self.mcts.visit(leaf_path, on_tree=False, put_in_tree=True)
@@ -81,6 +81,7 @@ class MCTSAlgorithm:
         self.path_toupd[node.to_node()] = (TreePath(path), [leaf_path])
         self.mcts._increment_virtual_loss(leaf_path, 1)
         self.update(path, reward)
+        return True
 
     def update(self, path: Path, reward):
         tree_node = self.mcts.visit(TreePath(path), on_tree=False)
