@@ -6,6 +6,7 @@ import time
 import os, sys, shutil
 import tarfile
 import numpy as np
+import traceback
 from KAS import KernelLoader
 from requests.exceptions import ConnectionError
 
@@ -183,10 +184,10 @@ def main():
                     logging.info(f"Meaned loss of last 20%: {loss}")
 
             except Exception as e:
-                if not "out of memory" in str(e):
-                    raise e
-                logging.warning(f"OOM when evaluating {path}, skipping ...")
-                model.remove_thop_hooks()
+                logging.warning(f"Encountered {e} when evaluating {path} ......")
+                logging.warning(traceback.format_exc())
+                if "out of memory" in str(e):
+                    model.remove_thop_hooks()
                 flops, params, accuracy, kernel_flag, loss = (
                     0,
                     0,
