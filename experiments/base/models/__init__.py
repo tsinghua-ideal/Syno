@@ -75,7 +75,7 @@ def get_sampler(args, model) -> Sampler:
         "maximum_valid_reshape_shift_pattern": args.kas_max_shift_rhs,
         "max_flops": max_placeholder_flops * args.batch_size,
         "min_flops": min_placeholder_flops * args.batch_size,
-        "max_vram": args.client_mem_limit * 40 * 1024,
+        "max_vram": int(args.client_mem_limit * 40 * 1024),
         "maximum_enumerations_per_var": args.kas_max_enumerations,
         "maximum_variables_in_size": args.kas_max_variables_in_size,
         "max_chain_length": args.kas_max_chain_length,

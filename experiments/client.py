@@ -66,6 +66,7 @@ class Handler:
 
 def main():
     sample_input = None
+    restart_flag = False
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
     if "gcn" in args.model:
@@ -153,14 +154,14 @@ def main():
                 continue
 
             # Load and evaluate on a dataset
+            kernel_loader = KernelLoader.from_directory(kernel_directory)
+            kernel_flag = model.load_kernel(
+                kernel_loader,
+                compile=args.compile,
+                batch_size=args.batch_size,
+                seq_len=args.gpt_seq_len,
+            )
             try:
-                kernel_loader = KernelLoader.from_directory(kernel_directory)
-                kernel_flag = model.load_kernel(
-                    kernel_loader,
-                    compile=args.compile,
-                    batch_size=args.batch_size,
-                    seq_len=args.gpt_seq_len,
-                )
                 flops, params = model.profile(args.batch_size, seq_len=args.gpt_seq_len)
                 logging.info(
                     f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
@@ -185,9 +186,10 @@ def main():
 
             except Exception as e:
                 logging.warning(f"Encountered {e} when evaluating {path} ......")
-                logging.warning(traceback.format_exc())
                 if "out of memory" in str(e):
                     model.remove_thop_hooks()
+                else:
+                    restart_flag = True
                 flops, params, accuracy, kernel_flag, loss = (
                     0,
                     0,
@@ -197,6 +199,9 @@ def main():
                 )
             client.reward(path, accuracy, flops, params, kernel_flag, loss)
             os.remove(client.kernel_buffer)
+            if restart_flag:
+                logging.info("Restarting client ...")
+                sys.exit(0)
     except KeyboardInterrupt:
         logging.info("Interrupted by user, exiting ...")
 
