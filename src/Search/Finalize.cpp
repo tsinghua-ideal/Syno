@@ -299,11 +299,12 @@ struct TopKFinalizations {
     const FinalizeOp::FinalStageBuilder& finalStageBuilder;
     const std::size_t maxFLOPs;
     const std::size_t minFLOPs;
+    const std::size_t maxVRAM;
     // Sorted by variance, from lowest to highest.
     std::vector<Finalization> topK;
 
-    TopKFinalizations(const BindingContext& ctx, std::size_t k, const FinalizeOp::FinalStageBuilder& finalStageBuilder, std::size_t maxFLOPs, std::size_t minFLOPs):
-        ctx { ctx }, k { k }, finalStageBuilder { finalStageBuilder }, maxFLOPs { maxFLOPs }, minFLOPs { minFLOPs } {}
+    TopKFinalizations(const BindingContext& ctx, std::size_t k, const FinalizeOp::FinalStageBuilder& finalStageBuilder, std::size_t maxFLOPs, std::size_t minFLOPs, std::size_t maxVRAM):
+        ctx { ctx }, k { k }, finalStageBuilder { finalStageBuilder }, maxFLOPs { maxFLOPs }, minFLOPs { minFLOPs }, maxVRAM { maxVRAM } {}
     bool empty() const noexcept { return topK.empty(); }
     std::size_t size() const noexcept { return topK.size(); }
     void emplace(auto&& tensors) {
@@ -316,6 +317,9 @@ struct TopKFinalizations {
         }
         f.build(ctx, finalStageBuilder);
         if (f.flops > maxFLOPs || f.flops < minFLOPs) {
+            return;
+        }
+        if (f.stage->value.getVRAMUsage(ctx) > maxVRAM) {
             return;
         }
 
@@ -355,7 +359,7 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
         return {};
     }
 
-    TopKFinalizations result { ctx, options.maximumFinalizations, options.finalStageBuilder, options.maxFLOPs, options.minFLOPs };
+    TopKFinalizations result { ctx, options.maximumFinalizations, options.finalStageBuilder, options.maxFLOPs, options.minFLOPs, options.maxVRAM };
     auto addToResults = [&result, &expansions](std::vector<std::vector<Dimension>>&& tensors) {
         // Currently, we only allow expansions to be added to the input tensor.
         std::vector<Topmost> realTensors;

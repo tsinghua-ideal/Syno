@@ -179,6 +179,7 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
                 | std::views::transform([&ctx](const PureTensor& t) { return t.getShape().toString(ctx); })
                 | ranges::to<std::vector<std::string>>(),
             .outputShape = tensorView.getInterfaceShape().toString(ctx),
+            .vram = tensorView.getVRAMUsage(ctx),
             .halide = options.halide,
             .cuda = options.useGPU,
             .countInputs = tensorView.getUnderlyingTensors().size(),
@@ -238,6 +239,10 @@ std::size_t Kernel::getTotalFLOPs() const {
         result += metadata.getPlaceholder(i).flops;
     }
     return result;
+}
+
+std::size_t Kernel::getVRAMUsage() const {
+    return metadata.vram;
 }
 
 std::size_t Kernel::getCountInputs() const {

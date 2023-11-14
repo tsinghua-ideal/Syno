@@ -66,6 +66,7 @@ class Sampler:
         maximum_reductions: int = 2,
         max_flops: float = 1e15,
         min_flops: float = 0,
+        max_vram: int = 40 * 1024, # 40 GB
         max_rdom_size_multiplier: int = 32,
         enable_flops_based_pruning: bool = True,
         maximum_enumerations_per_var: int = 5,
@@ -145,6 +146,8 @@ class Sampler:
             Maximum number of floating point operations allowed in a kernel.
         min_flops : float, optional
             Minimum number of floating point operations allowed in a kernel.
+        max_vram : int, optional
+            Max total VRAM. In MB.
         max_rdom_size_multiplier : int, optional
             We allow for a matmul, times this multiplier at most in ReductionStage.
         enable_flops_based_pruning : bool, optional
@@ -252,6 +255,7 @@ class Sampler:
             maximum_reductions=maximum_reductions,
             max_flops=max_flops,
             min_flops=min_flops,
+            max_vram=max_vram,
             max_rdom_size_multiplier=max_rdom_size_multiplier,
             enable_flops_based_pruning=enable_flops_based_pruning,
             maximum_enumerations_per_var=maximum_enumerations_per_var,

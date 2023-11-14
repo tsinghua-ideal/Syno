@@ -184,6 +184,9 @@ class KernelLoader:
     def get_total_flops(self) -> int:
         return self._kernel.get_total_flops()
 
+    def get_vram_usage(self) -> int:
+        return self._kernel.get_vram_usage()
+
     def _get_loader_args(self) -> Bindings.LoaderArgs:
         args = self._kernel.get_loader_args()
         return Bindings.LoaderArgs(

@@ -135,6 +135,7 @@ public:
     // By IR.
     std::size_t getFLOPs(const BindingContext& ctx, const ConcreteConsts& consts) const;
     std::size_t getFLOPs(const BindingContext& ctx) const;
+    std::size_t getVRAMUsage(const BindingContext& ctx) const;
 
     // Evaluate the full loops.
     std::string printNestedLoops(const BindingContext& ctx, int pos) const;
