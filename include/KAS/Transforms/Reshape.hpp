@@ -24,6 +24,7 @@ struct ReshapeBlockNeighbors {
     struct ContractedSidesSet;
     struct ContractedSides {
         std::map<int, Sides> sides;
+        ContractedSides();
         bool isAdjacentTo(const ContractedSides& rhs) const;
         bool isAdjacentTo(const ContractedSidesSet& multiple) const;
         auto separatedBy(const MergeOp *separator) const -> std::pair<ContractedSides, ContractedSides>;

@@ -38,6 +38,8 @@ auto ReshapeBlockNeighbors::Sides::combinedWith(const Sides& rhs) const -> Sides
     return { left, rhs.right };
 }
 
+ReshapeBlockNeighbors::ContractedSides::ContractedSides(): sides { { 0, {} } } {}
+
 bool ReshapeBlockNeighbors::ContractedSides::isAdjacentTo(const ContractedSides& rhs) const {
     return std::ranges::any_of(sides, [&rhs](const auto& contracted) {
         const auto& [weightId, s] = contracted;
@@ -65,35 +67,33 @@ auto ReshapeBlockNeighbors::ContractedSides::separatedBy(const MergeOp *separato
     ContractedSides lhs, rhs;
     for (const auto& [weightId, s]: sides) {
         auto [l, r] = s.separatedBy(separator);
-        lhs.sides.try_emplace(weightId, std::move(l));
-        rhs.sides.try_emplace(weightId, std::move(r));
+        lhs.sides.insert_or_assign(weightId, std::move(l));
+        rhs.sides.insert_or_assign(weightId, std::move(r));
     }
     return { std::move(lhs), std::move(rhs) };
 }
 
 auto ReshapeBlockNeighbors::ContractedSides::separatedBy(const ShareOp *separator) const -> std::pair<ContractedSides, ContractedSides> {
-    auto result = sides;
-    auto [newWeight, created] = result.try_emplace(separator->getRhsOrigin());
+    auto result = *this;
+    auto [newWeight, created] = result.sides.try_emplace(separator->getRhsOrigin());
     KAS_ASSERT(created);
-    if (auto it = result.find(0); it != result.end()) {
-        newWeight->second = std::move(it->second);
-        result[0] = Sides{};
-    }
-    return { { std::move(result) }, {} };
+    newWeight->second = std::move(result.sides.at(0));
+    result.sides[0] = Sides{};
+    return { std::move(result), {} };
 }
 
 auto ReshapeBlockNeighbors::ContractedSides::combinedWith(const ContractedSides& rhs) const -> ContractedSides {
     ContractedSides result;
     for (const auto& [weightId, s]: sides) {
         if (auto r = rhs.sides.find(weightId); r != rhs.sides.end()) {
-            result.sides.try_emplace(weightId, s.combinedWith(r->second));
+            result.sides.insert_or_assign(weightId, s.combinedWith(r->second));
         } else {
-            result.sides.try_emplace(weightId, s.combinedWith({}));
+            result.sides.insert_or_assign(weightId, s.combinedWith({}));
         }
     }
     for (const auto& [weightId, s]: rhs.sides) {
         if (auto r = sides.find(weightId); r == sides.end()) {
-            result.sides.try_emplace(weightId, Sides{}.combinedWith(s));
+            result.sides.insert_or_assign(weightId, Sides{}.combinedWith(s));
         }
     }
     return result;
@@ -167,7 +167,7 @@ auto ReshapeCanonicalizer::transform(const Iterator& dim) const -> Adjacent {
 
 auto ReshapeCanonicalizer::transform(const Reduce& dim) const -> Adjacent {
     Adjacent result;
-    result.sides.sides.try_emplace(0, &dim, &dim);
+    result.sides.sides.at(0) = { &dim, &dim };
     return result;
 }
 
