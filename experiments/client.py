@@ -21,6 +21,7 @@ class Handler:
         # Allow localhost
         self.session.trust_env = False
         self.cache_dir = args.kas_client_cache_dir
+        self.kernel_buffer = os.path.join(self.cache_dir, "evaluating_kernel.txt")
         os.makedirs(self.cache_dir, exist_ok=True)
 
     def sample(self) -> str:
@@ -75,6 +76,19 @@ def main():
     logging.info("Starting server ...")
     client = Handler(args)
 
+    if os.path.exists(client.kernel_buffer):
+        path = open(client.kernel_buffer).read()
+        logging.info(f"Detected unfinished kernel {path}")
+        flops, params, accuracy, kernel_flag, loss = (
+            0,
+            0,
+            -1,
+            "EMPTY",
+            args.gpt_max_loss,
+        )
+        client.reward(path, accuracy, flops, params, kernel_flag, loss)
+        os.remove(client.kernel_buffer)
+
     logging.info("Starting search ...")
     round_range = (
         range(args.kas_search_rounds)
@@ -105,6 +119,9 @@ def main():
                 break
 
             logging.info(f"Got a new path: {path}")
+
+            with open(client.kernel_buffer, "w") as f:
+                f.write(path)
 
             while True:
                 try:
@@ -178,6 +195,7 @@ def main():
                     args.gpt_max_loss,
                 )
             client.reward(path, accuracy, flops, params, kernel_flag, loss)
+            os.remove(client.kernel_buffer)
     except KeyboardInterrupt:
         logging.info("Interrupted by user, exiting ...")
 
