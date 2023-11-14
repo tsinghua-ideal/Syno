@@ -252,11 +252,21 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
     // Reject too small weights.
     if (numel.lowerBoundEst(ctx) < options.minSingleWeightParams) return nullptr;
 
-    if (ReshapeBlockNeighbors::AnyAdjacent(ranges::to<std::vector<ReshapeBlockNeighbors>>(
+    // Reshape canonicalization.
+    auto expansions = ranges::to<std::vector<Reshape::Block>>(
         outer | std::views::transform([&](std::size_t i) {
             return options.canonicalizer.at(available[i].dim);
         })
-    ))) {
+    );
+    // If the expansions are themselves adjacent, of course reject.
+    if (Reshape::Block::AnyAdjacent(expansions)) {
+        // Same rule as ExpandOp.
+        return nullptr;
+    }
+    // If the expansions are adjacent to other expansions, reject as well.
+    if (std::ranges::any_of(expansions, [&](const Reshape::Block& block) {
+        return block.isAdjacentTo(options.expansionsReshapeBlocks);
+    })) {
         // Same rule as ExpandOp.
         return nullptr;
     }
@@ -374,13 +384,14 @@ std::vector<const ContractionOp *> ContractionOp::Generate(OperationStore& store
     }
 
     ReshapeCanonicalizer canonicalizer;
-    graph.accept(canonicalizer);
+    const auto expansionsReshapeBlocks = ExpandOp::GetReshapeBlocks(canonicalizer, graph);
 
     Enumerator::Options enumeratorOptions {
         .store = store,
         .ctx = options.ctx,
         .graph = graph,
         .canonicalizer = canonicalizer,
+        .expansionsReshapeBlocks = expansionsReshapeBlocks,
         .weightId = nextWeightId,
         .lastWeightLeader = analysis.lastWeightLeader,
         .maxShares = options.maxShares,

@@ -97,6 +97,7 @@ public:
             const BindingContext& ctx;
             const Graph& graph;
             const ReshapeCanonicalizer& canonicalizer;
+            const Reshape::BlockSet& expansionsReshapeBlocks;
             int weightId;
             std::optional<Dimension> lastWeightLeader;
             int maxShares;
