@@ -6,7 +6,6 @@ import time
 import os, sys, shutil
 import tarfile
 import numpy as np
-import traceback
 from KAS import KernelLoader
 from requests.exceptions import ConnectionError
 
@@ -66,7 +65,6 @@ class Handler:
 
 def main():
     sample_input = None
-    restart_flag = False
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
     if "gcn" in args.model:
@@ -98,112 +96,93 @@ def main():
         else itertools.count()
     )
 
-    try:
-        for round in round_range:
-            # Request a new kernel
-            logging.info("Requesting a new kernel ...")
-            while True:
-                try:
-                    path = client.sample()
-                    if path == "retry":
-                        logging.info(
-                            f"No path returned, retrying in {args.kas_retry_interval} second(s) ..."
-                        )
-                        time.sleep(args.kas_retry_interval)
-                        continue
-                    break
-                except ConnectionError as e:
-                    logging.info(f"Sample failed because of {e}, retrying")
-                    time.sleep(10)
-
-            if path == "end":
-                logging.info("Exhausted search space, exiting ...")
-                break
-
-            logging.info(f"Got a new path: {path}")
-
-            with open(client.kernel_buffer, "w") as f:
-                f.write(path)
-
-            while True:
-                try:
-                    kernel_directory = client.fetch(path)
-                    logging.info(f"Fetched {path} in {kernel_directory}. ")
-                    break
-                except Exception as e:
-                    logging.info(
-                        f"Fetching {path} failed because of {e}. Retrying......"
-                    )
-                    time.sleep(10)
-
-            if kernel_directory is None:
-                continue
-
-            # Mock evaluate
-            if args.kas_mock_evaluate:
-                logging.info("Mock evaluating ...")
-                time.sleep(10)
-                client.reward(
-                    path,
-                    -1 if random.random() < 0.5 else random.random(),
-                    random.randint(int(1e6), int(1e7)),
-                    random.randint(int(1e6), int(1e7)),
-                    "MOCKPATH",
-                    0,
-                )
-                continue
-
-            # Load and evaluate on a dataset
-            kernel_loader = KernelLoader.from_directory(kernel_directory)
-            kernel_flag = model.load_kernel(
-                kernel_loader,
-                compile=args.compile,
-                batch_size=args.batch_size,
-                seq_len=args.gpt_seq_len,
-            )
+    for _ in round_range:
+        # Request a new kernel
+        logging.info("Requesting a new kernel ...")
+        while True:
             try:
-                flops, params = model.profile(args.batch_size, seq_len=args.gpt_seq_len)
-                logging.info(
-                    f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
-                )
-
-                logging.info("Evaluating on real dataset ...")
-                if "gpt" not in args.model:
-                    accuracy = max(
-                        trainer.train(model, train_dataloader, val_dataloader, args)
+                path = client.sample()
+                if path == "retry":
+                    logging.info(
+                        f"No path returned, retrying in {args.kas_retry_interval} second(s) ..."
                     )
-                    loss = 0
-                else:
-                    accuracy = 0
-                    losses = trainer.train_gpt(
-                        model, train_dataloader, val_dataloader, args
-                    )
-                    losses = list(map(lambda t: t[1], losses))
-                    assert len(losses) >= 1
-                    len_not_avg = max(int(len(losses) * 0.8), 1)
-                    loss = np.mean(losses[len_not_avg - 1 :])
-                    logging.info(f"Meaned loss of last 20%: {loss}")
+                    time.sleep(args.kas_retry_interval)
+                    continue
+                break
+            except ConnectionError as e:
+                logging.info(f"Sample failed because of {e}, retrying")
+                time.sleep(10)
 
+        if path == "end":
+            logging.info("Exhausted search space, exiting ...")
+            break
+
+        logging.info(f"Got a new path: {path}")
+
+        with open(client.kernel_buffer, "w") as f:
+            f.write(path)
+
+        while True:
+            try:
+                kernel_directory = client.fetch(path)
+                logging.info(f"Fetched {path} in {kernel_directory}. ")
+                break
             except Exception as e:
-                logging.warning(f"Encountered {e} when evaluating {path} ......")
-                if "out of memory" in str(e):
-                    model.remove_thop_hooks()
-                else:
-                    restart_flag = True
-                flops, params, accuracy, kernel_flag, loss = (
-                    0,
-                    0,
-                    -1,
-                    "EMPTY",
-                    args.gpt_max_loss,
-                )
-            client.reward(path, accuracy, flops, params, kernel_flag, loss)
-            os.remove(client.kernel_buffer)
-            if restart_flag:
-                logging.info("Restarting client ...")
-                sys.exit(0)
-    except KeyboardInterrupt:
-        logging.info("Interrupted by user, exiting ...")
+                logging.info(f"Fetching {path} failed because of {e}. Retrying......")
+                time.sleep(10)
+
+        if kernel_directory is None:
+            continue
+
+        # Mock evaluate
+        if args.kas_mock_evaluate:
+            logging.info("Mock evaluating ...")
+            time.sleep(10)
+            client.reward(
+                path,
+                -1 if random.random() < 0.5 else random.random(),
+                random.randint(int(1e6), int(1e7)),
+                random.randint(int(1e6), int(1e7)),
+                "MOCKPATH",
+                0,
+            )
+            continue
+
+        # Load and evaluate on a dataset
+        kernel_loader = KernelLoader.from_directory(kernel_directory)
+        kernel_flag = model.load_kernel(
+            kernel_loader,
+            compile=args.compile,
+            batch_size=args.batch_size,
+            seq_len=args.gpt_seq_len,
+        )
+        flops, params = model.profile(args.batch_size, seq_len=args.gpt_seq_len)
+        logging.info(
+            f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
+        )
+
+        logging.info("Evaluating on real dataset ...")
+        if "gpt" not in args.model:
+            accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
+            loss = 0
+        else:
+            accuracy = 0
+            losses = trainer.train_gpt(model, train_dataloader, val_dataloader, args)
+            losses = list(map(lambda t: t[1], losses))
+            assert len(losses) >= 1
+            len_not_avg = max(int(len(losses) * 0.8), 1)
+            loss = np.mean(losses[len_not_avg - 1 :])
+            logging.info(f"Meaned loss of last 20%: {loss}")
+
+        flops, params, accuracy, kernel_flag, loss = (
+            0,
+            0,
+            -1,
+            "EMPTY",
+            args.gpt_max_loss,
+        )
+        client.reward(path, accuracy, flops, params, kernel_flag, loss)
+        os.remove(client.kernel_buffer)
 
 
 if __name__ == "__main__":
@@ -214,8 +193,4 @@ if __name__ == "__main__":
     # Set memory limit
     mem.memory_limit(args.client_mem_limit)
 
-    try:
-        main()
-    except MemoryError:
-        sys.stderr.write("\n\nERROR: Memory Exception\n")
-        sys.exit(1)
+    main()
