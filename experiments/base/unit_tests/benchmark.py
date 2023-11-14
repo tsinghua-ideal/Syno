@@ -168,6 +168,7 @@ if __name__ == "__main__":
         # "Conv2d_pool",
         # "Conv2d_pool1d",
         "Conv1d_shift1d",
+        "Conv1d_transpose",
         "Shift2d",
         "kernel_07923",
     ]

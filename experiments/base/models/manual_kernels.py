@@ -6,8 +6,8 @@ class ManualImpl:
         self.assembler = sampler.create_assembler()
 
     def Conv2d_simple(self) -> Assembled:
-        N, H, W, k, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "C_in", "C_out"
+        N, H, k, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "k_1", "C_in", "C_out"
         )
         (
             in_N,
@@ -18,7 +18,7 @@ class ManualImpl:
             w_in_C,
             w_k_1,
             w_k_2,
-        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, C_out, C_in, k, k)
+        ) = self.assembler.make_dims_of_sizes(N, H, H, C_in, C_out, C_in, k, k)
 
         main_H, windows_H = self.assembler.create_unfold(in_H, k)
         main_W, windows_W = self.assembler.create_unfold(in_W, k)
@@ -46,8 +46,8 @@ class ManualImpl:
         )
 
     def Conv2d_dilation(self) -> Assembled:
-        N, H, W, k_1, s, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "s", "C_in", "C_out"
+        N, H, k_1, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "k_1", "s", "C_in", "C_out"
         )
         (
             in_N,
@@ -58,7 +58,7 @@ class ManualImpl:
             w_in_C,
             w_k_1,
             w_k_2,
-        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, C_out, C_in, k_1, k_1)
+        ) = self.assembler.make_dims_of_sizes(N, H, H, C_in, C_out, C_in, k_1, k_1)
 
         main_H, windows_H = self.assembler.create_unfold(in_H, k_1 * k_1)
         main_W, windows_W = self.assembler.create_unfold(in_W, k_1 * k_1)
@@ -89,8 +89,8 @@ class ManualImpl:
         )
 
     def Conv2d_group(self) -> Assembled:
-        N, H, W, k_1, g, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "s", "C_in", "C_out"
+        N, H, k_1, g, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "k_1", "s", "C_in", "C_out"
         )
         k = k_1
         (
@@ -102,7 +102,7 @@ class ManualImpl:
             w_in_C,
             w_k_1,
             w_k_2,
-        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, C_out / g, C_in / g, k, k)
+        ) = self.assembler.make_dims_of_sizes(N, H, H, C_in, C_out / g, C_in / g, k, k)
 
         # Spatial dimensions
         main_H, windows_H = self.assembler.create_unfold(in_H, k)
@@ -136,8 +136,8 @@ class ManualImpl:
         )
 
     def Conv2d_group_oas(self) -> Assembled:
-        N, H, W, k_1, g, s, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "g", "s", "C_in", "C_out"
+        N, H, k_1, g, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "k_1", "g", "s", "C_in", "C_out"
         )
         k = k_1
         (
@@ -153,7 +153,7 @@ class ManualImpl:
             w_interm_out_C_group,
             w_out_C,
         ) = self.assembler.make_dims_of_sizes(
-            N, H, W, C_in, C_out / g / s, C_in, k, k, g, C_out / g / s, C_out
+            N, H, H, C_in, C_out / g / s, C_in, k, k, g, C_out / g / s, C_out
         )
 
         # Spatial dimensions
@@ -196,8 +196,8 @@ class ManualImpl:
         )
 
     def Conv2d_pool(self) -> Assembled:
-        N, H, W, k_1, s, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "s", "C_in", "C_out"
+        N, H, k_1, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "k_1", "s", "C_in", "C_out"
         )
         k = k_1
         (
@@ -209,7 +209,7 @@ class ManualImpl:
             w_in_C,
             w_k_1,
             w_k_2,
-        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, C_out, C_in, k, k)
+        ) = self.assembler.make_dims_of_sizes(N, H, H, C_in, C_out, C_in, k, k)
 
         # pool along spatial dimensions
         H_pooled, s_H = self.assembler.create_split(in_H, s)
@@ -251,8 +251,8 @@ class ManualImpl:
         )
 
     def Conv2d_pool1d(self) -> Assembled:
-        N, H, W, k_1, s, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "s", "C_in", "C_out"
+        N, H, k_1, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "k_1", "s", "C_in", "C_out"
         )
         k = k_1
         (
@@ -264,7 +264,7 @@ class ManualImpl:
             w_in_C,
             w_k_1,
             w_k_2,
-        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, C_out, C_in, k, k)
+        ) = self.assembler.make_dims_of_sizes(N, H, H, C_in, C_out, C_in, k, k)
 
         # pool along spatial dimensions
         H_pooled, s_H = self.assembler.create_split(in_H, s)
@@ -298,8 +298,8 @@ class ManualImpl:
         )
 
     def Conv1d_shift1d(self) -> Assembled:
-        N, H, W, k, C_in, C_out = self.assembler.get_sizes(
-            "N", "H", "W", "k_1", "C_in", "C_out"
+        N, H, k, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "k_1", "C_in", "C_out"
         )
         (
             in_N,
@@ -309,7 +309,7 @@ class ManualImpl:
             w_out_C,
             w_in_C,
             w_k_1,
-        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, C_out, C_in, k)
+        ) = self.assembler.make_dims_of_sizes(N, H, H, C_in, C_out, C_in, k)
 
         main_H, windows_H = self.assembler.create_unfold(in_H, k)
         main_W = self.assembler.create_shift(in_W, 1)
@@ -334,10 +334,46 @@ class ManualImpl:
             [w_out_C, w_in_C, w_k_1],
         )
 
+    def Conv1d_transpose(self) -> Assembled:
+        N, H, k, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "k_1", "C_in", "C_out"
+        )
+        (
+            in_N,
+            in_H,
+            in_W,
+            in_C,
+            w_out_C,
+            w_in_C,
+            w_k_1,
+        ) = self.assembler.make_dims_of_sizes(N, H, H, C_in, C_out, C_in, k)
+
+        main_H, windows_H = self.assembler.create_unfold(in_H, k)
+
+        shared_k_1 = self.assembler.create_share(windows_H, w_k_1)
+        shared_C_in = self.assembler.create_share(in_C, w_in_C)
+
+        tmp_dim = self.assembler.create_expand(C_out)
+        out_C = self.assembler.create_share(tmp_dim, w_out_C)
+
+        in_N.output(0)
+        out_C.output(1)
+        in_W.output(2)
+        main_H.output(3)
+        shared_k_1.sum()
+        shared_C_in.sum()
+
+        return self.assembler.assemble(
+            "conv",
+            "in_0 * in_1",
+            [in_N, in_C, in_H, in_W, tmp_dim],
+            [w_out_C, w_in_C, w_k_1],
+        )
+
     def Shift2d(self) -> Assembled:
-        N, H, W, C_in, C_out = self.assembler.get_sizes("N", "H", "W", "C_in", "C_out")
+        N, H, C_in, C_out = self.assembler.get_sizes("N", "H", "C_in", "C_out")
         (in_N, in_H, in_W, in_C, w_out_C, w_in_C) = self.assembler.make_dims_of_sizes(
-            N, H, W, C_in, C_out, C_in
+            N, H, H, C_in, C_out, C_in
         )
 
         # Convolutions
@@ -362,8 +398,8 @@ class ManualImpl:
         )
 
     def kernel_07923(self) -> Assembled:
-        N, H, W, C_in, C_out, k_1, s, g = self.assembler.get_sizes(
-            "N", "H", "W", "C_in", "C_out", "k_1", "s", "g"
+        N, H, C_in, C_out, k_1, s, g = self.assembler.get_sizes(
+            "N", "H", "C_in", "C_out", "k_1", "s", "g"
         )
         (
             in_N,
@@ -374,7 +410,7 @@ class ManualImpl:
             w_s,
             w_k,
             w_in_C,
-        ) = self.assembler.make_dims_of_sizes(N, H, W, C_in, C_out, s, k_1, C_in)
+        ) = self.assembler.make_dims_of_sizes(N, H, H, C_in, C_out, s, k_1, C_in)
 
         # Operations on H
         expanded_s = self.assembler.create_expand(s)

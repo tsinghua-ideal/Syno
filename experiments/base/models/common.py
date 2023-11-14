@@ -79,9 +79,9 @@ class CommonModel(KASModel):
 
     def sampler_parameters(self, seq_len=None):
         return {
-            "input_shape": "[N, C_in: unordered, H, W]",
-            "output_shape": "[N, C_out: unordered, H, W]",
-            "primary_specs": ["N: 0", "C_in: 2", "C_out: 4", "H: 0", "W: 0"],
+            "input_shape": "[N, C_in: unordered, H, H]",
+            "output_shape": "[N, C_out: unordered, H, H]",
+            "primary_specs": ["N: 0", "C_in: 2", "C_out: 4", "H: 0"],
             "coefficient_specs": ["k_1=3: 2", "k_2=7: 2", "s=2: 2", "g=32: 3"],
             "fixed_io_pairs": [(0, 0)],
         }
