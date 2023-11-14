@@ -1,7 +1,6 @@
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Transforms/Expand.hpp"
 #include "KAS/Transforms/OperationStore.hpp"
-#include "KAS/Transforms/Reshape.hpp"
 #include "KAS/Transforms/Share.hpp"
 
 
@@ -36,6 +35,16 @@ std::string ExpandOp::descendantsDescription(const BindingContext& ctx) const {
     return fmt::format("-> {}", output.descendantsDescription(ctx));
 }
 
+Reshape::BlockSet ExpandOp::GetReshapeBlocks(ReshapeCanonicalizer& canonicalizer, const Graph& graph) {
+    graph.accept(canonicalizer);
+    return Reshape::BlockSet::From(
+        graph.getTopmost().getExpansions()
+        | std::views::transform([&](const Expand *expand) -> decltype(auto) {
+            return canonicalizer.at(expand->output);
+        })
+    );
+}
+
 std::vector<const ExpandOp *> ExpandOp::Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
@@ -48,13 +57,7 @@ std::vector<const ExpandOp *> ExpandOp::Generate(OperationStore& store, const To
     const Graph& graph = options.graph;
 
     ReshapeCanonicalizer canonicalizer;
-    graph.accept(canonicalizer);
-    auto combined = ReshapeBlockNeighbors::Community(
-        interface.getExpansions()
-        | std::views::transform([&](const Expand *expand) -> decltype(auto) {
-            return canonicalizer.at(expand->output);
-        })
-    );
+    auto combined = GetReshapeBlocks(canonicalizer, graph);
 
     // We need to check if there are too many Expand's.
     auto currentExpansionRepeat = Size::Identity(ctx);

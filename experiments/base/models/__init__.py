@@ -75,6 +75,7 @@ def get_sampler(args, model) -> Sampler:
         "maximum_valid_reshape_shift_pattern": args.kas_max_shift_rhs,
         "max_flops": max_placeholder_flops * args.batch_size,
         "min_flops": min_placeholder_flops * args.batch_size,
+        "max_vram": args.client_mem_limit * 40 * 1024,
         "maximum_enumerations_per_var": args.kas_max_enumerations,
         "maximum_variables_in_size": args.kas_max_variables_in_size,
         "max_chain_length": args.kas_max_chain_length,
@@ -104,11 +105,13 @@ def get_sampler(args, model) -> Sampler:
     sampler._bind_debug_context()
     return sampler
 
+
 def get_vanilla_model(args) -> torch.nn.Module:
     if args.model.startswith("torchvision/"):
         return get_vanilla_common_model(args)
     else:
         assert False, f"Could not find model {args.model}"
+
 
 def get_model(
     args, return_sampler=False, sample_input=None

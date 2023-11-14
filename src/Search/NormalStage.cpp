@@ -122,6 +122,7 @@ void NormalStage::guardGeneratedChildren() {
         },
         .maxFLOPs = options.maxFLOPs,
         .minFLOPs = options.minFLOPs,
+        .maxVRAM = options.maxVRAM,
     }), [](std::pair<FinalizeOp, std::unique_ptr<FinalStage>>& opAndStage) {
         auto& [op, stage] = opAndStage;
         auto key = NextFinalizeSlot::GetKey(op.tensors);

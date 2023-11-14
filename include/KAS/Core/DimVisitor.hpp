@@ -135,7 +135,6 @@ public:
     TopBottomDimVisitor() {
         static_assert(TopBottomDimPropagator<Derived, AttributeType>);
     }
-    AttributeType& at(const Dimension& dim) { return attributes.at(dim); }
     const AttributeType& at(const Dimension& dim) const { return attributes.at(dim); }
     void visit(const Iterator& dim) final override {}
     void visit(const Reduce& dim) final override {}

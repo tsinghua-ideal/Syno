@@ -5,76 +5,82 @@
 
 namespace kas {
 
-struct ReshapeBlockNeighbors;
+struct ReshapeCanonicalizer;
+
+namespace Reshape {
+
+// nullptr is not allowed.
+using Side = std::variant<std::monostate, const MergeOp *, const Reduce *>;
+
+struct NeighborsSet;
+
+struct Neighbors {
+    Side left, right;
+    bool isAdjacentTo(const Neighbors& rhs) const;
+    bool isAdjacentTo(const NeighborsSet& multiple) const;
+    std::pair<Neighbors, Neighbors> separatedBy(const MergeOp *separator) const;
+    Neighbors combinedWith(const Neighbors& rhs) const;
+};
+
+using SideSet = std::set<Side>;
+
+struct NeighborsSet {
+    SideSet lefts, rights;
+};
+
+class Block;
 
 template<typename T>
-concept ReshapeBlockNeighborsRange = std::ranges::input_range<T> && std::same_as<std::ranges::range_value_t<T>, ReshapeBlockNeighbors>;
+concept BlockRange = std::ranges::input_range<T> && std::same_as<std::ranges::range_value_t<T>, Block>;
 
-struct ReshapeBlockNeighbors {
-    using Self = ReshapeBlockNeighbors;
-    using Side = std::variant<std::monostate, const MergeOp *, const Reduce *>; // nullptr is not allowed.
-    struct SidesSet;
-    struct Sides {
-        Side left, right;
-        bool isAdjacentTo(const Sides& rhs) const;
-        bool isAdjacentTo(const SidesSet& multiple) const;
-        auto separatedBy(const MergeOp *separator) const -> std::pair<Sides, Sides>;
-        auto combinedWith(const Sides& rhs) const -> Sides;
-    };
-    struct ContractedSidesSet;
-    struct ContractedSides {
-        std::map<int, Sides> sides;
-        bool isAdjacentTo(const ContractedSides& rhs) const;
-        bool isAdjacentTo(const ContractedSidesSet& multiple) const;
-        auto separatedBy(const MergeOp *separator) const -> std::pair<ContractedSides, ContractedSides>;
-        auto separatedBy(const ShareOp *separator) const -> std::pair<ContractedSides, ContractedSides>;
-        auto combinedWith(const ContractedSides& rhs) const -> ContractedSides;
-    };
-    ContractedSides sides;
-    struct SidesSet {
-        std::set<Side> lefts, rights;
-        bool hasAdjacent() const;
-    };
-    struct ContractedSidesSet {
-        std::map<int, SidesSet> sides;
-        bool hasAdjacent() const;
-        void add(const ContractedSides& neighbors);
-    };
-    struct Multiple {
-        ContractedSidesSet sidesSet;
-        void add(const ReshapeBlockNeighbors& neighbors);
-        template<ReshapeBlockNeighborsRange R>
-        void add(R&& neighbors) {
-            for (const auto& neighbor: neighbors) add(neighbor);
-        }
-        bool hasAdjacent() const;
-    };
-    auto separatedBy(const MergeOp *separator) const -> std::pair<Self, Self>;
-    auto separatedBy(const ShareOp *separator) const -> std::pair<Self, Self>;
-    auto isAdjacentTo(const Self& rhs) const -> bool;
-    template<ReshapeBlockNeighborsRange R>
-    static auto Community(R&& neighbors) -> Multiple {
-        Multiple result;
+class BlockSet;
+
+class Block {
+    friend class BlockSet;
+    // The key is contraction id.
+    // After going through a Share, primitives applied after the original contraction are propagated independently as well.
+    std::map<int, Neighbors> neighborsMap;
+public:
+    Block();
+    Block(const Reduce& dim);
+    bool isAdjacentTo(const Block& rhs) const;
+    bool isAdjacentTo(const BlockSet& multiple) const;
+    std::pair<Block, Block> separatedBy(const MergeOp *separator) const;
+    std::pair<Block, Block> separatedBy(const ShareOp *separator) const;
+    Block combinedWith(const Block& rhs) const;
+    static bool AnyAdjacent(const std::vector<Block>& neighbors);
+};
+
+class BlockSet {
+    friend class Block;
+    std::map<int, NeighborsSet> neighborsMap;
+public:
+    void add(const Block& block);
+    template<BlockRange R>
+    void add(R&& neighbors) {
+        for (const auto& neighbor: neighbors) add(neighbor);
+    }
+    template<BlockRange R>
+    static BlockSet From(R&& neighbors) {
+        BlockSet result;
         result.add(std::forward<R>(neighbors));
         return result;
     }
-    auto isAdjacentTo(const Multiple& rhs) const -> bool;
-    static auto AnyAdjacent(const std::vector<Self>& neighbors) -> bool;
-    auto combinedWith(const Self& rhs) const -> Self;
 };
+
+} // namespace Reshape
 
 // Canonicalize reshape.
 // First we only allow Split's above Merge's,
 // then we check for redundant Split's.
 // The rule is simple. After the sequence of Merge's, we obtain the smallest reshape blocks,
 // and if the blocks that are adjacent get combined by Split's again, this is illegal.
-struct ReshapeCanonicalizer: public BottomTopDimVisitor<ReshapeCanonicalizer, ReshapeBlockNeighbors> {
-    using Adjacent = ReshapeBlockNeighbors;
-    auto transform(const Iterator& dim) const -> Adjacent;
-    auto transform(const Reduce& dim) const -> Adjacent;
-    auto transform(const RepeatLikeOp& op) const -> Adjacent;
-    auto transform(const SplitLikeOp& op) const -> Adjacent;
-    auto transform(const MergeLikeOp& op) const -> std::pair<Adjacent, Adjacent>;
+struct ReshapeCanonicalizer: public BottomTopDimVisitor<ReshapeCanonicalizer, Reshape::Block> {
+    auto transform(const Iterator& dim) const -> Reshape::Block;
+    auto transform(const Reduce& dim) const -> Reshape::Block;
+    auto transform(const RepeatLikeOp& op) const -> Reshape::Block;
+    auto transform(const SplitLikeOp& op) const -> Reshape::Block;
+    auto transform(const MergeLikeOp& op) const -> std::pair<Reshape::Block, Reshape::Block>;
 };
 
 } // namespace kas

@@ -3,6 +3,7 @@
 #include "KAS/Core/Expand.hpp"
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/PrimitiveOp.hpp"
+#include "KAS/Transforms/Reshape.hpp"
 #include "KAS/Utils/Statistics.hpp"
 
 
@@ -31,6 +32,8 @@ public:
 
     std::string description(const BindingContext& ctx) const final override;
     std::string descendantsDescription(const BindingContext& ctx) const final override;
+
+    static Reshape::BlockSet GetReshapeBlocks(ReshapeCanonicalizer& canonicalizer, const Graph& graph);
 
     struct GenerateOptions {
         const BindingContext& ctx;

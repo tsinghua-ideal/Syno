@@ -212,6 +212,11 @@ PerformViewsIRPass::ViewPerformer::ViewPerformer(const Graph& graph, Tensor& ten
 {}
 
 void PerformViewsIRPass::ViewPerformer::apply() {
+    // Fast path. If we do not need to perform contractions at all, just skip.
+    if (std::ranges::distance(subgraph.getOpsOfType<ShareOp>()) == 0) {
+        return;
+    }
+
     // We should first attempt to perform some views on the first input tensor.
     const auto& firstInput = tensor.inputs().at(0);
     // We only want to do views. So disable all weights.
@@ -538,21 +543,33 @@ void PyTorchGen::SubgraphGen::generate(const ConcreteConsts& consts) {
     auto dimToSubscript = [&](const Dimension& dim) -> std::size_t {
         return subscripts.at(dim);
     };
-    std::vector<std::string> inputsSubscripts;
-    for (const Tensor& inputTensor: tensor.inputs()) {
-        inputsSubscripts.emplace_back(ToEinsteinNotation(inputTensor.output() | std::views::transform(dimToSubscript)));
+    // Sometimes there is no contraction.
+    const auto& firstInputTensor = tensor.inputs().at(0);
+    if (tensor.inputs().size() == 1 && std::ranges::equal(
+        firstInputTensor.output() | std::views::transform(dimToSubscript),
+        interface | std::views::transform(dimToSubscript)
+    )) {
+        KAS_ASSERT(std::ranges::equal(firstInputTensor.output(), interface));
+        printer.writeLn("# No contraction needed.");
+        printer.writeLn("{} = {}", name, tensorNames.at(firstInputTensor));
+        printer.writeLn();
+    } else {
+        std::vector<std::string> inputsSubscripts;
+        for (const Tensor& inputTensor: tensor.inputs()) {
+            inputsSubscripts.emplace_back(ToEinsteinNotation(inputTensor.output() | std::views::transform(dimToSubscript)));
+        }
+        printer.writeLn("# Perform contraction.");
+        printer.writeLn(
+            R"code({} = torch.einsum("{} -> {}", {}))code",
+            name,
+            fmt::join(inputsSubscripts, ", "),
+            ToEinsteinNotation(interface | std::views::transform(dimToSubscript)),
+            fmt::join(tensor.inputs() | std::views::transform([&](const Tensor& inputTensor) -> const std::string& {
+                return tensorNames.at(inputTensor);
+            }), ", ")
+        );
+        printer.writeLn();
     }
-    printer.writeLn("# Perform contraction.");
-    printer.writeLn(
-        R"code({} = torch.einsum("{} -> {}", {}))code",
-        name,
-        fmt::join(inputsSubscripts, ", "),
-        ToEinsteinNotation(interface | std::views::transform(dimToSubscript)),
-        fmt::join(tensor.inputs() | std::views::transform([&](const Tensor& inputTensor) -> const std::string& {
-            return tensorNames.at(inputTensor);
-        }), ", ")
-    );
-    printer.writeLn();
 
     // Now we have got the input. Time to work on it. The objective is to reach `tensor.output()`.
     auto opLower = OpLower { ctx, subgraph, printer, consts, interface, tensor, name };
@@ -624,6 +641,9 @@ void PyTorchGen::loadWeights(PythonCodePrinter& printer) const {
         printer.writeLn("{} = self.weights[{}]", use(weight), index - 1);
         KAS_ASSERT(ir.expansions.at(index).empty(), "Expansion for weights unsupported.");
         ++index;
+    }
+    if (ir.inputTensors.size() > 1) {
+        printer.writeLn();
     }
 }
 

@@ -7,7 +7,9 @@
 
 namespace kas {
 
-bool ReshapeBlockNeighbors::Sides::isAdjacentTo(const Sides& rhs) const {
+namespace Reshape {
+
+bool Neighbors::isAdjacentTo(const Neighbors& rhs) const {
     return (
         // They originate from the very same MergeOp.
         std::holds_alternative<const MergeOp *>(right) && std::holds_alternative<const MergeOp *>(rhs.left)
@@ -19,13 +21,13 @@ bool ReshapeBlockNeighbors::Sides::isAdjacentTo(const Sides& rhs) const {
     );
 }
 
-bool ReshapeBlockNeighbors::Sides::isAdjacentTo(const SidesSet& multiple) const {
+bool Neighbors::isAdjacentTo(const NeighborsSet& multiple) const {
     return
         (!std::holds_alternative<std::monostate>(left) && multiple.rights.contains(left)) ||
         (!std::holds_alternative<std::monostate>(right) && multiple.lefts.contains(right));
 }
 
-auto ReshapeBlockNeighbors::Sides::separatedBy(const MergeOp *separator) const -> std::pair<Sides, Sides> {
+std::pair<Neighbors, Neighbors> Neighbors::separatedBy(const MergeOp *separator) const {
     KAS_ASSERT(separator);
     return {
         { left, separator },
@@ -33,15 +35,21 @@ auto ReshapeBlockNeighbors::Sides::separatedBy(const MergeOp *separator) const -
     };
 }
 
-auto ReshapeBlockNeighbors::Sides::combinedWith(const Sides& rhs) const -> Sides {
+Neighbors Neighbors::combinedWith(const Neighbors& rhs) const {
     KAS_ASSERT(!isAdjacentTo(rhs));
     return { left, rhs.right };
 }
 
-bool ReshapeBlockNeighbors::ContractedSides::isAdjacentTo(const ContractedSides& rhs) const {
-    return std::ranges::any_of(sides, [&rhs](const auto& contracted) {
+Block::Block():
+    neighborsMap { { 0, {} } } {}
+
+Block::Block(const Reduce& dim):
+    neighborsMap { { 0, { &dim, &dim } } } {}
+
+bool Block::isAdjacentTo(const Block& rhs) const {
+    return std::ranges::any_of(neighborsMap, [&rhs](const auto& contracted) {
         const auto& [weightId, s] = contracted;
-        if (auto it = rhs.sides.find(weightId); it != rhs.sides.end()) {
+        if (auto it = rhs.neighborsMap.find(weightId); it != rhs.neighborsMap.end()) {
             return s.isAdjacentTo(it->second);
         } else {
             return false;
@@ -49,10 +57,10 @@ bool ReshapeBlockNeighbors::ContractedSides::isAdjacentTo(const ContractedSides&
     });
 }
 
-bool ReshapeBlockNeighbors::ContractedSides::isAdjacentTo(const ContractedSidesSet& multiple) const {
-    return std::ranges::any_of(sides, [&multiple](const auto& contracted) {
+bool Block::isAdjacentTo(const BlockSet& multiple) const {
+    return std::ranges::any_of(neighborsMap, [&multiple](const auto& contracted) {
         const auto& [weightId, s] = contracted;
-        if (auto it = multiple.sides.find(weightId); it != multiple.sides.end()) {
+        if (auto it = multiple.neighborsMap.find(weightId); it != multiple.neighborsMap.end()) {
             return s.isAdjacentTo(it->second);
         } else {
             return false;
@@ -60,90 +68,53 @@ bool ReshapeBlockNeighbors::ContractedSides::isAdjacentTo(const ContractedSidesS
     });
 }
 
-auto ReshapeBlockNeighbors::ContractedSides::separatedBy(const MergeOp *separator) const -> std::pair<ContractedSides, ContractedSides> {
+std::pair<Block, Block> Block::separatedBy(const MergeOp *separator) const {
     KAS_ASSERT(separator);
-    ContractedSides lhs, rhs;
-    for (const auto& [weightId, s]: sides) {
+    Block lhs, rhs;
+    for (const auto& [weightId, s]: neighborsMap) {
         auto [l, r] = s.separatedBy(separator);
-        lhs.sides.try_emplace(weightId, std::move(l));
-        rhs.sides.try_emplace(weightId, std::move(r));
+        lhs.neighborsMap.insert_or_assign(weightId, std::move(l));
+        rhs.neighborsMap.insert_or_assign(weightId, std::move(r));
     }
     return { std::move(lhs), std::move(rhs) };
 }
 
-auto ReshapeBlockNeighbors::ContractedSides::separatedBy(const ShareOp *separator) const -> std::pair<ContractedSides, ContractedSides> {
-    auto result = sides;
-    auto [newWeight, created] = result.try_emplace(separator->getRhsOrigin());
+std::pair<Block, Block> Block::separatedBy(const ShareOp *separator) const {
+    auto result = *this;
+    auto [newWeight, created] = result.neighborsMap.try_emplace(separator->getRhsOrigin());
     KAS_ASSERT(created);
-    if (auto it = result.find(0); it != result.end()) {
-        newWeight->second = std::move(it->second);
-        result[0] = Sides{};
-    }
-    return { { std::move(result) }, {} };
+    newWeight->second = std::move(result.neighborsMap.at(0));
+    result.neighborsMap[0] = {}; // Independently, brand new.
+    return { std::move(result), {} };
 }
 
-auto ReshapeBlockNeighbors::ContractedSides::combinedWith(const ContractedSides& rhs) const -> ContractedSides {
-    ContractedSides result;
-    for (const auto& [weightId, s]: sides) {
-        if (auto r = rhs.sides.find(weightId); r != rhs.sides.end()) {
-            result.sides.try_emplace(weightId, s.combinedWith(r->second));
+Block Block::combinedWith(const Block& rhs) const {
+    Block result;
+    // Basically, merging two dicts.
+    for (const auto& [weightId, s]: neighborsMap) {
+        if (auto r = rhs.neighborsMap.find(weightId); r != rhs.neighborsMap.end()) {
+            result.neighborsMap.insert_or_assign(weightId, s.combinedWith(r->second));
         } else {
-            result.sides.try_emplace(weightId, s.combinedWith({}));
+            result.neighborsMap.insert_or_assign(weightId, s.combinedWith({}));
         }
     }
-    for (const auto& [weightId, s]: rhs.sides) {
-        if (auto r = sides.find(weightId); r == sides.end()) {
-            result.sides.try_emplace(weightId, Sides{}.combinedWith(s));
+    for (const auto& [weightId, s]: rhs.neighborsMap) {
+        if (auto r = neighborsMap.find(weightId); r == neighborsMap.end()) {
+            result.neighborsMap.insert_or_assign(weightId, Neighbors{}.combinedWith(s));
         }
     }
     return result;
 }
 
-bool ReshapeBlockNeighbors::SidesSet::hasAdjacent() const {
-    std::vector<Side> result;
-    std::ranges::set_intersection(lefts, rights, std::back_inserter(result));
-    return !result.empty();
-}
-
-bool ReshapeBlockNeighbors::ContractedSidesSet::hasAdjacent() const {
-    return std::ranges::any_of(sides | std::views::values, &SidesSet::hasAdjacent);
-}
-
-void ReshapeBlockNeighbors::ContractedSidesSet::add(const ContractedSides& neighbors) {
-    for (const auto& [weightId, s]: neighbors.sides) {
-        auto& [lefts, rights] = sides[weightId];
+void BlockSet::add(const Block& block) {
+    for (const auto& [weightId, s]: block.neighborsMap) {
+        auto& [lefts, rights] = neighborsMap[weightId];
         if (!std::holds_alternative<std::monostate>(s.left)) lefts.insert(s.left);
         if (!std::holds_alternative<std::monostate>(s.right)) rights.insert(s.right);
     }
 }
 
-void ReshapeBlockNeighbors::Multiple::add(const ReshapeBlockNeighbors& neighbors) {
-    sidesSet.add(neighbors.sides);
-}
-
-bool ReshapeBlockNeighbors::Multiple::hasAdjacent() const {
-    return sidesSet.hasAdjacent();
-}
-
-auto ReshapeBlockNeighbors::separatedBy(const MergeOp *separator) const -> std::pair<Self, Self> {
-    auto [lhs, rhs] = sides.separatedBy(separator);
-    return { { std::move(lhs) }, { std::move(rhs) } };
-};
-
-auto ReshapeBlockNeighbors::separatedBy(const ShareOp *separator) const -> std::pair<Self, Self> {
-    auto [lhs, rhs] = sides.separatedBy(separator);
-    return { { std::move(lhs) }, { std::move(rhs) } };
-}
-
-auto ReshapeBlockNeighbors::isAdjacentTo(const Self& rhs) const -> bool {
-    return sides.isAdjacentTo(rhs.sides);
-}
-
-auto ReshapeBlockNeighbors::isAdjacentTo(const Multiple& multiple) const -> bool {
-    return sides.isAdjacentTo(multiple.sidesSet);
-}
-
-auto ReshapeBlockNeighbors::AnyAdjacent(const std::vector<Self>& neighbors) -> bool {
+auto Block::AnyAdjacent(const std::vector<Block>& neighbors) -> bool {
     for (std::size_t i = 0; i < neighbors.size(); ++i) {
         for (std::size_t j = i + 1; j < neighbors.size(); ++j) {
             if (
@@ -157,25 +128,21 @@ auto ReshapeBlockNeighbors::AnyAdjacent(const std::vector<Self>& neighbors) -> b
     return false;
 }
 
-auto ReshapeBlockNeighbors::combinedWith(const Self& rhs) const -> Self {
-    return { sides.combinedWith(rhs.sides) };
-}
+} // namespace Reshape
 
-auto ReshapeCanonicalizer::transform(const Iterator& dim) const -> Adjacent {
+auto ReshapeCanonicalizer::transform(const Iterator& dim) const -> Reshape::Block {
     return {};
 }
 
-auto ReshapeCanonicalizer::transform(const Reduce& dim) const -> Adjacent {
-    Adjacent result;
-    result.sides.sides.try_emplace(0, &dim, &dim);
-    return result;
+auto ReshapeCanonicalizer::transform(const Reduce& dim) const -> Reshape::Block {
+    return Reshape::Block { dim };
 }
 
-auto ReshapeCanonicalizer::transform(const RepeatLikeOp& op) const -> Adjacent {
+auto ReshapeCanonicalizer::transform(const RepeatLikeOp& op) const -> Reshape::Block {
     return {};
 }
 
-auto ReshapeCanonicalizer::transform(const SplitLikeOp& op) const -> Adjacent {
+auto ReshapeCanonicalizer::transform(const SplitLikeOp& op) const -> Reshape::Block {
     if (auto split = dynamic_cast<const SplitOp *>(&op); split) {
         return at(op.outputLhs).combinedWith(at(op.outputRhs));
     } else {
@@ -183,7 +150,7 @@ auto ReshapeCanonicalizer::transform(const SplitLikeOp& op) const -> Adjacent {
     }
 }
 
-auto ReshapeCanonicalizer::transform(const MergeLikeOp& op) const -> std::pair<Adjacent, Adjacent> {
+auto ReshapeCanonicalizer::transform(const MergeLikeOp& op) const -> std::pair<Reshape::Block, Reshape::Block> {
     if (auto merge = dynamic_cast<const MergeOp *>(&op); merge) {
         return at(op.output).separatedBy(merge);
     } else if (auto share = dynamic_cast<const ShareOp *>(&op); share) {

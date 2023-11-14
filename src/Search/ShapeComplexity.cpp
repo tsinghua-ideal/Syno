@@ -423,7 +423,9 @@ Enumerator::Enumerator(const std::vector<DesiredSize>& desired, const std::vecto
         (options.ctx.requiresExactDivision() && std::ranges::any_of(
             quotient.evalFractionAllConsts<std::size_t>(options.ctx),
             [](auto x) { return x.denominator() != 1; }
-        ))
+        )) || (!options.ctx.requiresExactDivision() &&
+            quotient.lowerBoundEst(options.ctx) < 1_uz
+        )
     ) {
         // Not enough elements.
         done = true;

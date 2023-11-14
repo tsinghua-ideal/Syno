@@ -24,9 +24,11 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
 
     using namespace kas;
 
+    constexpr std::size_t PythonVRAMUnit = 1_uz * 1024 * 1024; // MB.
+
     pybind11::class_<SampleOptions>(m, "SampleOptions")
         .def(
-            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t maxChainLength, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, float minFLOPs, std::size_t maxRDomSizeMultiplier, bool enableFLOPsBasedPruning, std::size_t maximumEnumerationsPerVar, std::size_t maximumVariablesInSize, std::size_t maximumVariablesPowersInSize, bool requiresExactDivision, bool requiresOddKernelSizeInUnfold, bool countCoefficientsInWeightsAsAllowanceUsage, std::string expressionOneTensor, std::string expressionTwoTensors, std::string expressionThreeTensors, std::string expressionFourTensors, std::size_t maximumFinalizations, bool allowWeightPermutation, std::size_t minSingleWeightParams, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float maximumValidReshapeShiftPattern, bool disallowMergeInputAndWeight, bool disallowTile, bool disallowShareWeights, std::size_t maxExpansionRepeatMultiplier, std::size_t maxExpansionMergeMultiplier, std::size_t maxExpansionWeightsSharingDimSize, std::size_t minExpansionWeightsSharingDimSize, bool canonicalizeUnfoldOrder, bool disallowSplitLAboveUnfold, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumExpands, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
+            pybind11::init([](SampleOptions::Seed seed, std::size_t depth, std::size_t maxChainLength, std::size_t maximumTensors, std::size_t maximumReductions, float maxFLOPs, float minFLOPs, std::size_t maxVRAM, std::size_t maxRDomSizeMultiplier, bool enableFLOPsBasedPruning, std::size_t maximumEnumerationsPerVar, std::size_t maximumVariablesInSize, std::size_t maximumVariablesPowersInSize, bool requiresExactDivision, bool requiresOddKernelSizeInUnfold, bool countCoefficientsInWeightsAsAllowanceUsage, std::string expressionOneTensor, std::string expressionTwoTensors, std::string expressionThreeTensors, std::string expressionFourTensors, std::size_t maximumFinalizations, bool allowWeightPermutation, std::size_t minSingleWeightParams, std::size_t maxStridedDimSize, std::size_t maxUnfoldKernelSize, float minimumUnfoldRatio, float maximumValidReshapeShiftPattern, bool disallowMergeInputAndWeight, bool disallowTile, bool disallowShareWeights, std::size_t maxExpansionRepeatMultiplier, std::size_t maxExpansionMergeMultiplier, std::size_t maxExpansionWeightsSharingDimSize, std::size_t minExpansionWeightsSharingDimSize, bool canonicalizeUnfoldOrder, bool disallowSplitLAboveUnfold, bool disallowSplitRAboveUnfold, bool disallowUnfoldLAboveSplit, bool disallowMergeWithLargeBlockAboveUnfold, bool disallowUnfoldLAboveMergeR, bool disallowSplitRAboveStride, bool disallowStrideAboveSplit, bool disallowMergeWithLargeBlockAboveStride, bool disallowStrideAboveMergeR, bool disallowUnfoldLAboveShift, bool disallowShiftAboveUnfold, int maximumExpands, int maximumMerges, int maximumSplits, int maximumShifts, int maximumStrides, int maximumUnfolds, int maximumShares) {
                 return SampleOptions {
                     .seed = seed,
                     .depth = depth,
@@ -35,6 +37,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
                     .maximumReductions = maximumReductions,
                     .maxFLOPs = static_cast<std::size_t>(maxFLOPs),
                     .minFLOPs = static_cast<std::size_t>(minFLOPs),
+                    .maxVRAM = maxVRAM * PythonVRAMUnit,
                     .maxRDomSizeMultiplier = maxRDomSizeMultiplier,
                     .enableFLOPsBasedPruning = enableFLOPsBasedPruning,
                     .maximumEnumerationsPerVar = maximumEnumerationsPerVar,
@@ -89,6 +92,7 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("maximum_reductions") = DefaultSampleOptions.maximumReductions,
             pybind11::arg("max_flops") = static_cast<float>(DefaultSampleOptions.maxFLOPs),
             pybind11::arg("min_flops") = static_cast<float>(DefaultSampleOptions.minFLOPs),
+            pybind11::arg("max_vram") = DefaultSampleOptions.maxVRAM / PythonVRAMUnit,
             pybind11::arg("max_rdom_size_multiplier") = DefaultSampleOptions.maxRDomSizeMultiplier,
             pybind11::arg("enable_flops_based_pruning") = DefaultSampleOptions.enableFLOPsBasedPruning,
             pybind11::arg("maximum_enumerations_per_var") = DefaultSampleOptions.maximumEnumerationsPerVar,
@@ -208,6 +212,9 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
             pybind11::arg("index")
         )
         .def("get_total_flops", &Kernel::getTotalFLOPs)
+        .def("get_vram_usage", [](const Kernel& self) -> std::size_t {
+            return self.getVRAMUsage() / PythonVRAMUnit; // Convert to MB.
+        })
         .def("get_count_inputs", &Kernel::getCountInputs)
         .def(
             "get_inputs_shapes", &Kernel::getInputsShapes,
