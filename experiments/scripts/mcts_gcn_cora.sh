@@ -7,7 +7,7 @@
 --kas-server-save-interval 1800 \
 --kas-server-port 7070 \
 --kas-max-flops-ratio 0 \
---kas-max-chain-length 6
+--kas-max-chain-length 6 \
 --kas-max-expansion-merge-multiplier 2048 \
 --kas-no-exact-division \
 --kas-enable-even-unfold
