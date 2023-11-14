@@ -212,6 +212,11 @@ PerformViewsIRPass::ViewPerformer::ViewPerformer(const Graph& graph, Tensor& ten
 {}
 
 void PerformViewsIRPass::ViewPerformer::apply() {
+    // Fast path. If we do not need to perform contractions at all, just skip.
+    if (std::ranges::distance(subgraph.getOpsOfType<ShareOp>()) == 0) {
+        return;
+    }
+
     // We should first attempt to perform some views on the first input tensor.
     const auto& firstInput = tensor.inputs().at(0);
     // We only want to do views. So disable all weights.

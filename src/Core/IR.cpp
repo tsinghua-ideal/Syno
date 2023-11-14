@@ -11,7 +11,7 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx, boo
     auto schemes = builder.plausibleContractionSchemes(constractOneTensorEachTime);
 
     // TODO: make this an option.
-    constexpr std::size_t MaxVRAM = 40_uz * 1024 * 1024 * 1024;
+    constexpr std::size_t MaxVRAM = 6_uz * 1024 * 1024 * 1024;
 
     IR current;
     std::size_t optimal = std::numeric_limits<std::size_t>::max();
@@ -51,7 +51,6 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx, boo
     }
 
     if (OOM) {
-        KAS_WARNING("Hey, it seems that this kernel will definitely OOM.");
         ++CountVRAMExceeded;
     }
     if (!current) {
