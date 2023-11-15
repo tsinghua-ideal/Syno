@@ -28,7 +28,7 @@ const NextFinalizeSlot& FinalStage::getSlot() const {
 }
 
 std::size_t FinalStage::getVRAMUsage() const {
-    return pyTorchSpecializedIR.getVRAMUsage(getBindingContext());
+    return PyTorchGen::EstimateVRAMUsage(getBindingContext(), pyTorchSpecializedIR);
 }
 
 std::string FinalStage::description() const {

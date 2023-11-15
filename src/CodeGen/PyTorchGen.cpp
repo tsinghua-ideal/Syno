@@ -623,6 +623,29 @@ IR PyTorchGen::SpecializeIR(const BindingContext& ctx, const TensorView& tensorV
     return ir;
 }
 
+std::size_t PyTorchGen::EstimateVRAMUsage(const BindingContext& ctx, const IR& ir) {
+    std::size_t numel = 0;
+    const Graph graph = ir.buildGraph();
+    ir.bottomTopForEach([&](const Tensor& tensor) {
+        auto subgraph = tensor.buildConstrainedGraph(graph);
+        auto reductions = ranges::to<std::set<const Reduce *>>(tensor.reductions());
+        EinsumContractor contractor { subgraph, reductions };
+        contractor.contract();
+        auto maxSize = ranges::fold_left(
+            ShapeView(tensor.output()),
+            Size::Identity(ctx),
+            std::multiplies<>{}
+        ) * ranges::fold_left(
+            reductions | std::views::transform([](const Reduce *r) -> decltype(auto) { return r->size(); }),
+            Size::Identity(ctx),
+            std::multiplies<>{}
+        );
+        numel += maxSize.evalSumAllConsts(ctx);
+    });
+    // 2 for gradients.
+    return 2 * numel * sizeof(float);
+}
+
 PyTorchGen::PyTorchGen(const BindingContext& ctx, IR specializedIR):
     ctx { ctx },
     ir { std::move(specializedIR) },

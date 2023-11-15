@@ -179,7 +179,7 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const IR
                 | std::views::transform([&ctx](const PureTensor& t) { return t.getShape().toString(ctx); })
                 | ranges::to<std::vector<std::string>>(),
             .outputShape = tensorView.getInterfaceShape().toString(ctx),
-            .vram = pyTorchSpecializedIR.getVRAMUsage(ctx),
+            .vram = PyTorchGen::EstimateVRAMUsage(ctx, pyTorchSpecializedIR),
             .halide = options.halide,
             .cuda = options.useGPU,
             .countInputs = tensorView.getUnderlyingTensors().size(),

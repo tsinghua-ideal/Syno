@@ -182,6 +182,8 @@ public:
     std::vector<std::size_t> concretize(const std::vector<Dimension>& interface, const ConcreteConsts& consts) const;
 
     static IR SpecializeIR(const BindingContext& ctx, const TensorView& tensorView, std::size_t maxVRAM);
+    // RAM in bytes.
+    static std::size_t EstimateVRAMUsage(const BindingContext& ctx, const IR& ir);
     PyTorchGen(const BindingContext& ctx, IR specializedIR);
     // Helper function.
     PyTorchGen(const BindingContext& ctx, const TensorView& tensorView):
