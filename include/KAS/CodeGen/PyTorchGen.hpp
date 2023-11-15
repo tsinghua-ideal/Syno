@@ -181,7 +181,11 @@ public:
 
     std::vector<std::size_t> concretize(const std::vector<Dimension>& interface, const ConcreteConsts& consts) const;
 
-    PyTorchGen(const BindingContext& ctx, const TensorView& tensorView);
+    static IR SpecializeIR(const BindingContext& ctx, const TensorView& tensorView, std::size_t maxVRAM);
+    PyTorchGen(const BindingContext& ctx, IR specializedIR);
+    // Helper function.
+    PyTorchGen(const BindingContext& ctx, const TensorView& tensorView):
+        PyTorchGen(ctx, SpecializeIR(ctx, tensorView, MaximumVideoMemory)) {}
     void loadWeights(PythonCodePrinter& printer) const;
     void padInputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const;
     void cropOutputTensor(PythonCodePrinter& printer, const PaddedConsts& consts) const;

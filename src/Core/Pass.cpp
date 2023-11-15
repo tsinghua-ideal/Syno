@@ -296,8 +296,8 @@ std::size_t RFactorSolver::getFLOPs(const Scheme& scheme, std::size_t overflow) 
     return flops;
 }
 
-RFactorSolver::RFactorSolver(Tensor& tensor, const Graph& graph, const BindingContext& ctx, bool singleReductionPerStage):
-    tensor { tensor }, graph { graph }, ctx { ctx }, singleReductionPerStage { singleReductionPerStage },
+RFactorSolver::RFactorSolver(Tensor& tensor, const Graph& graph, const BindingContext& ctx, bool singleReductionPerStage, std::size_t maxVRAM):
+    tensor { tensor }, graph { graph }, ctx { ctx }, singleReductionPerStage { singleReductionPerStage }, maxVRAM { maxVRAM },
     contractedInterface(TensorContractor::Contract(graph, tensor.inputs() | std::views::transform(&Tensor::output)))
 {
     KAS_ASSERT(tensor.hasReduction());
@@ -369,13 +369,13 @@ void RFactorSolver::apply(const Scheme& scheme) {
     tensor.getReductions() = std::move(current.getReductions());
 }
 
-RFactorIRPass::RFactorIRPass(const BindingContext& ctx, const Graph& graph, bool singleReductionPerStage):
-    ctx { ctx }, graph { graph }, singleReductionPerStage { singleReductionPerStage } {}
+RFactorIRPass::RFactorIRPass(const BindingContext& ctx, const Graph& graph, bool singleReductionPerStage, std::size_t maxVRAM):
+    ctx { ctx }, graph { graph }, singleReductionPerStage { singleReductionPerStage }, maxVRAM { maxVRAM } {}
 
 void RFactorIRPass::operator()(IR& ir) const {
     ir.topBottomForEach([&](Tensor& tensor) {
         if (!tensor.hasReduction()) return;
-        auto solver = RFactorSolver(tensor, graph, ctx, singleReductionPerStage);
+        auto solver = RFactorSolver(tensor, graph, ctx, singleReductionPerStage, maxVRAM);
         // TODO: Add overflow.
         auto optimal = solver.optimalRFactorScheme();
         if (!optimal.has_value()) {

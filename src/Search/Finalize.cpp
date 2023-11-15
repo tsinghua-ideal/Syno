@@ -319,7 +319,7 @@ struct TopKFinalizations {
         if (f.flops > maxFLOPs || f.flops < minFLOPs) {
             return;
         }
-        if (f.stage->value.getVRAMUsage(ctx) > maxVRAM) {
+        if (f.stage->getVRAMUsage() > maxVRAM) {
             return;
         }
 

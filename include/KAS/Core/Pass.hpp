@@ -142,6 +142,8 @@ private:
     const Graph& graph;
     const BindingContext& ctx;
     bool singleReductionPerStage;
+    // TODO: optimize with respect to maxVRAM.
+    std::size_t maxVRAM;
     const std::vector<Dimension> contractedInterface;
 
     static Generator<Scheme> PlausibleRFactorSchemes(std::vector<const Reduce *> remaining, bool allowEmpty);
@@ -153,17 +155,21 @@ private:
 
 public:
     // Never pass a view here!
-    RFactorSolver(Tensor& tensor, const Graph& graph, const BindingContext& ctx, bool singleReductionPerStage);
+    RFactorSolver(Tensor& tensor, const Graph& graph, const BindingContext& ctx, bool singleReductionPerStage, std::size_t maxVRAM);
     std::optional<Scheme> optimalRFactorScheme() const;
     void apply(const Scheme& scheme);
 };
+
+// TODO: make this an option.
+constexpr std::size_t MaximumVideoMemory = 40_uz * 1024 * 1024 * 1024; // 40 GB
 
 class RFactorIRPass {
     const BindingContext& ctx;
     const Graph& graph;
     bool singleReductionPerStage;
+    std::size_t maxVRAM;
 public:
-    RFactorIRPass(const BindingContext& ctx, const Graph& graph, bool singleReductionPerStage = false);
+    RFactorIRPass(const BindingContext& ctx, const Graph& graph, bool singleReductionPerStage = false, std::size_t maxVRAM = MaximumVideoMemory);
     void operator()(IR& ir) const;
 };
 

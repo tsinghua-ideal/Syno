@@ -38,7 +38,7 @@ void Kernel::loadMetadataAndNestedLoops() {
     }
 }
 
-Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name):
+Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const IR& pyTorchSpecializedIR, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name):
     dir { dir }
 {
     if (std::filesystem::exists(dir / "metadata.json")) {
@@ -158,7 +158,7 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
     KAS_ASSERT(!options.halide, "Halide is not enabled!");
 #endif
     {
-        auto gen = PyTorchGen { ctx, tensorView };
+        auto gen = PyTorchGen { ctx, pyTorchSpecializedIR };
         std::ofstream pytorchFile { dir / "kernels.py" };
         gen.generatePrelude(pytorchFile);
         for (std::size_t i = 0; auto&& placeholder: validPlaceholders) {
@@ -179,7 +179,7 @@ Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const st
                 | std::views::transform([&ctx](const PureTensor& t) { return t.getShape().toString(ctx); })
                 | ranges::to<std::vector<std::string>>(),
             .outputShape = tensorView.getInterfaceShape().toString(ctx),
-            .vram = tensorView.getVRAMUsage(ctx),
+            .vram = pyTorchSpecializedIR.getVRAMUsage(ctx),
             .halide = options.halide,
             .cuda = options.useGPU,
             .countInputs = tensorView.getUnderlyingTensors().size(),

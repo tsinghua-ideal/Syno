@@ -10,16 +10,13 @@ IR IR::Build(const std::vector<Topmost>& tensors, const BindingContext& ctx, boo
     auto builder = IRBuilder(tensors);
     auto schemes = builder.plausibleContractionSchemes(constractOneTensorEachTime);
 
-    // TODO: make this an option.
-    constexpr std::size_t MaxVRAM = 40_uz * 1024 * 1024 * 1024;
-
     IR current;
     std::size_t optimal = std::numeric_limits<std::size_t>::max();
     bool OOM = true;
     for (auto scheme: schemes) {
         auto result = builder.build(scheme, ctx);
 
-        auto thisOOM = result.getVRAMUsage(ctx) > MaxVRAM;
+        auto thisOOM = result.getVRAMUsage(ctx) > MaximumVideoMemory;
         auto flops = result.getFLOPs(ctx);
 
         if (!OOM && thisOOM) {
@@ -108,7 +105,16 @@ std::size_t IR::getFLOPs(const BindingContext& ctx) const {
 std::size_t IR::getVRAMUsage(const BindingContext& ctx) const {
     std::size_t numel = 0;
     bottomTopForEach([&](const Tensor& tensor) {
-        numel += (tensor.output().empty() ? Size::Identity(ctx) : ShapeView(tensor.output()).totalSize()).evalSumAllConsts(ctx);
+        auto maxSize = ranges::fold_left(
+            ShapeView(tensor.output()),
+            Size::Identity(ctx),
+            std::multiplies<>{}
+        ) * ranges::fold_left(
+            ReductionShapeView(tensor.reductions()),
+            Size::Identity(ctx),
+            std::multiplies<>{}
+        );
+        numel += maxSize.evalSumAllConsts(ctx);
     });
     // 2 for gradients.
     return 2 * numel * sizeof(float);

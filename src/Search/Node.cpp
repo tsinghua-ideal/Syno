@@ -127,7 +127,7 @@ FinalStage *Node::asFinalStage() const {
 
 std::unique_ptr<Kernel> Node::realizeAsFinal(const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& directory, const std::string& name) const {
     auto final = asFinalStage();
-    return std::make_unique<Kernel>(sampler->getBindingContext(), final->value, allMappings, std::move(options), directory, name);
+    return std::make_unique<Kernel>(sampler->getBindingContext(), final->value, final->pyTorchSpecializedIR, allMappings, std::move(options), directory, name);
 }
 
 std::size_t Node::estimateTotalFLOPsAsFinal() const {

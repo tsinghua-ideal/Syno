@@ -608,21 +608,26 @@ std::vector<std::size_t> PyTorchGen::concretize(const std::vector<Dimension>& in
     return ShapeView(interface).eval<std::size_t>(consts);
 }
 
-PyTorchGen::PyTorchGen(const BindingContext& ctx, const TensorView& tensorView):
-    ctx { ctx },
-    graph { tensorView.buildGraph() }
-{
+IR PyTorchGen::SpecializeIR(const BindingContext& ctx, const TensorView& tensorView, std::size_t maxVRAM) {
+    const Graph graph = tensorView.buildGraph();
     const auto tensors = ranges::to<std::vector<Topmost>>(
         tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent)
     );
-    ir = IR::Build(tensors, ctx, true);
+    auto ir = IR::Build(tensors, ctx, true);
     // Perform views. Because PyTorch wants the dimensions to be contracted to be explicit.
-    (PerformViewsIRPass(graph))(this->ir);
+    (PerformViewsIRPass(graph))(ir);
     // We want rfactor to be applied so that each stage has at most 1 reduction.
-    (RFactorIRPass(ctx, graph, true))(this->ir);
+    (RFactorIRPass(ctx, graph, true, maxVRAM))(ir);
     // Now that the tensors are in a mess again, optimize layout one more time.
-    (OptimizeLayoutIRPass(graph))(this->ir);
+    (OptimizeLayoutIRPass(graph))(ir);
+    return ir;
+}
 
+PyTorchGen::PyTorchGen(const BindingContext& ctx, IR specializedIR):
+    ctx { ctx },
+    ir { std::move(specializedIR) },
+    graph { ir.buildGraph() }
+{
     for (std::size_t index = 0; const auto& tensor: this->ir.inputTensors) {
         declare(tensor, "in_" + std::to_string(index));
         ++index;

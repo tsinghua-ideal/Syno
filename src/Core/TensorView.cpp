@@ -129,9 +129,6 @@ std::size_t TensorView::getFLOPs(const BindingContext& ctx, const ConcreteConsts
 std::size_t TensorView::getFLOPs(const BindingContext& ctx) const {
     return getSubgraphs().getFLOPs(ctx);
 }
-std::size_t TensorView::getVRAMUsage(const BindingContext& ctx) const {
-    return getSubgraphs().getVRAMUsage(ctx);
-}
 
 namespace {
     auto SSIt(std::stringstream& ss) -> decltype(auto) {

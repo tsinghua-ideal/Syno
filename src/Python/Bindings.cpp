@@ -13,6 +13,7 @@
 #include "KAS/CodeGen/HalideGen.hpp"
 #endif
 #include "KAS/CodeGen/Kernel.hpp"
+#include "KAS/CodeGen/PyTorchGen.hpp"
 #include "KAS/Search/Node.hpp"
 #include "KAS/Search/Sample.hpp"
 #include "KAS/Search/Statistics.hpp"
@@ -363,7 +364,8 @@ PYBIND11_MODULE(kas_cpp_bindings, m) {
         .def(
             "build", [](Forward::Factory& self, const std::string& blending, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name) {
                 TensorView& tensorView = self.buildTensorView(Parser(blending).parseTensorExpression());
-                return std::make_unique<Kernel>(self.getBindingContext(), tensorView, allMappings, std::move(options), dir, name);
+                const BindingContext& ctx = self.getBindingContext();
+                return std::make_unique<Kernel>(ctx, tensorView, PyTorchGen::SpecializeIR(ctx, tensorView, MaximumVideoMemory), allMappings, std::move(options), dir, name);
             }
         );
 
