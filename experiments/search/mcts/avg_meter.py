@@ -3,7 +3,7 @@ from typing import List, Tuple
 
 
 class AverageMeter:
-    def __init__(self, support_std=False) -> None:
+    def __init__(self, support_std=True) -> None:
         self.sum: float = 0
         if support_std:
             self.sumsq: float = 0
