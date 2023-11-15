@@ -1,5 +1,5 @@
 bash ./run_server.sh 8 torch KAS \
---kas-server-addr 0.0.0.0 --kas-server-port 7070 --kas-server-save-dir results/cifar100-session-v20231114-NCHH --kas-server-save-interval 3600\
+--kas-server-addr 0.0.0.0 --kas-server-port 7070 --kas-server-save-dir results/cifar100-session-v20231115 --kas-server-save-interval 3600\
  --kas-search-algo MCTS \
  --model torchvision/resnet18 \
  --kas-sampler-workers 400 --kas-num-virtual-evaluator 4 \
