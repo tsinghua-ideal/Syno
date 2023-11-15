@@ -57,6 +57,7 @@ public:
         BlockRelativelyTooLarge,
         DisallowedAboveStride,
         DisallowedAboveUnfold,
+        AboveUnfoldWhoseWindowTooLarge,
         UnorderedSizeOrderingViolated,
         SuccessfulGenerations,
     )

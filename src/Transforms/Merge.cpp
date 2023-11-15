@@ -106,10 +106,17 @@ std::vector<const MergeOp *> MergeOp::Generate(OperationStore& store, const Topm
         }
         if (options.disallowMergeWithLargeBlockAboveUnfold) {
             if (auto u = dim.tryAs<UnfoldOp::Input>(); u) {
-                if ((block / u->getDerivedOp<UnfoldOp>()->getWindow()).lowerBoundEst(options.ctx) > 1_uz) {
+                if ((block / u->getDerivedOp<UnfoldOp>()->getWindow()).lowerBoundEst(options.ctx) >= 1_uz) {
                     ++CountDisallowedAboveUnfold;
                     return;
                 }
+            }
+        }
+        // TODO!! Think about it!
+        if (auto u = dim.tryAs<UnfoldOp::Input>(); u) {
+            if (auto trait = u->getDerivedOp<UnfoldOp>()->getWindow().canBeDividedBy(block); trait && *trait == Size::Trait::Coefficient) {
+                ++CountAboveUnfoldWhoseWindowTooLarge;
+                return;
             }
         }
         if (options.graph.colorOf(dim).isUnordered()) {
