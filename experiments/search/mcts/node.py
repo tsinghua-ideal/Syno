@@ -404,6 +404,9 @@ class TreeNode:
 
         Dependencies: get_unrevealed_children -> get_children -> get_child -> is_dead_end -> is_final -> None
         """
+        
+        def rave_encoder(rave: AverageMeter):
+            return rave.mean + rave.std - 1 / rave.N
 
         grave_list = []
         lrave_list = []
@@ -422,8 +425,8 @@ class TreeNode:
                 assert isinstance(next, Next.Type)
                 arc = next
 
-            grave = self._tree.g_rave[arc].mean if arc in self._tree.g_rave else -1.0
-            lrave = self.l_rave[arc].mean if arc in self.l_rave else -1.0
+            grave = rave_encoder(self._tree.g_rave[arc]) if arc in self._tree.g_rave else -1.0
+            lrave = rave_encoder(self.l_rave[arc]) if arc in self.l_rave else -1.0
             beta = (
                 self._tree._c_l / (self._tree._c_l + self.l_rave[arc].N)
                 if arc in self.l_rave
