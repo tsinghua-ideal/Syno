@@ -133,6 +133,12 @@ public:
     bool discoveredFinalDescendant() const;
     std::string toString() const;
 
+    KAS_STATISTICS_DEF(
+        CanAcceptArcButPruned,
+        Lattices,
+        NonLattices,
+    )
+
     // For debugging.
     std::string debugToGraphviz() const;
 };

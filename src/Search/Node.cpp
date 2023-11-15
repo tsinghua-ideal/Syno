@@ -342,8 +342,15 @@ void Node::expandWithArcs(ThreadPool<LatticeTask>& expander, const LatticeTask& 
             ++index;
             continue;
         }
-        // This must not throw! Otherwise the pruning algorithm is wrong. (But it might throw for non-final lattices.)
-        auto child = getChildFromArc(arc).value();
+        // This must not be null! Otherwise the pruning algorithm is wrong. (But it might throw for non-final lattices.)
+        auto optChild = getChildFromArc(arc);
+        if (!optChild) {
+            // This is really wrong!
+            ++CountCanAcceptArcButPruned;
+            ++index;
+            continue;
+        }
+        auto child = *optChild;
         std::vector<Arc> remainingArcs = arcs;
         remainingArcs.erase(remainingArcs.begin() + index);
         if (task.pool.add(remainingArcs.size(), child)) {
@@ -379,12 +386,51 @@ std::vector<Node> Node::expandToSync(Node target) const {
     Node bottom = sampler->visit({}).value(); // root.
     std::vector<Node> latticeEndPoints { bottom };
     for (std::size_t i = 0; i < latticesArcs.size(); ++i) {
-        const auto& arcs = latticesArcs[i];
+        auto arcs = latticesArcs[i];
+        KAS_ASSERT(!arcs.empty());
         auto& pool = latticePools[i];
-        Node top = ranges::fold_left(arcs, bottom, [&](Node node, const Arc& arc) {
-            return node.getChildFromArc(arc).value();
-        });
-        expander.add(LatticeTask { pool, bottom, arcs });
+
+        bool win = true;
+        bool hasLost = false;
+        Node top = bottom;
+        int rounds = 0;
+        while (true) {
+            for (const Arc& arc: arcs) {
+                auto child = top.getChildFromArc(arc);
+                if (!child) {
+                    win = false;
+                    break;
+                }
+                top = child.value();
+            }
+            if (win) {
+                break;
+            } else {
+                top = bottom;
+                auto [_, nextPermutation] = std::ranges::next_permutation(arcs);
+                rounds += !nextPermutation;
+                KAS_ASSERT(rounds < 2, "Node not reachable! Something really wrong happened!");
+                win = true;
+                hasLost = true;
+            }
+        }
+
+        if (hasLost) {
+            KAS_WARNING("Non-lattice found!");
+            ++CountNonLattices;
+        } else {
+            ++CountLattices;
+        }
+
+        expander.add(LatticeTask { pool, bottom, std::move(arcs) });
+
+        // const auto& arcs = latticesArcs[i];
+        // auto& pool = latticePools[i];
+        // Node top = ranges::fold_left(arcs, bottom, [&](Node node, const Arc& arc) {
+        //     return node.getChildFromArc(arc).value();
+        // });
+        // expander.add(LatticeTask { pool, bottom, arcs });
+
         bottom = top;
         latticeEndPoints.emplace_back(bottom);
     }

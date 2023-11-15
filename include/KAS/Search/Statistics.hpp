@@ -32,6 +32,7 @@ struct StatisticsCollector {
         KAS_COLLECT_STATS_FOR_OP(FinalizeOp)
         KAS_COLLECT_STATS_FOR_OP(AbstractStage)
         KAS_COLLECT_STATS_FOR_OP(NormalStage)
+        KAS_COLLECT_STATS_FOR_OP(Node)
 #undef KAS_COLLECT_STATS_FOR_OP
     }
 };

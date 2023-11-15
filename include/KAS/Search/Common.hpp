@@ -172,6 +172,7 @@ public:
     }
 
     bool operator==(const Arc& rhs) const;
+    std::strong_ordering operator<=>(const Arc& rhs) const = default;
     std::size_t hash() const;
     struct Hash {
         std::size_t operator()(const Arc& arc) const {
