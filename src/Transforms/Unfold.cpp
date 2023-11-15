@@ -82,7 +82,7 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(OperationStore& store, const To
         for (auto&& dimR: plausibleR) {
             if (dimL == dimR) continue;
             ++countPlausible;
-            if (graph.colorOf(dimL).endsUpReduce() && graph.colorOf(dimR).endsUpReduce()) {
+            if (graph.colorOf(dimL).endsUpReduce()) {
                 ++CountDoubleReduction;
                 continue;
             }

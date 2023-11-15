@@ -52,7 +52,7 @@ ShiftOp::Values ShiftOp::value(const Values& known) const {
 }
 
 bool ShiftOp::ExceedsMaxValidReshapeShiftPattern(const Size& block, int shift, const BindingContext& ctx, float maximumValidReshapeShiftPattern) {
-    return boost::rational_cast<float>(block.lowerBoundEst(ctx)) / std::abs(shift) > maximumValidReshapeShiftPattern;
+    return boost::rational_cast<float>(block.upperBoundEst(ctx)) / std::abs(shift) > maximumValidReshapeShiftPattern;
 }
 
 std::vector<const ShiftOp *> ShiftOp::Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options) {
