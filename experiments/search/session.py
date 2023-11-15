@@ -142,6 +142,7 @@ class Session:
                 )
 
                 meta_path = os.path.join(kernel_dir, "meta.json")
+                logging.info(meta_path)
                 with open(meta_path, "r") as f:
                     meta = json.load(f)
 
@@ -202,9 +203,7 @@ class Session:
                 logging.error(e)
                 traceback.print_exc()
 
-        logging.info(
-            f"{num_loaded} out of {total_kernels} kernels are loaded. "
-        )
+        logging.info(f"{num_loaded} out of {total_kernels} kernels are loaded. ")
         self.start_time -= time_offset
 
     def load(self):
@@ -227,12 +226,11 @@ class Session:
             logging.warning(
                 f"{path} is not in our waiting queue, will do a fast update"
             )
-            return
 
         # Not more waiting
         if path in self.waiting:
             self.waiting.remove(path)
-        self.time_buffer.pop(path)
+            self.time_buffer.pop(path)
 
         # Get implementation
         path = Path.deserialize(path)
@@ -244,7 +242,7 @@ class Session:
             loss = 0
 
         # Save into directory
-        if self.save_dir:
+        if self.save_dir and not fast_load_flag:
             os.makedirs(self.save_dir, exist_ok=True)
             if self.target == "loss":
                 acc_str = (
@@ -320,7 +318,7 @@ class Session:
 
         logging.info(f"Updating with reward {reward} ...")
         if fast_load_flag:
-            self.algo.load_eval_result(path, reward)
+            self.algo.load_eval_result(path.serialize(), reward)
         else:
             self.algo.update(path, reward)
 
