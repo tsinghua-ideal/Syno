@@ -174,13 +174,6 @@ def main():
             loss = np.mean(losses[len_not_avg - 1 :])
             logging.info(f"Meaned loss of last 20%: {loss}")
 
-        flops, params, accuracy, kernel_flag, loss = (
-            0,
-            0,
-            -1,
-            "EMPTY",
-            args.gpt_max_loss,
-        )
         client.reward(path, accuracy, flops, params, kernel_flag, loss)
         os.remove(client.kernel_buffer)
 
