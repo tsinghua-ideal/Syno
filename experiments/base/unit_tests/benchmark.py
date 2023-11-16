@@ -7,6 +7,7 @@ import logging
 from argparse import Namespace
 from typing import List
 from KAS import Path, Sampler
+import thop, torch
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
@@ -32,13 +33,16 @@ def train(
     if name == "Baseline":
         if args.model.startswith("torchvision/"):
             model = models.common.get_vanilla_common_model(args).cuda()
+            flops, params = thop.profile(
+                model, (torch.ones((args.batch_size, *args.input_size)))
+            )
         else:
             assert hasattr(
                 sys.modules[__name__], args.model
             ), f"Could not find model {args.model}"
             model_cls = getattr(sys.modules[__name__], args.model)
             model = model_cls().cuda()
-        flops, params = model.profile(args.batch_size)
+            flops, params = model.profile(args.batch_size)
         logging.info(
             f"Loaded model has {flops / 1e9}G FLOPs per batch and {params / 1e6}M parameters in total."
         )
