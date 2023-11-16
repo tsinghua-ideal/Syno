@@ -142,7 +142,6 @@ class Session:
                 )
 
                 meta_path = os.path.join(kernel_dir, "meta.json")
-                logging.info(meta_path)
                 with open(meta_path, "r") as f:
                     meta = json.load(f)
 

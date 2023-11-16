@@ -263,7 +263,7 @@ class MCTSTree:
             logging.debug(
                 f"Selected final node with time {leaf.N}, return immediately. "
             )
-            if leaf.N >= 100:
+            if leaf.N >= 1000:
                 self.stuck_path = path
                 return None
             self._increment_virtual_loss(path)
