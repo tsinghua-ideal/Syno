@@ -180,7 +180,12 @@ Node Node::arbitraryParent() const {
             }
         },
         [&](FinalStage *stage) {
-            return Node(sampler, &stage->parent);
+            auto parent = &stage->parent;
+            if (parent->isEmbeddedInReductionStage()) {
+                return Node(sampler, dynamic_cast<ReductionStage *>(parent->arbitraryParent()));
+            } else {
+                return Node(sampler, &stage->parent);
+            }
         }
     );
 }
