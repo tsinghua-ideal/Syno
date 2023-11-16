@@ -389,7 +389,7 @@ class ImageNetTrainer:
         lrs = np.interp(np.arange(iters), [0, iters], [lr_start, lr_end])
 
         iterator = self.train_loader
-        for ix, (images, target) in enumerate(tqdm(iterator)):
+        for ix, (images, target) in enumerate(iterator):
             ### Training start
             for param_group in self.optimizer.param_groups:
                 param_group["lr"] = lrs[ix]

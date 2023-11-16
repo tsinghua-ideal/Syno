@@ -34,7 +34,7 @@ def train(
         if args.model.startswith("torchvision/"):
             model = models.common.get_vanilla_common_model(args).cuda()
             flops, params = thop.profile(
-                model, (torch.ones((args.batch_size, *args.input_size)))
+                model, (torch.ones((1, *args.input_size)))
             )
         else:
             assert hasattr(
