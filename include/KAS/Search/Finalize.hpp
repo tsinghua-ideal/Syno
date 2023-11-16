@@ -91,6 +91,7 @@ public:
         FailedInvocations,
         UncanonicalUnorderedInput,
         CanonicalUnorderedInput,
+        TooMuchPooling,
         LegalFinalizations,
         UncanonicalWeight,
     )
@@ -101,6 +102,7 @@ public:
         std::size_t maximumTensors;
         std::size_t maximumFinalizations;
         bool allowWeightPermutation;
+        std::size_t maxPoolingFactor;
         // For pruning.
         FinalStageBuilder finalStageBuilder;
         std::size_t maxFLOPs;

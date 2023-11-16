@@ -74,4 +74,31 @@ bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionMap
     return true;
 }
 
+auto PoolingDiscoverer::transformInput(const Dimension& dim) -> bool { return true; }
+auto PoolingDiscoverer::transformExpand(const Dimension& dim) -> bool { return true; }
+auto PoolingDiscoverer::transform(const RepeatLikeOp& op) -> bool { return at(op.getInput()); }
+auto PoolingDiscoverer::transform(const SplitLikeOp& op) -> std::pair<bool, bool> {
+    bool result = at(op.getInput());
+    return { result, result };
+}
+auto PoolingDiscoverer::transform(const MergeLikeOp& op) -> bool {
+    if (auto share = dynamic_cast<const ShareOp *>(&op); share) {
+        return false;
+    } else {
+        return at(op.getInputL()) && at(op.getInputR());
+    }
+}
+
+bool IsPoolingTooLarge(const Graph& graph, const BindingContext& ctx, std::size_t maxPoolingFactor) {
+    PoolingDiscoverer pooling;
+    graph.accept(pooling);
+    auto poolingFactor = Size::Identity(ctx);
+    for (const Reduce *r: graph.getReduceIterators()) {
+        if (pooling.at(r)) {
+            poolingFactor *= r->getBase().getDomain();
+        }
+    }
+    return poolingFactor.upperBoundEst(ctx) > maxPoolingFactor;
+}
+
 } // namespace kas

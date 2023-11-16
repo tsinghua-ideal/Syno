@@ -68,6 +68,7 @@ class Sampler:
         min_flops: float = 0,
         max_vram: int = 40 * 1024, # 40 GB
         max_rdom_size_multiplier: int = 32,
+        max_pooling_factor: int = 8,
         enable_flops_based_pruning: bool = True,
         maximum_enumerations_per_var: int = 5,
         maximum_variables_in_size: int = 16,
@@ -150,6 +151,8 @@ class Sampler:
             Max total VRAM. In MB.
         max_rdom_size_multiplier : int, optional
             We allow for a matmul, times this multiplier at most in ReductionStage.
+        max_pooling_factor : int, optional
+            Maximum pooling factor.
         enable_flops_based_pruning : bool, optional
             Estimate FLOPs during the search to prune.
         maximum_enumerations_per_var : int, optional
@@ -257,6 +260,7 @@ class Sampler:
             min_flops=min_flops,
             max_vram=max_vram,
             max_rdom_size_multiplier=max_rdom_size_multiplier,
+            max_pooling_factor=max_pooling_factor,
             enable_flops_based_pruning=enable_flops_based_pruning,
             maximum_enumerations_per_var=maximum_enumerations_per_var,
             maximum_variables_in_size=maximum_variables_in_size,

@@ -391,6 +391,9 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
             } else {
                 ++CountCanonicalUnorderedInput;
             }
+            if (IsPoolingTooLarge(graph, ctx, options.maxPoolingFactor)) {
+                return;
+            }
         }
 
         // TODO: If options.allowWeightPermutation, permute the weights.

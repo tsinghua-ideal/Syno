@@ -31,4 +31,16 @@ struct UnorderednessCanonicalizer: public TopBottomDimVisitor<UnorderednessCanon
 // Sometimes we can determine that the unordered dims are from a specific source.
 bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionMap<std::size_t>& unorderedDims);
 
+// True if is pooling.
+struct PoolingDiscoverer: public TopBottomDimVisitor<PoolingDiscoverer, bool> {
+    auto transformInput(const Dimension& dim) -> bool;
+    auto transformExpand(const Dimension& dim) -> bool;
+    auto transform(const RepeatLikeOp& op) -> bool;
+    auto transform(const SplitLikeOp& op) -> std::pair<bool, bool>;
+    auto transform(const MergeLikeOp& op) -> bool;
+};
+
+// Doing too much pooling is not great.
+bool IsPoolingTooLarge(const Graph& graph, const BindingContext& ctx, std::size_t maxPoolingFactor);
+
 } // namespace kas

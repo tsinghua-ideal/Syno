@@ -37,6 +37,7 @@ struct SampleOptions {
     std::size_t minFLOPs = 0;
     std::size_t maxVRAM = 6_uz * 1024 * 1024 * 1024;
     std::size_t maxRDomSizeMultiplier = 32;
+    std::size_t maxPoolingFactor = 8;
 
     bool enableFLOPsBasedPruning = true;
 
