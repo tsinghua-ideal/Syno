@@ -108,7 +108,7 @@ struct OpCanvas: public OpVisitor {
         ss << "subgraph cluster_out {\n";
         ss << "label = \"Output\";\n";
         for (const Iterator *output: graph.getOutputIterators()) {
-            fmt::format_to(SSIt(), "out_{} [label=\"{}\", shape=none];\n", output->getIndex(), output->size().toString(ctx));
+            fmt::format_to(SSIt(), "out_{0} [label=\"{1}({0})\", shape=none];\n", output->getIndex(), output->size().toString(ctx));
         }
         ss << "}\n";
 
@@ -192,7 +192,7 @@ std::string draw(const BindingContext& ctx, R&& tensors) {
         fmt::format_to(SSIt(), "subgraph cluster_in_{} {{\n", j);
         fmt::format_to(SSIt(), "label = \"Input {}\";\n", j);
         for (std::size_t i = 0; auto&& dim: tensor.getDimensions()) {
-            fmt::format_to(SSIt(), "in_{}_{} [label=\"{}\", shape=none];\n", j, i, dim.size().toString(ctx));
+            fmt::format_to(SSIt(), "in_{0}_{1} [label=\"{2}({1})\", shape=none];\n", j, i, dim.size().toString(ctx));
             ++i;
         }
         ss << "}\n";
