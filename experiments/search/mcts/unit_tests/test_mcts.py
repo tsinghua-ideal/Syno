@@ -47,7 +47,9 @@ def test_mcts(backprop_prob=0.5):
             mcts.remove(receipt, node[1])
 
     for tree_node in mcts._treenode_store.values():
-        assert tree_node.is_dead_end() or tree_node._virtual_loss == 0, f"Virtual loss count for {tree_node} is {tree_node._virtual_loss}"
+        assert (
+            tree_node.is_dead_end() or tree_node._virtual_loss == 0
+        ), f"Virtual loss count for {tree_node} is {tree_node._virtual_loss}"
 
     receipts = []
     for idx in range(30):
@@ -59,13 +61,7 @@ def test_mcts(backprop_prob=0.5):
 
     json.dump(mcts.serialize(), open("test_mcts.json", "w"), indent=4)
     mcts_serialize = json.load(open("test_mcts.json", "r"))
-    mcts_recover = MCTSTree.deserialize(mcts_serialize, sampler, keep_virtual_loss=True)
-    for tree_node, v in mcts_recover.virtual_loss_count.items():
-        assert v == mcts.virtual_loss_count[tree_node], f"{v} != {mcts.virtual_loss_count[tree_node]}"
-    for tree_node, v in mcts.virtual_loss_count.items():
-        assert (
-            tree_node.is_final() or tree_node.is_dead_end() or v == mcts_recover.virtual_loss_count[tree_node]
-        ), f"{tree_node}: {v} != {mcts_recover.virtual_loss_count[tree_node]}"
+    mcts_recover = MCTSTree.deserialize(mcts_serialize, sampler)
 
     for node, receipt in receipts:
         if random() <= backprop_prob:
@@ -73,10 +69,10 @@ def test_mcts(backprop_prob=0.5):
         else:
             mcts.remove(receipt, node[1])
 
-    for tree_node, v in mcts.virtual_loss_count.items():
+    for tree_node in mcts._treenode_store.values():
         assert (
-            tree_node.is_final() or tree_node.is_dead_end() or v == 0
-        ), f"Virtual loss count for {tree_node} is {v}"
+            tree_node.is_dead_end() or tree_node._virtual_loss == 0
+        ), f"Virtual loss count for {tree_node} is {tree_node._virtual_loss}"
 
     # Test serialize
     print("Testing serialization and deserialization. ")
@@ -86,7 +82,9 @@ def test_mcts(backprop_prob=0.5):
 
     # nodes
     for tree_node, v in mcts_recover._treenode_store.items():
-        assert tree_node in mcts._treenode_store, f"Node {tree_node} not in mcts._treenode_store"
+        assert (
+            tree_node in mcts._treenode_store
+        ), f"Node {tree_node} not in mcts._treenode_store"
         assert v.eq_state(
             mcts._treenode_store[tree_node]
         ), f"Node {tree_node.get_possible_path()} is {v.l_rave}, should be {mcts._treenode_store[tree_node].l_rave}"
@@ -97,7 +95,9 @@ def test_mcts(backprop_prob=0.5):
     #     assert v == mcts_recover.g_rave[k], f"{k}: {v} != {mcts_recover.g_rave[k]}"
     for tree_node, v in mcts_recover.g_rave.items():
         assert tree_node in mcts.g_rave, f"{tree_node} does not exists in mcts.g_rave"
-        assert v == mcts.g_rave[tree_node], f"{tree_node}: {v} != {mcts_recover.g_rave[tree_node]}"
+        assert (
+            v == mcts.g_rave[tree_node]
+        ), f"{tree_node}: {v} != {mcts_recover.g_rave[tree_node]}"
 
     # flags
     assert (
