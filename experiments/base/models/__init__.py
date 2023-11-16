@@ -158,7 +158,8 @@ def get_model(
         if (args.kas_replace_placeholder or return_sampler)
         else None
     )
-    logging.info(f"Mappings: {sampler._extract_all_mappings(model)}")
+    if sampler:
+        logging.info(f"Mappings: {sampler._extract_all_mappings(model)}")
 
     # Replace kernel
     if args.kas_replace_placeholder is not None:
