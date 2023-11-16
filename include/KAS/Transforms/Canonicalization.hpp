@@ -10,19 +10,16 @@ namespace kas {
 // Unordered, with a specific source. Example: C_in. Merging unordered dimensions from different sources leads to an ordered dimension.
 // Unordered, without a specific source. Example: Expand and ShareR. Merging this with an unordered dimension that has a source keeps the source.
 struct Unorderedness {
-    bool isUnordered;
-    std::optional<std::size_t> source;
-
-    static Unorderedness Ordered();
-    static Unorderedness Unordered(std::size_t source);
-    static Unorderedness Unordered();
-    static Unorderedness Unordered(std::optional<std::size_t> source);
+    bool isUnordered = false;
+    std::optional<std::size_t> source = std::nullopt;
+    const SplitOp *sourceSplitOp = nullptr;
 
     Unorderedness operator&&(const Unorderedness& rhs) const;
 };
 
 struct UnorderednessCanonicalizer: public TopBottomDimVisitor<UnorderednessCanonicalizer, Unorderedness> {
     const Graph::DimensionMap<std::size_t>& unorderedDims;
+    bool uncanonical = false;
     UnorderednessCanonicalizer(const Graph::DimensionMap<std::size_t>& unorderedDims);
     auto transformInput(const Dimension& dim) -> Unorderedness;
     auto transformExpand(const Dimension& dim) -> Unorderedness;

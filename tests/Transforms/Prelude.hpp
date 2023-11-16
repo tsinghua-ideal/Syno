@@ -7,6 +7,7 @@
 #include "KAS/Core/PrimitiveOp.hpp"
 #include "KAS/Core/Shape.hpp"
 #include "KAS/Core/TensorView.hpp"
+#include "KAS/Transforms/Canonicalization.hpp"
 #include "KAS/Transforms/OperationStore.hpp"
 #include "KAS/Utils/Common.hpp"
 #include "KAS/Utils/Functional.hpp"
@@ -26,6 +27,7 @@ protected:
     Size sizeW = ctx.getSize("W");
     Size sizeC = ctx.getSize("c");
     Iterator itH { 0, sizeH }, itW { 1, sizeW }, itCH { 2, sizeC * sizeH };
+    ReduceOp reduceH { sizeH, Reduce::ReduceType::Sum }, reduceC = ReduceOp { sizeC, Reduce::ReduceType::Sum };
     Dimension dimH { &itH }, dimW { &itW }, dimCH { &itCH };
     transforms_tests() {
         ctx.debug();
