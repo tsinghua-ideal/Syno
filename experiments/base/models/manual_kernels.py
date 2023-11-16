@@ -334,6 +334,52 @@ class ManualImpl:
             [w_out_C, w_in_C, w_k_1],
         )
 
+    def Conv1d_patch1d(self) -> Assembled:
+        N, H, k_1, k_2, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "k_1", "k_2", "C_in", "C_out"
+        )
+        (
+            in_N,
+            in_H,
+            in_W,
+            in_C,
+            w_out_C,
+            w_in_C,
+            w_k_1,
+            w_k_2_0,
+            w_k_2_1,
+        ) = self.assembler.make_dims_of_sizes(N, H, H, C_in, C_out, C_in, k_1, k_2, k_2)
+
+        main_H, windows_H = self.assembler.create_unfold(in_H, k_1)
+
+        shared_k_1 = self.assembler.create_share(windows_H, w_k_1)
+        shared_C_in = self.assembler.create_share(in_C, w_in_C)
+
+        tmp_dim1 = self.assembler.create_expand(C_out)
+        out_C = self.assembler.create_share(tmp_dim1, w_out_C)
+
+        group_W, part_W = self.assembler.create_split(in_W, k_2)
+        shared_k_2 = self.assembler.create_share(part_W, w_k_2_0)
+
+        tmp_dim2 = self.assembler.create_expand(k_2)
+        w_k_2_1_masked = self.assembler.create_share(tmp_dim2, w_k_2_1)
+        main_W = self.assembler.create_merge(group_W, w_k_2_1_masked)
+
+        in_N.output(0)
+        out_C.output(1)
+        main_H.output(2)
+        main_W.output(3)
+        shared_k_1.sum()
+        shared_k_2.sum()
+        shared_C_in.sum()
+
+        return self.assembler.assemble(
+            "conv",
+            "in_0 * in_1",
+            [in_N, in_C, in_H, in_W, tmp_dim1, tmp_dim2],
+            [w_out_C, w_in_C, w_k_1, w_k_2_0, w_k_2_1],
+        )
+
     def Conv1d_transpose(self) -> Assembled:
         N, H, k, C_in, C_out = self.assembler.get_sizes(
             "N", "H", "k_1", "C_in", "C_out"
