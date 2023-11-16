@@ -465,6 +465,12 @@ def arg_parse():
         help="KAS sampler minimum ratio between unfold kernel and unfolded dimension. ",
     )
     parser.add_argument(
+        "--kas-max-pooling-factor",
+        default=8,
+        type=int,
+        help="KAS sampler maximum pooling factor. ",
+    )
+    parser.add_argument(
         "--kas-scheduler-cache-dir",
         default=".scheduler-cache",
         help="KAS sampler saving directory",

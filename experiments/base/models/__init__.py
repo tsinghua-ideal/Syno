@@ -89,6 +89,7 @@ def get_sampler(args, model) -> Sampler:
         "requires_exact_division": not args.kas_no_exact_division,
         "requires_odd_kernel_size_in_unfold": not args.kas_enable_even_unfold,
         "minimum_unfold_ratio": args.kas_min_unfold_ratio,
+        "max_pooling_factor": args.kas_max_pooling_factor,
         "extra_options": {
             "beam_size": "32",
             "num_passes": "1",
@@ -157,6 +158,7 @@ def get_model(
         if (args.kas_replace_placeholder or return_sampler)
         else None
     )
+    logging.info(f"Mappings: {sampler._extract_all_mappings(model)}")
 
     # Replace kernel
     if args.kas_replace_placeholder is not None:
