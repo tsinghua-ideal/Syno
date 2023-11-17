@@ -65,7 +65,10 @@ class SimulationCounter:
             assert self.estimated_probability() > 0
 
             def trial_gen():
-                trials = math.ceil(self.leaf_num / self.estimated_probability())
+                trials = min(
+                    self.upper_bound,
+                    math.ceil(self.leaf_num / self.estimated_probability()),
+                )
                 for _ in range(self.retry):
                     yield trials
                     trials = math.ceil(trials * self.ratio)
