@@ -307,10 +307,8 @@ class Session:
                 ) * (1 - self.min_accuracy)
             else:
                 reward = (
-                    (max(accuracy, self.reward_lower_bound) - self.reward_lower_bound)
-                    / (1 - self.reward_lower_bound)
-                    / self.reward_upper_bound
-                )
+                    max(accuracy, self.reward_lower_bound) - self.reward_lower_bound
+                ) / (self.reward_upper_bound - self.reward_lower_bound)
             reward = reward**self.reward_power
         else:
             reward = -1
