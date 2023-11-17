@@ -11,6 +11,7 @@ from KAS import Node, Path, Sampler, Next, Arc, NextSerializer
 
 from .node import TreeNode, TreePath, PseudoTreeNext, PseudoArc
 from .avg_meter import AverageMeter
+from .simulation_counter import SimulationCounter
 
 
 MockArc = Union[Next, Arc]
@@ -26,14 +27,10 @@ class MCTSTree:
         b: float = 0.5,
         c_l: float = 20,
         policy: str = "update-descent",
-        max_final_iterations: Tuple[int, int, int] = (
-            10,
-            1.5,
-            3000,
-        ),  # (a, b, c) s.t. sample num = a * (b ** (max_depth - depth))
-        simulate_retry_period: float = 60,
         sample_retry_times: int = 5,
-        simulate_decay_time: Tuple[float, float] = (300, 300),
+        sample_increase_ratio: float = 1.5,
+        sample_upper_bound: int = 30000,
+        counter_size: int = 100,
         max_depth: int = 16,
         rave_random_ratio: float = 0.3,
     ) -> None:
@@ -49,8 +46,6 @@ class MCTSTree:
         self._c_l = c_l
         self._b = b
         self._policy = policy
-        self._max_final_iterations = max_final_iterations
-        self._simulate_retry_period = simulate_retry_period
         self._sample_retry_times = sample_retry_times
         self._max_depth = max_depth
         self._rave_random_ratio = rave_random_ratio
@@ -65,8 +60,13 @@ class MCTSTree:
 
         self.next_serializer = NextSerializer()
 
-        self.simulate_time_ema = 0
-        self.simulate_decay_time = simulate_decay_time
+        self.counter = SimulationCounter(
+            counter_size,
+            leaf_num,
+            sample_increase_ratio,
+            sample_retry_times,
+            sample_upper_bound,
+        )
         self.stuck_path = None
 
         # HACK
@@ -160,7 +160,7 @@ class MCTSTree:
         tree_node = self.tree_root
         for next in path:
             tree_node = tree_node.get_child(
-                next.type, on_tree=True, include_simulate_failure=False
+                next.type, on_tree=True, filter_simulate_failure=False
             )
             if tree_node is None:
                 break
@@ -171,7 +171,7 @@ class MCTSTree:
             if next.key == 0:
                 break
             tree_node = tree_node.get_child(
-                next.key, on_tree=True, include_simulate_failure=False
+                next.key, on_tree=True, filter_simulate_failure=False
             )
             if tree_node is None:
                 break
@@ -339,33 +339,37 @@ class MCTSTree:
         leaf_expanded: TreeNode,
         max_final_iterations: int = None,
     ) -> Optional[Tuple[TreePath, TreeNode]]:
-        # assert not leaf_expanded.failed_recently
         if leaf_expanded.is_final():
             return [(tree_path, leaf_expanded) for _ in range(self.leaf_num)]
 
-        # leaf_expanded._node.expand(3)
-
-        if max_final_iterations is None:
-            a, b, c = self._max_final_iterations
-            offset = max(0, (self.simulate_time_ema - self.simulate_decay_time[0]))
-            a *= math.exp(-offset / self.simulate_decay_time[1])
-            left_depth = self._max_depth - len(tree_path) + 1
-            max_final_iterations = int(a * (b**left_depth) + c)
-
-        sample_times = self.leaf_num * max_final_iterations
-        assert sample_times > 0
-        logging.info(
-            f"Getting estimates for path({tree_path}) with {sample_times} samples ..."
-        )
         path, dangling_type = tree_path.to_path()
         final_nodes = []
+
+        # Used for counter update
+        record_success = []
+        record_total = []
+
         nodes_set = set()
-        for trial_attempt in range(self._sample_retry_times):
-            start = time.time()
+
+        if max_final_iterations is not None:
+            logging.info(
+                f"Using manually specified {max_final_iterations} to override counter based self adapted trials number guesses. "
+            )
+            trials_generator = [
+                max_final_iterations for _ in range(self._sample_retry_times)
+            ]
+        else:
+            trials_generator = self.counter.get_trials()
+
+        for trial_attempt, sample_times in enumerate(trials_generator):
+            assert sample_times > 0
             trials = self._sampler.random_final_nodes_with_prefix(
                 path, sample_times, type=dangling_type, steps=2
             )
-            self.simulate_time_ema += time.time() - start
+            logging.info(
+                f"Attempt {trial_attempt}: Getting estimates for path({tree_path}) with {sample_times} samples ..."
+            )
+            final_nodes_count = 0
             for trial in trials:
                 trial_node = trial.to_node()
                 if trial_node not in nodes_set and not (
@@ -374,19 +378,22 @@ class MCTSTree:
                 ):
                     nodes_set.add(trial_node)
                     final_nodes.append(trial)
+                    final_nodes_count += 1
+            record_success.append(final_nodes_count)
+            record_total.append(sample_times)
             if len(final_nodes) >= self.leaf_num:
                 break
         final_nodes = list(set([(est.path, est.to_node()) for est in final_nodes]))
         logging.info(
             f"Got {len(final_nodes)} final nodes ({sample_times} samples) for path({tree_path}) after {trial_attempt+1} attempts. "
         )
+        self.counter.list_update(record_success, record_total)
+        logging.info(f"Updating counter with {record_success} and {record_total}")
 
         if len(final_nodes) == 0 or leaf_expanded.is_dead_end():
             logging.info(f"Simulation from {tree_path} failed. ")
             leaf_expanded.set_simulate_fail()
             return None
-
-        self.simulate_time_ema /= 2
 
         if len(final_nodes) > self.leaf_num:
             final_nodes = random.choices(final_nodes, k=self.leaf_num)
@@ -425,7 +432,7 @@ class MCTSTree:
         self.update_nodes(receipt, reward)
 
         trial_node = self.visit(path_to_trial, on_tree=False)
-        assert trial_node and trial_node.is_final()
+        assert trial_node and trial_node.is_final(), f"{path_to_trial} {trial_node}"
         try:
             arcs = trial_node.to_node().get_composing_arcs()
         except:
@@ -509,7 +516,7 @@ class MCTSTree:
                     mid_child = src_node.get_child(
                         nxt.type,
                         auto_initialize=True,
-                        include_simulate_failure=False,
+                        filter_simulate_failure=False,
                     )
                     if mid_child is None:
                         continue
@@ -548,7 +555,7 @@ class MCTSTree:
                 attempt
             ), f"Failed to go from {self._path_store[lattice_start]} to {self._path_store[lattice_end]} with lattice_arcs={lattice_arcs}"
             logging.info(
-                f"Succeed from {lattice_start} to {lattice_end} through {lattice_arcs}"
+                f"Succeed from {lattice_start.get_possible_path()} to {lattice_end.get_possible_path()} through {lattice_arcs}"
             )
 
     def touch(self, node: Node, path: Path = None) -> TreeNode:

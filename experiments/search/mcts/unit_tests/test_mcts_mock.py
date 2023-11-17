@@ -1,11 +1,14 @@
 import json
-import os, sys, logging
+import os, sys
 
 from KAS import MockSampler
 from kas_cpp_bindings import Next
 
-if os.getcwd() not in sys.path:
-    sys.path.append(os.getcwd())
+sys.path.append(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir
+    )
+)
 from search.mcts.tree import MCTSTree
 from search.mcts.node import TreePath
 

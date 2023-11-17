@@ -4,9 +4,9 @@ from typing import List, Tuple
 
 class AverageMeter:
     def __init__(self, support_std=True) -> None:
-        self.sum: float = 0
+        self.sum: float = 0.0
         if support_std:
-            self.sumsq: float = 0
+            self.sumsq: float = 0.0
         self.N: int = 0
         self.support_std: bool = support_std
 

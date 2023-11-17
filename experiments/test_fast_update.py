@@ -6,8 +6,7 @@ import os, sys
 import logging
 import cProfile
 
-if os.getcwd() not in sys.path:
-    sys.path.append(os.getcwd())
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__))))
 from base import log, parser, models
 from search.mcts import MCTSAlgorithm
 from search.mcts.node import TreePath

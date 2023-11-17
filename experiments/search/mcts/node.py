@@ -361,7 +361,7 @@ class TreeNode:
                 if (
                     filter_simulate_failure
                     and child in self._tree._treenode_store
-                    and self._tree._treenode_store[child].failed_recently
+                    and self._tree._treenode_store[child]._simulate_fail
                 ):
                     continue
                 if filter_exhausted:
@@ -383,7 +383,7 @@ class TreeNode:
                     (
                         child.is_exhausted()
                         or (on_tree and not child._isin_tree)
-                        or (filter_simulate_failure and child.failed_recently)
+                        or (filter_simulate_failure and child._simulate_fail)
                     )
                     for child in self.children
                 )
@@ -392,7 +392,7 @@ class TreeNode:
                     (
                         child.is_dead_end()
                         or (on_tree and not child._isin_tree)
-                        or (filter_simulate_failure and child.failed_recently)
+                        or (filter_simulate_failure and child._simulate_fail)
                     )
                     for child in self.children
                 )
@@ -549,7 +549,7 @@ class TreeNode:
                     nxt,
                     auto_initialize=auto_initialize,
                     on_tree=on_tree,
-                    include_simulate_failure=filter_simulate_failure,
+                    filter_simulate_failure=filter_simulate_failure,
                 )
                 for nxt in nexts
             ]
@@ -579,7 +579,7 @@ class TreeNode:
         next: PseudoTreeNext,
         auto_initialize: bool = False,
         on_tree: bool = False,
-        include_simulate_failure: bool = True,
+        filter_simulate_failure: bool = True,
     ) -> Optional[Tuple["TreeNode", AverageMeter]]:
         """
         Get the child node of a node with a Next. When the node is dead, return None.
@@ -598,7 +598,7 @@ class TreeNode:
                 return None
             if child in self._tree._treenode_store and self._tree._treenode_store[
                 child
-            ].is_dead_end(include_simulate_failure=include_simulate_failure):
+            ].is_dead_end(filter_simulate_failure=filter_simulate_failure):
                 return None
             if child not in self._tree._treenode_store:
                 if auto_initialize:
@@ -620,7 +620,7 @@ class TreeNode:
                         child.state
                         if (not on_tree or child._isin_tree)
                         and not child.is_dead_end(
-                            include_simulate_failure=include_simulate_failure
+                            filter_simulate_failure=filter_simulate_failure
                         )
                         else None,
                     )
@@ -698,14 +698,14 @@ class TreeNode:
     def is_alive(self) -> None:
         return self._not_dead
 
-    def is_dead_end(self, include_simulate_failure=True) -> bool:
+    def is_dead_end(self, filter_simulate_failure=True) -> bool:
         """
         Check if a node is dead end (will recursively check all expanded children).
         Dependencies: is_final -> None
         """
         if self._is_dead:
             return True
-        if include_simulate_failure and self._simulate_fail:
+        if filter_simulate_failure and self._simulate_fail:
             return True
         if self.is_final():
             if self.filtered or self._node.is_dead_end():
@@ -792,18 +792,6 @@ class TreeNode:
         Dependencies: None
         """
         return self._node
-
-    # Temporally functions
-    @property
-    def failed_recently(self) -> bool:
-        return time() - self._simulate_attempt_time < self._tree._simulate_retry_period
-
-    def flush_failure_time(self) -> None:
-        self._simulate_attempt_time = time()
-        if self._failed_budget == 0:
-            logging.debug(f"{self} has failed for too many times! It is marked dead. ")
-            self.set_dead()
-        self._failed_budget = self._failed_budget - 1
 
     def __repr__(self) -> str:
         if self._is_mid:

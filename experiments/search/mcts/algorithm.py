@@ -12,16 +12,17 @@ from base.models import ManualImpl
 
 class MCTSAlgorithm:
     virtual_loss_constant = 0.3
-    leaf_parallelization_number = 3
+    leaf_parallelization_number = 1
     exploration_weight = 4 * math.sqrt(2)
     max_iterations = 3000
     max_final_iterations = (12, 1.5, 3000)
     b = 0.8
     c_l = 3.0
-    simulate_retry_period = 1e9
     sample_retry_times = 5
+    sample_increase_ratio = 1.5
+    sample_upper_bound = 30000
+    counter_size = 100
     rave_random_ratio = 0.3
-    simulate_decay_time = (60, 300)
     flush_virtual_loss_period = 3600  # Periodically reset virtual loss to 0 (a hack for virtual loss inconsistency) 0 means no flush
 
     # initial kernels, see base/models/manual_kernels.py for a complete list
@@ -37,10 +38,10 @@ class MCTSAlgorithm:
             self.exploration_weight,
             self.b,
             self.c_l,
-            max_final_iterations=self.max_final_iterations,
-            simulate_retry_period=self.simulate_retry_period,
             sample_retry_times=self.sample_retry_times,
-            simulate_decay_time=self.simulate_decay_time,
+            sample_increase_ratio=self.sample_increase_ratio,
+            sample_upper_bound=self.sample_upper_bound,
+            counter_size=self.counter_size,
             max_depth=args.kas_depth,
             rave_random_ratio=self.rave_random_ratio,
         )
