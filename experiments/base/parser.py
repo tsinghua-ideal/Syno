@@ -36,7 +36,7 @@ def arg_parse():
         default=False,
         action="store_true",
     )
-    parser.add_argument("--num-classes", type=int, default=10)
+    parser.add_argument("--num-classes", type=int, default=100)
     parser.add_argument(
         "--compile", action="store_true", default=False, help="Compile kernel"
     )
