@@ -4,6 +4,7 @@ import os
 import math
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 
 
 if __name__ == "__main__":
@@ -13,7 +14,9 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default="plot")
     parser.add_argument("--time", default=False, action="store_true")
     parser.add_argument("--min-acc", type=float, default=0.5)
-    parser.add_argument("--reference-hash", type=str, default=None)
+    parser.add_argument("--reference-acc", type=float, default=0.7883613782051282)
+    parser.add_argument("--reference-flops", type=int, default=1823572992)
+    parser.add_argument("--reference-params", type=int, default=11227812)
     args = parser.parse_args()
     assert args.dirs is not None
     for dir in args.dirs:
@@ -56,43 +59,51 @@ if __name__ == "__main__":
             kernels = list([(i, *kernels[i][1:]) for i in range(len(kernels))])
         all_kernels.append((dir, kernels))
 
-    fig_id = 0
+    print(
+        f"Collected {len([kernel for _, kernels in all_kernels for kernel in kernels if kernel[1] > args.min_acc])} kernels in total. "
+    )
 
     # Accuracy vs FLOPs/param distirbution
+
+    # FLOPs
+    plt.figure(figsize=(10, 6), dpi=300)
     for i, (name, kernels) in enumerate(all_kernels):
-        x, y, flops, params, hash_value = zip(
-            *filter(lambda x: x[1] > args.min_acc, kernels)
-        )
+        try:
+            x, y, flops, params, hash_value = zip(
+                *filter(lambda x: x[1] > args.min_acc, kernels)
+            )
+        except ValueError:
+            continue
 
         assert len(x) == len(y) == len(flops) == len(params) == len(hash_value)
-        if args.reference_hash is not None:
-            try:
-                ind = hash_value.index(args.reference_hash)
-            except ValueError as e:
-                print(f"{args.reference_hash} does not exists in {name}, {hash_value}")
-                exit(1)
 
-        # FLOPs
-        fig_id += 1
-        plt.figure(fig_id, figsize=(10, 6), dpi=300)
-        plt.scatter(flops, y, label=name, s=3)
-        if args.reference_hash is not None:
-            plt.scatter([flops[ind]], [y[ind]], s=5, c="r", marker="^")
-        plt.xlabel("FLOPs")
-        plt.ylabel("Accuracy")
-        plt.legend()
-        plt.savefig(f"{args.output}-acc-vs-flops-{i}.png")
+        plt.scatter(np.array(flops) / args.reference_flops, y, label=name, s=10)
+        plt.scatter([1.0], [args.reference_acc], s=50, c="r", marker="^")
+    plt.xlabel("FLOPs (ratio to baseline)")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    plt.savefig(f"{args.output}-acc-vs-flops.png")
 
-        # Params
-        fig_id += 1
-        plt.figure(fig_id, figsize=(10, 6), dpi=300)
-        plt.scatter(params, y, label=name, s=3)
-        if args.reference_hash is not None:
-            plt.scatter([params[ind]], [y[ind]], s=5, c="r", marker="^")
-        plt.xlabel("Params")
-        plt.ylabel("Accuracy")
-        plt.legend()
-        plt.savefig(f"{args.output}-acc-vs-params-{i}.png")
+    # Params
+    plt.figure(figsize=(10, 6), dpi=300)
+    for i, (name, kernels) in enumerate(all_kernels):
+        try:
+            x, y, flops, params, hash_value = zip(
+                *filter(lambda x: x[1] > args.min_acc, kernels)
+            )
+        except ValueError:
+            continue
+
+        assert len(x) == len(y) == len(flops) == len(params) == len(hash_value)
+
+        plt.scatter(np.array(params) / args.reference_params, y, label=name, s=10)
+        plt.scatter([1.0], [args.reference_acc], s=50, c="r", marker="^")
+    plt.xlabel("Params (ratio to baseline)")
+    plt.ylabel("Accuracy")
+    plt.legend()
+    plt.savefig(f"{args.output}-acc-vs-params.png")
+
+    fig_id = 0
 
     # Trend figure
     fig_id += 1
@@ -100,9 +111,7 @@ if __name__ == "__main__":
     markers = ["o", "v", "^", "<", ">", "s", "p", "*", "h", "H", "D", "d"]
     colors = ["b", "g", "r", "c", "m", "y", "k"]
     for name, kernels in all_kernels:
-        x, y, _, _, hash_value = zip(
-            *filter(lambda k: k[-1] != args.reference_hash, kernels)
-        )
+        x, y, _, _, hash_value = zip(*kernels)
         y_sum, y_avg = 0, []
         for i in range(len(y)):
             y_sum += y[i]
@@ -123,9 +132,7 @@ if __name__ == "__main__":
     fig_id += 1
     plt.figure(fig_id, figsize=(25, 6), dpi=300)
     for name, kernels in all_kernels:
-        x, y, _, _, hash_value = zip(
-            *filter(lambda k: k[-1] != args.reference_hash, kernels)
-        )
+        x, y, _, _, hash_value = zip(*kernels)
         y_max = []
         for i in range(len(y)):
             y_max.append(y[i] if i == 0 else max(y_max[-1], y[i]))
