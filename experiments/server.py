@@ -3,7 +3,7 @@ import logging
 import os
 import urllib.parse
 import sys
-from traceback import print_exc
+from traceback import format_exc
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from KAS import AbstractExplorer
@@ -52,6 +52,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(response).encode())
         except BrokenPipeError:
+            logging.debug(format_exc())
             logging.debug(
                 f"Encountered BrokenPipeError while processing {response['path']}"
             )
@@ -79,7 +80,7 @@ class Handler(BaseHTTPRequestHandler):
             file_directory = self.session.path_to_file(path)
         except Exception as e:
             logging.debug(f"Encountered {e}, fetching failed. ")
-            print_exc()
+            logging.debug(format_exc())
             self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
@@ -90,6 +91,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_file(file_directory)
         except BrokenPipeError:
             logging.debug(f"Encountered BrokenPipeError while processing {path}")
+            logging.debug(format_exc())
 
     def reward(self):
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
@@ -145,6 +147,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(response).encode())
         except BrokenPipeError:
             logging.debug(f"Encountered BrokenPipeError while processing {payload}")
+            logging.debug(format_exc())
 
     def explorer_files(self, file_name: str):
         """
@@ -180,12 +183,7 @@ def main():
     )
     server_address = (args.kas_server_addr, args.kas_server_port)
     server = HTTPServer(server_address, lambda *args: Handler(session, *args))
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        session.save()
-        session.print_stats()
-        logging.info("Shutting down server ...")
+    server.serve_forever()
 
 
 if __name__ == "__main__":
@@ -198,8 +196,4 @@ if __name__ == "__main__":
     # Set memory limit
     mem.memory_limit(args.server_mem_limit)
 
-    try:
-        main()
-    except MemoryError:
-        sys.stderr.write("\n\nERROR: Memory Exception\n")
-        sys.exit(1)
+    main()
