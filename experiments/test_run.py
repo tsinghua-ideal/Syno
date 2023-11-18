@@ -36,6 +36,7 @@ if __name__ == "__main__":
             model, sampler = models.get_model(args, return_sampler=True)
             node = sampler.visit(Path.deserialize(path))
             if node is None:
+                logging.error(f"{Path.deserialize(path)} is not in the search space. ")
                 exit(1)
             node = node.to_node()
             if path:

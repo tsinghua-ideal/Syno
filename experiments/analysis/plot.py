@@ -62,6 +62,9 @@ if __name__ == "__main__":
     print(
         f"Collected {len([kernel for _, kernels in all_kernels for kernel in kernels if kernel[1] > args.min_acc])} kernels in total. "
     )
+    print(
+        f"The kernel with smallest FLOPs is {min([kernel for _, kernels in all_kernels for kernel in kernels if kernel[1] > args.min_acc], key=lambda x:x[2])}"
+    )
 
     # Accuracy vs FLOPs/param distirbution
 
