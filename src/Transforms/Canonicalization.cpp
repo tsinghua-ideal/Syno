@@ -21,6 +21,11 @@ auto UnorderednessCanonicalizer::transformExpand(const Dimension& dim) -> Unorde
 }
 auto UnorderednessCanonicalizer::transform(const RepeatLikeOp& op) -> Unorderedness {
     auto result = at(op.getInput());
+    if (result.isUnordered) {
+        if (auto shift = dynamic_cast<const ShiftOp *>(&op); shift) {
+            uncanonical = true;
+        }
+    }
     result.sourceSplitOp = nullptr;
     return result;
 }
