@@ -26,7 +26,7 @@ protected:
     Size sizeH = ctx.getSize("H");
     Size sizeW = ctx.getSize("W");
     Size sizeC = ctx.getSize("c");
-    Iterator itH { 0, sizeH }, itW { 1, sizeW }, itCH { 2, sizeC * sizeH };
+    Iterator itH { 0, sizeH }, itW { 1, sizeW }, itCH { 2, sizeC * sizeH }, itC { 3, sizeC };
     ReduceOp reduceH { sizeH, Reduce::ReduceType::Sum }, reduceC = ReduceOp { sizeC, Reduce::ReduceType::Sum };
     Dimension dimH { &itH }, dimW { &itW }, dimCH { &itCH };
     transforms_tests() {

@@ -3,6 +3,15 @@
 
 namespace kas {
 
+TEST_F(transforms_tests, unorderedness_shift) {
+    auto shiftC = ShiftOp(&itC, 1);
+    Graph::DimensionMap<std::size_t> unordered {{shiftC.getInput(), 0}};
+    auto canonicalizer = UnorderednessCanonicalizer(unordered);
+    const Graph graph = GraphHandle({shiftC.getInput()}, {}).buildGraph();
+    graph.accept(canonicalizer);
+    ASSERT_TRUE(canonicalizer.uncanonical);
+}
+
 TEST_F(transforms_tests, unorderedness_iterator) {
     auto mergeH = MergeOp(&itH, sizeC);
     auto splitH = SplitOp(mergeH.getInputL(), mergeH.getInputR());
