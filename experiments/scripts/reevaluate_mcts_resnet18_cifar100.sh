@@ -1,4 +1,4 @@
-bash ./run_server.sh 8 torch KAS \
+bash ./run_server.sh 8 torch KASreeval \
 --kas-server-addr 0.0.0.0 --kas-server-port 6070 --kas-server-save-dir results/cifar100-session-v20231119 --kas-server-save-interval 3600\
  --kas-search-algo MCTS \
  --model torchvision/resnet18 \
