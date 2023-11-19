@@ -175,8 +175,8 @@ class ReevaluateHandler(BaseHTTPRequestHandler):
 
         if os.path.exists(meta_path):
             logging.warning(f"overwriting {meta_path}")
-        # with open(meta_path, "w") as f:
-        #     json.dump(meta, f, indent=4)
+        with open(meta_path, "w") as f:
+            json.dump(meta, f, indent=4)
 
         # Send response
         self.send_response(200)

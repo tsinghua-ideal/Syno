@@ -82,6 +82,13 @@ if __name__ == "__main__":
 
         plt.scatter(np.array(flops) / args.reference_flops, y, label=name, s=10)
         plt.scatter([1.0], [args.reference_acc], s=50, c="r", marker="^")
+    plt.axhline(y=args.reference_acc, color="r", linestyle="dashed", label="acc-0")
+    plt.axhline(
+        y=args.reference_acc - 0.01, color="r", linestyle="dashed", label="acc-0.01"
+    )
+    plt.axhline(
+        y=args.reference_acc - 0.02, color="r", linestyle="dashed", label="acc-0.02"
+    )
     plt.xlabel("FLOPs (ratio to baseline)")
     plt.ylabel("Accuracy")
     plt.legend()
@@ -101,29 +108,32 @@ if __name__ == "__main__":
 
         plt.scatter(np.array(params) / args.reference_params, y, label=name, s=10)
         plt.scatter([1.0], [args.reference_acc], s=50, c="r", marker="^")
+    plt.axhline(y=args.reference_acc, color="r", linestyle="dashed", label="acc-0")
+    plt.axhline(
+        y=args.reference_acc - 0.01, color="r", linestyle="dashed", label="acc-0.01"
+    )
+    plt.axhline(
+        y=args.reference_acc - 0.02, color="r", linestyle="dashed", label="acc-0.02"
+    )
     plt.xlabel("Params (ratio to baseline)")
     plt.ylabel("Accuracy")
     plt.legend()
     plt.savefig(f"{args.output}-acc-vs-params.png")
 
-    fig_id = 0
-
     # Trend figure
-    fig_id += 1
-    plt.figure(fig_id, figsize=(25, 6), dpi=300)
-    markers = ["o", "v", "^", "<", ">", "s", "p", "*", "h", "H", "D", "d"]
-    colors = ["b", "g", "r", "c", "m", "y", "k"]
+    ys = []
     for name, kernels in all_kernels:
         x, y, _, _, hash_value = zip(*kernels)
-        y_sum, y_avg = 0, []
-        for i in range(len(y)):
-            y_sum += y[i]
-            y_avg.append(y_sum / (i + 1))
-        m, c = markers.pop(0), colors.pop(0)
-        markers.append(m)
-        colors.append(c)
-        plt.scatter(x, y, marker=m, color=c, label=name + "_scatter", s=2)
-        plt.plot(x, y_avg, marker=m, color=c, label=name, markersize=1)
+        ys.extend(y)
+    ys = np.array(ys)
+    xs = np.arange(ys.shape[0]) + 1
+    y_avg = np.cumsum(ys) / xs
+    y_max = np.maximum.accumulate(ys)
+    y_max_log = -np.log2(0.8 - y_max)
+
+    plt.figure(figsize=(25, 6), dpi=300)
+    plt.scatter(xs, ys, label="scatter", s=2)
+    plt.plot(xs, y_avg, label="avg_curve", markersize=1)
 
     # Plot and save into file
     plt.xlabel("Time" if args.time else "Samples")
@@ -132,26 +142,14 @@ if __name__ == "__main__":
     plt.savefig(f"{args.output}-avg-acc-vs-sample.png")
 
     # Max figure
-    fig_id += 1
-    plt.figure(fig_id, figsize=(25, 6), dpi=300)
-    for name, kernels in all_kernels:
-        x, y, _, _, hash_value = zip(*kernels)
-        y_max = []
-        for i in range(len(y)):
-            y_max.append(y[i] if i == 0 else max(y_max[-1], y[i]))
-        y_max_log = [-math.log2(1 - y) for y in y_max]
-        m, c = markers.pop(0), colors.pop(0)
-        markers.append(m)
-        colors.append(c)
-        plt.scatter(
-            x,
-            [-math.log2(1 - yi) for yi in y],
-            marker=m,
-            color=c,
-            label=name + "_scatter",
-            s=2,
-        )
-        plt.plot(x, y_max_log, marker=m, color=c, label=name, markersize=1)
+    plt.figure(figsize=(25, 6), dpi=300)
+    plt.scatter(
+        xs,
+        y_max_log,
+        label="scatter",
+        s=2,
+    )
+    plt.plot(xs, y_max_log, label="max_curve", markersize=1)
 
     # Plot and save into file
     plt.xlabel("Time" if args.time else "Samples")
@@ -160,8 +158,9 @@ if __name__ == "__main__":
     plt.savefig(f"{args.output}-max-acc-vs-sample.png")
 
     # Histogram figure
-    fig_id += 1
-    plt.figure(fig_id, figsize=(10, 6), dpi=300)
+    plt.figure(figsize=(10, 6), dpi=300)
+    markers = ["o", "v", "^", "<", ">", "s", "p", "*", "h", "H", "D", "d"]
+    colors = ["b", "g", "r", "c", "m", "y", "k"]
     for name, kernels in all_kernels:
         x, y, _, _, _ = zip(*kernels)
         m, c = markers.pop(0), colors.pop(0)
