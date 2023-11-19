@@ -7,6 +7,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import List, Tuple
 
 from base import log, parser, models, mem, dataset
+from base.models.model import KASModel
 
 from KAS import Path, Sampler
 
@@ -37,10 +38,26 @@ def collected_kernels(args) -> List[Tuple[os.PathLike, str]]:
     return all_kernels
 
 
+class index_generator:
+    def __init__(self) -> None:
+        self.index = 0
+
+
 class ReevaluateHandler(BaseHTTPRequestHandler):
-    def __init__(self, sampler: Sampler, kernels: List[Tuple[os.PathLike, str]], *args):
+    def __init__(
+        self,
+        model: KASModel,
+        sampler: Sampler,
+        kernels: List[Tuple[os.PathLike, str]],
+        cache_dir: str,
+        id: index_generator,
+        *args,
+    ):
         self.sampler = sampler
+        self.model = model
         self.kernels = kernels
+        self.cache_dir = cache_dir
+        self.idgen = id
         self.path_to_evaluate = [path for _, path in kernels]
         self.path2dir = {path: kernel_dir for kernel_dir, path in kernels}
         super().__init__(*args)
@@ -68,11 +85,16 @@ class ReevaluateHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def sample(self):
-        path = self.path_to_evaluate.pop() if len(self.path_to_evaluate) > 0 else "end"
+        if self.idgen.index < len(self.path_to_evaluate):
+            path = self.path_to_evaluate[self.idgen.index]
+            self.idgen.index += 1
+            logging.info(f"Sampled kernel {self.idgen.index}. ")
+        else:
+            path = "end"
         if path != "end" and self.sampler.visit(Path.deserialize(path)) is None:
             logging.warning(f"{path} does not exist! ")
             path = "retry"
-        response = path
+        response = {"path": path}
         logging.info(f'Path sampled: {response["path"]}')
 
         # Send response
@@ -142,18 +164,19 @@ class ReevaluateHandler(BaseHTTPRequestHandler):
 
         kernel_dir = self.path2dir[path]
         meta_path = os.path.join(kernel_dir, "meta_new.json")
-        if os.path.exists(meta_path):
-            logging.warning(f"overwriting {meta_path}")
-        with open(meta_path, "r") as f:
-            meta = json.load(f)
 
+        meta = {}
         meta["path"] = path
         meta["accuracy"] = accuracy
         meta["flops"] = flops
         meta["params"] = nparams
 
-        with open(meta_path, "w") as f:
-            json.dump(meta, f, indent=4)
+        logging.info(f"meta={meta}")
+
+        if os.path.exists(meta_path):
+            logging.warning(f"overwriting {meta_path}")
+        # with open(meta_path, "w") as f:
+        #     json.dump(meta, f, indent=4)
 
         # Send response
         self.send_response(200)
@@ -173,7 +196,19 @@ def main(args):
 
     # Sampler
     logging.info("Preparing sampler ...")
-    _, sampler = models.get_model(args, return_sampler=True, sample_input=sample_input)
+    model, sampler = models.get_model(
+        args, return_sampler=True, sample_input=sample_input
+    )
+
+    cache_dir = args.kas_send_cache_dir
+    id = index_generator()
+
+    count = 0
+    for _, path in kernels:
+        if sampler.visit(Path.deserialize(path)) is None:
+            logging.info(f"{path} not in space. ")
+            count += 1
+    logging.info(f"{count} kernels not in space. ")
 
     # Start server
     logging.info(
@@ -181,7 +216,8 @@ def main(args):
     )
     server_address = (args.kas_server_addr, args.kas_server_port)
     server = HTTPServer(
-        server_address, lambda *args: ReevaluateHandler(sampler, kernels, *args)
+        server_address,
+        lambda *args: ReevaluateHandler(model, sampler, kernels, cache_dir, id, *args),
     )
     server.serve_forever()
 

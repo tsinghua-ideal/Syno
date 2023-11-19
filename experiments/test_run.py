@@ -37,6 +37,20 @@ if __name__ == "__main__":
             node = sampler.visit(Path.deserialize(path))
             if node is None:
                 logging.error(f"{Path.deserialize(path)} is not in the search space. ")
+                for subpath in Path.deserialize(path).hierarchy:
+                    if sampler.visit(subpath) is None:
+                        logging.warning(f"Subpath {subpath} is not valid")
+                        logging.info(f"Available Children of {node._node}:")
+                        for child in node.get_children_handles():
+                            child_node = node.get_child(child)
+                            if child_node is None:
+                                continue
+                            logging.info(
+                                f"\t{child}:\t{node.get_child_description(child)}"
+                            )
+                        break
+                    else:
+                        node = sampler.visit(subpath)
                 exit(1)
             node = node.to_node()
             if path:
