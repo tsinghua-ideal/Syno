@@ -14,7 +14,7 @@ def replace_conv2d_filter(conv: nn.Conv2d) -> Optional[nn.Module]:
     def same_padding(k, p):
         return k[0] == 2 * p[0] + 1 and k[1] == 2 * p[1] + 1
 
-    if conv.kernel_size not in [(3, 3)] or conv.stride not in [
+    if conv.kernel_size not in [(1, 1), (3, 3)] or conv.stride not in [
         (1, 1),
         (2, 2),
     ]:
