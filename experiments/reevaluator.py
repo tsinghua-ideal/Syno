@@ -141,20 +141,16 @@ class ReevaluateHandler(BaseHTTPRequestHandler):
         )
 
         kernel_dir = self.path2dir[path]
-        meta_path = os.path.join(kernel_dir, "meta.json")
+        meta_path = os.path.join(kernel_dir, "meta_new.json")
+        if os.path.exists(meta_path):
+            logging.warning(f"overwriting {meta_path}")
         with open(meta_path, "r") as f:
             meta = json.load(f)
-        assert meta["path"] == path, f"{path} is not in meta of {kernel_dir}"
-        if "new_flops" in meta:
-            logging.warning(f"overwriting field new_flops in {meta_path}")
-        if "new_params" in meta:
-            logging.warning(f"overwriting field new_params in {meta_path}")
-        if "new_accuracy" in meta:
-            logging.warning(f"overwriting field new_accuracy in {meta_path}")
 
-        meta["new_accuracy"] = accuracy
-        meta["new_flops"] = flops
-        meta["new_params"] = nparams
+        meta["path"] = path
+        meta["accuracy"] = accuracy
+        meta["flops"] = flops
+        meta["params"] = nparams
 
         with open(meta_path, "w") as f:
             json.dump(meta, f, indent=4)
