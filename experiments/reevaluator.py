@@ -169,23 +169,16 @@ class ReevaluateHandler(BaseHTTPRequestHandler):
             f"Path received to /reward request: {path}, accuracy: {accuracy}, flops: {flops}, params: {nparams}, kernel_flag: {kernel_flag}, loss: {loss}"
         )
 
-        node = self.sampler.visit(path).to_node()
+        node = self.sampler.visit(Path.deserialize(path)).to_node()
 
         os.makedirs(self.save_dir, exist_ok=True)
 
-        if self.target == "loss":
-            acc_str = (
-                ("0" * max(0, 5 - len(f"{int(loss * 1000)}"))) + f"{int(loss * 1000)}"
-                if loss > 0
-                else "ERROR"
-            )
-        else:
-            acc_str = (
-                ("0" * max(0, 5 - len(f"{int(accuracy * 10000)}")))
-                + f"{int(accuracy * 10000)}"
-                if accuracy >= 0
-                else "ERROR"
-            )
+        acc_str = (
+            ("0" * max(0, 5 - len(f"{int(accuracy * 10000)}")))
+            + f"{int(accuracy * 10000)}"
+            if accuracy >= 0
+            else "ERROR"
+        )
         hash_str = f"{ctypes.c_size_t(hash(path)).value}"
         kernel_save_dir = os.path.join(self.save_dir, "_".join([acc_str, hash_str]))
         if not (os.path.exists(kernel_save_dir) and acc_str == "ERROR"):
@@ -204,14 +197,13 @@ class ReevaluateHandler(BaseHTTPRequestHandler):
             with open(os.path.join(kernel_save_dir, "meta.json"), "w") as f:
                 json.dump(
                     {
-                        "path": path.serialize(),
+                        "path": path,
                         "accuracy": accuracy,
                         "flops": flops,
                         "params": params,
                         "kernel_flag": kernel_flag,
-                        "time": time.time() - self.start_time,
-                        "loss": loss,
-                        "original_dir": self.path2dir[path]
+                        "loss": 0,
+                        "original_dir": self.path2dir[path],
                     },
                     f,
                     indent=2,
@@ -247,6 +239,7 @@ def main(args):
     )
 
     cache_dir = args.kas_send_cache_dir
+    server_save_dir = args.kas_server_save_dir
     id = index_generator()
 
     count = 0
@@ -263,7 +256,9 @@ def main(args):
     server_address = (args.kas_server_addr, args.kas_server_port)
     server = HTTPServer(
         server_address,
-        lambda *args: ReevaluateHandler(model, sampler, kernels, cache_dir, args.kas_server_save_dir, id, *args),
+        lambda *args: ReevaluateHandler(
+            model, sampler, kernels, cache_dir, server_save_dir, id, *args
+        ),
     )
     server.serve_forever()
 

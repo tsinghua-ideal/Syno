@@ -137,7 +137,7 @@ def main():
         # Mock evaluate
         if args.kas_mock_evaluate:
             logging.info("Mock evaluating ...")
-            time.sleep(10)
+            time.sleep(1)
             client.reward(
                 path,
                 -1 if random.random() < 0.5 else random.random(),
