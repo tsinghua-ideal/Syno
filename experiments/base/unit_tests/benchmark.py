@@ -34,8 +34,12 @@ def train(
         if args.model.startswith("torchvision/"):
             model = models.common.get_vanilla_common_model(args).cuda()
             flops, params = thop.profile(
-                model, (torch.ones((1, *args.input_size)))
+                model, (torch.ones((args.batch_size, *args.input_size), device="cuda"),)
             )
+            flops /= args.batch_size
+            if args.compile:
+                torch._dynamo.reset()
+                model = torch.compile(model)
         else:
             assert hasattr(
                 sys.modules[__name__], args.model

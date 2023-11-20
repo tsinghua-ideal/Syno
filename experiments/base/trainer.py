@@ -34,12 +34,12 @@ def train(
     if "gcn" in args.model:
         return train_gnn(model, train_dataloader, val_dataloader, args)
 
-    assert isinstance(model, KASModel)
+    assert isinstance(model, nn.Module)
 
     torch_opt_on()
     assert torch.cuda.is_available(), "CUDA is not supported."
     model.cuda()
-    if init_weight:
+    if isinstance(model, KASModel) and init_weight:
         model.initialize_weights()
 
     # Loss, optimizer and scheduler
@@ -225,15 +225,17 @@ def train_gnn(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
 
         # Backward
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(parameters=model.parameters(), max_norm=args.grad_norm_clip, norm_type=2)
+        torch.nn.utils.clip_grad_norm_(
+            parameters=model.parameters(), max_norm=args.grad_norm_clip, norm_type=2
+        )
         optimizer.step()
         optimizer.zero_grad()
-        
+
         # Validation
         model.eval()
         pred = model(data).argmax(dim=1)
         correct = (pred[data.test_mask] == data.y[data.test_mask]).sum()
         accuracy.append(int(correct) / int(data.test_mask.sum()))
-    
+
     logging.info(f"Training completed, accuracy: {max(accuracy)}")
     return accuracy

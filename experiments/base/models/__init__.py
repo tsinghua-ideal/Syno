@@ -27,9 +27,8 @@ def get_sampler(args, model) -> Sampler:
     assert (
         max_flops > raw_flops
     ), f"Maximum FLOPs {max_flops} is smaller than raw FLOPs {raw_flops}"
-    assert (
-        min_flops >= raw_flops
-    ), f"Minimum FLOPs {min_flops} is smaller than raw FLOPs {raw_flops}"
+    if min_flops < raw_flops:
+        min_flops = raw_flops
     max_placeholder_flops = max_flops - raw_flops
     min_placeholder_flops = min_flops - raw_flops
     logging.info(f"Raw FLOPs per batch: {raw_flops / 1e9:.5f}G")
