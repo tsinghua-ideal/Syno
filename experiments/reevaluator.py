@@ -1,6 +1,9 @@
 import json
 import logging
 import os
+import ctypes
+import time
+import shutil
 import urllib.parse
 from traceback import format_exc
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -12,7 +15,7 @@ from base.models.model import KASModel
 from KAS import Path, Sampler
 
 
-def collected_kernels(args) -> List[Tuple[os.PathLike, str]]:
+def collect_kernels(args) -> List[Tuple[os.PathLike, str]]:
     all_kernels = []
     for dir in args.dirs:
         kernels = []
@@ -23,6 +26,8 @@ def collected_kernels(args) -> List[Tuple[os.PathLike, str]]:
             if "ERROR" in kernel_dir:
                 continue
             if "cache" in kernel_dir:
+                continue
+            if "rej" in kernel_dir:
                 continue
             files = list(os.listdir(kernel_dir))
             assert "graph.dot" in files and "loop.txt" in files and "meta.json" in files
@@ -49,7 +54,8 @@ class ReevaluateHandler(BaseHTTPRequestHandler):
         model: KASModel,
         sampler: Sampler,
         kernels: List[Tuple[os.PathLike, str]],
-        cache_dir: str,
+        cache_dir: os.PathLike,
+        save_dir: os.PathLike,
         id: index_generator,
         *args,
     ):
@@ -58,6 +64,7 @@ class ReevaluateHandler(BaseHTTPRequestHandler):
         self.kernels = kernels
         self.cache_dir = cache_dir
         self.idgen = id
+        self.save_dir = save_dir
         self.path_to_evaluate = [path for _, path in kernels]
         self.path2dir = {path: kernel_dir for kernel_dir, path in kernels}
         super().__init__(*args)
@@ -162,21 +169,60 @@ class ReevaluateHandler(BaseHTTPRequestHandler):
             f"Path received to /reward request: {path}, accuracy: {accuracy}, flops: {flops}, params: {nparams}, kernel_flag: {kernel_flag}, loss: {loss}"
         )
 
-        kernel_dir = self.path2dir[path]
-        meta_path = os.path.join(kernel_dir, "meta_new.json")
+        node = self.sampler.visit(path).to_node()
 
-        meta = {}
-        meta["path"] = path
-        meta["accuracy"] = accuracy
-        meta["flops"] = flops
-        meta["params"] = nparams
+        os.makedirs(self.save_dir, exist_ok=True)
 
-        logging.info(f"meta={meta}")
+        if self.target == "loss":
+            acc_str = (
+                ("0" * max(0, 5 - len(f"{int(loss * 1000)}"))) + f"{int(loss * 1000)}"
+                if loss > 0
+                else "ERROR"
+            )
+        else:
+            acc_str = (
+                ("0" * max(0, 5 - len(f"{int(accuracy * 10000)}")))
+                + f"{int(accuracy * 10000)}"
+                if accuracy >= 0
+                else "ERROR"
+            )
+        hash_str = f"{ctypes.c_size_t(hash(path)).value}"
+        kernel_save_dir = os.path.join(self.save_dir, "_".join([acc_str, hash_str]))
+        if not (os.path.exists(kernel_save_dir) and acc_str == "ERROR"):
+            os.makedirs(kernel_save_dir, exist_ok=True)
 
-        if os.path.exists(meta_path):
-            logging.warning(f"overwriting {meta_path}")
-        with open(meta_path, "w") as f:
-            json.dump(meta, f, indent=4)
+            # GraphViz
+            node.generate_graphviz_as_final(
+                os.path.join(kernel_save_dir, "graph.dot"), "kernel"
+            )
+
+            # Loop
+            with open(os.path.join(kernel_save_dir, "loop.txt"), "w") as f:
+                f.write(str(node.get_nested_loops_as_final()))
+
+            # Meta information
+            with open(os.path.join(kernel_save_dir, "meta.json"), "w") as f:
+                json.dump(
+                    {
+                        "path": path.serialize(),
+                        "accuracy": accuracy,
+                        "flops": flops,
+                        "params": params,
+                        "kernel_flag": kernel_flag,
+                        "time": time.time() - self.start_time,
+                        "loss": loss,
+                        "original_dir": self.path2dir[path]
+                    },
+                    f,
+                    indent=2,
+                )
+
+            # copying kernel dir
+            if kernel_flag != "MOCKPATH":
+                shutil.copytree(
+                    self.sampler.realize(self.model, node).get_directory(),
+                    os.path.join(kernel_save_dir, "kernel_scheduler_dir"),
+                )
 
         # Send response
         self.send_response(200)
@@ -191,7 +237,7 @@ def main(args):
         sample_input = train_dataloader
 
     # Fetching kernels
-    kernels = collected_kernels(args)
+    kernels = collect_kernels(args)
     logging.info(f"collected {len(kernels)} kernels. ")
 
     # Sampler
@@ -217,7 +263,7 @@ def main(args):
     server_address = (args.kas_server_addr, args.kas_server_port)
     server = HTTPServer(
         server_address,
-        lambda *args: ReevaluateHandler(model, sampler, kernels, cache_dir, id, *args),
+        lambda *args: ReevaluateHandler(model, sampler, kernels, cache_dir, args.kas_server_save_dir, id, *args),
     )
     server.serve_forever()
 
