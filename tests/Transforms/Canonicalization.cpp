@@ -34,4 +34,24 @@ TEST_F(transforms_tests, unorderedness_reduce) {
     ASSERT_EQ(canonicalizer.at(rH).sourceSplitOp, canonicalizer.at(rC).sourceSplitOp);
 }
 
+TEST_F(transforms_tests, unordered_split) {
+    auto test = [&](const SplitOp& split) {
+        Graph::DimensionMap<std::size_t> unordered {{split.getInput(), 0}};
+        auto canonicalizer = UnorderednessCanonicalizer(unordered);
+        const Graph graph = GraphHandle({split.getInput()}, {}).buildGraph();
+        graph.accept(canonicalizer);
+        return canonicalizer.uncanonical;
+    };
+    bool uncanonicalHW = false, uncanonicalWH = false;
+    {
+        auto split = SplitOp(&itH, &itW);
+        uncanonicalHW = test(split);
+    }
+    {
+        auto split = SplitOp(&itW, &itH);
+        uncanonicalWH = test(split);
+    }
+    ASSERT_EQ(uncanonicalHW + uncanonicalWH, 1);
+}
+
 } // namespace kas
