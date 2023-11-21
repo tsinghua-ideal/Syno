@@ -45,6 +45,35 @@ class ManualImpl:
             [w_out_C, w_in_C, w_k_1, w_k_2],
         )
 
+    def Conv1x1_simple(self) -> Assembled:
+        N, H, C_in, C_out = self.assembler.get_sizes("N", "H", "C_in", "C_out")
+        (
+            in_N,
+            in_H,
+            in_W,
+            in_C,
+            w_out_C,
+            w_in_C,
+        ) = self.assembler.make_dims_of_sizes(N, H, H, C_in, C_out, C_in)
+
+        shared_C_in = self.assembler.create_share(in_C, w_in_C)
+
+        tmp_dim = self.assembler.create_expand(C_out)
+        out_C = self.assembler.create_share(tmp_dim, w_out_C)
+
+        in_N.output(0)
+        out_C.output(1)
+        in_H.output(2)
+        in_W.output(3)
+        shared_C_in.sum()
+
+        return self.assembler.assemble(
+            "conv",
+            "in_0 * in_1",
+            [in_N, in_C, in_H, in_W, tmp_dim],
+            [w_out_C, w_in_C],
+        )
+
     def Conv2d_dilation(self) -> Assembled:
         N, H, k_1, s, C_in, C_out = self.assembler.get_sizes(
             "N", "H", "k_1", "s", "C_in", "C_out"

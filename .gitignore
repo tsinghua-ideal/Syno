@@ -249,7 +249,7 @@ commands.md
 
 # Results
 experiments/*results
-experiments/analysis/results
+experiments/analysis/results*
 **.ksh
 logs/
 results*.json

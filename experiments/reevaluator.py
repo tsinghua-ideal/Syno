@@ -200,7 +200,7 @@ class ReevaluateHandler(BaseHTTPRequestHandler):
                         "path": path,
                         "accuracy": accuracy,
                         "flops": flops,
-                        "params": params,
+                        "params": nparams,
                         "kernel_flag": kernel_flag,
                         "loss": 0,
                         "original_dir": self.path2dir[path],

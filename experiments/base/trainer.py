@@ -39,8 +39,10 @@ def train(
     torch_opt_on()
     assert torch.cuda.is_available(), "CUDA is not supported."
     model.cuda()
-    if isinstance(model, KASModel) and init_weight:
-        model.initialize_weights()
+    if isinstance(model, KASModel):
+        model.remove_thop_hooks()
+        if init_weight:
+            model.initialize_weights()
 
     # Loss, optimizer and scheduler
     loss_func = get_loss_func(args)

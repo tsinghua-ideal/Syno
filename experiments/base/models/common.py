@@ -8,25 +8,42 @@ from .model import KASModel
 from .placeholder import ConvPlaceholder
 
 
-def replace_conv2d_filter(conv: nn.Conv2d) -> Optional[nn.Module]:
+def replace_conv2d_filter(conv: nn.Conv2d, name: str) -> Optional[nn.Module]:
     # TODO: maybe relax the requirements
 
     def same_padding(k, p):
         return k[0] == 2 * p[0] + 1 and k[1] == 2 * p[1] + 1
 
-    if conv.kernel_size not in [(1, 1), (3, 3)] or conv.stride not in [
-        (1, 1),
-        (2, 2),
-    ]:
-        return None
     if not same_padding(conv.kernel_size, conv.padding):
         return None
 
-    # width = math.gcd(conv.in_channels, conv.out_channels)
-    # if width != min(conv.in_channels, conv.out_channels):
-    #     return None
-    if conv.groups > 1:
-        return None
+    if "resnet" in name:
+        if conv.kernel_size not in [(1, 1), (3, 3)] or conv.stride not in [
+            (1, 1),
+            (2, 2),
+        ]:
+            return None
+
+        # width = math.gcd(conv.in_channels, conv.out_channels)
+        # if width != min(conv.in_channels, conv.out_channels):
+        #     return None
+        if conv.groups > 1:
+            return None
+
+    elif "mobilenet_v2" in name:
+        if conv.kernel_size not in [(3, 3)] or conv.stride not in [
+            (1, 1),
+            (2, 2),
+        ]:
+            return None
+
+        # width = math.gcd(conv.in_channels, conv.out_channels)
+        # if width != min(conv.in_channels, conv.out_channels):
+        #     return None
+        # if conv.groups > 1:
+        #     return None
+    else:
+        raise NotImplementedError(f"{name} is not a valid model!")
 
     if conv.stride == (1, 1):
         return ConvPlaceholder(conv.in_channels, conv.out_channels, conv.kernel_size)
@@ -37,16 +54,16 @@ def replace_conv2d_filter(conv: nn.Conv2d) -> Optional[nn.Module]:
         )
 
 
-def replace_conv2d_to_placeholder(module: nn.Module):
+def replace_conv2d_to_placeholder(module: nn.Module, model_name: str):
     count = 0
     for name, child in module.named_children():
         if isinstance(child, nn.Conv2d):
-            replaced_kernel = replace_conv2d_filter(child)
+            replaced_kernel = replace_conv2d_filter(child, model_name)
             if replaced_kernel is not None:
                 count += 1
                 setattr(module, name, replaced_kernel)
         elif len(list(child.named_children())) > 0:
-            count += replace_conv2d_to_placeholder(child)
+            count += replace_conv2d_to_placeholder(child, model_name)
     return count
 
 
@@ -70,7 +87,7 @@ class CommonModel(KASModel):
 
         # Replace conv2d
         self.model = _get_vanilla_common_model(name, num_classes, input_size)
-        count = replace_conv2d_to_placeholder(self.model)
+        count = replace_conv2d_to_placeholder(self.model, name)
         self.input_size = input_size
         logging.info(f"Replaced {count} Conv2D layers to Placeholder")
 
