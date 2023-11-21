@@ -52,6 +52,33 @@ SplitOp::Values SplitOp::value(const Values &known) const {
     KAS_CRITICAL("Conflicting values for SplitOp: input = {}, outputLhs = {}, outputRhs = {}", input, outputLhs, outputRhs);
 }
 
+namespace {
+
+struct SharedSplitBranches: public DimVisitor {
+    std::set<int> weightIds;
+    bool uncanonical = false;
+    void visit(const Iterator& dim) {}
+    void visit(const Reduce& dim) {}
+    void visit(const RepeatLikeOp::Input& dim) {}
+    void visit(const SplitLikeOp::Input& dim) {
+        if (auto split = dynamic_cast<const SplitOp *>(dim.getOp()); split) {
+            split->outputLhs.accept(*this);
+            split->outputRhs.accept(*this);
+        }
+    }
+    void visit(const MergeLikeOp::Input& dim) {
+        if (auto share = dynamic_cast<const ShareOp *>(dim.getOp()); share) {
+            auto [_, newWeight] = weightIds.emplace(share->getRhsOrigin());
+            if (!newWeight) {
+                // The weight can be reshaped.
+                uncanonical = true;
+            }
+        }
+    }
+};
+
+} // namespace
+
 std::vector<const SplitOp *> SplitOp::Generate(OperationStore& store, const Topmost& interface, const GenerateOptions& options) {
     ++CountGenerateInvocations;
 
@@ -84,10 +111,10 @@ std::vector<const SplitOp *> SplitOp::Generate(OperationStore& store, const Topm
             return;
         }
         // Check if we can move this Split down the Share.
-        if (
-            auto lShare = dimL.tryAs<ShareOp::Input>(), rShare = dimR.tryAs<ShareOp::Input>();
-            lShare && rShare && lShare->getDerivedOp<ShareOp>()->getRhsOrigin() == rShare->getDerivedOp<ShareOp>()->getRhsOrigin()
-        ) {
+        auto sharedSplitBranches = SharedSplitBranches();
+        dimL.accept(sharedSplitBranches);
+        dimR.accept(sharedSplitBranches);
+        if (sharedSplitBranches.uncanonical) {
             ++CountCanBeDeferredAfterContraction;
             return;
         }

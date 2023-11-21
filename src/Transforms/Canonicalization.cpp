@@ -34,6 +34,17 @@ auto UnorderednessCanonicalizer::transform(const SplitLikeOp& op) -> std::pair<U
     if (result.isUnordered) {
         if (auto split = dynamic_cast<const SplitOp *>(&op); split) {
             if (!result.sourceSplitOp) result.sourceSplitOp = split; // Retain the topmost Split.
+            const Size& lhs = split->getGroups();
+            const Size *rhs = &split->getBlock();
+            KAS_ASSERT(!split->outputLhs.is(DimensionType::Split));
+            if (auto childSplit = split->outputRhs.tryAs<SplitOp::Input>(); childSplit) {
+                rhs = &childSplit->getDerivedOp<SplitOp>()->getGroups();
+            }
+            if (Size::LexicographicalLessThan(*rhs, lhs)) {
+                uncanonical = true;
+            }
+        } else {
+            result.sourceSplitOp = nullptr;
         }
     }
     return { result, result };
