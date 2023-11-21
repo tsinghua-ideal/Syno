@@ -29,6 +29,8 @@ def collect_kernels(args) -> List[Tuple[os.PathLike, str]]:
                 continue
             if "rej" in kernel_dir:
                 continue
+            if "uncanon" in kernel_dir:
+                continue
             files = list(os.listdir(kernel_dir))
             assert "graph.dot" in files and "loop.txt" in files and "meta.json" in files
 
