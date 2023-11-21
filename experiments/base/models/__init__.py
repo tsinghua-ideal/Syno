@@ -14,6 +14,7 @@ from .fc_net import FCNet
 from .common import get_common_model, get_vanilla_common_model
 from .gpt import GPTConfig, GPT
 from .gcn import GCN
+from .mobilenetv2 import MobileNetV2
 from .manual_kernels import ManualImpl
 
 
@@ -127,6 +128,8 @@ def get_model(
         model = GPT(config)
     elif args.model == "gcn":
         model = GCN()
+    elif args.model == "mobilenet_v2":
+        model = MobileNetV2(args.num_classes, args.input_size)
     else:
         assert hasattr(
             sys.modules[__name__], args.model

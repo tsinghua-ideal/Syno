@@ -12,6 +12,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from typing import Tuple
+
 from KAS import init_weights
 
 from .model import KASModel
@@ -24,11 +26,14 @@ class LinearBottleNeck(nn.Module):
 
         if stride == 1:
             self.residual = nn.Sequential(
+                nn.Conv2d(in_channels, in_channels * t, 1),
+                nn.BatchNorm2d(in_channels * t),
+                nn.ReLU6(inplace=True),
                 ConvPlaceholder(
-                    in_channels,
+                    in_channels * t,
                     in_channels * t,
                     3,
-                    groups=in_channels,
+                    groups=in_channels * t,
                 ),
                 nn.BatchNorm2d(in_channels * t),
                 nn.ReLU6(inplace=True),
@@ -63,9 +68,11 @@ class LinearBottleNeck(nn.Module):
         return residual
 
 
-class MobileNetV2(nn.Module):
-    def __init__(self, class_num=100):
+class MobileNetV2(KASModel):
+    def __init__(self, class_num=100, input_size: Tuple[int, int, int] = (3, 224, 224)):
         super().__init__()
+
+        self.input_size = input_size
 
         self.pre = nn.Sequential(
             nn.Conv2d(3, 32, 1, padding=1), nn.BatchNorm2d(32), nn.ReLU6(inplace=True)
@@ -110,6 +117,18 @@ class MobileNetV2(nn.Module):
             repeat -= 1
 
         return nn.Sequential(*layers)
+
+    def sample_input_shape(self, seq_len=None):
+        return self.input_size
+
+    def sampler_parameters(self, seq_len=None):
+        return {
+            "input_shape": "[N, C_in: unordered, H, H]",
+            "output_shape": "[N, C_out: unordered, H, H]",
+            "primary_specs": ["N: 0", "C_in: 2", "C_out: 4", "H: 0"],
+            "coefficient_specs": ["k_1=3: 2", "k_2=7: 2", "s=2: 2", "g=32: 3"],
+            "fixed_io_pairs": [(0, 0)],
+        }
 
 
 def mobilenetv2():

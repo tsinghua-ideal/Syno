@@ -42,6 +42,19 @@ def replace_conv2d_filter(conv: nn.Conv2d, name: str) -> Optional[nn.Module]:
         #     return None
         # if conv.groups > 1:
         #     return None
+
+    elif "densenet" in name:
+        if conv.kernel_size not in [(3, 3)] or conv.stride not in [
+            (1, 1),
+            (2, 2),
+        ]:
+            return None
+
+        # width = math.gcd(conv.in_channels, conv.out_channels)
+        # if width != min(conv.in_channels, conv.out_channels):
+        #     return None
+        # if conv.groups > 1:
+        #     return None
     else:
         raise NotImplementedError(f"{name} is not a valid model!")
 
