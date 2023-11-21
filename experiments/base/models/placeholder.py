@@ -71,7 +71,7 @@ class GNNLinearPlaceholder(Placeholder):
 
 
 class ConvPlaceholder(Placeholder):
-    def __init__(self, in_features, out_features, kernel_size) -> None:
+    def __init__(self, in_features, out_features, kernel_size, groups=1) -> None:
         if isinstance(kernel_size, tuple):
             assert len(kernel_size) == 2 and kernel_size[0] == kernel_size[1]
             kernel_size = kernel_size[0]
@@ -82,6 +82,7 @@ class ConvPlaceholder(Placeholder):
                 kernel_size,
                 bias=False,
                 padding=kernel_size // 2,
+                groups=groups,
             ),
             mapping_func=ConvPlaceholder.mapping,
         )
@@ -135,4 +136,4 @@ class ConvPlaceholder(Placeholder):
     def exclusion_condition(in_size, out_size) -> bool:
         n, c1, h, w = in_size
         n2, c2, h2, w2 = out_size
-        return not (h >= 4 and w >= 4 and c1 >= 4 and c2 >= 64)
+        return not (h >= 4 and w >= 4 and c1 >= 4 and c2 >= 4)
