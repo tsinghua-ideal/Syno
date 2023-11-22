@@ -163,7 +163,22 @@ def main():
 
         logging.info("Evaluating on real dataset ...")
         if "gpt" not in args.model:
-            accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
+            if "imagenet" in args.dataset:
+                from fastargs import get_current_config
+                from base.imagenet_trainer import ImageNetTrainer
+
+                config = get_current_config()
+                config.collect_config_file(args.imagenet_config_file)
+                config.validate(mode="stderr")
+                config.summary()
+
+                accuracy = ImageNetTrainer.launch_from_args(
+                    model, args.imagenet_log_folder
+                )
+            else:
+                accuracy = max(
+                    trainer.train(model, train_dataloader, val_dataloader, args)
+                )
             loss = 0
         else:
             accuracy = 0
