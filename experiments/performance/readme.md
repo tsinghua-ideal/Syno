@@ -37,3 +37,9 @@ python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --kernel
 ```
 
 If `--kernels-dir` is not specified, the original network will be benchmarked.
+
+### How to use GPU
+
+Add option `--target "cuda -arch=sm_87 -max_threads_per_block=128 -max_num_threads=1024 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"`.
+
+This does not work for the time being.

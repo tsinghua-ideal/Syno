@@ -124,7 +124,7 @@ class MetaScheduleTuner:
         self.model_name = model
         self.vanilla = vanilla
         self.batch_size = batch_size
-        self.target = tvm.target.Target(target)
+        self.target = tvm.target.Target(target, host="llvm -mtriple=aarch64-linux-gnu -mattr=+neon -num-cores=6")
         if self.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
             self.alloc_repeat = 3
         else:
@@ -144,7 +144,7 @@ class MetaScheduleTuner:
             ), "Please set all 'rpc_host', 'rpc_port' and 'rpc_key' to use PRC server"
             self.rpc_config = None
             self.workers = 1
-        self.specialized_dir_name = get_specialized_model_name(self.model_name, self.batch_size, vanilla=self.vanilla)
+        self.specialized_dir_name = os.path.join(self.target.kind.name, get_specialized_model_name(self.model_name, self.batch_size, vanilla=self.vanilla))
         self.working_dir = os.path.join(working_dir, self.specialized_dir_name)
         os.makedirs(self.working_dir, exist_ok=True)
         self.num_measurement_repeats = num_measurement_repeats
