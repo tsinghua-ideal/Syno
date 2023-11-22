@@ -60,6 +60,7 @@ TVMConcreteSize TVMConcreteSize::floorDiv(const TVMConcreteSize& rhs) const {
     return TVMConcreteSize {
         .precedence = Precedence::Factor,
         .value = fmt::format("te.floordiv({}, {})", value, rhs.value),
+        .hasIterator = hasIterator || rhs.hasIterator,
     };
 }
 
@@ -72,6 +73,7 @@ TVMConcreteSize TVMConcreteSize::floorMod(const TVMConcreteSize& rhs) const {
     return TVMConcreteSize {
         .precedence = Precedence::Factor,
         .value = fmt::format("te.floormod({}, {})", value, rhs.value),
+        .hasIterator = hasIterator || rhs.hasIterator,
     };
 }
 
