@@ -50,7 +50,7 @@ def replace_conv2d_filter(conv: nn.Conv2d, name: str) -> Optional[nn.Module]:
         ]:
             return None
     elif "resnext29_2x64d" in name:
-        if conv.kernel_size not in [(1, 1), (3, 3)] or conv.stride not in [
+        if conv.kernel_size not in [(3, 3)] or conv.stride not in [
             (1, 1),
             (2, 2),
         ]:
