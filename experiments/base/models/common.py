@@ -49,21 +49,31 @@ def replace_conv2d_filter(conv: nn.Conv2d, name: str) -> Optional[nn.Module]:
             (2, 2),
         ]:
             return None
-
-        # width = math.gcd(conv.in_channels, conv.out_channels)
-        # if width != min(conv.in_channels, conv.out_channels):
-        #     return None
-        # if conv.groups > 1:
-        #     return None
+    elif "resnext29_2x64d" in name:
+        if conv.kernel_size not in [(1, 1), (3, 3)] or conv.stride not in [
+            (1, 1),
+            (2, 2),
+        ]:
+            return None
+    elif "efficientnet" in name:
+        if conv.kernel_size not in [(3, 3)] or conv.stride not in [
+            (1, 1),
+            (2, 2),
+        ]:
+            return None
     else:
         raise NotImplementedError(f"{name} is not a valid model!")
 
     if conv.stride == (1, 1):
-        return ConvPlaceholder(conv.in_channels, conv.out_channels, conv.kernel_size)
+        return ConvPlaceholder(
+            conv.in_channels, conv.out_channels, conv.kernel_size, conv.groups
+        )
     else:
         return nn.Sequential(
             nn.AvgPool2d(*conv.stride),
-            ConvPlaceholder(conv.in_channels, conv.out_channels, conv.kernel_size),
+            ConvPlaceholder(
+                conv.in_channels, conv.out_channels, conv.kernel_size, conv.groups
+            ),
         )
 
 
@@ -85,6 +95,10 @@ def _get_vanilla_common_model(
     num_classes: int,
     input_size: Tuple[int, int, int],
 ) -> nn.Module:
+    if name == "resnext29_2x64d":
+        return models.resnet.ResNet(
+            models.resnet.Bottleneck, [3, 3, 3, 0], groups=2, width_per_group=64
+        )
     assert hasattr(models, name), f"Could not find model {name} in torchvision"
     return getattr(models, name)(num_classes=num_classes)
 
