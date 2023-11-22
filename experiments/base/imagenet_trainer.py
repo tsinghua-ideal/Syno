@@ -370,7 +370,10 @@ class ImageNetTrainer:
         if use_blurpool:
             apply_blurpool(model)
 
-        model = model.to(memory_format=ch.channels_last)
+        try:
+            model = model.to(memory_format=ch.channels_last)
+        except:
+            logging.info("Converting to ch.channels_last failed. ")
         model = model.to(self.gpu)
 
         if distributed:
@@ -494,6 +497,9 @@ class ImageNetTrainer:
     @param("training.distributed")
     @param("dist.world_size")
     def launch_from_args(cls, model, folder, distributed, world_size):
+        ch.backends.cudnn.benchmark = True
+        ch.backends.cuda.matmul.allow_tf32 = True
+        ch.backends.cudnn.allow_tf32 = True
         if distributed:
             logging.warning("distributed training is not supported now")
             ch.multiprocessing.spawn(
