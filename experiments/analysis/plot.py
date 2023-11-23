@@ -7,7 +7,9 @@ import pandas as pd
 
 
 def extract_latency(csv: os.PathLike):
-    assert os.path.exists(csv) and os.path.splitext(csv) == "csv", csv
+    assert os.path.exists(csv) and os.path.splitext(csv)[1] == ".csv", os.path.splitext(
+        csv
+    )
     return float(pd.read_csv(csv, index_col=0).iloc[3, 0])
 
 
@@ -27,7 +29,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    with open(os.path.join(os.path.dirname(os.__file__), "baseline.json")) as f:
+    with open(os.path.join(os.path.dirname(__file__), "baseline.json")) as f:
         baseline = json.load(f)
 
     assert args.model in baseline, f"{args.model} is not valid! "
@@ -85,7 +87,7 @@ if __name__ == "__main__":
             latency = (
                 extract_latency(
                     os.path.join(
-                        args.kernel_dir,
+                        kernel_dir,
                         "perf",
                         "llvm",
                         "torchvision",
@@ -122,6 +124,10 @@ if __name__ == "__main__":
     # Accuracy vs FLOPs/param distribution
 
     # FLOPs
+    all_flops_ratio = []
+    if args.latency:
+        all_latency_ratio = []
+    all_y = []
     plt.figure(figsize=(10, 6), dpi=300)
     for i, (name, kernels) in enumerate(all_kernels):
         try:
@@ -140,37 +146,49 @@ if __name__ == "__main__":
             == len(latency)
         )
 
+        all_y.extend(y)
         flops_ratio = np.array(flops) / args.reference_flops
-
-        plt.scatter(
-            flops_ratio,
-            y,
-            label=name + "-flops",
-            s=20,
-            c="y",
-        )
+        all_flops_ratio.extend(list(flops_ratio))
         if args.latency:
             latency_ratio = np.array(latency) / args.reference_latency
-            plt.scatter(
-                latency_ratio,
-                y,
-                label=name + "-latency",
-                s=20,
-                c="b",
-            )
-            for f, l, acc in zip(flops_ratio, latency_ratio, y):
-                plt.plot([f, l], [acc, acc], c="k")
-        plt.scatter([1.0], [args.reference_acc], s=50, c="r", marker="^")
-    plt.axhline(y=args.reference_acc, color="r", linestyle="dashed", label="acc-0")
+            all_latency_ratio.extend(list(latency_ratio))
+
+    plt.scatter(
+        all_flops_ratio,
+        all_y,
+        label="FLOPs",
+        s=20,
+        c="#FFBE7A",
+    )
+    if args.latency:
+        plt.scatter(
+            all_latency_ratio,
+            all_y,
+            label="Latency",
+            s=20,
+            c="#82B0D2",
+        )
+        for f, l, acc in zip(all_flops_ratio, all_latency_ratio, all_y):
+            plt.plot([f, l], [acc, acc], c="#BEB8DC", linewidth=1.0)
+    plt.scatter([1.0], [args.reference_acc], s=50, c="#FA7F6F", marker="^")
     plt.axhline(
-        y=args.reference_acc - 0.01, color="r", linestyle="dashed", label="acc-0.01"
+        y=args.reference_acc, color="#FA7F6F", linestyle="dashed", label="acc-0"
     )
     plt.axhline(
-        y=args.reference_acc - 0.02, color="r", linestyle="dashed", label="acc-0.02"
+        y=args.reference_acc - 0.01,
+        color="#FA7F6F",
+        linestyle="dashed",
+        label="acc-0.01",
     )
-    plt.xlabel("FLOPs (ratio to baseline)")
+    plt.axhline(
+        y=args.reference_acc - 0.02,
+        color="#FA7F6F",
+        linestyle="dashed",
+        label="acc-0.02",
+    )
+    plt.xlabel("FLOPs and Latency (ratio to baseline)")
     plt.ylabel("Accuracy")
-    plt.legend()
+    plt.legend(loc="lower right")
     plt.savefig(f"{args.output}-acc-vs-flops.png")
 
     # Params
