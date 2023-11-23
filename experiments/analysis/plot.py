@@ -13,6 +13,32 @@ def extract_latency(csv: os.PathLike):
     return float(pd.read_csv(csv, index_col=0).iloc[3, 0])
 
 
+def identify_pareto(scores):
+    # Acknowledgement: https://stackoverflow.com/questions/68284055/pareto-front-for-matplotlib-scatter-plot
+    # Count number of items
+    population_size = scores.shape[0]
+
+    # Create a NumPy index for scores on the pareto front (zero indexed)
+    population_ids = np.arange(population_size)
+
+    # Create a starting list of items on the Pareto front
+    # All items start off as being labelled as on the Parteo front
+    pareto_front = np.ones(population_size, dtype=bool)
+    print(pareto_front)
+    # Loop through each item. This will then be compared with all other items
+    for i in range(population_size):
+        # Loop through all other items
+        for j in range(population_size):
+            # Check if our 'i' pint is dominated by out 'j' point
+            if all(scores[j] >= scores[i]) and any(scores[j] > scores[i]):
+                # j dominates i. Label 'i' point as not on Pareto front
+                pareto_front[i] = 0
+                # Stop further comparisons with 'i' (no more comparisons needed)
+                break
+    # Return ids of scenarios on pareto front
+    return pareto_front
+
+
 if __name__ == "__main__":
     # Get Path
     parser = argparse.ArgumentParser(description="KAS session plot")
@@ -40,6 +66,7 @@ if __name__ == "__main__":
     setattr(args, "reference_params", baseline_perf["params"])
 
     if args.latency:
+        args.model = args.model.split("-")[0]
         baseline_file = os.path.join(
             args.baseline_latency_folder,
             "llvm",
@@ -153,6 +180,8 @@ if __name__ == "__main__":
             latency_ratio = np.array(latency) / args.reference_latency
             all_latency_ratio.extend(list(latency_ratio))
 
+    all_flops_ratio = np.array(all_flops_ratio)
+    all_y = np.array(all_y)
     plt.scatter(
         all_flops_ratio,
         all_y,
@@ -161,6 +190,7 @@ if __name__ == "__main__":
         c="#FFBE7A",
     )
     if args.latency:
+        all_latency_ratio = np.array(all_latency_ratio)
         plt.scatter(
             all_latency_ratio,
             all_y,
@@ -170,6 +200,18 @@ if __name__ == "__main__":
         )
         for f, l, acc in zip(all_flops_ratio, all_latency_ratio, all_y):
             plt.plot([f, l], [acc, acc], c="#BEB8DC", linewidth=1.0)
+
+        # Pareto
+        score = np.array([all_latency_ratio, all_y]).transpose()
+        pareto_mask = identify_pareto(score)
+        plt.plot(
+            all_latency_ratio[pareto_mask],
+            all_y[pareto_mask],
+            label="Pareto Curve",
+            c="#82B0D2",
+            linewidth=1.3
+        )
+
     plt.scatter([1.0], [args.reference_acc], s=50, c="#FA7F6F", marker="^")
     plt.axhline(
         y=args.reference_acc, color="#FA7F6F", linestyle="dashed", label="acc-0"
