@@ -1,23 +1,53 @@
 import argparse
 import json
 import os
-import math
 import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
+import pandas as pd
+
+
+def extract_latency(csv: os.PathLike):
+    assert os.path.exists(csv) and os.path.splitext(csv) == "csv", csv
+    return float(pd.read_csv(csv, index_col=0).iloc[3, 0])
 
 
 if __name__ == "__main__":
     # Get Path
     parser = argparse.ArgumentParser(description="KAS session plot")
-    parser.add_argument("--dirs", type=str, nargs="+", default=None)
+    parser.add_argument("--dirs", type=str, nargs="+", default=[])
     parser.add_argument("--output", type=str, default="plot")
     parser.add_argument("--time", default=False, action="store_true")
     parser.add_argument("--min-acc", type=float, default=0.5)
-    parser.add_argument("--reference-acc", type=float, default=0.7883613782051282)
-    parser.add_argument("--reference-flops", type=int, default=1823572992)
-    parser.add_argument("--reference-params", type=int, default=11227812)
+    parser.add_argument("--model", type=str, default="resnet18")
+    parser.add_argument("--latency", default=False, action="store_true")
+    parser.add_argument(
+        "--baseline-latency-folder",
+        type=str,
+        default="results/good_kernels/original",
+    )
     args = parser.parse_args()
+
+    with open(os.path.join(os.path.dirname(os.__file__), "baseline.json")) as f:
+        baseline = json.load(f)
+
+    assert args.model in baseline, f"{args.model} is not valid! "
+    baseline_perf = baseline[args.model]
+
+    setattr(args, "reference_acc", baseline_perf["accuracy"])
+    setattr(args, "reference_flops", baseline_perf["flops"])
+    setattr(args, "reference_params", baseline_perf["params"])
+
+    if args.latency:
+        baseline_file = os.path.join(
+            args.baseline_latency_folder,
+            "llvm",
+            "torchvision",
+            f"{args.model}-N=1-orig",
+            "benchmark_results.csv",
+        )
+        baseline_latency = extract_latency(baseline_file)
+        setattr(args, "reference_latency", baseline_latency)
+
     assert args.dirs is not None
     for dir in args.dirs:
         assert os.path.exists(dir) and os.path.isdir(dir)
@@ -36,6 +66,10 @@ if __name__ == "__main__":
                 continue
             if "cache" in kernel_dir:
                 continue
+            if "rej" in kernel_dir:
+                continue
+            if "uncanon" in kernel_dir:
+                continue
             files = list(os.listdir(kernel_dir))
             assert "graph.dot" in files and "loop.txt" in files and "meta.json" in files
 
@@ -45,6 +79,24 @@ if __name__ == "__main__":
 
             kernel_hash = kernel_dir.split("_")[1]
 
+            if not args.time and "time" not in meta:
+                meta["time"] = 0
+
+            latency = (
+                extract_latency(
+                    os.path.join(
+                        args.kernel_dir,
+                        "perf",
+                        "llvm",
+                        "torchvision",
+                        f"{args.model}-N=1",
+                        "benchmark_results.csv",
+                    )
+                )
+                if args.latency
+                else 0
+            )
+
             kernels.append(
                 (
                     meta["time"],
@@ -52,6 +104,7 @@ if __name__ == "__main__":
                     meta["flops"],
                     meta["params"],
                     kernel_hash,
+                    latency,
                 )
             )
         kernels = sorted(kernels, key=lambda x: x[0])
@@ -60,27 +113,53 @@ if __name__ == "__main__":
         all_kernels.append((dir, kernels))
 
     print(
-        f"Collected {len([kernel for _, kernels in all_kernels for kernel in kernels if kernel[1] > args.min_acc])} kernels in total. "
+        f"Collected {len([kernel for _, kernels in all_kernels for kernel in kernels if kernel[1] > args.min_acc])} kernels in total."
     )
     print(
         f"The kernel with smallest FLOPs is {min([kernel for _, kernels in all_kernels for kernel in kernels if kernel[1] > args.min_acc], key=lambda x:x[2])}"
     )
 
-    # Accuracy vs FLOPs/param distirbution
+    # Accuracy vs FLOPs/param distribution
 
     # FLOPs
     plt.figure(figsize=(10, 6), dpi=300)
     for i, (name, kernels) in enumerate(all_kernels):
         try:
-            x, y, flops, params, hash_value = zip(
+            x, y, flops, params, hash_value, latency = zip(
                 *filter(lambda x: x[1] > args.min_acc, kernels)
             )
         except ValueError:
             continue
 
-        assert len(x) == len(y) == len(flops) == len(params) == len(hash_value)
+        assert (
+            len(x)
+            == len(y)
+            == len(flops)
+            == len(params)
+            == len(hash_value)
+            == len(latency)
+        )
 
-        plt.scatter(np.array(flops) / args.reference_flops, y, label=name, s=10)
+        flops_ratio = np.array(flops) / args.reference_flops
+
+        plt.scatter(
+            flops_ratio,
+            y,
+            label=name + "-flops",
+            s=20,
+            c="y",
+        )
+        if args.latency:
+            latency_ratio = np.array(latency) / args.reference_latency
+            plt.scatter(
+                latency_ratio,
+                y,
+                label=name + "-latency",
+                s=20,
+                c="b",
+            )
+            for f, l, acc in zip(flops_ratio, latency_ratio, y):
+                plt.plot([f, l], [acc, acc], c="k")
         plt.scatter([1.0], [args.reference_acc], s=50, c="r", marker="^")
     plt.axhline(y=args.reference_acc, color="r", linestyle="dashed", label="acc-0")
     plt.axhline(
@@ -98,13 +177,20 @@ if __name__ == "__main__":
     plt.figure(figsize=(10, 6), dpi=300)
     for i, (name, kernels) in enumerate(all_kernels):
         try:
-            x, y, flops, params, hash_value = zip(
+            x, y, flops, params, hash_value, latency = zip(
                 *filter(lambda x: x[1] > args.min_acc, kernels)
             )
         except ValueError:
             continue
 
-        assert len(x) == len(y) == len(flops) == len(params) == len(hash_value)
+        assert (
+            len(x)
+            == len(y)
+            == len(flops)
+            == len(params)
+            == len(hash_value)
+            == len(latency)
+        )
 
         plt.scatter(np.array(params) / args.reference_params, y, label=name, s=10)
         plt.scatter([1.0], [args.reference_acc], s=50, c="r", marker="^")
@@ -119,57 +205,3 @@ if __name__ == "__main__":
     plt.ylabel("Accuracy")
     plt.legend()
     plt.savefig(f"{args.output}-acc-vs-params.png")
-
-    # Trend figure
-    ys = []
-    for name, kernels in all_kernels:
-        x, y, _, _, hash_value = zip(*kernels)
-        ys.extend(y)
-    ys = np.array(ys)
-    xs = np.arange(ys.shape[0]) + 1
-    y_avg = np.cumsum(ys) / xs
-    y_max = np.maximum.accumulate(ys)
-    y_max_log = -np.log2(0.8 - y_max)
-
-    plt.figure(figsize=(25, 6), dpi=300)
-    plt.scatter(xs, ys, label="scatter", s=2)
-    plt.plot(xs, y_avg, label="avg_curve", markersize=1)
-
-    # Plot and save into file
-    plt.xlabel("Time" if args.time else "Samples")
-    plt.ylabel("Accuracy (avg)")
-    plt.legend()
-    plt.savefig(f"{args.output}-avg-acc-vs-sample.png")
-
-    # Max figure
-    plt.figure(figsize=(25, 6), dpi=300)
-    plt.scatter(
-        xs,
-        y_max_log,
-        label="scatter",
-        s=2,
-    )
-    plt.plot(xs, y_max_log, label="max_curve", markersize=1)
-
-    # Plot and save into file
-    plt.xlabel("Time" if args.time else "Samples")
-    plt.ylabel("Accuracy (max, negative log2 scale)")
-    plt.legend()
-    plt.savefig(f"{args.output}-max-acc-vs-sample.png")
-
-    # Histogram figure
-    plt.figure(figsize=(10, 6), dpi=300)
-    markers = ["o", "v", "^", "<", ">", "s", "p", "*", "h", "H", "D", "d"]
-    colors = ["b", "g", "r", "c", "m", "y", "k"]
-    for name, kernels in all_kernels:
-        x, y, _, _, _ = zip(*kernels)
-        m, c = markers.pop(0), colors.pop(0)
-        markers.append(m)
-        colors.append(c)
-        sns.kdeplot(y, color=c, label=name, fill=True, bw_adjust=0.2, cut=0)
-
-    # Plot and save into file
-    plt.xlabel("Accuracy")
-    plt.ylabel("Density")
-    plt.legend()
-    plt.savefig(f"{args.output}-acc-hist.png")

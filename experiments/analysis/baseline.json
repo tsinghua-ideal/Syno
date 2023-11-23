@@ -1,0 +1,32 @@
+{
+    "resnet18": {
+        "accuracy": 0.7883613782051282,
+        "flops": 1823572992,
+        "params": 11227812
+    },
+    "resnet34": {
+        "accuracy": 0.7977764423076923,
+        "flops": 3678278656,
+        "params": 21335972
+    },
+    "resnet50": {
+        "accuracy": 0.8035857371794872,
+        "flops": 4131899392,
+        "params": 23712932
+    },
+    "resnet18-imagenet": {
+        "accuracy": 0.7083536982536316,
+        "flops": 1824033792,
+        "params": 11689512
+    },
+    "densenet": {
+        "accuracy": 0.8030849358974359,
+        "flops": 2896085504,
+        "params": 7056356
+    },
+    "resnext": {
+        "accuracy": 0.7992788461538461,
+        "flops": 5126324224,
+        "params": 21150504
+    }
+}
