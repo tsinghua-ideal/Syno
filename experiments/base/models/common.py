@@ -1,92 +1,103 @@
 import logging
 from torch import nn
-from torchvision import models
+from torchvision import models, ops
 from typing import Dict, Optional, Tuple
 import math
 
 from .model import KASModel
-from .placeholder import ConvPlaceholder
+from .placeholder import ConvPlaceholder, LinearPlaceholder
 
 
-def replace_conv2d_filter(conv: nn.Conv2d, name: str) -> Optional[nn.Module]:
+def replace_layer_filter(
+    layer: nn.Conv2d | ops.misc.MLP, name: str
+) -> Optional[nn.Module]:
     # TODO: maybe relax the requirements
 
-    def same_padding(k, p):
-        return k[0] == 2 * p[0] + 1 and k[1] == 2 * p[1] + 1
+    if isinstance(layer, ops.misc.MLP):
+        for name, child in layer.named_children():
+            if isinstance(child, nn.Linear):
+                setattr(
+                    layer,
+                    name,
+                    LinearPlaceholder(child.in_features, child.out_features),
+                )
+        return layer
 
-    if not same_padding(conv.kernel_size, conv.padding):
+    elif isinstance(layer, nn.Conv2d):
+
+        def same_padding(k, p):
+            return k[0] == 2 * p[0] + 1 and k[1] == 2 * p[1] + 1
+
+        if not same_padding(layer.kernel_size, layer.padding):
+            return None
+
+        if "resnet" in name:
+            if layer.kernel_size not in [(1, 1), (3, 3)] or layer.stride not in [
+                (1, 1),
+                (2, 2),
+            ]:
+                return None
+            if layer.groups > 1:
+                return None
+
+        elif "mobilenet_v2" in name:
+            if layer.kernel_size not in [(3, 3)] or layer.stride not in [
+                (1, 1),
+                (2, 2),
+            ]:
+                return None
+
+        elif "densenet" in name:
+            if layer.kernel_size not in [(3, 3)] or layer.stride not in [
+                (1, 1),
+                (2, 2),
+            ]:
+                return None
+
+        elif "resnext29_2x64d" in name:
+            if layer.kernel_size not in [(3, 3)] or layer.stride not in [
+                (1, 1),
+                (2, 2),
+            ]:
+                return None
+
+        elif "efficientnet" in name:
+            if layer.kernel_size not in [(3, 3)] or layer.stride not in [
+                (1, 1),
+                (2, 2),
+            ]:
+                return None
+
+        else:
+            raise NotImplementedError(f"{name} is not a valid model!")
+
+        if layer.stride == (1, 1):
+            return ConvPlaceholder(
+                layer.in_channels, layer.out_channels, layer.kernel_size, layer.groups
+            )
+        else:
+            return nn.Sequential(
+                nn.AvgPool2d(*layer.stride),
+                ConvPlaceholder(
+                    layer.in_channels,
+                    layer.out_channels,
+                    layer.kernel_size,
+                    layer.groups,
+                ),
+            )
+    else:
         return None
 
-    if "resnet" in name:
-        if conv.kernel_size not in [(1, 1), (3, 3)] or conv.stride not in [
-            (1, 1),
-            (2, 2),
-        ]:
-            return None
 
-        # width = math.gcd(conv.in_channels, conv.out_channels)
-        # if width != min(conv.in_channels, conv.out_channels):
-        #     return None
-        if conv.groups > 1:
-            return None
-
-    elif "mobilenet_v2" in name:
-        if conv.kernel_size not in [(3, 3)] or conv.stride not in [
-            (1, 1),
-            (2, 2),
-        ]:
-            return None
-
-        # width = math.gcd(conv.in_channels, conv.out_channels)
-        # if width != min(conv.in_channels, conv.out_channels):
-        #     return None
-        # if conv.groups > 1:
-        #     return None
-
-    elif "densenet" in name:
-        if conv.kernel_size not in [(3, 3)] or conv.stride not in [
-            (1, 1),
-            (2, 2),
-        ]:
-            return None
-    elif "resnext29_2x64d" in name:
-        if conv.kernel_size not in [(3, 3)] or conv.stride not in [
-            (1, 1),
-            (2, 2),
-        ]:
-            return None
-    elif "efficientnet" in name:
-        if conv.kernel_size not in [(3, 3)] or conv.stride not in [
-            (1, 1),
-            (2, 2),
-        ]:
-            return None
-    else:
-        raise NotImplementedError(f"{name} is not a valid model!")
-
-    if conv.stride == (1, 1):
-        return ConvPlaceholder(
-            conv.in_channels, conv.out_channels, conv.kernel_size, conv.groups
-        )
-    else:
-        return nn.Sequential(
-            nn.AvgPool2d(*conv.stride),
-            ConvPlaceholder(
-                conv.in_channels, conv.out_channels, conv.kernel_size, conv.groups
-            ),
-        )
-
-
-def replace_conv2d_to_placeholder(module: nn.Module, model_name: str):
+def replace_layers_to_placeholder(module: nn.Module, model_name: str):
     count = 0
     for name, child in module.named_children():
-        if isinstance(child, nn.Conv2d):
-            replaced_kernel = replace_conv2d_filter(child, model_name)
-            if replaced_kernel is not None:
-                count += 1
-                setattr(module, name, replaced_kernel)
-        elif len(list(child.named_children())) > 0:
-            count += replace_conv2d_to_placeholder(child, model_name)
+        replaced_kernel = replace_layer_filter(child, model_name)
+        if replaced_kernel is not None:
+            count += 1
+            setattr(module, name, replaced_kernel)
+        if len(list(child.named_children())) > 0:
+            count += replace_layers_to_placeholder(child, model_name)
     return count
 
 
@@ -114,21 +125,31 @@ class CommonModel(KASModel):
 
         # Replace conv2d
         self.model = _get_vanilla_common_model(name, num_classes, input_size)
-        count = replace_conv2d_to_placeholder(self.model, name)
         self.input_size = input_size
+        self.name = name
+        count = replace_layers_to_placeholder(self.model, name)
         logging.info(f"Replaced {count} Conv2D layers to Placeholder")
 
     def sample_input_shape(self, seq_len=None):
         return self.input_size
 
     def sampler_parameters(self, seq_len=None):
-        return {
-            "input_shape": "[N, C_in: unordered, H, H]",
-            "output_shape": "[N, C_out: unordered, H, H]",
-            "primary_specs": ["N: 0", "C_in: 2", "C_out: 4", "H: 0"],
-            "coefficient_specs": ["k_1=3: 2", "k_2=7: 2", "s=2: 2", "g=32: 3"],
-            "fixed_io_pairs": [(0, 0)],
-        }
+        if "vit" in self.name:
+            return {
+                "input_shape": "[N, seq_len, H_in: unordered]",
+                "output_shape": "[N, seq_len, H_out: unordered]",
+                "primary_specs": ["N: 0", "seq_len: 2", "H_in: 2", "H_out: 2"],
+                "coefficient_specs": ["k_1=2: 3", "k_2=5: 2", "t=3: 3", "g=32: 3"],
+                "fixed_io_pairs": [(0, 0)],
+            }
+        else:
+            return {
+                "input_shape": "[N, C_in: unordered, H, H]",
+                "output_shape": "[N, C_out: unordered, H, H]",
+                "primary_specs": ["N: 0", "C_in: 2", "C_out: 4", "H: 0"],
+                "coefficient_specs": ["k_1=3: 2", "k_2=7: 2", "s=2: 2", "g=32: 3"],
+                "fixed_io_pairs": [(0, 0)],
+            }
 
     def forward(self, x):
         return self.model(x)
