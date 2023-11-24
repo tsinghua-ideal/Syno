@@ -162,9 +162,13 @@ def get_model(
     )
     if sampler:
         logging.info(f"Mappings: {sampler._extract_all_mappings(model)}")
-        logging.info(
-            f"Mappings: {[pl.referred_layer.kernel_size for pl in sampler._extract_placeholders(model)]}"
-        )
+        if any(
+            isinstance(pl.referred_layer, torch.nn.Conv2d)
+            for pl in sampler._extract_placeholders(model)
+        ):
+            logging.info(
+                f"Kernel sizes: {[pl.referred_layer.kernel_size for pl in sampler._extract_placeholders(model)]}"
+            )
 
     # Replace kernel
     if args.kas_replace_placeholder is not None:

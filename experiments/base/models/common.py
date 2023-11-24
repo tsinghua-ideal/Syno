@@ -5,7 +5,7 @@ from typing import Dict, Optional, Tuple
 import math
 
 from .model import KASModel
-from .placeholder import ConvPlaceholder, LinearPlaceholder
+from .placeholder import ConvPlaceholder, ViTLinearPlaceholder
 
 
 def replace_layer_filter(
@@ -19,7 +19,7 @@ def replace_layer_filter(
                 setattr(
                     layer,
                     name,
-                    LinearPlaceholder(child.in_features, child.out_features),
+                    ViTLinearPlaceholder(child.in_features, child.out_features),
                 )
         return layer
 
@@ -138,8 +138,8 @@ class CommonModel(KASModel):
             return {
                 "input_shape": "[N, seq_len, H_in: unordered]",
                 "output_shape": "[N, seq_len, H_out: unordered]",
-                "primary_specs": ["N: 0", "seq_len: 2", "H_in: 2", "H_out: 2"],
-                "coefficient_specs": ["k_1=2: 3", "k_2=5: 2", "t=3: 3", "g=32: 3"],
+                "primary_specs": ["N: 0", "seq_len: 0", "H_in: 2", "H_out: 3"],
+                "coefficient_specs": ["k_1=3: 3", "s=2: 3", "g=384: 3"],
                 "fixed_io_pairs": [(0, 0)],
             }
         else:
