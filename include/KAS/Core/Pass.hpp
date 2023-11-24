@@ -245,8 +245,8 @@ class LayoutOptimizer {
 
 public:
     LayoutOptimizer(const Graph& graph, bool unfoldToLeft);
-
-    void optimize(IR& ir);
+    // Return layout.
+    Graph::DimensionMap<int> optimize(IR& ir);
 };
 
 class OptimizeLayoutIRPass {
@@ -254,7 +254,8 @@ class OptimizeLayoutIRPass {
     bool unfoldToLeft;
 public:
     OptimizeLayoutIRPass(const Graph& graph, bool unfoldToLeft = false);
-    void operator()(IR& ir) const;
+    // Return layout.
+    Graph::DimensionMap<int> operator()(IR& ir) const;
 };
 
 } // namespace kas

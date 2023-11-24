@@ -36,7 +36,8 @@ class EinsumContractor final: protected DependentCutSetDiscoverer {
 public:
     EinsumContractor(const ConstrainedGraph& subgraph, std::set<const Reduce *>& remainingReductions);
     EinsumContractor& contract();
-    std::vector<Dimension> build(const std::vector<Tensor>& inputs) const;
+    // According to layout.
+    std::vector<Dimension> build(const Graph::DimensionMap<int>& layout) const;
     void beforeExclusionHook(const PrimitiveOp *op) override;
     const Graph::DimensionMap<std::size_t>& getSubscripts() const { return subscripts; }
 };
@@ -83,9 +84,13 @@ public:
     void operator()(IR& ir) const;
 };
 
+struct PyTorchSpecializedIR: IR {
+    Graph::DimensionMap<int> layout;
+};
+
 class PyTorchGen {
     const BindingContext& ctx;
-    IR ir;
+    PyTorchSpecializedIR ir;
     Graph graph;
 
     std::vector<Tensor> topologicallyOrderedTensors;
@@ -110,6 +115,7 @@ class PyTorchGen {
 public:
     class SubgraphGen {
         const BindingContext& ctx;
+        const Graph::DimensionMap<int>& layout;
         const std::map<Tensor, std::string>& tensorNames;
 
         PythonCodePrinter& printer;
@@ -164,7 +170,7 @@ public:
         };
 
     public:
-        SubgraphGen(const BindingContext& ctx, const Graph& graph, const std::map<Tensor, std::string>& tensorNames, PythonCodePrinter& printer, const Tensor& tensor);
+        SubgraphGen(const BindingContext& ctx, const Graph& graph, const Graph::DimensionMap<int>& layout, const std::map<Tensor, std::string>& tensorNames, PythonCodePrinter& printer, const Tensor& tensor);
 
         template<std::ranges::input_range R>
         requires std::same_as<std::ranges::range_value_t<R>, std::size_t>
@@ -181,10 +187,10 @@ public:
 
     std::vector<std::size_t> concretize(const std::vector<Dimension>& interface, const ConcreteConsts& consts) const;
 
-    static IR SpecializeIR(const BindingContext& ctx, const TensorView& tensorView, std::size_t maxVRAM);
+    static PyTorchSpecializedIR SpecializeIR(const BindingContext& ctx, const TensorView& tensorView, std::size_t maxVRAM);
     // RAM in bytes.
     static std::size_t EstimateVRAMUsage(const BindingContext& ctx, const IR& ir);
-    PyTorchGen(const BindingContext& ctx, IR specializedIR);
+    PyTorchGen(const BindingContext& ctx, PyTorchSpecializedIR specializedIR);
     // Helper function.
     PyTorchGen(const BindingContext& ctx, const TensorView& tensorView):
         PyTorchGen(ctx, SpecializeIR(ctx, tensorView, MaximumVideoMemory)) {}

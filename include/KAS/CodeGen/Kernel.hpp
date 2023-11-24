@@ -12,6 +12,7 @@
 #include "KAS/CodeGen/HalideGen.hpp"
 #endif
 #include "KAS/CodeGen/Options.hpp"
+#include "KAS/CodeGen/PyTorchGen.hpp"
 #include "KAS/Core/TensorView.hpp"
 
 
@@ -65,7 +66,7 @@ protected:
 
 public:
     // Generate and save to directory.
-    Kernel(const BindingContext& ctx, const TensorView& tensorView, const IR& pyTorchSpecializedIR, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name);
+    Kernel(const BindingContext& ctx, const TensorView& tensorView, const PyTorchSpecializedIR& pyTorchSpecializedIR, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name);
 
     // Load from file.
     Kernel(const std::filesystem::path& dir);

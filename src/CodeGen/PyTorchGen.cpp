@@ -104,19 +104,10 @@ EinsumContractor& EinsumContractor::contract() {
     return *this;
 }
 
-std::vector<Dimension> EinsumContractor::build(const std::vector<Tensor>& inputs) const {
-    // TODO: we need to consider Iterator in weights.
-    std::map<std::size_t, std::size_t> preferredOrder;
-    std::size_t total = 0;
-    for (const Dimension& dim: inputs | std::views::transform(&Tensor::output) | std::views::join) {
-        auto [_, inserted] = preferredOrder.try_emplace(subscripts.at(dim), total);
-        if (inserted) {
-            ++total;
-        }
-    }
+std::vector<Dimension> EinsumContractor::build(const Graph::DimensionMap<int>& layout) const {
     auto result = DependentCutSetDiscoverer::build();
-    std::ranges::sort(result, [&](const Dimension& lhs, const Dimension& rhs) {
-        return preferredOrder.at(subscripts.at(lhs)) < preferredOrder.at(subscripts.at(rhs));
+    std::ranges::sort(result, std::less<>{}, [&](const Dimension& dim) {
+        return layout.at(dim);
     });
     return result;
 }
@@ -520,8 +511,8 @@ void PyTorchGen::SubgraphGen::OpLower::checkDone() const {
     KAS_ASSERT(undoneExpansions.empty());
 }
 
-PyTorchGen::SubgraphGen::SubgraphGen(const BindingContext& ctx, const Graph& graph, const std::map<Tensor, std::string>& tensorNames, PythonCodePrinter& printer, const Tensor& tensor):
-    ctx { ctx }, tensorNames(tensorNames), printer { printer }, tensor { tensor }, subgraph(tensor.buildConstrainedGraph(graph))
+PyTorchGen::SubgraphGen::SubgraphGen(const BindingContext& ctx, const Graph& graph, const Graph::DimensionMap<int>& layout, const std::map<Tensor, std::string>& tensorNames, PythonCodePrinter& printer, const Tensor& tensor):
+    ctx { ctx }, layout { layout }, tensorNames(tensorNames), printer { printer }, tensor { tensor }, subgraph(tensor.buildConstrainedGraph(graph))
 {
     remainingReductions.insert(tensor.reductions().begin(), tensor.reductions().end());
 }
@@ -538,7 +529,7 @@ void PyTorchGen::SubgraphGen::generate(const ConcreteConsts& consts) {
 
     // First perform contraction.
     auto contractor = EinsumContractor(subgraph, remainingReductions);
-    auto interface = contractor.contract().build(tensor.inputs());
+    auto interface = contractor.contract().build(layout);
     const auto& subscripts = contractor.getSubscripts();
     auto dimToSubscript = [&](const Dimension& dim) -> std::size_t {
         return subscripts.at(dim);
@@ -608,7 +599,7 @@ std::vector<std::size_t> PyTorchGen::concretize(const std::vector<Dimension>& in
     return ShapeView(interface).eval<std::size_t>(consts);
 }
 
-IR PyTorchGen::SpecializeIR(const BindingContext& ctx, const TensorView& tensorView, std::size_t maxVRAM) {
+PyTorchSpecializedIR PyTorchGen::SpecializeIR(const BindingContext& ctx, const TensorView& tensorView, std::size_t maxVRAM) {
     const Graph graph = tensorView.buildGraph();
     const auto tensors = ranges::to<std::vector<Topmost>>(
         tensorView.getUnderlyingTensors() | std::views::transform(&PureTensor::getContent)
@@ -619,8 +610,8 @@ IR PyTorchGen::SpecializeIR(const BindingContext& ctx, const TensorView& tensorV
     // We want rfactor to be applied so that each stage has at most 1 reduction.
     (RFactorIRPass(ctx, graph, true, maxVRAM))(ir);
     // Now that the tensors are in a mess again, optimize layout one more time.
-    (OptimizeLayoutIRPass(graph, true))(ir);
-    return ir;
+    auto layout = (OptimizeLayoutIRPass(graph, true))(ir);
+    return { std::move(ir), std::move(layout) };
 }
 
 std::size_t PyTorchGen::EstimateVRAMUsage(const BindingContext& ctx, const IR& ir) {
@@ -646,7 +637,7 @@ std::size_t PyTorchGen::EstimateVRAMUsage(const BindingContext& ctx, const IR& i
     return 2 * numel * sizeof(float);
 }
 
-PyTorchGen::PyTorchGen(const BindingContext& ctx, IR specializedIR):
+PyTorchGen::PyTorchGen(const BindingContext& ctx, PyTorchSpecializedIR specializedIR):
     ctx { ctx },
     ir { std::move(specializedIR) },
     graph { ir.buildGraph() }
@@ -787,7 +778,7 @@ void PyTorchGen::generate(std::ostream& outputStream, std::string_view className
             // Load the weights.
             loadWeights(printer);
             for (const Tensor& tensor: topologicallyOrderedTensors) {
-                SubgraphGen gen { ctx, graph, tensorNames, printer, tensor };
+                SubgraphGen gen { ctx, graph, ir.layout, tensorNames, printer, tensor };
                 gen.generate(consts.padded);
             }
             cropOutputTensor(printer, consts);

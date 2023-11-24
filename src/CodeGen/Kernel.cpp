@@ -38,7 +38,7 @@ void Kernel::loadMetadataAndNestedLoops() {
     }
 }
 
-Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const IR& pyTorchSpecializedIR, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name):
+Kernel::Kernel(const BindingContext& ctx, const TensorView& tensorView, const PyTorchSpecializedIR& pyTorchSpecializedIR, const std::vector<std::map<std::string, std::size_t>>& allMappings, CodeGenOptions options, const std::filesystem::path& dir, const std::string& name):
     dir { dir }
 {
     if (std::filesystem::exists(dir / "metadata.json")) {

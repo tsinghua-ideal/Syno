@@ -1,5 +1,6 @@
 #pragma once
 
+#include "KAS/CodeGen/PyTorchGen.hpp"
 #include "KAS/Core/TensorView.hpp"
 
 
@@ -11,7 +12,7 @@ struct NextFinalizeSlot;
 struct FinalStage {
     NormalStage& parent;
     TensorView value;
-    IR pyTorchSpecializedIR;
+    PyTorchSpecializedIR pyTorchSpecializedIR;
 
     const BindingContext& getBindingContext() const;
 

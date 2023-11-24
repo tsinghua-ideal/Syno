@@ -595,7 +595,7 @@ void LayoutOptimizer::permute(Tensor& tensor, const Graph::DimensionMap<Priority
 LayoutOptimizer::LayoutOptimizer(const Graph& graph, bool unfoldToLeft):
     graph { graph }, unfoldToLeft { unfoldToLeft } {}
 
-void LayoutOptimizer::optimize(IR& ir) {
+Graph::DimensionMap<int> LayoutOptimizer::optimize(IR& ir) {
     BottomTopPass bottomTopPass { graph, serialized };
     graph.accept(bottomTopPass);
     auto& bottomTop = bottomTopPass.attributes;
@@ -610,24 +610,31 @@ void LayoutOptimizer::optimize(IR& ir) {
     serialize();
 
     ir.bottomTopForEach([&](Tensor& tensor) {
-        if (tensor != ir.outputTensor && tensor != data) {
+        if (tensor != data) {
             permute(tensor, topBottom);
         }
     });
+
+    Graph::DimensionMap<int> layout;
+    for (const auto& [dim, priority]: topBottom) {
+        layout.try_emplace(dim, priority.extract());
+    }
+    return layout;
 }
 
 OptimizeLayoutIRPass::OptimizeLayoutIRPass(const Graph& graph, bool unfoldToLeft):
     graph { graph }, unfoldToLeft { unfoldToLeft } {}
 
-void OptimizeLayoutIRPass::operator()(IR& ir) const {
+Graph::DimensionMap<int> OptimizeLayoutIRPass::operator()(IR& ir) const {
     LayoutOptimizer rewriter { graph, unfoldToLeft };
-    rewriter.optimize(ir);
+    auto layout = rewriter.optimize(ir);
     if (!std::ranges::equal(ir.outputTensor.output(), graph.getOutputIterators())) {
         KAS_ASSERT(!ir.outputTensor.isInputTensor());
         std::vector<Dimension> expectedOutput;
         std::ranges::copy(graph.getOutputIterators(), std::back_inserter(expectedOutput));
         ir.outputTensor.adjustLayout(&expectedOutput, nullptr);
     }
+    return layout;
 }
 
 } // namespace kas
