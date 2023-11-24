@@ -619,7 +619,7 @@ IR PyTorchGen::SpecializeIR(const BindingContext& ctx, const TensorView& tensorV
     // We want rfactor to be applied so that each stage has at most 1 reduction.
     (RFactorIRPass(ctx, graph, true, maxVRAM))(ir);
     // Now that the tensors are in a mess again, optimize layout one more time.
-    (OptimizeLayoutIRPass(graph))(ir);
+    (OptimizeLayoutIRPass(graph, true))(ir);
     return ir;
 }
 

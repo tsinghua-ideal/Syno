@@ -386,173 +386,248 @@ void RFactorIRPass::operator()(IR& ir) const {
     });
 }
 
-void OptimizeLayoutIRPass::optimize(Tensor& tensor) const {
-    // We use a simple algorithm here.
-    // First ignore the effect of weights, i.e., tensor.inputs() | std::views::drop(1).
-    // Because we have optimized the layout of weights beforehand in LocalityOptimizer::permuteWeightDimensions.
-    // TODO: unify the LocalityOptimizer.
-    // Then, we try to keep the layout of the output as close as the input as possible.
-    // - RepeatLikeOp, same priority.
-    // - SplitLikeOp, the priority splits into two branches. lhs takes the outer loop, and rhs takes the inner loop.
-    // - MergeLikeOp, if both operands has priority, then choose the inner loop. Otherwise, choose the one with priority.
-    struct Priority {
-        std::list<int> *serialized;
-        using Placeholder = std::list<int>::iterator;
-        std::optional<Placeholder> value;
-        static Priority Append(std::list<int>& serialized) {
-            serialized.emplace_back(0);
-            return { &serialized, --serialized.end() };
-        }
-        static Priority Empty(std::list<int>& serialized) {
-            return { &serialized };
-        }
-        std::strong_ordering operator<=>(const Priority& rhs) const {
-            const Priority& lhs = *this;
-            if (!lhs.value.has_value()) {
-                if (!rhs.value.has_value()) {
-                    return std::strong_ordering::equal;
-                } else {
-                    return std::strong_ordering::greater;
-                }
-            } else if (!rhs.value.has_value()) {
-                return std::strong_ordering::less;
-            }
-            Placeholder l = *lhs.value, r = *rhs.value;
-            if (l == r) {
-                return std::strong_ordering::equal;
-            }
-            while (++l != serialized->end()) {
-                if (l == r) {
-                    // If l is before r in the list, l is in outer loop.
-                    return std::strong_ordering::greater;
-                }
-            }
-            l = *lhs.value;
-            // Sanity check.
-            while (++r != serialized->end()) {
-                if (l == r) {
-                    // If r is before l in the list, r is in outer loop.
-                    return std::strong_ordering::less;
-                }
-            }
-            KAS_UNREACHABLE();
-        }
-        static std::pair<Priority, Priority> Split(Priority from) {
-            auto serialized = from.serialized;
-            if (from.value.has_value()) {
-                auto it = *from.value;
-                auto lhs = Priority { serialized, from.serialized->insert(it, *it) };
-                return { std::move(lhs), std::move(from) };
-            } else {
-                // Consider the special cases where canonicalization is broken.
-                // That is, we are performing SplitLikeOp on weights!
-                KAS_WARNING("Canonicalization is broken! Performing SplitLikeOp on weights!");
-                return { Empty(*serialized), Empty(*serialized) };
-            }
-        }
-        static Priority Merge(Priority lhs, Priority rhs) {
-            return std::min(lhs, rhs);
-        }
-    };
-    struct Assigner {
-        const Graph& graph;
-        std::list<int>& serialized;
-        Graph::DimensionMap<Priority> priorities;
-        int all = 0;
-        void set(const Dimension& dim, Priority priority) {
-            auto [_, inserted] = priorities.try_emplace(dim, std::move(priority));
-            KAS_ASSERT(inserted);
-        }
-        Priority get(const Dimension& dim) {
-            if (auto it = priorities.find(dim); it != priorities.end()) {
-                return it->second;
-            }
-            graph.visitAlong(dim, Direction::Up).match(Match {
-                [&](const RepeatLikeVertex& r, auto) {
-                    set(dim, get(r.op.getInput()));
-                },
-                [&](const SplitLikeVertex& s, auto from) {
-                    auto [lhs, rhs] = Priority::Split(get(s.op.getInput()));
-                    set(s.op.outputLhs, std::move(lhs));
-                    set(s.op.outputRhs, std::move(rhs));
-                },
-                [&](const MergeLikeVertex& m, auto) {
-                    set(dim, Priority::Merge(get(m.op.getInputL()), get(m.op.getInputR())));
-                },
-                [&](const ExpandVertex& e, auto) {
-                    set(dim, Priority::Empty(serialized));
-                },
-            });
-            return priorities.at(dim);
-        }
-        Assigner(const Graph& graph, const Tensor& tensor, std::list<int>& serialized):
-            graph(graph), serialized(serialized)
-        {
-            for (
-                const Dimension& dim:
-                tensor.inputs().at(0).output()
-            ) {
-                set(dim, Priority::Append(serialized));
-            }
-            for (
-                const Dimension& dim:
-                tensor.inputs() | std::views::drop(1) | std::views::transform(&Tensor::output) | std::views::join
-            ) {
-                set(dim, Priority::Empty(serialized));
-            }
-        }
-        void serialize() {
-            for (int& p: serialized) {
-                p = all++;
-            }
-        }
-        int priority(const Priority& priority) {
-            if (priority.value) {
-                return *(*priority.value);
-            }
-            return all++;
-        }
-    };
-    std::list<int> serialized;
-    auto assigner = Assigner(graph, tensor, serialized);
-    std::vector<Priority> outputPriorities, reductionPriorities;
-    for (const Dimension& dim: tensor.output()) outputPriorities.emplace_back(assigner.get(dim));
-    for (Dimension dim: tensor.reductions()) reductionPriorities.emplace_back(assigner.get(dim));
-    assigner.serialize();
-    std::vector<std::size_t> outputIndices(outputPriorities.size()), reductionIndices(reductionPriorities.size());
-    std::iota(outputIndices.begin(), outputIndices.end(), 0);
-    std::iota(reductionIndices.begin(), reductionIndices.end(), 0);
-    std::vector<int> outputPrioritiesValues, reductionPrioritiesValues;
-    for (const Priority& priority: outputPriorities) outputPrioritiesValues.emplace_back(assigner.priority(priority));
-    for (const Priority& priority: reductionPriorities) reductionPrioritiesValues.emplace_back(assigner.priority(priority));
-    std::sort(outputIndices.begin(), outputIndices.end(), [&](std::size_t lhs, std::size_t rhs) {
-        return outputPrioritiesValues[lhs] < outputPrioritiesValues[rhs];
-    });
-    std::sort(reductionIndices.begin(), reductionIndices.end(), [&](std::size_t lhs, std::size_t rhs) {
-        return reductionPrioritiesValues[lhs] < reductionPrioritiesValues[rhs];
-    });
-    std::vector<Dimension> output;
-    std::vector<const Reduce *> reductions;
-    for (std::size_t index: outputIndices) output.emplace_back(tensor.output()[index]);
-    for (std::size_t index: reductionIndices) reductions.emplace_back(tensor.reductions()[index]);
-    tensor.getOutput() = std::move(output);
-    tensor.getReductions() = std::move(reductions);
+LayoutOptimizer::Priority LayoutOptimizer::Priority::Head(std::list<int>& serialized) {
+    serialized.emplace_front(0);
+    return { &serialized, serialized.begin() };
+}
+LayoutOptimizer::Priority LayoutOptimizer::Priority::Tail(std::list<int>& serialized) {
+    serialized.emplace_back(0);
+    return { &serialized, std::prev(serialized.end()) };
+}
+LayoutOptimizer::Priority LayoutOptimizer::Priority::Empty(std::list<int>& serialized) {
+    return { &serialized };
+}
+LayoutOptimizer::Priority LayoutOptimizer::Priority::Append(Priority from) {
+    auto serialized = from.serialized;
+    if (from.determined()) {
+        auto it = *from.value;
+        return { serialized, from.serialized->insert(std::next(it), *it) };
+    } else {
+        return Empty(*serialized);
+    }
+}
+LayoutOptimizer::Priority LayoutOptimizer::Priority::Prepend(Priority from) {
+    auto serialized = from.serialized;
+    if (from.determined()) {
+        auto it = *from.value;
+        return { serialized, from.serialized->insert(it, *it) };
+    } else {
+        return Empty(*serialized);
+    }
 }
 
-OptimizeLayoutIRPass::OptimizeLayoutIRPass(const Graph& graph): graph { graph } {}
+std::strong_ordering LayoutOptimizer::Priority::operator<=>(const Priority& rhs) const {
+    const Priority& lhs = *this;
+    KAS_ASSERT(lhs.serialized == rhs.serialized);
+    if (!lhs.determined()) {
+        if (!rhs.determined()) {
+            return std::strong_ordering::equal;
+        } else {
+            return std::strong_ordering::greater;
+        }
+    } else if (!rhs.determined()) {
+        return std::strong_ordering::less;
+    }
+    Placeholder l = *lhs.value, r = *rhs.value;
+    if (l == r) {
+        return std::strong_ordering::equal;
+    }
+    while (++l != serialized->end()) {
+        if (l == r) {
+            // If l is before r in the list, l is in outer loop.
+            return std::strong_ordering::greater;
+        }
+    }
+    l = *lhs.value;
+    // Sanity check.
+    while (++r != serialized->end()) {
+        if (l == r) {
+            // If r is before l in the list, r is in outer loop.
+            return std::strong_ordering::less;
+        }
+    }
+    KAS_UNREACHABLE();
+}
+
+LayoutOptimizer::Priority LayoutOptimizer::Priority::MonadicMax(Priority lhs, Priority rhs) {
+    if (lhs.determined() && rhs.determined()) {
+        return std::max(lhs, rhs);
+    } else if (lhs.determined()) {
+        return lhs;
+    } else if (rhs.determined()) {
+        return rhs;
+    } else {
+        return Empty(*lhs.serialized);
+    }
+}
+LayoutOptimizer::Priority LayoutOptimizer::Priority::MonadicMin(Priority lhs, Priority rhs) {
+    if (lhs.determined() && rhs.determined()) {
+        return std::min(lhs, rhs);
+    } else if (lhs.determined()) {
+        return lhs;
+    } else if (rhs.determined()) {
+        return rhs;
+    } else {
+        return Empty(*lhs.serialized);
+    }
+}
+
+LayoutOptimizer::BottomTopPass::BottomTopPass(const Graph& graph, std::list<int>& serialized): serialized { serialized } {
+    for (Dimension output: graph.getOutputIterators()) {
+        preset(output, Priority::Tail(serialized));
+    }
+    for (Dimension reduction: graph.getReduceIterators()) {
+        preset(reduction, Priority::Empty(serialized));
+    }
+}
+
+auto LayoutOptimizer::BottomTopPass::transform(const RepeatLikeOp& op) const -> Priority {
+    return at(op.output);
+}
+auto LayoutOptimizer::BottomTopPass::transform(const SplitLikeOp& op) const -> Priority {
+    if (op.getType() == DimensionType::Unfold) {
+        return at(op.outputLhs);
+    } else {
+        return Priority::MonadicMax(at(op.outputLhs), at(op.outputRhs));
+    }
+}
+auto LayoutOptimizer::BottomTopPass::transform(const MergeLikeOp& op) const -> std::pair<Priority, Priority> {
+    auto rhs = at(op.output);
+    auto lhs = Priority::Prepend(rhs);
+    return { std::move(lhs), std::move(rhs) };
+}
+
+void LayoutOptimizer::handleInputTensorAndExpansions(const std::vector<Dimension>& inputTensor, Graph::DimensionMap<Priority>& bottomTop) {
+    // First the input.
+    auto last = Priority::Empty(serialized);
+    for (const Dimension& input: inputTensor | std::views::reverse) {
+        auto& priority = bottomTop.at(input);
+        if (!priority.determined()) {
+            if (last.determined()) {
+                // Prepend.
+                priority = Priority::Prepend(last);
+            } else {
+                // Insert to head.
+                priority = Priority::Tail(serialized);
+            }
+        }
+        last = priority;
+    }
+    // Then the expansions.
+    for (const Expand *expansion: graph.getTopmost().getExpansions()) {
+        auto& priority = bottomTop.at(expansion->output);
+        if (!priority.determined()) {
+            priority = Priority::Tail(serialized);
+        }
+    }
+}
+
+LayoutOptimizer::TopBottomPass::TopBottomPass(const Graph& graph, std::list<int>& serialized, const Graph::DimensionMap<Priority>& bottomTop, bool unfoldToLeft):
+    serialized { serialized }, bottomTop { bottomTop }, unfoldToLeft { unfoldToLeft } {}
+auto LayoutOptimizer::TopBottomPass::transformInput(const Dimension& dim) -> Priority {
+    // We cannot make sure we have determined this by now.
+    // Because weights depend on ShareOp's.
+    return bottomTop.at(dim);
+}
+auto LayoutOptimizer::TopBottomPass::transformExpand(const Dimension& dim) -> Priority {
+    auto result = bottomTop.at(dim);
+    KAS_ASSERT(result.determined());
+    return result;
+}
+auto LayoutOptimizer::TopBottomPass::transform(const RepeatLikeOp& op) -> Priority {
+    return at(op.getInput());
+}
+auto LayoutOptimizer::TopBottomPass::transform(const SplitLikeOp& op) -> std::pair<Priority, Priority> {
+    Dimension inputDim = op.getInput();
+    auto value = at(inputDim);
+    const auto& leftBottomTopResult = bottomTop.at(op.outputLhs);
+    const auto& rightBottomTopResult = bottomTop.at(op.outputRhs);
+    // Check if this has been determined.
+    if (leftBottomTopResult.determined() && rightBottomTopResult.determined()) {
+        return { leftBottomTopResult, rightBottomTopResult };
+    }
+    auto other = Priority::Prepend(value);
+    if (op.getType() == DimensionType::Unfold && unfoldToLeft) {
+        return { std::move(value), std::move(other) };
+    } else {
+        return { std::move(other), std::move(value) };
+    }
+}
+auto LayoutOptimizer::TopBottomPass::transform(const MergeLikeOp& op) -> Priority {
+    auto lhs = at(op.getInputL());
+    auto& rhs = attributes.at(op.getInputR());
+    if (lhs.determined() && rhs.determined()) {
+        auto bottomTopResult = bottomTop.at(op.output);
+        if (bottomTopResult.determined()) {
+            return bottomTopResult;
+        } else {
+            auto result = Priority::MonadicMax(lhs, rhs);
+            KAS_ASSERT(result.determined());
+            return result;
+        }
+    } else if (lhs.determined() || rhs.determined()) {
+        // This is only possible for a ShareOp.
+        KAS_ASSERT(op.getType() == DimensionType::Share && !rhs.determined());
+        // First assign.
+        rhs = lhs;
+        // Then return.
+        return lhs;
+    } else {
+        KAS_UNREACHABLE();
+    }
+}
+
+void LayoutOptimizer::serialize() {
+    for (int& p: serialized) {
+        p = all++;
+    }
+}
+
+void LayoutOptimizer::permute(Tensor& tensor, const Graph::DimensionMap<Priority>& priorities) {
+    auto output = tensor.getOutput();
+    auto reductions = tensor.getReductions();
+    auto extract = [&](const Dimension& dim) { return priorities.at(dim).extract(); };
+    std::ranges::sort(output, std::less<>{}, extract);
+    std::ranges::sort(reductions, std::less<>{}, extract);
+    tensor.adjustLayout(&output, &reductions);
+}
+
+LayoutOptimizer::LayoutOptimizer(const Graph& graph, bool unfoldToLeft):
+    graph { graph }, unfoldToLeft { unfoldToLeft } {}
+
+void LayoutOptimizer::optimize(IR& ir) {
+    BottomTopPass bottomTopPass { graph, serialized };
+    graph.accept(bottomTopPass);
+    auto& bottomTop = bottomTopPass.attributes;
+
+    const Tensor& data = ir.inputTensors.at(0);
+    handleInputTensorAndExpansions(data.output(), bottomTop);
+
+    TopBottomPass topBottomPass { graph, serialized, bottomTop, unfoldToLeft };
+    graph.accept(topBottomPass);
+    auto& topBottom = topBottomPass.attributes;
+
+    serialize();
+
+    ir.bottomTopForEach([&](Tensor& tensor) {
+        if (tensor != ir.outputTensor && tensor != data) {
+            permute(tensor, topBottom);
+        }
+    });
+}
+
+OptimizeLayoutIRPass::OptimizeLayoutIRPass(const Graph& graph, bool unfoldToLeft):
+    graph { graph }, unfoldToLeft { unfoldToLeft } {}
 
 void OptimizeLayoutIRPass::operator()(IR& ir) const {
+    LayoutOptimizer rewriter { graph, unfoldToLeft };
+    rewriter.optimize(ir);
     if (!std::ranges::equal(ir.outputTensor.output(), graph.getOutputIterators())) {
         KAS_ASSERT(!ir.outputTensor.isInputTensor());
         std::vector<Dimension> expectedOutput;
         std::ranges::copy(graph.getOutputIterators(), std::back_inserter(expectedOutput));
         ir.outputTensor.adjustLayout(&expectedOutput, nullptr);
     }
-    ir.topBottomForEach([&](Tensor& tensor) {
-        if (!tensor.isInputTensor() && ir.outputTensor != tensor) {
-            optimize(tensor);
-        }
-    });
 }
 
 } // namespace kas

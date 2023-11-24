@@ -208,17 +208,16 @@ std::string TensorView::description(const BindingContext& ctx) const {
 }
 
 TensorView::TensorView(const std::vector<Topmost>& canonicalTensors, TensorExpression blending, const BindingContext& ctx) {
-    const Graph graph =
-        GraphBuilder().addTopmosts(canonicalTensors).build();
+    subgraphs = IR::Build(canonicalTensors, ctx);
+    KAS_ASSERT(subgraphs.inputTensors.at(0).output() == canonicalTensors.at(0).getDimensions());
+
+    const Graph graph = subgraphs.buildGraph();
+
     const auto& outputIterators = graph.getOutputIterators();
     const auto& reduceIterators = graph.getReduceIterators();
 
-    auto tensors = canonicalTensors;
-    LocalityOptimizer optim { graph };
-    optim.permuteWeightDimensions(tensors);
-    KAS_ASSERT(tensors.at(0) == canonicalTensors.at(0));
-    for (std::size_t tId = 0; const auto& tensor: tensors) {
-        this->tensors.emplace_back(tId, tensor);
+    for (std::size_t tId = 0; const auto& tensor: subgraphs.inputTensors) {
+        this->tensors.emplace_back(tId, tensor.output(), subgraphs.expansions.at(tId));
         ++tId;
     }
 
@@ -244,8 +243,6 @@ TensorView::TensorView(const std::vector<Topmost>& canonicalTensors, TensorExpre
 
     interface = outputIterators;
     manipulations = reduceIterators;
-
-    subgraphs = IR::Build(tensors, ctx);
 }
 
 } // namespace kas

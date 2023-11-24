@@ -12,13 +12,6 @@
 
 namespace kas {
 
-class LocalityOptimizer {
-    const Graph& graph;
-public:
-    LocalityOptimizer(const Graph& graph): graph { graph } {}
-    void permuteWeightDimensions(std::vector<Topmost>& tensors) const;
-};
-
 class TensorExpressionDifferentiator final: public ValuedTensorExpressionVisitor<
     TensorExpressionDifferentiator,
     TensorExpression

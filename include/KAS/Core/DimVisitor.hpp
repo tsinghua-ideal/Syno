@@ -63,6 +63,9 @@ public:
         guard(dim);
         return attributes.at(dim);
     }
+    void preset(const Dimension& dim, AttributeType value) {
+        assertEmplace(dim, std::move(value));
+    }
     void visit(const Iterator& dim) final override {
         assertEmplace(&dim, derived().transform(dim));
     }

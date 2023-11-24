@@ -1,5 +1,7 @@
 #pragma once
 
+#include <list>
+
 #include "KAS/Core/Graph.hpp"
 #include "KAS/Core/Tensor.hpp"
 
@@ -174,11 +176,84 @@ public:
 };
 
 // Optimize the layout of all the Tensor's, except the input and output tensors.
+// We use a two-fold simple algorithm here, to optimize the layout all tensors, including weights. Only the input and output tensors are kept.
+// First go bottom-up, so we propagate the layout required by the output.
+// - ReduceOp is nullopt. Iterator follows the output.
+// - RepeatLikeOp, same priority.
+// - SplitOp, monadic max. 
+// - UnfoldOp, follow LHS.
+// - MergeLikeOp, one more level. This also handles ShareOp.
+// - ExpandOp. Give the greatest priority.
+// Then go top-bottom, to fill the undetermined priorities.
+// - Input tensor. Make the loops as outer as possible.
+// - RepeatLikeOp, same priority.
+// - SplitOp, one more level.
+// - UnfoldOp, if unfold to right, LHS-RHS, otherwise RHS-LHS.
+// - ShareOp, LHS to RHS and output.
+// - MergeOp, monadic max.
+class LayoutOptimizer {
+    const Graph& graph;
+    bool unfoldToLeft;
+
+    std::list<int> serialized;
+
+    // Less means outer loop.
+    struct Priority {
+        std::list<int> *serialized;
+        using Placeholder = std::list<int>::iterator;
+        std::optional<Placeholder> value;
+        bool determined() const { return value.has_value(); }
+        int extract() const { return *value.value(); }
+        static Priority Head(std::list<int>& serialized);
+        static Priority Tail(std::list<int>& serialized);
+        static Priority Empty(std::list<int>& serialized);
+        static Priority Append(Priority from);
+        static Priority Prepend(Priority from);
+        bool operator==(const Priority& rhs) const = default;
+        std::strong_ordering operator<=>(const Priority& rhs) const;
+        static Priority MonadicMax(Priority lhs, Priority rhs);
+        static Priority MonadicMin(Priority lhs, Priority rhs);
+    };
+    struct BottomTopPass: BottomTopDimVisitor<BottomTopPass, Priority> {
+        std::list<int>& serialized;
+        BottomTopPass(const Graph& graph, std::list<int>& serialized);
+        auto transform(const Iterator& dim) const -> Priority { KAS_UNREACHABLE(); }
+        auto transform(const Reduce& dim) const -> Priority { KAS_UNREACHABLE(); }
+        auto transform(const RepeatLikeOp& op) const -> Priority;
+        auto transform(const SplitLikeOp& op) const -> Priority;
+        auto transform(const MergeLikeOp& op) const -> std::pair<Priority, Priority>;
+    };
+    void handleInputTensorAndExpansions(const std::vector<Dimension>& inputTensor, Graph::DimensionMap<Priority>& bottomTop);
+    struct TopBottomPass: TopBottomDimVisitor<TopBottomPass, Priority> {
+        std::list<int>& serialized;
+        const Graph::DimensionMap<Priority>& bottomTop;
+        bool unfoldToLeft;
+        // Handle the input tensor and expansions beforehand.
+        TopBottomPass(const Graph& graph, std::list<int>& serialized, const Graph::DimensionMap<Priority>& bottomTop, bool unfoldToLeft);
+        auto transformInput(const Dimension& dim) -> Priority;
+        auto transformExpand(const Dimension& dim) -> Priority;
+        auto transform(const RepeatLikeOp& op) -> Priority;
+        auto transform(const SplitLikeOp& op) -> std::pair<Priority, Priority>;
+        auto transform(const MergeLikeOp& op) -> Priority;
+    };
+
+    int all = 0;
+    // Actually assign.
+    void serialize();
+
+    void permute(Tensor& tensor, const Graph::DimensionMap<Priority>& priorities);
+
+public:
+    LayoutOptimizer(const Graph& graph, bool unfoldToLeft);
+
+    void optimize(IR& ir);
+};
+
 class OptimizeLayoutIRPass {
     const Graph& graph;
-    void optimize(Tensor& tensor) const;
+    bool unfoldToLeft;
 public:
-    OptimizeLayoutIRPass(const Graph& graph);
+    OptimizeLayoutIRPass(const Graph& graph, bool unfoldToLeft = false);
     void operator()(IR& ir) const;
 };
 
