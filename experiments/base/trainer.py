@@ -66,13 +66,20 @@ def train(
             model.float()
         model.train()
         loss_meter = AverageMeter()
+        correct = 0
+        total = 0
         for i, (image, label) in enumerate(train_dataloader):
             # Forward
             image, label = image.cuda(), label.cuda()
+            total += label.size(0)
             logits: torch.Tensor = (
                 model(image.bfloat16()).float() if use_bf16_train else model(image)
             )
             loss = loss_func(logits, label)
+
+            # Statistic
+            pred = torch.argmax(logits, 1)
+            correct += torch.sum(pred == label).item()
 
             # Backward
             loss.backward()
@@ -88,6 +95,8 @@ def train(
             scheduler.step_update(num_updates=num_updates)
         scheduler.step(epoch=epoch + 1)
         elapsed_train_time = time.time() - start_time
+
+        train_accuracy = correct / total
 
         # Valiation
         start_time = time.time()
@@ -123,7 +132,7 @@ def train(
             val_accuracy.append(correct / total)
         elapsed_valid_time = time.time() - start_time
         logging.info(
-            f"Epoch [{epoch + 1}/{sched_epochs}], train loss: {loss_meter.avg}, test accuracy: {correct / total}, training time: {elapsed_train_time}, validation time: {elapsed_valid_time}"
+            f"Epoch [{epoch + 1}/{sched_epochs}], train loss: {loss_meter.avg}, train_accuracy: {train_accuracy}, test accuracy: {correct / total}, training time: {elapsed_train_time}, validation time: {elapsed_valid_time}"
         )
         if (
             epoch > 0
