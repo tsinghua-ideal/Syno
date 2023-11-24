@@ -6,7 +6,7 @@ import os, sys, json
 import logging
 from argparse import Namespace
 from typing import List
-from KAS import Path, Sampler
+from KAS import Path, Sampler, init_weights
 import thop, torch
 
 if os.getcwd() not in sys.path:
@@ -33,6 +33,7 @@ def train(
     if name == "Baseline":
         if args.model.startswith("torchvision/"):
             model = models.common.get_vanilla_common_model(args).cuda()
+            model.apply(init_weights)
             flops, params = thop.profile(
                 model, (torch.ones((args.batch_size, *args.input_size), device="cuda"),)
             )
