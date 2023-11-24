@@ -234,6 +234,18 @@ def main(args):
     kernels = collect_kernels(args)
     logging.info(f"collected {len(kernels)} kernels. ")
 
+    for kernel_dir in os.listdir(args.kas_server_save_dir):
+        meta_path = os.path.join(args.kas_server_save_dir, kernel_dir, "meta.json")
+        if not os.path.exists(meta_path):
+            continue
+        with open(meta_path, "r") as f:
+            meta = json.load(f)
+        for _, path in kernels:
+            if meta["path"] == path:
+                kernels.pop(kernels.index((_, path)))
+                break
+    logging.info(f"left {len(kernels)} kernels: {kernels}")
+
     # Sampler
     logging.info("Preparing sampler ...")
     model, sampler = models.get_model(

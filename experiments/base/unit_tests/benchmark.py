@@ -37,9 +37,9 @@ def train(
                 model, (torch.ones((args.batch_size, *args.input_size), device="cuda"),)
             )
             flops /= args.batch_size
-            if args.compile:
-                torch._dynamo.reset()
-                model = torch.compile(model)
+            # if args.compile:
+            #     torch._dynamo.reset()
+            #     model = torch.compile(model)
         else:
             assert hasattr(
                 sys.modules[__name__], args.model
@@ -160,26 +160,27 @@ def test_semantic_conv2d(test_kernels: List[str], test_run: bool) -> None:
         else:
             results[test_kernel].update(result)
 
-    with open("base/unit_tests/results.json", "w") as f:
-        json.dump(results, f, indent=4)
+    # with open("base/unit_tests/results.json", "w") as f:
+    #     json.dump(results, f, indent=4)
 
 
 if __name__ == "__main__":
     log.setup(level=logging.INFO)
 
     test_kernels = [
-        # "Baseline",
-        "Conv2d_simple",
+        "Baseline",
+        # "Conv2d_simple",
+        # "Conv1x1_simple",
         # "Conv2d_dilation",
-        "Conv2d_group",
-        "Conv2d_group_oas",
+        # "Conv2d_group",
+        # "Conv2d_group_oas",
         # "Conv2d_pool",
         # "Conv2d_pool1d",
-        "Conv1d_shift1d",
-        "Conv1d_transpose",
+        # "Conv1d_shift1d",
+        # "Conv1d_transpose",
         # "Conv1d_patch1d",
-        "Shift2d",
-        "kernel_07923",
+        # "Shift2d",
+        # "kernel_07923",
     ]
     test_run = False
 

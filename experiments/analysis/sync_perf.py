@@ -1,6 +1,6 @@
 import argparse
 import json
-import os
+import os, shutil
 
 if __name__ == "__main__":
     # Get Path
@@ -31,8 +31,12 @@ if __name__ == "__main__":
             meta_path = os.path.join(kernel_dir, "meta.json")
             with open(meta_path, "r") as f:
                 meta = json.load(f)
-        assert os.path.exists(os.path.join(kernel_dir, "perf"))
-        path2perf[meta["path"]] = os.path.join(kernel_dir, "perf")
+            assert os.path.exists(os.path.join(kernel_dir, "perf")), os.path.join(
+                kernel_dir, "perf"
+            )
+            path2perf[meta["path"]] = os.path.join(kernel_dir, "perf")
+
+    json.dump(path2perf, open("path2perf.json", "w"))
 
     for dest_dir in args.destinations:
         for kernel_fmt in os.listdir(dest_dir):
@@ -48,8 +52,15 @@ if __name__ == "__main__":
             with open(meta_path, "r") as f:
                 meta = json.load(f)
 
-            os.symlink(
+            if os.path.exists(os.path.join(kernel_dir, "perf")):
+                shutil.rmtree(os.path.join(kernel_dir, "perf"))
+
+            if meta["path"] not in path2perf:
+                continue
+
+            assert os.path.exists(path2perf[meta["path"]]), path2perf[meta["path"]]
+            shutil.copytree(
                 path2perf[meta["path"]],
                 os.path.join(kernel_dir, "perf"),
-                target_is_directory=True,
+                dirs_exist_ok=True,
             )

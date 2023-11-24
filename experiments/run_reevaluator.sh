@@ -28,7 +28,7 @@ tmux send-keys -t 0 "echo TMUX Pane 0" Enter
 tmux send-keys -t 0 "mamba activate $2" Enter
 tmux send-keys -t 0 "cd ${current_path}" Enter
 tmux send-keys -t 0 "export CUDA_VISIBLE_DEVICES=0" Enter
-tmux send-keys -t 0 "./launch_reevaluator.sh ${*:4} --seed $RANDOM >> server_output_$3.log 2>&1" Enter
+tmux send-keys -t 0 "bash ./launch_reevaluator.sh ${*:4} --seed $RANDOM >> server_output_$3.log 2>&1" Enter
 
 # Attach.
 tmux attach -t "$3"

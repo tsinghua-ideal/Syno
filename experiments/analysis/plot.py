@@ -1,6 +1,6 @@
 import argparse
 import json
-import os
+import os, shutil
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -24,7 +24,6 @@ def identify_pareto(scores):
     # Create a starting list of items on the Pareto front
     # All items start off as being labelled as on the Parteo front
     pareto_front = np.ones(population_size, dtype=bool)
-    print(pareto_front)
     # Loop through each item. This will then be compared with all other items
     for i in range(population_size):
         # Loop through all other items
@@ -111,6 +110,9 @@ if __name__ == "__main__":
             if not args.time and "time" not in meta:
                 meta["time"] = 0
 
+            if args.latency and not os.path.exists(os.path.join(kernel_dir, "perf")):
+                continue
+
             latency = (
                 extract_latency(
                     os.path.join(
@@ -134,6 +136,7 @@ if __name__ == "__main__":
                     meta["params"],
                     kernel_hash,
                     latency,
+                    kernel_dir,
                 )
             )
         kernels = sorted(kernels, key=lambda x: x[0])
@@ -147,6 +150,14 @@ if __name__ == "__main__":
     print(
         f"The kernel with smallest FLOPs is {min([kernel for _, kernels in all_kernels for kernel in kernels if kernel[1] > args.min_acc], key=lambda x:x[2])}"
     )
+    os.makedirs(f"results/{args.model}-good-kernels", exist_ok=True)
+    for _, kernels in all_kernels:
+        for kernel in kernels:
+            if kernel[1] >= args.reference_acc - 0.01:
+                shutil.copytree(
+                    kernel[-1],
+                    f"results/{args.model}-good-kernels/{os.path.basename(kernel[-1])}",
+                )
 
     # Accuracy vs FLOPs/param distribution
 
@@ -155,10 +166,11 @@ if __name__ == "__main__":
     if args.latency:
         all_latency_ratio = []
     all_y = []
+    all_kernel_dir = []
     plt.figure(figsize=(10, 6), dpi=300)
     for i, (name, kernels) in enumerate(all_kernels):
         try:
-            x, y, flops, params, hash_value, latency = zip(
+            x, y, flops, params, hash_value, latency, kernel_dir = zip(
                 *filter(lambda x: x[1] > args.min_acc, kernels)
             )
         except ValueError:
@@ -174,6 +186,7 @@ if __name__ == "__main__":
         )
 
         all_y.extend(y)
+        all_kernel_dir.extend(kernel_dir)
         flops_ratio = np.array(flops) / args.reference_flops
         all_flops_ratio.extend(list(flops_ratio))
         if args.latency:
@@ -202,14 +215,27 @@ if __name__ == "__main__":
             plt.plot([f, l], [acc, acc], c="#BEB8DC", linewidth=1.0)
 
         # Pareto
-        score = np.array([all_latency_ratio, all_y]).transpose()
+        score = np.array([1 - all_latency_ratio, all_y]).transpose()
         pareto_mask = identify_pareto(score)
-        plt.plot(
-            all_latency_ratio[pareto_mask],
-            all_y[pareto_mask],
-            label="Pareto Curve",
-            c="#82B0D2",
-            linewidth=1.3
+
+        path2perf = json.load(open("path2perf.json"))
+        for msk, kernel_dir in zip(pareto_mask, all_kernel_dir):
+            if not msk:
+                path = json.load(open(os.path.join(kernel_dir, "meta.json")))["path"]
+                accuracy = json.load(open(os.path.join(kernel_dir, "meta.json")))[
+                    "accuracy"
+                ]
+                if accuracy > 0.695:
+                    print(f"{os.path.dirname(path2perf[path])}")
+
+        id = np.argsort(all_latency_ratio[pareto_mask])
+        plt.step(
+            [*all_latency_ratio[pareto_mask][id], 1.0],
+            [*all_y[pareto_mask][id], args.reference_acc],
+            label="Pareto",
+            c="#8ECFC9",
+            linewidth=1.3,
+            where="post",
         )
 
     plt.scatter([1.0], [args.reference_acc], s=50, c="#FA7F6F", marker="^")
@@ -231,13 +257,14 @@ if __name__ == "__main__":
     plt.xlabel("FLOPs and Latency (ratio to baseline)")
     plt.ylabel("Accuracy")
     plt.legend(loc="lower right")
+    plt.title(f"Search Result of {args.model}")
     plt.savefig(f"{args.output}-acc-vs-flops.png")
 
     # Params
     plt.figure(figsize=(10, 6), dpi=300)
     for i, (name, kernels) in enumerate(all_kernels):
         try:
-            x, y, flops, params, hash_value, latency = zip(
+            x, y, flops, params, hash_value, latency, kernel_dir = zip(
                 *filter(lambda x: x[1] > args.min_acc, kernels)
             )
         except ValueError:
