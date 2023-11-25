@@ -349,7 +349,7 @@ class Session:
     def sample(self):
         # Get new samples if there is no pending samples
         if len(self.pending) == 0:
-            self.clean_timeout_samples()
+            # self.clean_timeout_samples()
             new_samples = self.sample_impl()
 
             # String information

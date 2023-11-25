@@ -67,6 +67,8 @@ def replace_layer_filter(
                 (2, 2),
             ]:
                 return None
+            if layer.groups > 1:
+                return None
 
         else:
             raise NotImplementedError(f"{name} is not a valid model!")

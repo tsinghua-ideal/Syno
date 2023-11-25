@@ -169,6 +169,9 @@ def get_model(
             logging.info(
                 f"Kernel sizes: {[pl.referred_layer.kernel_size for pl in sampler._extract_placeholders(model)]}"
             )
+            logging.info(
+                f"Groups: {[pl.referred_layer.groups for pl in sampler._extract_placeholders(model)]}"
+            )
 
     # Replace kernel
     if args.kas_replace_placeholder is not None:
