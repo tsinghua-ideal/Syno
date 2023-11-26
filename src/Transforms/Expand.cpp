@@ -94,14 +94,6 @@ std::vector<const ExpandOp *> ExpandOp::Generate(OperationStore& store, const To
             if (options.disallowTile) {
                 continue;
             }
-            // Get the bottommost output dim.
-            while (outputDim.is(DimensionType::Merge)) {
-                outputDim = outputDim.as<MergeOp::Input>().getOp()->output;
-            }
-        }
-        if (outputDim.type() == DimensionType::Iterator) {
-            // Data replication.
-            continue;
         }
 
         if (
