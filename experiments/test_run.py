@@ -24,7 +24,7 @@ if __name__ == "__main__":
     logging.info("Preparing model ...")
     if args.kas_use_orig_model:
         if args.model.startswith("torchvision/"):
-            model = models.common.get_common_model(args).cuda()
+            model = models.common.get_vanilla_common_model(args).cuda()
         else:
             assert hasattr(
                 sys.modules[__name__], args.model
