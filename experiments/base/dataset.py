@@ -187,7 +187,7 @@ class ConstantLengthDataset(IterableDataset):
         self.tokenizer = tokenizer
         self.concat_token_id = tokenizer.bos_token_id
         self.dataset = dataset
-        self.seq_length = seq_length
+        self.seq_length = seq_length + 1
         # TODO: fix factor and prefetch
         self.input_characters = seq_length * chars_per_token * 128
         self.epoch = 0
