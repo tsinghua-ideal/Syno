@@ -3,7 +3,9 @@ import logging
 import random
 import requests
 import time
-import sys
+import os, sys, json
+import ctypes
+import shutil
 import torch
 from KAS import Path
 
@@ -97,3 +99,53 @@ if __name__ == "__main__":
             )
         )
     print(f"Evaluation result: {flops} {params} {accuracy}")
+
+    nparams = params
+    kernel_flag = "LOAD_SUCCESS"
+
+    save_dir = args.kas_server_save_dir
+
+    node = sampler.visit(Path.deserialize(path)).to_node()
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    acc_str = (
+        ("0" * max(0, 5 - len(f"{int(accuracy * 10000)}"))) + f"{int(accuracy * 10000)}"
+        if accuracy >= 0
+        else "ERROR"
+    )
+    hash_str = f"{ctypes.c_size_t(hash(path)).value}"
+    kernel_save_dir = os.path.join(save_dir, "_".join([acc_str, hash_str]))
+    if not (os.path.exists(kernel_save_dir) and acc_str == "ERROR"):
+        os.makedirs(kernel_save_dir, exist_ok=True)
+
+        # GraphViz
+        node.generate_graphviz_as_final(
+            os.path.join(kernel_save_dir, "graph.dot"), "kernel"
+        )
+
+        # Loop
+        with open(os.path.join(kernel_save_dir, "loop.txt"), "w") as f:
+            f.write(str(node.get_nested_loops_as_final()))
+
+        # Meta information
+        with open(os.path.join(kernel_save_dir, "meta.json"), "w") as f:
+            json.dump(
+                {
+                    "path": path,
+                    "accuracy": accuracy,
+                    "flops": flops,
+                    "params": nparams,
+                    "kernel_flag": kernel_flag,
+                    "loss": 0,
+                },
+                f,
+                indent=2,
+            )
+
+        # copying kernel dir
+        if kernel_flag != "MOCKPATH":
+            shutil.copytree(
+                sampler.realize(model, node).get_directory(),
+                os.path.join(kernel_save_dir, "kernel_scheduler_dir"),
+            )
