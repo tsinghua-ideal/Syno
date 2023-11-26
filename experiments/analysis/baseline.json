@@ -19,6 +19,11 @@
         "flops": 1824033792,
         "params": 11689512
     },
+    "resnet34-imagenet": {
+        "accuracy": 0.74395751953125,
+        "flops": 3678739456,
+        "params": 21797672
+    },
     "densenet": {
         "accuracy": 0.8030849358974359,
         "flops": 2896085504,
