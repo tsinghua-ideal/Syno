@@ -37,7 +37,7 @@ done
 # Run.
 current_path=$(pwd)
 
-logp=logs/(date +%FT%T.%3N)
+logp=logs/$(date +%FT%T.%3N)
 
 mkdir -p ${logp}
 
