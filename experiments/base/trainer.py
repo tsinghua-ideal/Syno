@@ -185,13 +185,13 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
             batch = next(data_iterator)
 
         batch = batch.cuda()
-        _, loss = model(batch, batch)
+        _, loss = model(batch[:, :-1], batch[:, 1:])
 
         if time.time() - last_time > args.gpt_log_interval:
             last_time = time.time()
             value = loss.item()
             losses.append((time.time(), value))
-            logging.info(f"Train loss: {value}")
+            logging.info(f"Step: {num_iters}, train loss: {value}")
 
         model.zero_grad(set_to_none=True)
         loss.backward()
@@ -213,6 +213,7 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
         if time.time() - start_time > 60 and loss.item() > args.gpt_max_loss:
             logging.info(f"Prune loss (last item): {loss.item()}")
             break
+        num_iters += 1
 
     return losses
 
