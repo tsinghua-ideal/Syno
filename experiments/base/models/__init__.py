@@ -80,6 +80,8 @@ def get_sampler(args, model) -> Sampler:
         "maximum_variables_in_size": args.kas_max_variables_in_size,
         "max_chain_length": args.kas_max_chain_length,
         "max_rdom_size_multiplier": args.kas_max_size_multiplier,
+        "min_single_weight_params": args.kas_min_weight_nparams,
+        "disallow_tile": not args.kas_allow_tile,
         "save_path": os.path.join(
             args.kas_server_save_dir, args.kas_scheduler_cache_dir
         ),

@@ -22,11 +22,14 @@ class GPTConfig:
                 parts.append(v._str_helper(indent + 1))
             else:
                 parts.append("%s: %s\n" % (k, v))
-        parts = [' ' * (indent * 4) + p for p in parts]
+        parts = [" " * (indent * 4) + p for p in parts]
         return "".join(parts)
 
     def to_dict(self):
-        return { k: v.to_dict() if isinstance(v, GPTConfig) else v for k, v in self.__dict__.items() }
+        return {
+            k: v.to_dict() if isinstance(v, GPTConfig) else v
+            for k, v in self.__dict__.items()
+        }
 
     def merge_from_dict(self, d):
         self.__dict__.update(d)
@@ -34,7 +37,16 @@ class GPTConfig:
 
 class NewGELU(nn.Module):
     def forward(self, x):
-        return 0.5 * x * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))))
+        return (
+            0.5
+            * x
+            * (
+                1.0
+                + torch.tanh(
+                    math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))
+                )
+            )
+        )
 
 
 class CausalSelfAttention(nn.Module):
@@ -45,21 +57,25 @@ class CausalSelfAttention(nn.Module):
         self.c_proj = nn.Linear(config.n_embd, config.n_embd)
         self.attn_dropout = nn.Dropout(config.attn_pdrop)
         self.resid_dropout = nn.Dropout(config.resid_pdrop)
-        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
-                                     .view(1, 1, config.block_size, config.block_size))
+        self.register_buffer(
+            "bias",
+            torch.tril(torch.ones(config.block_size, config.block_size)).view(
+                1, 1, config.block_size, config.block_size
+            ),
+        )
         self.n_head = config.n_head
         self.n_embd = config.n_embd
 
     def forward(self, x):
         B, T, C = x.size()
 
-        q, k, v  = self.c_attn(x).split(self.n_embd, dim=2)
+        q, k, v = self.c_attn(x).split(self.n_embd, dim=2)
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
 
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+        att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float("-inf"))
         att = F.softmax(att, dim=-1)
         att = self.attn_dropout(att)
         y = att @ v
@@ -75,12 +91,14 @@ class Block(nn.Module):
         self.ln_1 = nn.LayerNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
         self.ln_2 = nn.LayerNorm(config.n_embd)
-        self.mlp = nn.ModuleDict(dict(
-            c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd),
-            c_proj  = nn.Linear(4 * config.n_embd, config.n_embd),
-            act     = NewGELU(),
-            dropout = nn.Dropout(config.resid_pdrop),
-        ))
+        self.mlp = nn.ModuleDict(
+            dict(
+                c_fc=nn.Linear(config.n_embd, 4 * config.n_embd),
+                c_proj=nn.Linear(4 * config.n_embd, config.n_embd),
+                act=NewGELU(),
+                dropout=nn.Dropout(config.resid_pdrop),
+            )
+        )
         m = self.mlp
         self.mlpf = lambda x: m.dropout(m.c_proj(m.act(m.c_fc(x))))
 
@@ -94,10 +112,10 @@ class GPT(KASModel):
     @staticmethod
     def get_default_config():
         C = GPTConfig()
-        C.model_type = 'gpt'
+        C.model_type = "gpt"
         C.n_layer = None
         C.n_head = None
-        C.n_embd =  None
+        C.n_embd = None
         C.vocab_size = None
         C.block_size = None
         C.embd_pdrop = 0.1
@@ -112,34 +130,52 @@ class GPT(KASModel):
         self.block_size = config.block_size
 
         type_given = config.model_type is not None
-        params_given = all([config.n_layer is not None, config.n_head is not None, config.n_embd is not None])
+        params_given = all(
+            [
+                config.n_layer is not None,
+                config.n_head is not None,
+                config.n_embd is not None,
+            ]
+        )
         assert type_given ^ params_given
         if type_given:
-            config.merge_from_dict({
-                'openai-gpt':   dict(n_layer=12, n_head=12, n_embd=768),  # 117M params
-                'gpt2':         dict(n_layer=12, n_head=12, n_embd=768),  # 124M params
-                'gpt2-medium':  dict(n_layer=24, n_head=16, n_embd=1024), # 350M params
-                'gpt2-large':   dict(n_layer=36, n_head=20, n_embd=1280), # 774M params
-                'gpt2-xl':      dict(n_layer=48, n_head=25, n_embd=1600), # 1558M params
-                'gopher-44m':   dict(n_layer=8, n_head=16, n_embd=512),
-                'gpt-mini':     dict(n_layer=6, n_head=6, n_embd=192),
-                'gpt-micro':    dict(n_layer=4, n_head=4, n_embd=128),
-                'gpt-nano':     dict(n_layer=3, n_head=3, n_embd=48),
-            }[config.model_type])
+            config.merge_from_dict(
+                {
+                    "openai-gpt": dict(
+                        n_layer=12, n_head=12, n_embd=768
+                    ),  # 117M params
+                    "gpt2": dict(n_layer=12, n_head=12, n_embd=768),  # 124M params
+                    "gpt2-medium": dict(
+                        n_layer=24, n_head=16, n_embd=1024
+                    ),  # 350M params
+                    "gpt2-large": dict(
+                        n_layer=36, n_head=20, n_embd=1280
+                    ),  # 774M params
+                    "gpt2-xl": dict(n_layer=48, n_head=25, n_embd=1600),  # 1558M params
+                    "gopher-44m": dict(n_layer=8, n_head=16, n_embd=512),
+                    "gpt-mini": dict(n_layer=6, n_head=6, n_embd=192),
+                    "gpt-micro": dict(n_layer=4, n_head=4, n_embd=128),
+                    "gpt-nano": dict(n_layer=3, n_head=3, n_embd=48),
+                }[config.model_type]
+            )
 
-        self.transformer = nn.ModuleDict(dict(
-            wte = nn.Embedding(config.vocab_size, config.n_embd),
-            wpe = nn.Embedding(config.block_size, config.n_embd),
-            drop = nn.Dropout(config.embd_pdrop),
-            h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
-            ln_f = nn.LayerNorm(config.n_embd),
-        ))
+        self.transformer = nn.ModuleDict(
+            dict(
+                wte=nn.Embedding(config.vocab_size, config.n_embd),
+                wpe=nn.Embedding(config.block_size, config.n_embd),
+                drop=nn.Dropout(config.embd_pdrop),
+                h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+                ln_f=nn.LayerNorm(config.n_embd),
+            )
+        )
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
         self.apply(self._init_weights)
         for pn, p in self.named_parameters():
-            if pn.endswith('c_proj.weight'):
-                torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
+            if pn.endswith("c_proj.weight"):
+                torch.nn.init.normal_(
+                    p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer)
+                )
 
         n_params = sum(p.numel() for p in self.transformer.parameters())
         # print("Number of parameters: %.2fM" % (n_params/1e6,))
@@ -156,15 +192,15 @@ class GPT(KASModel):
             torch.nn.init.ones_(module.weight)
 
     def sample_input_shape(self, seq_len):
-        return (seq_len, )
+        return (seq_len,)
 
     def sampler_parameters(self, args=None):
-         return {
-            'input_shape': '[N, seq_len, H_in: unordered]',
-            'output_shape': '[N, seq_len, t*H_in: unordered]',
-            'primary_specs': ['N: 0', 'seq_len: 0', 'H_in: 4'],
-            'coefficient_specs': ['k_1=2: 3', 'k_2=5: 2', 't=3: 3', 'g=32: 3'],
-            'fixed_io_pairs': [(0, 0)],
+        return {
+            "input_shape": "[N, seq_len, H_in: unordered]",
+            "output_shape": "[N, seq_len, t*H_in]",
+            "primary_specs": ["N: 0", "seq_len: 0", "H_in: 4"],
+            "coefficient_specs": ["k_1=2: 3", "k_2=5: 2", "t=3: 3", "g=32: 3"],
+            "fixed_io_pairs": [(0, 0)],
         }
 
     def initialize_weights(self):
@@ -173,7 +209,9 @@ class GPT(KASModel):
     def forward(self, idx, targets=None):
         device = idx.device
         b, t = idx.size()
-        assert t <= self.block_size, f"Cannot forward sequence of length {t}, block size is only {self.block_size}"
+        assert (
+            t <= self.block_size
+        ), f"Cannot forward sequence of length {t}, block size is only {self.block_size}"
         pos = torch.arange(0, t, dtype=torch.long, device=device).unsqueeze(0)
 
         tok_emb = self.transformer.wte(idx)
@@ -186,6 +224,8 @@ class GPT(KASModel):
 
         loss = None
         if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+            loss = F.cross_entropy(
+                logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1
+            )
 
         return logits, loss

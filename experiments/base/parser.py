@@ -354,6 +354,12 @@ def arg_parse():
         help="KAS sampler multiplier for maximum reduce size. ",
     )
     parser.add_argument(
+        "--kas-min-weight-nparams",
+        default=100,
+        type=int,
+        help="KAS sampler multiplier for maximum reduce size. ",
+    )
+    parser.add_argument(
         "--kas-max-weight-share-dim",
         default=8,
         type=int,
@@ -457,6 +463,12 @@ def arg_parse():
         action="store_true",
         default=False,
         help="requires_odd_kernel_size_in_unfold=False",
+    )
+    parser.add_argument(
+        "--kas-allow-tile",
+        action="store_true",
+        default=False,
+        help="disallow_tile=False",
     )
     parser.add_argument(
         "--kas-min-unfold-ratio",

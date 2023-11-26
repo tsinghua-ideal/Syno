@@ -5,6 +5,62 @@ class ManualImpl:
     def __init__(self, sampler: Sampler) -> None:
         self.assembler = sampler.create_assembler()
 
+    def linear_simple(self) -> Assembled:
+        N, seq, t, H_in = self.assembler.get_sizes("N", "seq_len", "t", "H_in")
+        (
+            in_N,
+            in_seq,
+            in_H,
+            w_H_1,
+            w_H_2,
+        ) = self.assembler.make_dims_of_sizes(N, seq, H_in, H_in, t * H_in)
+
+        shared_H = self.assembler.create_share(in_H, w_H_1)
+        tmp_dim = self.assembler.create_expand(t * H_in)
+        out_H = self.assembler.create_share(tmp_dim, w_H_2)
+
+        in_N.output(0)
+        in_seq.output(1)
+        out_H.output(2)
+        shared_H.sum()
+
+        return self.assembler.assemble(
+            "linear",
+            "in_0 * in_1",
+            [in_N, in_seq, in_H, tmp_dim],
+            [w_H_1, w_H_2],
+        )
+
+    def MQA(self) -> Assembled:
+        N, seq, t, H_in = self.assembler.get_sizes("N", "seq_len", "t", "H_in")
+        (
+            in_N,
+            in_seq,
+            in_H,
+            w_H_1,
+            w_H_2,
+        ) = self.assembler.make_dims_of_sizes(N, seq, H_in, H_in, H_in)
+
+        tmp_dim = self.assembler.create_expand(H_in)
+        masked_H = self.assembler.create_share(tmp_dim, w_H_2)
+
+        ratio = self.assembler.create_expand(t)
+        out_H = self.assembler.create_merge(ratio, masked_H)
+
+        shared_H = self.assembler.create_share(in_H, w_H_1)
+
+        in_N.output(0)
+        in_seq.output(1)
+        out_H.output(2)
+        shared_H.sum()
+
+        return self.assembler.assemble(
+            "mqa",
+            "in_0 * in_1",
+            [in_N, in_seq, in_H, ratio, tmp_dim],
+            [w_H_1, w_H_2],
+        )
+
     def Conv2d_simple(self) -> Assembled:
         N, H, k, C_in, C_out = self.assembler.get_sizes(
             "N", "H", "k_1", "C_in", "C_out"
