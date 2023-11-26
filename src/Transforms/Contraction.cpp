@@ -268,7 +268,7 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
         return block.isAdjacentTo(options.expansionsReshapeBlocks);
     })) {
         // Same rule as ExpandOp.
-        return nullptr;
+        // return nullptr;
     }
 
     // Canonical order of ContractionOp.
