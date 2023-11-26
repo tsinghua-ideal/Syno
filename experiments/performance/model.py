@@ -76,6 +76,7 @@ def substitute_kernels(relax_mod: IRModule, kernel_builder: Optional[Callable[[K
             exp_op = tvm.ir.Op.get("relax.exp")
             add_op = tvm.ir.Op.get("relax.add")
             conv2d_op = tvm.ir.Op.get("relax.nn.conv2d")
+            matmul_op = tvm.ir.Op.get("relax.matmul")
             subtract_op = tvm.ir.Op.get("relax.subtract")
 
             # First match the outer exp.
@@ -90,25 +91,28 @@ def substitute_kernels(relax_mod: IRModule, kernel_builder: Optional[Callable[[K
             if original_output.op == add_op:
                 has_bias = True
                 conv_call = self.lookup_binding(original_output.args[0])
-                conv_bias = original_output.args[1]
+                bias = original_output.args[1]
+                matmul_call = None
             elif original_output.op == conv2d_op:
                 has_bias = False
                 conv_call = original_output
-                conv_bias = None
+                bias = None
+                matmul_call = None
+            elif original_output.op == matmul_op:
+                has_bias = False
+                conv_call = None
+                bias = None
+                matmul_call = original_output
             else:
                 assert False, f"Unknown op {original_output.op} when handling a marked kernel!"
 
             # x - kernel_id
-            marked_input = self.lookup_binding(conv_call.args[0])
+            marked_input = self.lookup_binding((conv_call or matmul_call).args[0])
             assert isinstance(marked_input, relax.Call) and marked_input.op == subtract_op, f"Marked input is illegal: {marked_input}"
 
             # x
             data = marked_input.args[0]
             logging.info(f"data = {data}")
-            conv_weight = conv_call.args[1]
-            logging.info(f"conv_weight = {conv_weight}")
-            if has_bias:
-                logging.info(f"conv_bias = {conv_bias}")
 
             kernel_id = marked_input.args[1]
             assert isinstance(kernel_id, relax.Constant)
@@ -122,21 +126,35 @@ def substitute_kernels(relax_mod: IRModule, kernel_builder: Optional[Callable[[K
 
             if kernel_builder is None:
                 # Restore the kernel.
-                new_output = self.builder_.emit(
-                    relax.op.nn.conv2d(
-                        data,
-                        conv_weight,
-                        strides=conv_call.attrs.strides,
-                        padding=conv_call.attrs.padding,
-                        dilation=conv_call.attrs.dilation,
-                        groups=conv_call.attrs.groups,
-                        data_layout=conv_call.attrs.data_layout,
-                        kernel_layout=conv_call.attrs.kernel_layout,
-                        out_dtype=conv_call.attrs.out_dtype,
+                if conv_call is not None:
+                    conv_weight = conv_call.args[1]
+                    logging.info(f"conv_weight = {conv_weight}")
+                    new_output = self.builder_.emit(
+                        relax.op.nn.conv2d(
+                            data,
+                            conv_weight,
+                            strides=conv_call.attrs.strides,
+                            padding=conv_call.attrs.padding,
+                            dilation=conv_call.attrs.dilation,
+                            groups=conv_call.attrs.groups,
+                            data_layout=conv_call.attrs.data_layout,
+                            kernel_layout=conv_call.attrs.kernel_layout,
+                            out_dtype=conv_call.attrs.out_dtype,
+                        )
                     )
-                )
+                elif matmul_call is not None:
+                    matmul_weight = matmul_call.args[1]
+                    logging.info(f"matmul_weight = {matmul_weight}")
+                    new_output = self.builder_.emit(
+                        relax.op.matmul(
+                            data,
+                            matmul_weight,
+                            out_dtype=matmul_call.attrs.out_dtype,
+                        )
+                    )
                 if has_bias:
-                    new_output = self.builder_.emit(relax.op.add(new_output, conv_bias))
+                    logging.info(f"bias = {bias}")
+                    new_output = self.builder_.emit(relax.op.add(new_output, bias))
                 logging.info(f"Rewritten.")
 
                 return new_output

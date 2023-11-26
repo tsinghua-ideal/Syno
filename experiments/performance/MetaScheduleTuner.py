@@ -171,8 +171,11 @@ class MetaScheduleTuner:
         else:
             working_dir = os.path.join(kernels_dir, "perf", self.specialized_dir_name)
             os.makedirs(working_dir, exist_ok=True)
+            if os.path.exists(os.path.join(kernels_dir, "kernel_scheduler_dir")):
+                kernels_file = os.path.join(kernels_dir, "kernel_scheduler_dir", "kernels_tvm.py")
+            else:
+                kernels_file = os.path.join(kernels_dir, "kernels_tvm.py")
             global _TOTAL_KERNELS_SUBSTITUTED
-            kernels_file = os.path.join(kernels_dir, "kernels_tvm.py")
             spec = importlib.util.spec_from_file_location(f"kas_tvm_kernels_mod_{_TOTAL_KERNELS_SUBSTITUTED}", kernels_file)
             _TOTAL_KERNELS_SUBSTITUTED += 1
             mod = importlib.util.module_from_spec(spec)
@@ -247,7 +250,7 @@ def _parse_args():
     args.add_argument(
         "--model",
         type=str,
-        default="torchvision/resnet18",
+        default="torchvision/vit_b_16",
     )
     args.add_argument(
         "--batch-size",
@@ -267,7 +270,7 @@ def _parse_args():
     args.add_argument(
         "--num-trials",
         type=int,
-        default=10000,
+        default=6000,
     )
     args.add_argument(
         "--rpc-host",
