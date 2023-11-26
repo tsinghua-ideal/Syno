@@ -5,6 +5,8 @@
 # Delete cache
 echo 'Deleting cache...'
 rm -rf .scheduler-cache
+rm -rf .send-cache
+rm -rf .client*-cache
 
 # Check power.
 if ! (( $1 > 0 && ($1 & ($1 - 1)) == 0 )); then
@@ -35,12 +37,16 @@ done
 # Run.
 current_path=$(pwd)
 
+logp=logs/(date +%FT%T.%3N)
+
+mkdir -p ${logp}
+
 # Server.
 tmux send-keys -t 0 "echo TMUX Pane 1" Enter
 tmux send-keys -t 0 "mamba activate $2" Enter
 tmux send-keys -t 0 "cd ${current_path}" Enter
 tmux send-keys -t 0 "export CUDA_VISIBLE_DEVICES=0" Enter
-tmux send-keys -t 0 "./launch_server.sh ${*:3} --seed $RANDOM" Enter
+tmux send-keys -t 0 "./launch_server.sh ${*:3} --seed $RANDOM > ${logp}/server.log 2>&1" Enter
 
 # Client.
 for ((i = 1; i <= $1; i ++)); do
@@ -49,7 +55,7 @@ tmux send-keys -t "$i" "mamba activate $2" Enter
 tmux send-keys -t "$i" "cd ${current_path}" Enter
 tmux send-keys -t "$i" "export CUDA_VISIBLE_DEVICES=$(($i - 1))" Enter
 tmux send-keys -t "$i" "sleep 5" Enter
-tmux send-keys -t "$i" "./launch_client.sh ${*:3} --kas-client-cache-dir .client$(($i))-cache" Enter
+tmux send-keys -t "$i" "./launch_client.sh ${*:3} --kas-client-cache-dir .client$(($i))-cache > ${logp}/client_$(($i)).log 2>&1" Enter
 done
 
 # Attach.
