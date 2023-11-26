@@ -210,6 +210,11 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
             break
 
         # Pruning
+        if loss.item() < 3:
+            logging.info(f"Illegal kernel, skip")
+            losses.append((time.time(), 2.99))
+            break
+
         if time.time() - start_time > 60 and loss.item() > args.gpt_max_loss:
             logging.info(f"Prune loss (last item): {loss.item()}")
             break

@@ -185,9 +185,12 @@ def main():
             losses = trainer.train_gpt(model, train_dataloader, val_dataloader, args)
             losses = list(map(lambda t: t[1], losses))
             assert len(losses) >= 1
+            min_loss = np.min(losses)
             len_not_avg = max(int(len(losses) * 0.8), 1)
             loss = np.mean(losses[len_not_avg - 1 :])
-            logging.info(f"Meaned loss of last 20%: {loss}")
+            logging.info(f"Meaned loss of last 20%: {loss}, min loss: {min_loss}")
+            if min_loss < 3:
+                loss = 9
 
         client.reward(path, accuracy, flops, params, kernel_flag, loss)
         os.remove(client.kernel_buffer)
