@@ -71,6 +71,39 @@ class ViTLinearPlaceholder(Placeholder):
         return {"N": n, "seq_len": seq_len, "H_in": in_features, "H_out": out_features}
 
 
+class ConvNeXtLinearPlaceholder(Placeholder):
+    def __init__(self, in_features, out_features) -> None:
+        super(ConvNeXtLinearPlaceholder, self).__init__(
+            referred_layer=nn.Linear(in_features, out_features, bias=False),
+            mapping_func=ConvNeXtLinearPlaceholder.mapping,
+        )
+
+    @staticmethod
+    def impl(assembler):
+        N, seq_len, H_in, H_out = assembler.get_sizes("N", "seq_len", "H_in", "t*H_in")
+        in_N, in_seq_len, in_H_in, w_H_in, w_H_out = assembler.make_dims_of_sizes(
+            N, seq_len, H_in, H_in, H_out
+        )
+
+        shared_H_in = assembler.create_share(in_H_in, w_H_in)
+
+        in_N.output(0)
+        in_seq_len.output(1)
+        w_H_out.output(2)
+        shared_H_in.sum()
+
+        return assembler.assemble(
+            "linear", "in_0 * in_1", [in_N, in_seq_len, in_H_in], [w_H_in, w_H_out]
+        )
+
+    @staticmethod
+    def mapping(in_size, out_size):
+        n, h, w, c1 = in_size
+        n2, h2, w2, c2 = out_size
+        assert n == n2 and h == h2 == w == w2
+        return {"N": n, "C_in": c1, "C_out": c2, "H": h}
+
+
 class GNNLinearPlaceholder(Placeholder):
     def __init__(self, in_features, out_features) -> None:
         super(GNNLinearPlaceholder, self).__init__(

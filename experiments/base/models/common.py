@@ -5,7 +5,11 @@ from typing import Dict, Optional, Tuple
 import math
 
 from .model import KASModel
-from .placeholder import ConvPlaceholder, ViTLinearPlaceholder
+from .placeholder import (
+    ConvPlaceholder,
+    ViTLinearPlaceholder,
+    ConvNeXtLinearPlaceholder,
+)
 
 
 def replace_layer_filter(
@@ -13,13 +17,23 @@ def replace_layer_filter(
 ) -> Optional[nn.Module]:
     # TODO: maybe relax the requirements
 
-    if isinstance(layer, ops.misc.MLP):
+    if isinstance(layer, ops.misc.MLP) and "vit" in name:
         for name, child in layer.named_children():
             if isinstance(child, nn.Linear):
                 setattr(
                     layer,
                     name,
                     ViTLinearPlaceholder(child.in_features, child.out_features),
+                )
+        return layer
+
+    elif isinstance(layer, models.convnext.CNBlock) and "convnext_tiny" in name:
+        for name, child in layer.block.named_children():
+            if isinstance(child, nn.Linear):
+                setattr(
+                    layer.block,
+                    name,
+                    ConvNeXtLinearPlaceholder(child.in_features, child.out_features),
                 )
         return layer
 
@@ -70,6 +84,15 @@ def replace_layer_filter(
             if layer.groups > 1:
                 return None
 
+        elif "convnext_tiny" in name:
+            # if layer.kernel_size not in [(3, 3)] or layer.stride not in [
+            #     (1, 1),
+            #     (2, 2),
+            # ]:
+            #     return None
+            # if layer.groups > 1:
+            #     return None
+            return None
         else:
             raise NotImplementedError(f"{name} is not a valid model!")
 

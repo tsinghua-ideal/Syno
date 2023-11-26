@@ -7,7 +7,12 @@ from os import PathLike
 import KAS
 from KAS import Placeholder, KernelLoader
 
-from .placeholder import LinearPlaceholder, ConvPlaceholder, ViTLinearPlaceholder
+from .placeholder import (
+    LinearPlaceholder,
+    ConvPlaceholder,
+    ViTLinearPlaceholder,
+    ConvNeXtLinearPlaceholder,
+)
 
 
 class KASModel(nn.Module):
@@ -103,6 +108,7 @@ class KASModel(nn.Module):
                 LinearPlaceholder: count_placeholder,
                 ConvPlaceholder: count_placeholder,
                 ViTLinearPlaceholder: count_placeholder,
+                ConvNeXtLinearPlaceholder: count_placeholder,
             },
         )
         flops = flops // batch_size
