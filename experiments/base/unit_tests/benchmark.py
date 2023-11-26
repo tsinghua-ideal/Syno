@@ -118,7 +118,9 @@ def train(
 
             config.summary()
 
-            accuracy = ImageNetTrainer.launch_from_args(model, args.imagenet_log_folder)
+            accuracy = ImageNetTrainer.launch_from_args(
+                model, args.imagenet_log_folder, args.batch_size
+            )
         else:
             accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
         print(f"Evaluation result: {flops} {params} {accuracy}")

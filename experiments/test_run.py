@@ -88,7 +88,9 @@ if __name__ == "__main__":
         config.validate(mode="stderr")
         config.summary()
 
-        accuracy = ImageNetTrainer.launch_from_args(model, args.imagenet_log_folder)
+        accuracy = ImageNetTrainer.launch_from_args(
+            model, args.imagenet_log_folder, args.batch_size
+        )
     else:
         accuracy = max(
             trainer.train(

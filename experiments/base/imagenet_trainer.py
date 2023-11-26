@@ -147,7 +147,7 @@ class BlurPoolConv2d(ch.nn.Module):
 
 class ImageNetTrainer:
     @param("training.distributed")
-    def __init__(self, model, folder, gpu, distributed):
+    def __init__(self, model, folder, batch_size, gpu, distributed):
         self.all_params = get_current_config()
         self.gpu = gpu
 
@@ -156,8 +156,8 @@ class ImageNetTrainer:
         if distributed:
             self.setup_distributed()
 
-        self.train_loader = self.create_train_loader()
-        self.val_loader = self.create_val_loader()
+        self.train_loader = self.create_train_loader(batch_size=batch_size)
+        self.val_loader = self.create_val_loader(batch_size=batch_size)
         self.model, self.scaler = self.create_model_and_scaler(model)
         self.create_optimizer()
         self.initialize_logger(folder)
@@ -221,11 +221,10 @@ class ImageNetTrainer:
 
     @param("data.train_dataset")
     @param("data.num_workers")
-    @param("training.batch_size")
     @param("training.distributed")
     @param("data.in_memory")
     def create_train_loader(
-        self, train_dataset, num_workers, batch_size, distributed, in_memory
+        self, batch_size, train_dataset, num_workers, distributed, in_memory
     ):
         this_device = f"cuda:{self.gpu}"
         train_path = Path(train_dataset)
@@ -265,11 +264,10 @@ class ImageNetTrainer:
 
     @param("data.val_dataset")
     @param("data.num_workers")
-    @param("validation.batch_size")
     @param("validation.resolution")
     @param("training.distributed")
     def create_val_loader(
-        self, val_dataset, num_workers, batch_size, resolution, distributed
+        self, batch_size, val_dataset, num_workers, resolution, distributed
     ):
         this_device = f"cuda:{self.gpu}"
         val_path = Path(val_dataset)
@@ -496,17 +494,20 @@ class ImageNetTrainer:
     @classmethod
     @param("training.distributed")
     @param("dist.world_size")
-    def launch_from_args(cls, model, folder, distributed, world_size):
+    def launch_from_args(cls, model, folder, batch_size, distributed, world_size):
         ch.backends.cudnn.benchmark = True
         ch.backends.cuda.matmul.allow_tf32 = True
         ch.backends.cudnn.allow_tf32 = True
         if distributed:
             logging.warning("distributed training is not supported now")
             ch.multiprocessing.spawn(
-                cls._exec_wrapper, args=(model, folder), nprocs=world_size, join=True
+                cls._exec_wrapper,
+                args=(model, folder, batch_size),
+                nprocs=world_size,
+                join=True,
             )
         else:
-            return cls.exec(model, folder, 0)
+            return cls.exec(model, folder, batch_size, 0)
 
     @classmethod
     def _exec_wrapper(cls, *args, **kwargs):
@@ -516,8 +517,8 @@ class ImageNetTrainer:
     @classmethod
     @param("training.distributed")
     @param("training.eval_only")
-    def exec(cls, model, folder, gpu, distributed, eval_only):
-        trainer = cls(model=model, folder=folder, gpu=gpu)
+    def exec(cls, model, folder, batch_size, gpu, distributed, eval_only):
+        trainer = cls(model=model, folder=folder, batch_size=batch_size, gpu=gpu)
         if eval_only:
             trainer.eval_and_log()
         else:

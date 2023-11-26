@@ -18,5 +18,6 @@ if __name__ == "__main__":
     config = get_current_config()
     model = getattr(models, config["model.arch"])(pretrained=config["model.pretrained"])
     folder = config["logging.folder"]
+    batch_size = config["training.batch_size"]
 
-    ImageNetTrainer.launch_from_args(model, folder)
+    ImageNetTrainer.launch_from_args(model, folder, batch_size)
