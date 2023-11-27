@@ -84,6 +84,7 @@ if __name__ == "__main__":
         f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
     )
 
+    model.cpu()
     logging.info("Evaluating on real dataset ...")
 
     if "imagenet" in args.dataset:
@@ -96,7 +97,7 @@ if __name__ == "__main__":
         config.summary()
 
         accuracy = ImageNetTrainer.launch_from_args(
-            model, args.imagenet_log_folder, args.batch_size
+            model, args.imagenet_log_folder, args.batch_size, args.imagenet_config_file
         )
     else:
         accuracy = max(

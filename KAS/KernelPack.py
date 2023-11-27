@@ -1,7 +1,7 @@
 import logging
 import itertools
 import importlib
-import os
+import os, sys
 import tarfile
 import torch
 import torch.nn.functional as F
@@ -201,9 +201,11 @@ class KernelLoader:
         if not self.halide():
             # No Halide! Just load the PyTorch modules.
             pytorch_modules_file = os.path.join(self.get_directory(), "kernels.py")
+            name = pytorch_modules_file.split(".py")[0].replace("/", ".")
             logging.debug(f"Loading PyTorch modules from {pytorch_modules_file}")
-            spec = importlib.util.spec_from_file_location("kernels", pytorch_modules_file)
+            spec = importlib.util.spec_from_file_location(name, pytorch_modules_file)
             kernels = importlib.util.module_from_spec(spec)
+            sys.modules[name] = kernels
             spec.loader.exec_module(kernels)
             device = self.get_device()
             kernel_packs = []

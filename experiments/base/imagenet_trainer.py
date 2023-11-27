@@ -10,12 +10,11 @@ ch.autograd.profiler.profile(False)
 
 from torchvision import models
 from torchvision.transforms import RandAugment
-from timm.data.mixup import Mixup
 import torchmetrics
 import numpy as np
 
 import os
-import time
+import time, datetime
 import json
 from uuid import uuid4
 from typing import List
@@ -99,6 +98,7 @@ Section("training", "training hyper param stuff").params(
     label_smoothing=Param(float, "label smoothing parameter", default=0.1),
     distributed=Param(int, "is distributed?", default=0),
     use_blurpool=Param(int, "use blurpool?", default=0),
+    enable_amp=Param(int, "use amp autocast?", default=1),
 )
 
 Section("dist", "distributed training options").params(
@@ -243,7 +243,7 @@ class ImageNetTrainer:
     @param("training.weight_decay")
     @param("training.label_smoothing")
     def create_optimizer(self, momentum, optimizer, weight_decay, label_smoothing):
-        assert optimizer == ["sgd", "adam"]
+        assert optimizer in ["sgd", "adam"], f"{optimizer} is not valid"
 
         # Only do weight decay on non-batchnorm parameters
         all_params = list(self.model.named_parameters())
@@ -287,20 +287,20 @@ class ImageNetTrainer:
         image_pipeline: List[Operation] = [
             self.decoder,
             RandomHorizontalFlip(),
+            # RandAugment(raug_layer, raug_mag),
+            # ImageMixup(mixup_alpha, same_lambda=False),
             ToTensor(),
             ToDevice(ch.device(this_device), non_blocking=True),
             ToTorchImage(),
-            NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float16),
-            RandAugment(raug_layer, raug_mag),
-            ImageMixup(mixup_alpha, same_lambda=False),
+            NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float32),
         ]
 
         label_pipeline: List[Operation] = [
             IntDecoder(),
+            # LabelMixup(mixup_alpha, same_lambda=False),
             ToTensor(),
             Squeeze(),
             ToDevice(ch.device(this_device), non_blocking=True),
-            LabelMixup(mixup_alpha, same_lambda=False),
         ]
 
         order = OrderOption.RANDOM if distributed else OrderOption.QUASI_RANDOM
@@ -309,6 +309,7 @@ class ImageNetTrainer:
             batch_size=batch_size,
             num_workers=num_workers,
             order=order,
+            seed=0,
             os_cache=in_memory,
             drop_last=True,
             pipelines={"image": image_pipeline, "label": label_pipeline},
@@ -334,7 +335,7 @@ class ImageNetTrainer:
             ToTensor(),
             ToDevice(ch.device(this_device), non_blocking=True),
             ToTorchImage(),
-            NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float16),
+            NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float32),
         ]
 
         label_pipeline = [
@@ -349,6 +350,7 @@ class ImageNetTrainer:
             batch_size=batch_size,
             num_workers=num_workers,
             order=OrderOption.SEQUENTIAL,
+            seed=0,
             drop_last=True,
             pipelines={"image": image_pipeline, "label": label_pipeline},
             distributed=distributed,
@@ -435,7 +437,8 @@ class ImageNetTrainer:
         return model, scaler
 
     @param("logging.log_level")
-    def train_loop(self, epoch, log_level):
+    @param("training.enable_amp")
+    def train_loop(self, epoch, log_level, enable_amp):
         model = self.model
         model.train()
         losses = []
@@ -451,13 +454,22 @@ class ImageNetTrainer:
                 param_group["lr"] = lrs[ix]
 
             self.optimizer.zero_grad(set_to_none=True)
-            with autocast():
+            if enable_amp:
+                with autocast():
+                    output = self.model(images)
+                    loss_train = self.loss(output, target)
+
+                    self.scaler.scale(loss_train).backward()
+                    self.scaler.unscale_(self.optimizer)
+                    ch.nn.utils.clip_grad_norm_(self.model.parameters(), 1)
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+            else:
                 output = self.model(images)
                 loss_train = self.loss(output, target)
-
-            self.scaler.scale(loss_train).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+                loss_train.backward()
+                ch.nn.utils.clip_grad_norm_(self.model.parameters(), 1)
+                self.optimizer.step()
             ### Training end
 
             ### Logging start
@@ -476,9 +488,11 @@ class ImageNetTrainer:
 
                 msg = ", ".join(f"{n}={v}" for n, v in zip(names, values))
                 # iterator.set_description(msg)
-                if (ix + 1) % 100 == 0:
-                    logging.info(msg)
+                if ix % 100 == 0:
+                    self.log({n: str(v) for n, v in zip(names, values)})
             ### Logging end
+
+        return (sum(losses) / len(losses)).item()
 
     @param("validation.lr_tta")
     def val_loop(self, lr_tta):
@@ -486,17 +500,16 @@ class ImageNetTrainer:
         model.eval()
 
         with ch.no_grad():
-            with autocast():
-                for images, target in self.val_loader:
-                    output = self.model(images)
-                    if lr_tta:
-                        output += self.model(ch.flip(images, dims=[3]))
+            for images, target in self.val_loader:
+                output = self.model(images)
+                if lr_tta:
+                    output += self.model(ch.flip(images, dims=[3]))
 
-                    for k in ["top_1", "top_5"]:
-                        self.val_meters[k](output, target)
+                for k in ["top_1", "top_5"]:
+                    self.val_meters[k](output, target)
 
-                    loss_val = self.loss(output, target)
-                    self.val_meters["loss"](loss_val)
+                loss_val = self.loss(output, target)
+                self.val_meters["loss"](loss_val)
 
         stats = {k: m.compute().item() for k, m in self.val_meters.items()}
         [meter.reset() for meter in self.val_meters.values()]
@@ -529,10 +542,12 @@ class ImageNetTrainer:
                 json.dump(params, handle)
 
     def log(self, content):
-        print(f"=> Log: {content}")
         if self.gpu != 0:
             return
         cur_time = time.time()
+        print(
+            f"[{str(datetime.timedelta(seconds=cur_time - self.start_time))}] => Log: {content}"
+        )
         with open(self.log_folder / "log", "a+") as fd:
             fd.write(
                 json.dumps(
@@ -549,15 +564,16 @@ class ImageNetTrainer:
     @classmethod
     @param("training.distributed")
     @param("dist.world_size")
-    def launch_from_args(cls, model, folder, batch_size, distributed, world_size):
+    def launch_from_args(
+        cls, model, folder, batch_size, config_file, distributed, world_size
+    ):
         ch.backends.cudnn.benchmark = True
         ch.backends.cuda.matmul.allow_tf32 = True
         ch.backends.cudnn.allow_tf32 = True
         if distributed:
-            logging.warning("distributed training is not supported now")
             ch.multiprocessing.spawn(
                 cls._exec_wrapper,
-                args=(model, folder, batch_size),
+                args=(model, folder, batch_size, config_file),
                 nprocs=world_size,
                 join=True,
             )
@@ -565,9 +581,9 @@ class ImageNetTrainer:
             return cls.exec(model, folder, batch_size, 0)
 
     @classmethod
-    def _exec_wrapper(cls, *args, **kwargs):
-        make_config(quiet=True)
-        cls.exec(*args, **kwargs)
+    def _exec_wrapper(cls, i, model, folder, batch_size, config_file, **kwargs):
+        make_config(config_file, quiet=True)
+        cls.exec(model, folder, batch_size, i, **kwargs)
 
     @classmethod
     @param("training.distributed")
@@ -602,11 +618,9 @@ class MeanScalarMetric(torchmetrics.Metric):
         return self.sum.float() / self.count
 
 
-def make_config(quiet=False):
+def make_config(config_file, quiet=False):
     config = get_current_config()
-    parser = ArgumentParser(description="Fast imagenet training")
-    config.augment_argparse(parser)
-    config.collect_argparse_args(parser)
+    config.collect_config_file(config_file)
     config.validate(mode="stderr")
     if not quiet:
         config.summary()
