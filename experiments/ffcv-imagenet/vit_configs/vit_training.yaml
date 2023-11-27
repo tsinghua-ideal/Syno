@@ -1,0 +1,34 @@
+data:
+  in_memory: 1
+  num_workers: 12
+  mixup_alpha: 0.5
+  raug_mag: 15
+  raug_layer: 2
+dist:
+  world_size: 8
+logging:
+  folder: /tmp/
+lr:
+  lr: 3e-3
+  lr_schedule_type: cosine
+  warmup_epochs: 30
+model:
+  arch: vit_b_16
+resolution:
+  end_ramp: 76
+  max_res: 224
+  min_res: 224
+  start_ramp: 65
+training:
+  batch_size: 2048
+  bn_wd: 0
+  distributed: 1
+  epochs: 300
+  label_smoothing: 0.0001
+  momentum: 0.9
+  optimizer: adam
+  weight_decay: 0.001
+  use_blurpool: 1
+validation:
+  lr_tta: true
+  resolution: 224

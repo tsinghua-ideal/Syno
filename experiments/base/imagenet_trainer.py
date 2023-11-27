@@ -9,6 +9,8 @@ ch.autograd.profiler.emit_nvtx(False)
 ch.autograd.profiler.profile(False)
 
 from torchvision import models
+from torchvision.transforms import RandAugment
+from timm.data.mixup import Mixup
 import torchmetrics
 import numpy as np
 
@@ -36,6 +38,8 @@ from ffcv.transforms import (
     NormalizeImage,
     RandomHorizontalFlip,
     ToTorchImage,
+    ImageMixup,
+    LabelMixup,
 )
 from ffcv.fields.rgb_image import (
     CenterCropRGBImageDecoder,
@@ -60,12 +64,16 @@ Section("data", "data related stuff").params(
     val_dataset=Param(str, ".dat file to use for validation", required=True),
     num_workers=Param(int, "The number of workers", required=True),
     in_memory=Param(int, "does the dataset fit in memory? (1/0)", required=True),
+    mixup_alpha=Param(float, "alpha for mixup", default=0.0),
+    raug_mag=Param(int, "magnitude of RandAug", default=0),
+    raug_layer=Param(int, "layers of RandAug", default=0),
 )
 
 Section("lr", "lr scheduling").params(
     step_ratio=Param(float, "learning rate step ratio", default=0.1),
     step_length=Param(int, "learning rate step length", default=30),
-    lr_schedule_type=Param(OneOf(["step", "cyclic"]), default="cyclic"),
+    warmup_epochs=Param(int, "Warmup Epochs", default=0),
+    lr_schedule_type=Param(OneOf(["step", "cyclic", "cosine"]), default="cyclic"),
     lr=Param(float, "learning rate", default=0.5),
     lr_peak_epoch=Param(int, "Epoch at which LR peaks", default=2),
 )
@@ -84,7 +92,7 @@ Section("validation", "Validation parameters stuff").params(
 Section("training", "training hyper param stuff").params(
     eval_only=Param(int, "eval only?", default=0),
     batch_size=Param(int, "The batch size", default=512),
-    optimizer=Param(And(str, OneOf(["sgd"])), "The optimizer", default="sgd"),
+    optimizer=Param(And(str, OneOf(["sgd", "adam"])), "The optimizer", default="sgd"),
     momentum=Param(float, "SGD momentum", default=0.9),
     weight_decay=Param(float, "weight decay", default=4e-5),
     epochs=Param(int, "number of epochs", default=30),
@@ -114,6 +122,32 @@ def get_step_lr(epoch, lr, step_ratio, step_length, epochs):
 
     num_steps = epoch // step_length
     return step_ratio**num_steps * lr
+
+
+@param("lr.lr")
+@param("lr.warmup_epochs")
+@param("training.epochs")
+def get_cosine_lr(
+    epoch,
+    lr,
+    warmup_epochs,
+    epochs,
+):
+    if epoch >= epochs:
+        return 0
+
+    # Cosine decay
+    learning_rate = (
+        0.5
+        * lr
+        * (1 + np.cos(np.pi * (epoch - warmup_epochs) / float(epochs - warmup_epochs)))
+    )
+
+    # Target LR * progress of warmup (=1 at the final warmup step)
+    warmup_lr = lr * (epoch / warmup_epochs)
+
+    learning_rate = np.where(epoch < warmup_epochs, warmup_lr, learning_rate)
+    return learning_rate
 
 
 @param("lr.lr")
@@ -177,7 +211,11 @@ class ImageNetTrainer:
 
     @param("lr.lr_schedule_type")
     def get_lr(self, epoch, lr_schedule_type):
-        lr_schedules = {"cyclic": get_cyclic_lr, "step": get_step_lr}
+        lr_schedules = {
+            "cyclic": get_cyclic_lr,
+            "step": get_step_lr,
+            "cosine": get_cosine_lr,
+        }
 
         return lr_schedules[lr_schedule_type](epoch)
 
@@ -205,7 +243,7 @@ class ImageNetTrainer:
     @param("training.weight_decay")
     @param("training.label_smoothing")
     def create_optimizer(self, momentum, optimizer, weight_decay, label_smoothing):
-        assert optimizer == "sgd"
+        assert optimizer == ["sgd", "adam"]
 
         # Only do weight decay on non-batchnorm parameters
         all_params = list(self.model.named_parameters())
@@ -216,15 +254,29 @@ class ImageNetTrainer:
             {"params": other_params, "weight_decay": weight_decay},
         ]
 
-        self.optimizer = ch.optim.SGD(param_groups, lr=1, momentum=momentum)
+        if optimizer == "sgd":
+            self.optimizer = ch.optim.SGD(param_groups, lr=1, momentum=momentum)
+        else:
+            self.optimizer = ch.optim.Adam(param_groups, lr=1)
         self.loss = ch.nn.CrossEntropyLoss(label_smoothing=label_smoothing)
 
     @param("data.train_dataset")
     @param("data.num_workers")
     @param("training.distributed")
     @param("data.in_memory")
+    @param("data.mixup_alpha")
+    @param("data.raug_mag")
+    @param("data.raug_layer")
     def create_train_loader(
-        self, batch_size, train_dataset, num_workers, distributed, in_memory
+        self,
+        batch_size,
+        train_dataset,
+        num_workers,
+        distributed,
+        in_memory,
+        mixup_alpha,
+        raug_mag,
+        raug_layer,
     ):
         this_device = f"cuda:{self.gpu}"
         train_path = Path(train_dataset)
@@ -239,6 +291,8 @@ class ImageNetTrainer:
             ToDevice(ch.device(this_device), non_blocking=True),
             ToTorchImage(),
             NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float16),
+            RandAugment(raug_layer, raug_mag),
+            ImageMixup(mixup_alpha, same_lambda=False),
         ]
 
         label_pipeline: List[Operation] = [
@@ -246,6 +300,7 @@ class ImageNetTrainer:
             ToTensor(),
             Squeeze(),
             ToDevice(ch.device(this_device), non_blocking=True),
+            LabelMixup(mixup_alpha, same_lambda=False),
         ]
 
         order = OrderOption.RANDOM if distributed else OrderOption.QUASI_RANDOM
