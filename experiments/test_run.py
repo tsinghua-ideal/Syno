@@ -22,19 +22,20 @@ if __name__ == "__main__":
     logging.info("Loading dataset ...")
     train_dataloader, val_dataloader = dataset.get_dataloader(args)
 
+    
     logging.info("Preparing model ...")
     if args.kas_use_orig_model:
         if args.model.startswith("torchvision/"):
-            model = models.common.get_vanilla_common_model(args).cuda()
+            model = models.common.get_vanilla_common_model(args)
         else:
             assert hasattr(
                 sys.modules[__name__], args.model
             ), f"Could not find model {args.model}"
             model_cls = getattr(sys.modules[__name__], args.model)
-            model = model_cls().cuda()
+            model = model_cls()
         model.apply(init_weights)
         flops, params = thop.profile(
-            model, (torch.ones((args.batch_size, *args.input_size), device="cuda"),)
+            model, (torch.ones((args.batch_size, *args.input_size)),)
         )
         flops /= args.batch_size
         if args.compile:
@@ -84,7 +85,6 @@ if __name__ == "__main__":
         f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
     )
 
-    model.cpu()
     logging.info("Evaluating on real dataset ...")
 
     if "imagenet" in args.dataset:

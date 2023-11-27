@@ -95,7 +95,8 @@ class KASModel(nn.Module):
         )
         sample_input = torch.ones(
             (batch_size, *self.sample_input_shape(seq_len))
-        ).cuda()
+        )
+        self.cpu()
         if seq_len:
             sample_input = sample_input.long()
         flops, params = thop.profile(

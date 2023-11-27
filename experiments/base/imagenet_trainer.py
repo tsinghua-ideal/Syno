@@ -205,6 +205,7 @@ class ImageNetTrainer:
 
         dist.init_process_group("nccl", rank=self.gpu, world_size=world_size)
         ch.cuda.set_device(self.gpu)
+        ch.cuda.empty_cache()
 
     def cleanup_distributed(self):
         dist.destroy_process_group()

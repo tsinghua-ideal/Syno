@@ -32,10 +32,10 @@ def train(
 ) -> None:
     if name == "Baseline":
         if args.model.startswith("torchvision/"):
-            model = models.common.get_vanilla_common_model(args).cuda()
+            model = models.common.get_vanilla_common_model(args)
             model.apply(init_weights)
             flops, params = thop.profile(
-                model, (torch.ones((args.batch_size, *args.input_size), device="cuda"),)
+                model, (torch.ones((args.batch_size, *args.input_size)),)
             )
             flops /= args.batch_size
             # if args.compile:
@@ -46,7 +46,7 @@ def train(
                 sys.modules[__name__], args.model
             ), f"Could not find model {args.model}"
             model_cls = getattr(sys.modules[__name__], args.model)
-            model = model_cls().cuda()
+            model = model_cls()
             flops, params = model.profile(args.batch_size)
         logging.info(
             f"Loaded model has {flops / 1e9}G FLOPs per batch and {params / 1e6}M parameters in total."
