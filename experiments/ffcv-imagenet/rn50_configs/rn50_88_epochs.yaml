@@ -1,6 +1,8 @@
 data:
   in_memory: 1
   num_workers: 12
+  train_dataset: /home/yongqi/data/train_400_0.10_90.ffcv
+  val_dataset: /home/yongqi/data/val_400_0.10_90.ffcv
 dist:
   world_size: 8
 logging:
@@ -12,14 +14,14 @@ model:
   arch: resnet50
 resolution:
   end_ramp: 76
-  max_res: 192
-  min_res: 160
+  max_res: 224
+  min_res: 224
   start_ramp: 65
 training:
   batch_size: 512
   bn_wd: 0
   distributed: 1
-  epochs: 88
+  epochs: 90
   label_smoothing: 0.1
   momentum: 0.9
   optimizer: sgd
@@ -27,4 +29,4 @@ training:
   use_blurpool: 1
 validation:
   lr_tta: true
-  resolution: 256
+  resolution: 224
