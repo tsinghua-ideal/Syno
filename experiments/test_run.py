@@ -7,7 +7,8 @@ import os, sys, json
 import ctypes
 import shutil
 import torch
-from KAS import Path
+import thop
+from KAS import Path, init_weights
 
 from base import log, models, parser, dataset, trainer
 
@@ -31,6 +32,11 @@ if __name__ == "__main__":
             ), f"Could not find model {args.model}"
             model_cls = getattr(sys.modules[__name__], args.model)
             model = model_cls().cuda()
+        model.apply(init_weights)
+        flops, params = thop.profile(
+            model, (torch.ones((args.batch_size, *args.input_size), device="cuda"),)
+        )
+        flops /= args.batch_size
         if args.compile:
             model = torch.compile(model)
     else:
@@ -71,8 +77,8 @@ if __name__ == "__main__":
             flops, params, accuracy = 0, 0, -1
             exit(0)
 
-    # Load and evaluate on a dataset
-    flops, params = model.profile(args.batch_size)
+        # Load and evaluate on a dataset
+        flops, params = model.profile(args.batch_size)
     logging.info(
         f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
     )
