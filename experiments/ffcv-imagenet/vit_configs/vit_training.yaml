@@ -30,7 +30,7 @@ training:
   label_smoothing: 0.0001
   momentum: 0.9
   optimizer: adam
-  weight_decay: 0.0003
+  weight_decay: 0.0001
   use_blurpool: 0
 validation:
   lr_tta: true
