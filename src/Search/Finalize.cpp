@@ -311,7 +311,7 @@ struct TopKFinalizations {
         Finalization f { ctx, std::forward<decltype(tensors)>(tensors) };
 
         // There must be weights.
-        if (f.tensors.count() == 0) return;
+        if (f.tensors.count() <= 1) return;
 
         // If the top-k cannot accomodate this, no need to check whether the result is within FLOPs by building.
         auto vacancy = std::lower_bound(topK.cbegin(), topK.cend(), f);
