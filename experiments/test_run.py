@@ -38,6 +38,7 @@ if __name__ == "__main__":
         )
         flops /= args.batch_size
         if args.compile:
+            torch._dynamo.reset()
             model = torch.compile(model)
     else:
         try:
