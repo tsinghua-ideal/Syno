@@ -9,3 +9,4 @@ nlohmann_json
 datasets
 transformers
 multiset
+easypyplot

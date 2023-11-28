@@ -1,0 +1,75 @@
+import easypyplot as epp
+
+from plot_utils import *
+
+if __name__ == '__main__':
+    args = parser()
+    
+    models = [
+        ('ResNet-18', 'resnet18', 'results/good_kernels'), 
+        ('ResNet-34', 'resnet34', 'results/cifar100-session-resnet34-reevaluate'), 
+        ('DenseNet-121', 'densenet121', 'densenet-good-kernels'), 
+        ('ResNeXt-29', 'resnext29_2x64d', 'resnext-good-kernels'), 
+        ('EfficientNet-V2-S', 'efficientnet_v2_s', 'efficientnet-good-kernels')
+    ]
+    
+    entries = [
+        {
+            'name': 'TVM',
+            'data': [
+                (name, fetch_baseline_latency(model, args))
+                for name, model, _ in models
+            ],
+            'baseline': True
+        },
+        {
+            'name': 'Ours',
+            'data': [
+                (name, min([kernel for kernel in collect_kernels(folder, args) if kernel[1] > args.min_acc], key=lambda x:x[2]))
+                for name, _, folder in models
+            ],
+            'baseline': False,
+            'text_mark': True
+        },
+    ]
+
+    # Configurations
+    name = 'end-to-end-performance'
+    width = 0.6
+    num_entries = len(entries)
+    width_per_entry = width / num_entries
+    linewidth = 0.7
+
+    # Checks
+    check_format(entries)
+    baseline = check_baseline(entries, True)
+    names, labels, bars = simplify(entries, baseline, True)
+    num_groups = len(names)
+
+    # Figures
+    pp, fig = epp.pdf.plot_setup(f'figures/{name}.pdf', figsize=(6, 3.5), font='default', dpi=300)
+    ax = fig.gca()
+
+    # Draw bars
+    epp.barchart.draw(ax, bars,
+                      width=width,
+                      linewidth=linewidth,
+                      group_names=labels,
+                      entry_names=names,
+                      breakdown=False,
+                      colors=[ansor_color, nas_pte_color, micro_nas_color],
+                      xticklabelfontsize=10,
+                      xticklabelrotation=20,
+                      xticklabelrotationalignment='right')
+
+    # Mark numbers
+    text_numbers(ax, width, entries, bars, fontsize=9)
+
+    # Y axis
+    ax.yaxis.grid(True)
+    ax.set_ylabel('Speedup ×', multialignment='center', fontsize=10)
+
+    # Finish
+    fig.tight_layout()
+    fig.show()
+    epp.pdf.plot_teardown(pp, fig)
