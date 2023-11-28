@@ -13,7 +13,7 @@ from torchvision.transforms import RandAugment
 import torchmetrics
 import numpy as np
 
-import os
+import os, sys
 import time, datetime
 import json
 from uuid import uuid4
@@ -549,6 +549,7 @@ class ImageNetTrainer:
         print(
             f"[{str(datetime.timedelta(seconds=cur_time - self.start_time))}] => Log: {content}"
         )
+        sys.stdout.flush()
         with open(self.log_folder / "log", "a+") as fd:
             fd.write(
                 json.dumps(
