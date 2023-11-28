@@ -21,7 +21,7 @@ if __name__ == "__main__":
         all_latency_ratio = []
     all_y = []
     all_kernel_dir = []
-    plt.figure(figsize=(5, 3), dpi=300)
+    plt.figure(figsize=(6, 4), dpi=100)
     for i, (name, kernels) in enumerate(all_kernels):
         try:
             if "gpt" in args.model:
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     plt.xlabel("FLOPs and Latency (ratio to baseline)")
     plt.ylabel("Accuracy")
     plt.legend()
-    plt.title(f"Search Result of {args.model}")
+    plt.title(f"Samples of {args.model.split('-')[0]}")
     plt.savefig(os.path.join(args.output, f"acc-vs-flops.png"))
 
     # Params

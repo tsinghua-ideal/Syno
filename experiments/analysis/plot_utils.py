@@ -236,6 +236,9 @@ def collect_kernels(dir, model, args):
             if args.latency
             else 0
         )
+        
+        if "loss" not in meta:
+            meta["loss"] = 0
 
         kernels.append(
             (

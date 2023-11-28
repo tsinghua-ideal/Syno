@@ -26,7 +26,7 @@ if __name__ == "__main__":
     for dir in args.dirs:
         assert os.path.exists(dir) and os.path.isdir(dir)
 
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    os.makedirs(args.output, exist_ok=True)
 
     # Read
     all_kernels = []
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     plt.xlabel("Time" if args.time else "Samples")
     plt.ylabel("Accuracy (avg)")
     plt.legend()
-    plt.savefig(f"{args.output}-avg-acc-vs-sample.png")
+    plt.savefig(os.path.join(args.output, f"average_sample_accuracy.png"))
 
     # Max figure
     plt.figure(figsize=(25, 6), dpi=300)
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     # plt.ylim(0, 0.79)
     # plt.gca().set_yscale('custom')
     plt.legend()
-    plt.savefig(f"{args.output}-max-acc-vs-sample.png")
+    plt.savefig(os.path.join(args.output, f"max_sample_accuracy.png"))
 
     # Histogram figure
     plt.figure(figsize=(10, 6), dpi=300)
@@ -171,4 +171,4 @@ if __name__ == "__main__":
     plt.xlabel("Accuracy")
     plt.ylabel("Density")
     plt.legend()
-    plt.savefig(f"{args.output}-acc-hist.png")
+    plt.savefig(os.path.join(args.output, f"sample_accuracy_distribution.png"))

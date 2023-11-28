@@ -66,7 +66,7 @@ if __name__ == "__main__":
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     
     plt.figure(figsize=(10, 6), dpi=300)
-    for model, dir, color in zip(args.model, args.dirs, ["#82B0D2", "#8ECFC9"]):
+    for model, dir, color in zip(args.model, args.dirs, ["#8ECFC9", "#FFBE7A", "FA6F6F", "#82B0D2", "#BEB8DC"]):
         baseline_perf = baseline[model]
         reference_acc = baseline_perf["accuracy"]
         min_acc = baseline_perf["accuracy"] - args.max_acc_decrease
@@ -183,5 +183,4 @@ if __name__ == "__main__":
     plt.xlabel("Latency (ms)")
     plt.ylabel("ImageNet Classification Accuracy")
     plt.legend(loc="lower right")
-    plt.title(f"Search Result")
     plt.savefig(f"{args.output}-acc-vs-latency.png")

@@ -14,4 +14,4 @@ python analysis/plot-trends.py --dirs "results/ablation_study/MCTS_(Ours)" resul
 # End-to-end-performance
 python analysis/end_to_end_perf_plot.py --latency --output analysis/results/cifar100-histogram/max-acc-1 --max-acc-decrease 0.01
 
-python analysis/end_to_end_perf_plot.py --latency --output analysis/cifar100-histogram/max-acc-05 --max-acc-decrease 0.005
+python analysis/end_to_end_perf_plot.py --latency --output analysis/results/cifar100-histogram/max-acc-05 --max-acc-decrease 0.005
