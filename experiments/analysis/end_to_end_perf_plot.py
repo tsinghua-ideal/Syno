@@ -4,7 +4,7 @@ from plot_utils import *
 
 def get_best_latency(folder, model, args, min_acc):
     result = min([kernel for kernel in collect_kernels(folder, model, args) if kernel[1] > min_acc], key=lambda x:x[2])
-    return result[5]
+    return result[6]
 
 if __name__ == '__main__':
     args = parser()

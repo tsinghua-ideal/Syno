@@ -156,10 +156,14 @@ def parser():
     
     baseline_perf = fetch_baseline_perf(args.model)
 
-    setattr(args, "reference_acc", baseline_perf["accuracy"])
     setattr(args, "reference_flops", baseline_perf["flops"])
     setattr(args, "reference_params", baseline_perf["params"])
-    setattr(args, "min_acc", baseline_perf["accuracy"] - args.max_acc_decrease)
+    if "gpt" in args.model:
+        setattr(args, "reference_loss", baseline_perf["loss"])
+        setattr(args, "max_loss", baseline_perf["loss"] + args.max_acc_decrease)
+    else:
+        setattr(args, "reference_acc", baseline_perf["accuracy"])
+        setattr(args, "min_acc", baseline_perf["accuracy"] - args.max_acc_decrease)
     
     if args.latency:
         baseline_latency = fetch_baseline_latency(args.model.split("-")[0], args)
@@ -238,6 +242,7 @@ def collect_kernels(dir, model, args):
                 meta["accuracy"],
                 meta["flops"],
                 meta["params"],
+                meta["loss"],
                 kernel_hash,
                 latency,
                 kernel_dir,
@@ -248,3 +253,27 @@ def collect_kernels(dir, model, args):
         kernels = list([(i, *kernels[i][1:]) for i in range(len(kernels))])
 
     return kernels
+
+def plot_baseline(model, args):
+    if "gpt" in model:
+        plt.scatter([1.0], [args.reference_loss], s=50, c="#FA7F6F", marker="^")
+        plt.axhline(
+            y=args.reference_loss, color="#FA7F6F", linestyle="dashed", label="baseline loss"
+        )
+        plt.axhline(
+            y=args.max_loss,
+            color="#FA7F6F",
+            linestyle="dashed",
+            label="Max loss",
+        )
+    else:
+        plt.scatter([1.0], [args.reference_acc], s=50, c="#FA7F6F", marker="^")
+        plt.axhline(
+            y=args.reference_acc, color="#FA7F6F", linestyle="dashed", label="baseline accuracy"
+        )
+        plt.axhline(
+            y=args.min_acc,
+            color="#FA7F6F",
+            linestyle="dashed",
+            label="Min accuracy",
+        )

@@ -11,13 +11,6 @@ if __name__ == "__main__":
     for dir in args.dirs:
         all_kernels.append(dir, collect_kernels(args))
 
-    print(
-        f"Collected {len([kernel for _, kernels in all_kernels for kernel in kernels if kernel[1] > args.min_acc])} kernels in total."
-    )
-    print(
-        f"The kernel with smallest FLOPs is {min([kernel for _, kernels in all_kernels for kernel in kernels if kernel[1] > args.min_acc], key=lambda x:x[2])}"
-    )
-
     # Accuracy vs FLOPs/param distribution
 
     # FLOPs
@@ -29,9 +22,14 @@ if __name__ == "__main__":
     plt.figure(figsize=(10, 6), dpi=300)
     for i, (name, kernels) in enumerate(all_kernels):
         try:
-            x, y, flops, params, hash_value, latency, kernel_dir = zip(
-                *filter(lambda x: x[1] > args.min_acc, kernels)
-            )
+            if "gpt" in args.model:
+                x, y, flops, params, loss, hash_value, latency, kernel_dir = zip(
+                    *filter(lambda x: x[4] < args.max_loss, kernels)
+                )
+            else:
+                x, y, flops, params, loss, hash_value, latency, kernel_dir = zip(
+                    *filter(lambda x: x[1] > args.min_acc, kernels)
+                )
         except ValueError:
             continue
 
@@ -40,10 +38,12 @@ if __name__ == "__main__":
             == len(y)
             == len(flops)
             == len(params)
+            == len(loss)
             == len(hash_value)
             == len(latency)
         )
 
+        if "gpt" in args.model: y = loss
         all_y.extend(y)
         all_kernel_dir.extend(kernel_dir)
         flops_ratio = np.array(flops) / args.reference_flops
@@ -123,29 +123,25 @@ if __name__ == "__main__":
             linestyle="--",
         )
 
-    plt.scatter([1.0], [args.reference_acc], s=50, c="#FA7F6F", marker="^")
-    plt.axhline(
-        y=args.reference_acc, color="#FA7F6F", linestyle="dashed", label="acc-0"
-    )
-    plt.axhline(
-        y=args.min_acc,
-        color="#FA7F6F",
-        linestyle="dashed",
-        label="Min accuracy",
-    )
+    plot_baseline(args.model, args)
     plt.xlabel("FLOPs and Latency (ratio to baseline)")
     plt.ylabel("Accuracy")
     plt.legend()
     plt.title(f"Search Result of {args.model}")
-    plt.savefig(f"{args.output}-acc-vs-flops.png")
+    plt.savefig(os.path.join(args.output, f"acc-vs-flops.png"))
 
     # Params
     plt.figure(figsize=(10, 6), dpi=300)
     for i, (name, kernels) in enumerate(all_kernels):
         try:
-            x, y, flops, params, hash_value, latency, kernel_dir = zip(
-                *filter(lambda x: x[1] > args.min_acc, kernels)
-            )
+            if "gpt" in args.model:
+                x, y, flops, params, loss, hash_value, latency, kernel_dir = zip(
+                    *filter(lambda x: x[4] < args.max_loss, kernels)
+                )
+            else:
+                x, y, flops, params, loss, hash_value, latency, kernel_dir = zip(
+                    *filter(lambda x: x[1] > args.min_acc, kernels)
+                )
         except ValueError:
             continue
 
@@ -159,15 +155,8 @@ if __name__ == "__main__":
         )
 
         plt.scatter(np.array(params) / args.reference_params, y, label=name, s=10)
-        plt.scatter([1.0], [args.reference_acc], s=50, c="r", marker="^")
-    plt.axhline(y=args.reference_acc, color="r", linestyle="dashed", label="acc-0")
-    plt.axhline(
-        y=args.reference_acc - 0.01, color="r", linestyle="dashed", label="acc-0.01"
-    )
-    plt.axhline(
-        y=args.reference_acc - 0.02, color="r", linestyle="dashed", label="acc-0.02"
-    )
+    plot_baseline(args.model, args)
     plt.xlabel("Params (ratio to baseline)")
     plt.ylabel("Accuracy")
     plt.legend()
-    plt.savefig(f"{args.output}-acc-vs-params.png")
+    plt.savefig(os.path.join(args.output, f"acc-vs-params.png"))

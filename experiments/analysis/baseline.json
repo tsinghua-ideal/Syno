@@ -24,24 +24,34 @@
         "flops": 3678739456,
         "params": 21797672
     },
-    "densenet": {
+    "densenet121": {
         "accuracy": 0.8030849358974359,
         "flops": 2896085504,
         "params": 7056356
     },
-    "resnext": {
+    "resnext29_2x64d": {
         "accuracy": 0.7992788461538461,
         "flops": 5126324224,
         "params": 21150504
     },
-    "vit": {
+    "vit_b_16": {
         "accuracy": 0.5681089743589743,
         "flops": 11285563392,
         "params": 57375076
     },
-    "efficientnet": {
+    "efficientnet_v2_s": {
         "accuracy": 0.7966746794871795,
         "flops": 5126324224,
         "params": 21150504
+    },
+    "efficientnet_v2_s-imagenet": {
+        "accuracy": 0.7596638798713684,
+        "flops": 2901935168,
+        "params": 21458488
+    },
+    "gpt": {
+        "loss": 5.851579846562566,
+        "flops": 253190995968,
+        "params": 123625728
     }
 }
