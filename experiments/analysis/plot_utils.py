@@ -119,6 +119,14 @@ def identify_pareto(scores):
     # Return ids of scenarios on pareto front
     return pareto_front
 
+def fetch_baseline_perf(model):
+    with open(os.path.join(os.path.dirname(__file__), "baseline.json")) as f:
+        baseline = json.load(f)
+    assert model in baseline, f"{model} is not valid! "
+    baseline_perf = baseline[model]
+
+    return baseline_perf
+
 def fetch_baseline_latency(model, args):
     baseline_file = os.path.join(
         args.baseline_latency_folder,
@@ -146,11 +154,7 @@ def parser():
     )
     args = parser.parse_args()
     
-    with open(os.path.join(os.path.dirname(__file__), "baseline.json")) as f:
-        baseline = json.load(f)
-
-    assert args.model in baseline, f"{args.model} is not valid! "
-    baseline_perf = baseline[args.model]
+    baseline_perf = fetch_baseline_perf(args.model)
 
     setattr(args, "reference_acc", baseline_perf["accuracy"])
     setattr(args, "reference_flops", baseline_perf["flops"])
@@ -165,15 +169,16 @@ def parser():
     for dir in args.dirs:
         assert os.path.exists(dir) and os.path.isdir(dir)
 
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    os.makedirs(args.output, exist_ok=True)
     
     return args
 
-def collect_kernels(dir, args):
+def collect_kernels(dir, model, args):
     subdirs = os.listdir(dir)
     
-    if all('x' in subdir for subdir in subdirs):
-        return sum(collect_kernels(subdir, args) for subdir in subdirs)
+    if any(re.match("0\.\dx", subdir) for subdir in subdirs):
+        results = [collect_kernels(os.path.join(dir, subdir), model, args) for subdir in subdirs if re.match("0\.\dx", subdir)]
+        return [k for res in results for k in res]
     
     kernels = []
     for kernel_fmt in subdirs:
@@ -207,7 +212,7 @@ def collect_kernels(dir, args):
                     "perf",
                     "llvm",
                     "torchvision",
-                    f"{args.model}-N=1",
+                    f"{model}-N=1",
                     "benchmark_results.csv",
                 )):
             continue
@@ -219,7 +224,7 @@ def collect_kernels(dir, args):
                     "perf",
                     "llvm",
                     "torchvision",
-                    f"{args.model}-N=1",
+                    f"{model}-N=1",
                     "benchmark_results.csv",
                 )
             )

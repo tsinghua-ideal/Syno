@@ -2,15 +2,19 @@ import easypyplot as epp
 
 from plot_utils import *
 
+def get_best_latency(folder, model, args, min_acc):
+    result = min([kernel for kernel in collect_kernels(folder, model, args) if kernel[1] > min_acc], key=lambda x:x[2])
+    return result[5]
+
 if __name__ == '__main__':
     args = parser()
     
     models = [
         ('ResNet-18', 'resnet18', 'results/good_kernels'), 
         ('ResNet-34', 'resnet34', 'results/cifar100-session-resnet34-reevaluate'), 
-        ('DenseNet-121', 'densenet121', 'densenet-good-kernels'), 
-        ('ResNeXt-29', 'resnext29_2x64d', 'resnext-good-kernels'), 
-        ('EfficientNet-V2-S', 'efficientnet_v2_s', 'efficientnet-good-kernels')
+        ('DenseNet-121', 'densenet121', 'results/densenet-good-kernels'), 
+        ('ResNeXt-29', 'resnext29_2x64d', 'results/resnext-good-kernels'), 
+        ('EfficientNet-V2-S', 'efficientnet_v2_s', 'results/efficientnet-good-kernels')
     ]
     
     entries = [
@@ -25,8 +29,8 @@ if __name__ == '__main__':
         {
             'name': 'Ours',
             'data': [
-                (name, min([kernel for kernel in collect_kernels(folder, args) if kernel[1] > args.min_acc], key=lambda x:x[2]))
-                for name, _, folder in models
+                (name, get_best_latency(folder, model, args, fetch_baseline_perf(model)["accuracy"] - args.max_acc_decrease))
+                for name, model, folder in models
             ],
             'baseline': False,
             'text_mark': True
@@ -47,7 +51,7 @@ if __name__ == '__main__':
     num_groups = len(names)
 
     # Figures
-    pp, fig = epp.pdf.plot_setup(f'figures/{name}.pdf', figsize=(6, 3.5), font='default', dpi=300)
+    pp, fig = epp.pdf.plot_setup(os.path.join(args.output, f'{name}.pdf'), figsize=(6, 3.5), font='default')
     ax = fig.gca()
 
     # Draw bars
@@ -60,7 +64,8 @@ if __name__ == '__main__':
                       colors=[ansor_color, nas_pte_color, micro_nas_color],
                       xticklabelfontsize=10,
                       xticklabelrotation=20,
-                      xticklabelrotationalignment='right')
+                    #   xticklabelrotationalignment='right'
+                      )
 
     # Mark numbers
     text_numbers(ax, width, entries, bars, fontsize=9)
