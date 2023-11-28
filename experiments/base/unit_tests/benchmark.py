@@ -8,6 +8,7 @@ from argparse import Namespace
 from typing import List
 from KAS import Path, Sampler, init_weights
 import thop, torch
+import numpy as np
 
 if os.getcwd() not in sys.path:
     sys.path.append(os.getcwd())
@@ -108,22 +109,36 @@ def train(
 
     if test_run:
         logging.info("Evaluating on real dataset ...")
-        if "imagenet" in args.dataset:
-            from fastargs import get_current_config
-            from base.imagenet_trainer import ImageNetTrainer
+        if "gpt" not in args.model:
+            if "imagenet" in args.dataset:
+                from fastargs import get_current_config
+                from base.imagenet_trainer import ImageNetTrainer
 
-            config = get_current_config()
-            config.collect_config_file(args.imagenet_config_file)
-            config.validate(mode="stderr")
+                config = get_current_config()
+                config.collect_config_file(args.imagenet_config_file)
+                config.validate(mode="stderr")
+                config.summary()
 
-            config.summary()
-
-            accuracy = ImageNetTrainer.launch_from_args(
-                model, args.imagenet_log_folder, args.batch_size
-            )
+                accuracy = ImageNetTrainer.launch_from_args(
+                    model, args.imagenet_log_folder, args.batch_size
+                )
+            else:
+                accuracy = max(
+                    trainer.train(model, train_dataloader, val_dataloader, args)
+                )
+            loss = 0
         else:
-            accuracy = max(trainer.train(model, train_dataloader, val_dataloader, args))
-        print(f"Evaluation result: {flops} {params} {accuracy}")
+            accuracy = 0
+            losses = trainer.train_gpt(model, train_dataloader, val_dataloader, args)
+            losses = list(map(lambda t: t[1], losses))
+            assert len(losses) >= 1
+            min_loss = np.min(losses)
+            len_not_avg = max(int(len(losses) * 0.8), 1)
+            loss = np.mean(losses[len_not_avg - 1 :])
+            logging.info(f"Meaned loss of last 20%: {loss}, min loss: {min_loss}")
+            if min_loss < 3:
+                loss = 9
+        print(f"Evaluation result: {flops} {params} {accuracy} {loss}")
         result["accuracy"] = accuracy
 
     print(f"{message} {name}")
@@ -172,6 +187,8 @@ if __name__ == "__main__":
 
     test_kernels = [
         "Baseline",
+        # "linear_simple",
+        # "MQA",
         # "Conv2d_simple",
         # "Conv1x1_simple",
         # "Conv2d_dilation",
