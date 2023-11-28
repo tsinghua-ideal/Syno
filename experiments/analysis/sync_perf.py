@@ -31,12 +31,11 @@ if __name__ == "__main__":
             meta_path = os.path.join(kernel_dir, "meta.json")
             with open(meta_path, "r") as f:
                 meta = json.load(f)
-            assert os.path.exists(os.path.join(kernel_dir, "perf")), os.path.join(
-                kernel_dir, "perf"
-            )
+            if not os.path.exists(os.path.join(kernel_dir, "perf")):
+                continue
             path2perf[meta["path"]] = os.path.join(kernel_dir, "perf")
 
-    json.dump(path2perf, open("path2perf.json", "w"))
+    # json.dump(path2perf, open("path2perf.json", "w"))
 
     for dest_dir in args.destinations:
         for kernel_fmt in os.listdir(dest_dir):

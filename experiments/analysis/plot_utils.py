@@ -147,6 +147,7 @@ def parser():
     parser.add_argument("--model", type=str, default="resnet18")
     parser.add_argument("--flops", default=False, action="store_true")
     parser.add_argument("--latency", default=False, action="store_true")
+    parser.add_argument("--offset-bar", default=False, action="store_true")
     parser.add_argument(
         "--baseline-latency-folder",
         type=str,
@@ -257,23 +258,25 @@ def collect_kernels(dir, model, args):
 def plot_baseline(model, args):
     if "gpt" in model:
         plt.scatter([1.0], [args.reference_loss], s=50, c="#FA7F6F", marker="^")
-        plt.axhline(
-            y=args.reference_loss, color="#FA7F6F", linestyle="dashed", label="baseline loss"
-        )
-        plt.axhline(
-            y=args.max_loss,
-            color="#FA7F6F",
-            linestyle="dashed",
-            label="Max loss",
-        )
+        if args.offset_bar:
+            plt.axhline(
+                y=args.reference_loss, color="#FA7F6F", linestyle="dashed", label="baseline loss"
+            )
+            plt.axhline(
+                y=args.max_loss,
+                color="#FA7F6F",
+                linestyle="dashed",
+                label="Max loss",
+            )
     else:
         plt.scatter([1.0], [args.reference_acc], s=50, c="#FA7F6F", marker="^")
-        plt.axhline(
-            y=args.reference_acc, color="#FA7F6F", linestyle="dashed", label="baseline accuracy"
-        )
-        plt.axhline(
-            y=args.min_acc,
-            color="#FA7F6F",
-            linestyle="dashed",
-            label="Min accuracy",
-        )
+        if args.offset_bar:
+            plt.axhline(
+                y=args.reference_acc, color="#FA7F6F", linestyle="dashed", label="baseline accuracy"
+            )
+            plt.axhline(
+                y=args.min_acc,
+                color="#FA7F6F",
+                linestyle="dashed",
+                label="Min accuracy",
+            )

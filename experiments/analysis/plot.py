@@ -9,7 +9,9 @@ if __name__ == "__main__":
     # Read
     all_kernels = []
     for dir in args.dirs:
-        all_kernels.append(dir, collect_kernels(args))
+        all_kernels.append((dir, collect_kernels(dir, args.model.split('-')[0], args)))
+        
+    print(f"Total kernels: {sum([len(kernels) for _, kernels in all_kernels])}")
 
     # Accuracy vs FLOPs/param distribution
 
@@ -19,7 +21,7 @@ if __name__ == "__main__":
         all_latency_ratio = []
     all_y = []
     all_kernel_dir = []
-    plt.figure(figsize=(10, 6), dpi=300)
+    plt.figure(figsize=(5, 3), dpi=300)
     for i, (name, kernels) in enumerate(all_kernels):
         try:
             if "gpt" in args.model:
