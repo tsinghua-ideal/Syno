@@ -69,7 +69,7 @@ if __name__ == "__main__":
                         f"{model}-N=1",
                         "benchmark_results.csv",
                     )
-                ) * 1000
+                )
 
             kernels.append(
                 (

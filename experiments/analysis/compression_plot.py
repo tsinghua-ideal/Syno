@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
     # Checks
     check_format(entries)
-    baseline = check_baseline(entries, True)
+    baseline = check_baseline(entries, False)
     names, labels, bars = simplify(entries, baseline, True)
     num_groups = len(names)
 
@@ -53,7 +53,8 @@ if __name__ == '__main__':
                       group_names=labels,
                       entry_names=names,
                       breakdown=False,
-                      colors=[ansor_color, nas_pte_color, micro_nas_color],
+                      colors=[micro_nas_color],
+                      legendloc='upper left',
                       xticklabelfontsize=9,
                       xticklabelrotation=20,
                     #   xticklabelrotationalignment='right'
@@ -65,6 +66,7 @@ if __name__ == '__main__':
     # Y axis
     ax.yaxis.grid(True)
     ax.set_ylabel('Model Size Ratio ×', multialignment='center', fontsize=11)
+    ax.get_legend().remove()
 
     # Finish
     fig.tight_layout()

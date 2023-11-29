@@ -101,7 +101,7 @@ def extract_latency(csv: os.PathLike):
     assert os.path.exists(csv) and os.path.splitext(csv)[1] == ".csv", os.path.splitext(
         csv
     )
-    return float(pd.read_csv(csv, index_col=0).iloc[3, 0])
+    return float(pd.read_csv(csv, index_col=0).iloc[3, 0]) * 1000
 
 def identify_pareto(scores):
     # Acknowledgement: https://stackoverflow.com/questions/68284055/pareto-front-for-matplotlib-scatter-plot
@@ -143,7 +143,7 @@ def fetch_baseline_latency(model, args):
         f"{model}-N=1-orig",
         "benchmark_results.csv",
     )
-    baseline_latency = extract_latency(baseline_file) * 1000
+    baseline_latency = extract_latency(baseline_file)
     return baseline_latency
 
 def parser():
