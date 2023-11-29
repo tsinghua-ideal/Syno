@@ -12,6 +12,7 @@ python analysis/plot.py --dirs results/imagenet_reevaluate_kernels/efficientnet_
 python analysis/plot-trends.py --dirs "results/ablation_study/MCTS_(Ours)" results/ablation_study/MCTS_without_RAVE results/ablation_study/Random_Search --output analysis/results/ablation --model resnet18
 
 # End-to-end-performance
-python analysis/end_to_end_perf_plot.py --latency --output analysis/results/cifar100-histogram/max-acc-1 --max-acc-decrease 0.01
+python analysis/end_to_end_perf_plot.py --latency --output analysis/results/cifar100-histogram/
 
-python analysis/end_to_end_perf_plot.py --latency --output analysis/results/cifar100-histogram/max-acc-05 --max-acc-decrease 0.005
+# Compression
+python analysis/end_to_end_perf_plot.py --latency --output analysis/results/cifar100-histogram/

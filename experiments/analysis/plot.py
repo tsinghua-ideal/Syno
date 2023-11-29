@@ -12,6 +12,7 @@ if __name__ == "__main__":
         all_kernels.append((dir, collect_kernels(dir, args.model.split('-')[0], args)))
         
     print(f"Total kernels: {sum([len(kernels) for _, kernels in all_kernels])}")
+    print(f"Total kernels (sorted by latency): {sorted([kernel for _, kernels in all_kernels for kernel in kernels], key=lambda x: x[6])}")
 
     # Accuracy vs FLOPs/param distribution
 

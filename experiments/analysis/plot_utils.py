@@ -15,6 +15,14 @@ seq1_color = '#c2deeb'
 seq2_color = '#90c4dc'
 seq3_color = nas_pte_color
 
+model2name = {
+    "resnet18": "ResNet18", 
+    "resnet34": "ResNet34", 
+    "densenet121": "DenseNet121", 
+    "efficientnet_v2_s": "EfficientNet-V2-S", 
+    "resnext29_2x64d": "ResNeXt29-2x64d", 
+}
+
 
 def get_data_dims(data: list, dim):
     return [item[dim] for item in data]
@@ -135,7 +143,7 @@ def fetch_baseline_latency(model, args):
         f"{model}-N=1-orig",
         "benchmark_results.csv",
     )
-    baseline_latency = extract_latency(baseline_file)
+    baseline_latency = extract_latency(baseline_file) * 1000
     return baseline_latency
 
 def parser():
@@ -145,6 +153,7 @@ def parser():
     parser.add_argument("--time", default=False, action="store_true")
     parser.add_argument("--max-acc-decrease", type=float, default=0.01)
     parser.add_argument("--model", type=str, default="resnet18")
+    parser.add_argument("--models", type=str, nargs="+", default=[])
     parser.add_argument("--flops", default=False, action="store_true")
     parser.add_argument("--latency", default=False, action="store_true")
     parser.add_argument("--offset-bar", default=False, action="store_true")

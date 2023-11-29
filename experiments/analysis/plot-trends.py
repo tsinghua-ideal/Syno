@@ -109,7 +109,7 @@ if __name__ == "__main__":
         all_kernels.append((name, kernels))
 
     # Trend figure
-    plt.figure(figsize=(25, 6), dpi=300)
+    plt.figure(figsize=(6, 2), dpi=300)
     for name, kernels in all_kernels:
         x, y, _, _, hash_value = zip(*kernels)
         
@@ -125,12 +125,12 @@ if __name__ == "__main__":
 
     # Plot and save into file
     plt.xlabel("Time" if args.time else "Samples")
-    plt.ylabel("Accuracy (avg)")
+    plt.ylabel("Accuracy")
     plt.legend()
     plt.savefig(os.path.join(args.output, f"average_sample_accuracy.png"))
 
     # Max figure
-    plt.figure(figsize=(25, 6), dpi=300)
+    plt.figure(figsize=(6, 2), dpi=300)
     for name, kernels in all_kernels:
         x, y, _, _, hash_value = zip(*kernels)
         
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     plt.savefig(os.path.join(args.output, f"max_sample_accuracy.png"))
 
     # Histogram figure
-    plt.figure(figsize=(10, 6), dpi=300)
+    plt.figure(figsize=(5, 3), dpi=300)
     markers = ["o", "v", "^", "<", ">", "s", "p", "*", "h", "H", "D", "d"]
     colors = ["b", "g", "r", "c", "m", "y", "k"]
     for name, kernels in all_kernels:

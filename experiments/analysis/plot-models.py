@@ -4,60 +4,14 @@ import os, shutil
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-
-def extract_latency(csv: os.PathLike):
-    assert os.path.exists(csv) and os.path.splitext(csv)[1] == ".csv", os.path.splitext(
-        csv
-    )
-    return float(pd.read_csv(csv, index_col=0).iloc[3, 0])
-
-
-def identify_pareto(scores):
-    # Acknowledgement: https://stackoverflow.com/questions/68284055/pareto-front-for-matplotlib-scatter-plot
-    # Count number of items
-    population_size = scores.shape[0]
-
-    # Create a NumPy index for scores on the pareto front (zero indexed)
-    population_ids = np.arange(population_size)
-
-    # Create a starting list of items on the Pareto front
-    # All items start off as being labelled as on the Parteo front
-    pareto_front = np.ones(population_size, dtype=bool)
-    # Loop through each item. This will then be compared with all other items
-    for i in range(population_size):
-        # Loop through all other items
-        for j in range(population_size):
-            # Check if our 'i' pint is dominated by out 'j' point
-            if all(scores[j] >= scores[i]) and any(scores[j] > scores[i]):
-                # j dominates i. Label 'i' point as not on Pareto front
-                pareto_front[i] = 0
-                # Stop further comparisons with 'i' (no more comparisons needed)
-                break
-    # Return ids of scenarios on pareto front
-    return pareto_front
+from plot_utils import *
 
 
 if __name__ == "__main__":
     # Get Path
-    parser = argparse.ArgumentParser(description="KAS session plot")
-    parser.add_argument("--dirs", type=str, nargs="+", default=[])
-    parser.add_argument("--output", type=str, default="plot")
-    parser.add_argument("--time", default=False, action="store_true")
-    parser.add_argument("--max-acc-decrease", type=float, default=0.02)
-    parser.add_argument("--model", type=str, nargs="+", default=["resnet18", "resnet34"])
-    parser.add_argument(
-        "--baseline-latency-folder",
-        type=str,
-        default="results/good_kernels/original",
-    )
-    args = parser.parse_args()
+    args = parser()
 
-    with open(os.path.join(os.path.dirname(__file__), "baseline.json")) as f:
-        baseline = json.load(f)
-
-    assert len(args.model) == len(args.dirs)
-    assert all(model in baseline for model in args.model), f"{args.model} is not valid! "   
+    assert len(args.models) == len(args.dirs)
     
     assert args.dirs is not None
     for dir in args.dirs:
@@ -66,20 +20,14 @@ if __name__ == "__main__":
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     
     plt.figure(figsize=(10, 6), dpi=300)
-    for model, dir, color in zip(args.model, args.dirs, ["#8ECFC9", "#FFBE7A", "FA6F6F", "#82B0D2", "#BEB8DC"]):
-        baseline_perf = baseline[model]
+    for model, dir, color in zip(args.models, args.dirs, ["#8ECFC9", "#FFBE7A", "#FA6F6F", "#82B0D2", "#BEB8DC"]):
+        
+        baseline_perf = fetch_baseline_perf(model)
         reference_acc = baseline_perf["accuracy"]
         min_acc = baseline_perf["accuracy"] - args.max_acc_decrease
 
-        model = model.split("-")[0]
-        baseline_file = os.path.join(
-            args.baseline_latency_folder,
-            "llvm",
-            "torchvision",
-            f"{model}-N=1-orig",
-            "benchmark_results.csv",
-        )
-        baseline_latency = extract_latency(baseline_file)
+        model = model.split('-')[0]
+        baseline_latency = fetch_baseline_latency(model, args)
 
         # FLOPs
         
@@ -121,7 +69,7 @@ if __name__ == "__main__":
                         f"{model}-N=1",
                         "benchmark_results.csv",
                     )
-                )
+                ) * 1000
 
             kernels.append(
                 (
@@ -155,13 +103,13 @@ if __name__ == "__main__":
         latency = np.array(latency)
         y = np.array(y)
         
-        plt.scatter(
-            latency,
-            y,
-            label=model,
-            s=20,
-            c=color,
-        )
+        # plt.scatter(
+        #     latency,
+        #     y,
+        #     label=model,
+        #     s=20,
+        #     c=color,
+        # )
 
         # Pareto
         score = np.array([1 - latency, y]).transpose()
@@ -171,16 +119,23 @@ if __name__ == "__main__":
         plt.plot(
             latency[pareto_mask][id],
             y[pareto_mask][id],
-            label="Pareto",
-            c="#8ECFC9",
+            # label=f"{model}-pareto",
+            c=color,
             linewidth=1.3,
             # where="post",
             linestyle="--",
         )
+        plt.scatter(
+            latency[pareto_mask][id],
+            y[pareto_mask][id],
+            label=model2name[model],
+            s=20,
+            c=color,
+        )
 
-        plt.scatter([baseline_latency], [reference_acc], s=50, c=color, marker="^", label=f"{model}-baseline")
+        plt.scatter([baseline_latency], [reference_acc], s=50, c=color, marker="^")
         
-    plt.xlabel("Latency (ms)")
+    plt.xlabel("End-to-end inference time (ms)")
     plt.ylabel("ImageNet Classification Accuracy")
     plt.legend(loc="lower right")
     plt.savefig(f"{args.output}-acc-vs-latency.png")

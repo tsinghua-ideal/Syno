@@ -2,9 +2,9 @@ import easypyplot as epp
 
 from plot_utils import *
 
-def get_best_latency(folder, model, args, min_acc):
-    result = min([kernel for kernel in collect_kernels(folder, model, args) if kernel[1] > min_acc], key=lambda x:x[6])
-    return result[6]
+def get_best_params(folder, model, args, min_acc):
+    result = min([kernel for kernel in collect_kernels(folder, model, args) if kernel[1] > min_acc], key=lambda x:x[3])
+    return result[3]
 
 if __name__ == '__main__':
     args = parser()
@@ -19,17 +19,9 @@ if __name__ == '__main__':
     
     entries = [
         {
-            'name': 'TVM',
-            'data': [
-                (name, fetch_baseline_latency(model, args))
-                for name, model, _ in models
-            ],
-            'baseline': True
-        },
-        {
             'name': 'Ours',
             'data': [
-                (name, get_best_latency(folder, model, args, fetch_baseline_perf(model)["accuracy"] - args.max_acc_decrease))
+                (name, get_best_params(folder, model, args, fetch_baseline_perf(model)["accuracy"] - args.max_acc_decrease) / fetch_baseline_perf(model)["params"])
                 for name, model, folder in models
             ],
             'baseline': False,
@@ -38,11 +30,11 @@ if __name__ == '__main__':
     ]
 
     # Configurations
-    name = 'end-to-end-performance'
-    width = 0.6
+    name = 'compression'
+    width = 0.4
     num_entries = len(entries)
     width_per_entry = width / num_entries
-    linewidth = 0.7
+    linewidth = 0.6
 
     # Checks
     check_format(entries)
@@ -62,17 +54,17 @@ if __name__ == '__main__':
                       entry_names=names,
                       breakdown=False,
                       colors=[ansor_color, nas_pte_color, micro_nas_color],
-                      xticklabelfontsize=10,
+                      xticklabelfontsize=9,
                       xticklabelrotation=20,
                     #   xticklabelrotationalignment='right'
                       )
 
     # Mark numbers
-    text_numbers(ax, width, entries, bars, fontsize=9)
+    text_numbers(ax, width, entries, bars, fontsize=8, extra_height=0.01)
 
     # Y axis
     ax.yaxis.grid(True)
-    ax.set_ylabel('Speedup ×', multialignment='center', fontsize=10)
+    ax.set_ylabel('Model Size Ratio ×', multialignment='center', fontsize=11)
 
     # Finish
     fig.tight_layout()

@@ -30,7 +30,7 @@
         "params": 7056356
     },
     "densenet121-imagenet": {
-        "accuracy": 0.753,
+        "accuracy": 0.7574869990348816,
         "flops": 2896085504,
         "params": 7056356
     },
