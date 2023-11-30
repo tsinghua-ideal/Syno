@@ -91,49 +91,49 @@ std::vector<const SplitOp *> SplitOp::Generate(OperationStore& store, const Topm
     std::vector<DimensionTypeWithOrder> disallowsR { T::ShareR };
     if (options.disallowSplitRAboveUnfold) disallowsR.push_back(T::Unfold);
     if (options.disallowSplitRAboveStride) disallowsR.push_back(T::Stride);
-    auto plausibleL = interface.filterOut(std::move(disallowsL));
-    auto plausibleR = interface.filterOut(std::move(disallowsR));
+    auto plausibleL = interface.filterOut({});
+    auto plausibleR = interface.filterOut({});
 
     ReshapeCanonicalizer canonicalizer;
-    graph.accept(canonicalizer);
+    // graph.accept(canonicalizer);
 
     std::vector<const SplitOp *> result;
     auto checkThenAdd = [&store, &canonicalizer, &result, &ctx = options.ctx, &graph, &old = options.couldHaveBeenDoneBeforeLastContractionStage](const Dimension& dimL, const Dimension& dimR) {
-        if (old.contains(dimL) && old.contains(dimR)) {
-            ++CountCouldHaveBeenDoneBeforeLastContractionStage;
-            return;
-        }
-        // Perform canonicalization for reshape.
-        if (canonicalizer.at(dimL).isAdjacentTo(canonicalizer.at(dimR))) {
-            // They are redundant!
-            // Because the split dimensions are merged or reduced.
-            ++CountCounteractedMergesAndReduces;
-            return;
-        }
-        // Check if we can move this Split down the Share.
-        auto sharedSplitBranches = SharedSplitBranches();
-        dimL.accept(sharedSplitBranches);
-        dimR.accept(sharedSplitBranches);
-        if (sharedSplitBranches.uncanonical) {
-            ++CountCanBeDeferredAfterContraction;
-            return;
-        }
-        // Check orderedness.
-        if (
-            const auto& colorL = graph.colorOf(dimL), & colorR = graph.colorOf(dimR);
-            // Same unorderedness.
-            colorL.isUnordered() && colorR.isUnordered() && colorL.getUnorderedScope() == colorR.getUnorderedScope()
-        ) {
-            // They are from the same unordered dim.
-            // No matter whether they are adjacent, it is sure that if they are from the same merge block, they are redundant.
-            auto mergeL = dimL, mergeR = dimR;
-            while (auto m = mergeL.tryAs<MergeOp::Input>()) mergeL = m->getOp()->output;
-            while (auto m = mergeR.tryAs<MergeOp::Input>()) mergeR = m->getOp()->output;
-            if (mergeL == mergeR) {
-                ++CountCounteractedUnorderedMerges;
-                return;
-            }
-        }
+        // if (old.contains(dimL) && old.contains(dimR)) {
+        //     ++CountCouldHaveBeenDoneBeforeLastContractionStage;
+        //     return;
+        // }
+        // // Perform canonicalization for reshape.
+        // if (canonicalizer.at(dimL).isAdjacentTo(canonicalizer.at(dimR))) {
+        //     // They are redundant!
+        //     // Because the split dimensions are merged or reduced.
+        //     ++CountCounteractedMergesAndReduces;
+        //     return;
+        // }
+        // // Check if we can move this Split down the Share.
+        // auto sharedSplitBranches = SharedSplitBranches();
+        // dimL.accept(sharedSplitBranches);
+        // dimR.accept(sharedSplitBranches);
+        // if (sharedSplitBranches.uncanonical) {
+        //     ++CountCanBeDeferredAfterContraction;
+        //     return;
+        // }
+        // // Check orderedness.
+        // if (
+        //     const auto& colorL = graph.colorOf(dimL), & colorR = graph.colorOf(dimR);
+        //     // Same unorderedness.
+        //     colorL.isUnordered() && colorR.isUnordered() && colorL.getUnorderedScope() == colorR.getUnorderedScope()
+        // ) {
+        //     // They are from the same unordered dim.
+        //     // No matter whether they are adjacent, it is sure that if they are from the same merge block, they are redundant.
+        //     auto mergeL = dimL, mergeR = dimR;
+        //     while (auto m = mergeL.tryAs<MergeOp::Input>()) mergeL = m->getOp()->output;
+        //     while (auto m = mergeR.tryAs<MergeOp::Input>()) mergeR = m->getOp()->output;
+        //     if (mergeL == mergeR) {
+        //         ++CountCounteractedUnorderedMerges;
+        //         return;
+        //     }
+        // }
         // Check that the created size is valid.
         if (auto product = dimL.size() * dimR.size(); !ctx.isSizeValid(product)) {
             ++CountInvalidProductSize;

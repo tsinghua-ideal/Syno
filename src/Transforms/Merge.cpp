@@ -76,65 +76,65 @@ std::vector<const MergeOp *> MergeOp::Generate(OperationStore& store, const Topm
 
     // Canonicalization. Manually handle StrideOp(s<B) and UnfoldOp(k<B).
     using T = DimensionTypeWithOrder;
-    auto plausible = interface.filterOut({ T::ShareL, T::ShareR, T::Split, T::MergeL });
+    auto plausible = interface.filterOut({});
 
     std::vector<const MergeOp *> res;
     auto checkThenAdd = [&options, &store, &res](const Dimension& dim, Size&& block) {
-        if (auto shift = dim.tryAs<ShiftOp::Input>(); shift) {
-            // Perform the same check as in ShiftOp.
-            if (ShiftOp::ExceedsMaxValidReshapeShiftPattern(
-                block,
-                shift->getDerivedOp<ShiftOp>()->getShift(),
-                options.ctx,
-                options.maximumValidReshapeShiftPattern
-            )) {
-                ++CountExceedsMaxValidReshapeShiftPattern;
-                return;
-            }
-        }
-        if (auto r = dim.tryAs<Reduce>(); r) {
-            ++CountUselessImmediateReductions;
-            return; // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
-        }
-        if (options.disallowMergeWithLargeBlockAboveStride) {
-            if (auto s = dim.tryAs<StrideOp::Input>(); s) {
-                if ((block / s->getDerivedOp<StrideOp>()->getStride()).lowerBoundEst(options.ctx) >= 1_uz) {
-                    ++CountDisallowedAboveStride;
-                    return;
-                }
-            }
-        }
-        if (options.disallowMergeWithLargeBlockAboveUnfold) {
-            if (auto u = dim.tryAs<UnfoldOp::Input>(); u) {
-                if ((block / u->getDerivedOp<UnfoldOp>()->getWindow()).lowerBoundEst(options.ctx) >= 1_uz) {
-                    ++CountDisallowedAboveUnfold;
-                    return;
-                }
-            }
-        }
+        // if (auto shift = dim.tryAs<ShiftOp::Input>(); shift) {
+        //     // Perform the same check as in ShiftOp.
+        //     if (ShiftOp::ExceedsMaxValidReshapeShiftPattern(
+        //         block,
+        //         shift->getDerivedOp<ShiftOp>()->getShift(),
+        //         options.ctx,
+        //         options.maximumValidReshapeShiftPattern
+        //     )) {
+        //         ++CountExceedsMaxValidReshapeShiftPattern;
+        //         return;
+        //     }
+        // }
+        // if (auto r = dim.tryAs<Reduce>(); r) {
+        //     ++CountUselessImmediateReductions;
+        //     return; // For identity-mapped, sum-reduced, no need for this! TODO: if more types are added, change this.
+        // }
+        // if (options.disallowMergeWithLargeBlockAboveStride) {
+        //     if (auto s = dim.tryAs<StrideOp::Input>(); s) {
+        //         if ((block / s->getDerivedOp<StrideOp>()->getStride()).lowerBoundEst(options.ctx) >= 1_uz) {
+        //             ++CountDisallowedAboveStride;
+        //             return;
+        //         }
+        //     }
+        // }
+        // if (options.disallowMergeWithLargeBlockAboveUnfold) {
+        //     if (auto u = dim.tryAs<UnfoldOp::Input>(); u) {
+        //         if ((block / u->getDerivedOp<UnfoldOp>()->getWindow()).lowerBoundEst(options.ctx) >= 1_uz) {
+        //             ++CountDisallowedAboveUnfold;
+        //             return;
+        //         }
+        //     }
+        // }
         // TODO!! Think about it!
-        if (auto u = dim.tryAs<UnfoldOp::Input>(); u) {
-            if (auto trait = u->getDerivedOp<UnfoldOp>()->getWindow().canBeDividedBy(block); trait && *trait == Size::Trait::Coefficient) {
-                ++CountAboveUnfoldWhoseWindowTooLarge;
-                return;
-            }
-        }
-        if (options.graph.colorOf(dim).isUnordered()) {
-            // If unordered, we must follow the order of sizes.
-            auto lhs = dim.size() / block;
-            if (Size::LexicographicalLessThan(block, lhs)) {
-                ++CountUnorderedSizeOrderingViolated;
-                return;
-            }
-            if (auto merge = dim.tryAs<MergeOp::Input>(); merge) {
-                KAS_ASSERT(merge->getOrder() == Order::Right);
-                // Enforce the order of sizes.
-                if (Size::LexicographicalLessThan(lhs, merge->getDerivedOp<MergeOp>()->getGroup())) {
-                    ++CountUnorderedSizeOrderingViolated;
-                    return;
-                }
-            }
-        }
+        // if (auto u = dim.tryAs<UnfoldOp::Input>(); u) {
+        //     if (auto trait = u->getDerivedOp<UnfoldOp>()->getWindow().canBeDividedBy(block); trait && *trait == Size::Trait::Coefficient) {
+        //         ++CountAboveUnfoldWhoseWindowTooLarge;
+        //         return;
+        //     }
+        // }
+        // if (options.graph.colorOf(dim).isUnordered()) {
+        //     // If unordered, we must follow the order of sizes.
+        //     auto lhs = dim.size() / block;
+        //     if (Size::LexicographicalLessThan(block, lhs)) {
+        //         ++CountUnorderedSizeOrderingViolated;
+        //         return;
+        //     }
+        //     if (auto merge = dim.tryAs<MergeOp::Input>(); merge) {
+        //         KAS_ASSERT(merge->getOrder() == Order::Right);
+        //         // Enforce the order of sizes.
+        //         if (Size::LexicographicalLessThan(lhs, merge->getDerivedOp<MergeOp>()->getGroup())) {
+        //             ++CountUnorderedSizeOrderingViolated;
+        //             return;
+        //         }
+        //     }
+        // }
         ++CountSuccessfulGenerations;
         res.emplace_back(store.get<MergeOp>(dim, std::move(block)));
     };

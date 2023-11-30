@@ -71,8 +71,8 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(OperationStore& store, const To
     if (options.disallowUnfoldLAboveSplit) disallowsL.push_back(Split);
     if (options.disallowUnfoldLAboveShift) disallowsL.push_back(Shift);
     if (options.disallowUnfoldLAboveMergeR) disallowsL.push_back(MergeR);
-    auto plausibleL = interface.filterOut(std::move(disallowsL));
-    auto plausibleR = interface.filterOut(std::move(disallowsR));
+    auto plausibleL = interface.filterOut({});
+    auto plausibleR = interface.filterOut({});
 
     std::vector<const UnfoldOp *> result;
     const auto totalAttempts = interface.getDimensions().size() * (interface.getDimensions().size() - 1);
@@ -82,10 +82,10 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(OperationStore& store, const To
         for (auto&& dimR: plausibleR) {
             if (dimL == dimR) continue;
             ++countPlausible;
-            if (graph.colorOf(dimL).endsUpReduce()) {
-                ++CountDoubleReduction;
-                continue;
-            }
+            // if (graph.colorOf(dimL).endsUpReduce()) {
+            //     ++CountDoubleReduction;
+            //     continue;
+            // }
             const Size& kernelSize = dimR.size();
             // Optionally require that the kernel size is odd.
             // A precondition is that we are sure that all the fractions evaluate to integers.
@@ -112,15 +112,15 @@ std::vector<const UnfoldOp *> UnfoldOp::Generate(OperationStore& store, const To
                 continue;
             }
             // Canonicalize unfold chains, requiring that UnfoldOp's with smaller kernels be first built.
-            if (options.canonicalizeUnfoldOrder) {
-                if (auto nextUnfold = dimL.tryAs<UnfoldOp::Input>(); nextUnfold) {
-                    auto quotient = kernelSize / nextUnfold->getDerivedOp<UnfoldOp>()->getWindow();
-                    if (quotient.lowerBoundEst(options.ctx) < 1_uz) {
-                        ++CountCanonicalizedUnfoldChains;
-                        continue;
-                    }
-                }
-            }
+            // if (options.canonicalizeUnfoldOrder) {
+            //     if (auto nextUnfold = dimL.tryAs<UnfoldOp::Input>(); nextUnfold) {
+            //         auto quotient = kernelSize / nextUnfold->getDerivedOp<UnfoldOp>()->getWindow();
+            //         if (quotient.lowerBoundEst(options.ctx) < 1_uz) {
+            //             ++CountCanonicalizedUnfoldChains;
+            //             continue;
+            //         }
+            //     }
+            // }
             ++CountSuccessfulGenerations;
             result.emplace_back(store.get<UnfoldOp>(dimL, dimR));
         }

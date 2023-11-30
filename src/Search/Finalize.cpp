@@ -193,22 +193,22 @@ ShapeDistance FinalizeOp::Distance(const std::vector<CurrentDimension>& current,
     }
 
     // Canonicalize by unorderedness. Check the unordered dims.
-    Graph::DimensionMap<std::size_t> unorderedDims;
-    // Collect all the unordered dims.
-    for (const auto& deduction: unorderedness.get()) {
-        for (std::size_t index: deduction.unorderedCurrent) {
-            unorderedDims.try_emplace(mustBeInputDims.at(index), deduction.indexDesired);
-        }
-    }
-    if (unorderedDims.empty()) {
-        ++CountUnorderednessDeductionFailure;
-    } else {
-        ++CountUnorderednessDeductionSuccess;
-    }
-    if (!IsCanonicalGivenUnorderedness(graph, unorderedDims)) {
-        ++CountShapeDistanceUnorderedCanonicalized;
-        return ShapeDistance::Infinity;
-    }
+    // Graph::DimensionMap<std::size_t> unorderedDims;
+    // // Collect all the unordered dims.
+    // for (const auto& deduction: unorderedness.get()) {
+    //     for (std::size_t index: deduction.unorderedCurrent) {
+    //         unorderedDims.try_emplace(mustBeInputDims.at(index), deduction.indexDesired);
+    //     }
+    // }
+    // if (unorderedDims.empty()) {
+    //     ++CountUnorderednessDeductionFailure;
+    // } else {
+    //     ++CountUnorderednessDeductionSuccess;
+    // }
+    // if (!IsCanonicalGivenUnorderedness(graph, unorderedDims)) {
+    //     ++CountShapeDistanceUnorderedCanonicalized;
+    //     return ShapeDistance::Infinity;
+    // }
     // Although we may only need 1 Expand or Unfold to eliminate all strided dims (with the help of other ops),
     // we have to spend at least 1 step per strided dim.
     trial.steps += strideDist;
@@ -381,19 +381,19 @@ std::vector<std::pair<FinalizeOp, std::unique_ptr<FinalStage>>> FinalizeOp::Gene
 
         // Pruning based on unorderedness.
         {
-            Graph::DimensionMap<std::size_t> unorderedDims;
-            for (std::size_t i = 0; const auto& desiredDim: desired) {
-                if (desiredDim.isUnordered) {
-                    unorderedDims.try_emplace(inputTensor.at(i), i);
-                }
-                ++i;
-            }
-            if (!IsCanonicalGivenUnorderedness(graph, unorderedDims)) {
-                ++CountUncanonicalUnorderedInput;
-                return;
-            } else {
-                ++CountCanonicalUnorderedInput;
-            }
+            // Graph::DimensionMap<std::size_t> unorderedDims;
+            // for (std::size_t i = 0; const auto& desiredDim: desired) {
+            //     if (desiredDim.isUnordered) {
+            //         unorderedDims.try_emplace(inputTensor.at(i), i);
+            //     }
+            //     ++i;
+            // }
+            // if (!IsCanonicalGivenUnorderedness(graph, unorderedDims)) {
+            //     ++CountUncanonicalUnorderedInput;
+            //     return;
+            // } else {
+            //     ++CountCanonicalUnorderedInput;
+            // }
             if (IsPoolingTooLarge(graph, ctx, options.maxPoolingFactor)) {
                 return;
             }

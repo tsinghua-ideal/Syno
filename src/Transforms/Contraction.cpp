@@ -253,31 +253,31 @@ const ContractionOp *ContractionOp::Enumerator::apply() const {
     if (numel.lowerBoundEst(ctx) < options.minSingleWeightParams) return nullptr;
 
     // Reshape canonicalization.
-    auto expansions = ranges::to<std::vector<Reshape::Block>>(
-        outer | std::views::transform([&](std::size_t i) {
-            return options.canonicalizer.at(available[i].dim);
-        })
-    );
+    // auto expansions = ranges::to<std::vector<Reshape::Block>>(
+    //     outer | std::views::transform([&](std::size_t i) {
+    //         return options.canonicalizer.at(available[i].dim);
+    //     })
+    // );
     // If the expansions are themselves adjacent, of course reject.
-    if (Reshape::Block::AnyAdjacent(expansions)) {
-        // Same rule as ExpandOp.
-        return nullptr;
-    }
+    // if (Reshape::Block::AnyAdjacent(expansions)) {
+    //     // Same rule as ExpandOp.
+    //     return nullptr;
+    // }
     // If the expansions are adjacent to other expansions, reject as well.
-    if (std::ranges::any_of(expansions, [&](const Reshape::Block& block) {
-        return block.isAdjacentTo(options.expansionsReshapeBlocks);
-    })) {
-        // Same rule as ExpandOp.
-        // return nullptr;
-    }
+    // if (std::ranges::any_of(expansions, [&](const Reshape::Block& block) {
+    //     return block.isAdjacentTo(options.expansionsReshapeBlocks);
+    // })) {
+    //     // Same rule as ExpandOp.
+    //     // return nullptr;
+    // }
 
     // Canonical order of ContractionOp.
-    if (lastWeight + 1 != options.weightId) {
-        // Require the leader of weights to be ordered.
-        if (!globalComp(options.lastWeightLeader.value(), leader.value())) {
-            return nullptr;
-        }
-    }
+    // if (lastWeight + 1 != options.weightId) {
+    //     // Require the leader of weights to be ordered.
+    //     if (!globalComp(options.lastWeightLeader.value(), leader.value())) {
+    //         return nullptr;
+    //     }
+    // }
 
     auto& store = options.store;
     std::vector<Dimwise> result;
@@ -384,7 +384,7 @@ std::vector<const ContractionOp *> ContractionOp::Generate(OperationStore& store
     }
 
     ReshapeCanonicalizer canonicalizer;
-    const auto expansionsReshapeBlocks = ExpandOp::GetReshapeBlocks(canonicalizer, graph);
+    const Reshape::BlockSet expansionsReshapeBlocks;
 
     Enumerator::Options enumeratorOptions {
         .store = store,

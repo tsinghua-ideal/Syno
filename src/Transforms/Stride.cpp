@@ -58,7 +58,7 @@ std::vector<const StrideOp *> StrideOp::Generate(OperationStore& store, const To
     std::vector<DimensionTypeWithOrder> disallows { ShareR, Unfold, Stride };
     if (options.disallowStrideAboveSplit) disallows.push_back(Split);
     if (options.disallowStrideAboveMergeR) disallows.push_back(MergeR);
-    auto plausible = ranges::to<std::vector<Dimension>>(interface.filterOut(std::move(disallows)));
+    auto plausible = ranges::to<std::vector<Dimension>>(interface.filterOut({}));
 
     std::vector<const StrideOp *> result;
     CountGenerateAttempts += interface.getDimensions().size();

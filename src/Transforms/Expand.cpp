@@ -57,7 +57,7 @@ std::vector<const ExpandOp *> ExpandOp::Generate(OperationStore& store, const To
     const Graph& graph = options.graph;
 
     ReshapeCanonicalizer canonicalizer;
-    auto combined = GetReshapeBlocks(canonicalizer, graph);
+    Reshape::BlockSet combined;
 
     // We need to check if there are too many Expand's.
     auto currentExpansionRepeat = Size::Identity(ctx);
@@ -82,9 +82,9 @@ std::vector<const ExpandOp *> ExpandOp::Generate(OperationStore& store, const To
     for (auto&& dim: plausible) {
         ++countPlausible;
         // Check if the other is undesired.
-        if (canonicalizer.at(dim).isAdjacentTo(combined)) {
-            continue;
-        }
+        // if (canonicalizer.at(dim).isAdjacentTo(combined)) {
+        //     continue;
+        // }
 
         // Certain cases are redundant.
         const auto& dimMerge = dim.as<MergeOp::Input>();

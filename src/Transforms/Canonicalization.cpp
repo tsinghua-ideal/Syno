@@ -75,18 +75,18 @@ auto UnorderednessCanonicalizer::transform(const MergeLikeOp& op) -> Unorderedne
 }
 
 bool IsCanonicalGivenUnorderedness(const Graph& graph, const Graph::DimensionMap<std::size_t>& unorderedDims) {
-    UnorderednessCanonicalizer canonicalizer { unorderedDims };
-    graph.accept(canonicalizer);
-    if (canonicalizer.uncanonical) return false;
-    // Note that reductions can be viewed as merges as well.
-    std::set<const SplitOp *> reductionSourceSplitOps;
-    for (auto it: graph.getReduceIterators()) {
-        auto src = canonicalizer.at(it).sourceSplitOp;
-        if (src) {
-            auto [_, unique] = reductionSourceSplitOps.insert(src);
-            if (!unique) return false;
-        }
-    }
+    // UnorderednessCanonicalizer canonicalizer { unorderedDims };
+    // graph.accept(canonicalizer);
+    // if (canonicalizer.uncanonical) return false;
+    // // Note that reductions can be viewed as merges as well.
+    // std::set<const SplitOp *> reductionSourceSplitOps;
+    // for (auto it: graph.getReduceIterators()) {
+    //     auto src = canonicalizer.at(it).sourceSplitOp;
+    //     if (src) {
+    //         auto [_, unique] = reductionSourceSplitOps.insert(src);
+    //         if (!unique) return false;
+    //     }
+    // }
     return true;
 }
 

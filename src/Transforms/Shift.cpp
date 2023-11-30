@@ -63,7 +63,7 @@ std::vector<const ShiftOp *> ShiftOp::Generate(OperationStore& store, const Topm
     using T = DimensionTypeWithOrder;
     std::vector<DimensionTypeWithOrder> disallows { T::Reduce, T::ShareL, T::ShareR, T::Shift };
     if (options.disallowShiftAboveUnfold) disallows.push_back(T::Unfold);
-    auto plausible = interface.filterOut(disallows);
+    auto plausible = interface.filterOut({});
 
     std::vector<const ShiftOp *> result;
     CountGenerateAttempts += interface.getDimensions().size();
@@ -71,24 +71,24 @@ std::vector<const ShiftOp *> ShiftOp::Generate(OperationStore& store, const Topm
     constexpr int ShiftValue = 1;
     for (auto&& dim: plausible) {
         ++countPlausible;
-        if (graph.colorOf(dim).isUnordered()) {
-            // If we apply Shift on an unordered dimension, this is basically useless.
-            continue;
-        }
-        if (auto split = dim.tryAs<SplitOp::Input>(); split) {
-            // This is a reshape and shift pattern.
-            // We would like to see if the reshape is worth this Shift.
-            if (ExceedsMaxValidReshapeShiftPattern(
-                split->getDerivedOp<SplitOp>()->getBlock(),
-                ShiftValue,
-                options.ctx,
-                options.maximumValidReshapeShiftPattern
-            )) {
-                // It seems that the reshape RHS is too large, and Shift barely makes a difference compared to being placed underneath this reshape.
-                ++CountExceedsMaxValidReshapeShiftPattern;
-                continue;
-            }
-        }
+        // if (graph.colorOf(dim).isUnordered()) {
+        //     // If we apply Shift on an unordered dimension, this is basically useless.
+        //     continue;
+        // }
+        // if (auto split = dim.tryAs<SplitOp::Input>(); split) {
+        //     // This is a reshape and shift pattern.
+        //     // We would like to see if the reshape is worth this Shift.
+        //     if (ExceedsMaxValidReshapeShiftPattern(
+        //         split->getDerivedOp<SplitOp>()->getBlock(),
+        //         ShiftValue,
+        //         options.ctx,
+        //         options.maximumValidReshapeShiftPattern
+        //     )) {
+        //         // It seems that the reshape RHS is too large, and Shift barely makes a difference compared to being placed underneath this reshape.
+        //         ++CountExceedsMaxValidReshapeShiftPattern;
+        //         continue;
+        //     }
+        // }
         ++CountSuccessfulGenerations;
         result.emplace_back(store.get<ShiftOp>(dim, ShiftValue));
     }
