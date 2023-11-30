@@ -1,6 +1,7 @@
 import os
 import random
 import tempfile
+import time
 from torch import nn
 from typing import List, Optional, Tuple, Union
 
@@ -73,12 +74,15 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
     def sample(self, state: VisitedNode, trials: str) -> AbstractResponse:
         trials = int(trials)
         assert trials > 0, f"Trials must be positive, but got {trials}."
+        start_time = time.time()
         results = self.sampler.random_final_nodes_with_prefix(state.path, trials, None, 2)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
         if len(results) == 0:
-            return AbstractResponse("All trials failed.")
+            return AbstractResponse(f"All trials failed in {elapsed_time} seconds.")
         result = max(results, key=lambda result: len(result.path))
         return AbstractResponse(
-            f"Sampled {len(results)} final nodes. Jumping to deepest {result.path}.",
+            f"Sampled {len(results)} final nodes in {elapsed_time} seconds. Jumping to deepest {result.path}.",
             next_state=[self._serializer.serialize_next(next) for next in result.path],
         )
 
