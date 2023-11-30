@@ -300,6 +300,10 @@ bool NormalStage::possibleToFinalizeByExperimenting() const {
 
     const std::size_t remainingSteps = remainingDepth();
 
+    // Ablation studies.
+    shapeDistance = ShapeDistance { .steps = remainingSteps, .flops = 0 };
+    return true;
+
     std::vector<CurrentDimension> current;
     std::vector<ColoredDimension> weightDims;
     for (const Dimension& dim: interface.getDimensions()) {
