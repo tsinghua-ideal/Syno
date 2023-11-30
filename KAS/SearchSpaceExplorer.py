@@ -1,3 +1,4 @@
+from collections import defaultdict
 import os
 import random
 import tempfile
@@ -108,14 +109,13 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
             with open("sampled_final_nodes.txt", "r") as f:
                 serialized_paths = f.read().split("\n")
                 paths = [Path.deserialize(serialized_path) for serialized_path in serialized_paths]
-            success = 0
-            failure = 0
+            different_depth = defaultdict(list)
             for p in paths:
-                if self.sampler.visit(p) is not None:
-                    success += 1
-                else:
-                    failure += 1
-            print(f"Success: {success}, Failure: {failure}")
+                different_depth[len(p)].append(self.sampler.visit(p) is not None)
+            for depth, results in different_depth.items():
+                trials = len(results)
+                success = sum(results)
+                print(f"Depth {depth}: {success}/{trials} ({success / trials * 100:.2f}%)")
         path = Path.deserialize(serialized_path)
         return AbstractResponse(f"Going to {path}.", next_state=[self._serializer.serialize_next(next) for next in path])
 
