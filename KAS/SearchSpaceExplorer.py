@@ -78,6 +78,8 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         results = self.sampler.random_final_nodes_with_prefix(state.path, trials, None, 2)
         end_time = time.time()
         elapsed_time = end_time - start_time
+        with open("sampled_final_nodes.txt", "w") as f:
+            f.write("\n".join([result.path.serialize() for result in results]))
         if len(results) == 0:
             return AbstractResponse(f"All trials failed in {elapsed_time} seconds.")
         result = max(results, key=lambda result: len(result.path))
@@ -102,6 +104,18 @@ class SearchSpaceExplorer(AbstractExplorer[VisitedNode]):
         return AbstractResponse(f"Generated graphviz file {filename}.", returned_file=filename)
 
     def goto(self, state: Optional[VisitedNode], serialized_path: str) -> AbstractResponse:
+        if os.path.exists("sampled_final_nodes.txt"):
+            with open("sampled_final_nodes.txt", "r") as f:
+                serialized_paths = f.read().split("\n")
+                paths = [Path.deserialize(serialized_path) for serialized_path in serialized_paths]
+            success = 0
+            failure = 0
+            for p in paths:
+                if self.sampler.visit(p) is not None:
+                    success += 1
+                else:
+                    failure += 1
+            print(f"Success: {success}, Failure: {failure}")
         path = Path.deserialize(serialized_path)
         return AbstractResponse(f"Going to {path}.", next_state=[self._serializer.serialize_next(next) for next in path])
 
