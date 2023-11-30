@@ -20,6 +20,7 @@
 import os
 import csv
 import argparse
+from distutils.util import strtobool
 from typing import Dict, List, Optional
 import numpy as np
 import importlib
@@ -250,7 +251,12 @@ def _parse_args():
     args.add_argument(
         "--model",
         type=str,
-        default="torchvision/vit_b_16",
+        default="resnet34layers",
+    )
+    args.add_argument(
+        "--vanilla",
+        type=lambda x: bool(strtobool(x)),
+        default=None,
     )
     args.add_argument(
         "--batch-size",
@@ -270,7 +276,7 @@ def _parse_args():
     args.add_argument(
         "--num-trials",
         type=int,
-        default=6000,
+        default=4000,
     )
     args.add_argument(
         "--rpc-host",
@@ -296,9 +302,10 @@ def _parse_args():
 
 if __name__ == "__main__":
     args = _parse_args()
+    vanilla = args.vanilla if args.vanilla is not None else args.kernels_dir is None
     tuner = MetaScheduleTuner(
         model=args.model,
-        vanilla=args.kernels_dir is None,
+        vanilla=vanilla,
         batch_size=args.batch_size,
         target=args.target,
         rpc_host=args.rpc_host,
