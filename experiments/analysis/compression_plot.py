@@ -43,7 +43,7 @@ if __name__ == '__main__':
     num_groups = len(names)
 
     # Figures
-    pp, fig = epp.pdf.plot_setup(os.path.join(args.output, f'{name}.pdf'), figsize=(6, 3.5), font='default')
+    pp, fig = epp.pdf.plot_setup(os.path.join(args.output, f'{name}.pdf'), figsize=(5, 2), font='default')
     ax = fig.gca()
 
     # Draw bars
@@ -55,7 +55,7 @@ if __name__ == '__main__':
                       breakdown=False,
                       colors=[micro_nas_color],
                       legendloc='upper left',
-                      xticklabelfontsize=9,
+                      xticklabelfontsize=8,
                       xticklabelrotation=20,
                     #   xticklabelrotationalignment='right'
                       )
@@ -65,8 +65,9 @@ if __name__ == '__main__':
 
     # Y axis
     ax.yaxis.grid(True)
-    ax.set_ylabel('Model Size Ratio ×', multialignment='center', fontsize=11)
+    ax.set_ylabel('Compression Ratio ×', multialignment='center', fontsize=8)
     ax.get_legend().remove()
+    ax.set_ylim(0, 1.05)
 
     # Finish
     fig.tight_layout()

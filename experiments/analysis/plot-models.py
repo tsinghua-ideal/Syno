@@ -17,9 +17,9 @@ if __name__ == "__main__":
     for dir in args.dirs:
         assert os.path.exists(dir) and os.path.isdir(dir)
         
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    os.makedirs(args.output, exist_ok=True)
     
-    plt.figure(figsize=(10, 6), dpi=300)
+    plt.figure(figsize=(5, 4), dpi=300)
     for model, dir, color in zip(args.models, args.dirs, ["#8ECFC9", "#FFBE7A", "#FA6F6F", "#82B0D2", "#BEB8DC"]):
         
         baseline_perf = fetch_baseline_perf(model)
@@ -83,7 +83,6 @@ if __name__ == "__main__":
                 )
             )
         kernels = sorted(kernels, key=lambda x: x[0])
-        print(f"collected  {len(kernels)} kernels for {model}")
         if not args.time:
             kernels = list([(i, *kernels[i][1:]) for i in range(len(kernels))])
         
@@ -135,7 +134,9 @@ if __name__ == "__main__":
 
         plt.scatter([baseline_latency], [reference_acc], s=50, c=color, marker="^")
         
+        print(f"Speedup for model {model2name[model]} is from {baseline_latency / np.max(latency[pareto_mask]):.2f}x to {baseline_latency / np.min(latency[pareto_mask]):.2f}x. ")
+        
     plt.xlabel("End-to-end inference time (ms)")
     plt.ylabel("ImageNet Classification Accuracy")
     plt.legend(loc="lower right")
-    plt.savefig(f"{args.output}-acc-vs-latency.png")
+    plt.savefig(os.path.join(args.output, "imagenet-performance.pdf"))

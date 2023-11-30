@@ -54,12 +54,12 @@ if __name__ == '__main__':
                 ('L1', 0.00032970615703137437),
                 ('L7', 0.00022470114572864324), ('L8', 0.0003689836801923655), ('L9', 0.00023088338296065665),
                 ('L16', 0.0003649959520383693), ('L17', 0.0006909495479711123), ('L18', 0.0003674151151937984),
-                ('L29', 100.0), ('L30', 100.0), ('L31', 100.0),
+                ('L29', float('inf')), ('L30', float('inf')), ('L31', float('inf')),
             ],
             'baseline': False
         },
         {
-            'name': 'Ours.1',
+            'name': 'Kernel 1',
             'data': [
                 ('L1', 0.0001466349793494152),
                 ('L7', 0.000382243529178338), ('L8', 0.00017417471419299004), ('L9', 0.000382243529178338),
@@ -67,10 +67,11 @@ if __name__ == '__main__':
                 ('L29', 0.0010742284115226337), ('L30', 0.0010959971531400966), ('L31', 0.0010742284115226337),
             ],
             'baseline': False,
-            'text_mark': True
+            'text_mark': True, 
+            'offset': [(-0.18, 0.15), (0, 6.5), (-0.15, 0.15), (0, 0.70), (-0.1, 1), (-0.1, 0.30), (0, 0.40), (0, 2), (-0.03, 1), (0, 0.20)]
         },
         {
-            'name': 'Ours.2',
+            'name': 'Kernel 2',
             'data': [
                 ('L1', 4.806970422111158e-05),
                 ('L7', 9.464780534650361e-05), ('L8', 6.59378067220052e-05), ('L9', 9.464780534650361e-05),
@@ -78,7 +79,8 @@ if __name__ == '__main__':
                 ('L29', 0.00026306778587848937), ('L30', 0.00024370392659993934), ('L31', 0.00026306778587848937),
             ],
             'baseline': False,
-            'text_mark': True
+            'text_mark': True, 
+            'offset': [(0, 0.15), (0, 0.15), (0, 0.15), (0, 2.5), (0, 0.15), (0, 0.15), (0, 2), (0, 0.15), (0, 0.15), (0, 2)]
         },
     ]
 
@@ -96,8 +98,8 @@ if __name__ == '__main__':
     num_groups = len(names)
 
     # Figures
-    pp, fig = epp.pdf.plot_setup(f'figures/{name}.pdf',
-                                 font='default', figsize=(15.2, 3.6))
+    pp, fig = epp.pdf.plot_setup(f'analysis/results/{name}.pdf',
+                                 font='default', figsize=(10.2, 2.4))
     ax = fig.gca()
 
     # Draw bars
@@ -107,15 +109,16 @@ if __name__ == '__main__':
                       group_names=labels,
                       colors=[ansor_color, seq1_color, seq2_color, seq3_color, micro_nas_color, micro_nas_compress_color],
                       entry_names=names,
-                      xticklabelfontsize=12,
+                      xticklabelfontsize=10,
                       breakdown=False)
 
     # Mark numbers
-    text_numbers(ax, width, entries, bars, fontsize=12, extra_height=0.05)
+    text_numbers_custom(ax, width, entries, bars, fontsize=8)
 
     # Y axis
     ax.yaxis.grid(True)
-    ax.set_ylabel('Speedup ×', multialignment='center', fontsize=14)
+    ax.set_ylabel('Speedup ×', multialignment='center', fontsize=10)
+    ax.set_ylim(0, 40)
 
     # Finish
     fig.tight_layout()

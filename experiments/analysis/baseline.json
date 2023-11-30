@@ -40,7 +40,7 @@
         "params": 21150504
     },
     "resnext29_2x64d-imagenet": {
-        "accuracy": 0.7652791142463684,
+        "accuracy": 0.7607218623161316,
         "flops": 5126324224,
         "params": 21150504
     },
@@ -55,7 +55,7 @@
         "params": 21150504
     },
     "efficientnet_v2_s-imagenet": {
-        "accuracy": 0.7122395634651184,
+        "accuracy": 0.7596638798713684,
         "flops": 2901935168,
         "params": 21458488
     },

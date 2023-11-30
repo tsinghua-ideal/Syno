@@ -97,6 +97,22 @@ def text_numbers(ax, width, entries, bars,
                         '{:.2f}×'.format(value), fontsize=fontsize, fontweight=fontweight,
                         ha='center')
 
+
+def text_numbers_custom(ax, width, entries, bars, 
+                 fontsize=rcParams['font.size'], fontweight=None):
+    num_entries = len(entries)
+    width_per_entry = width / num_entries
+    num_groups = len(entries[0]['data'])
+
+    for i, entry in enumerate(entries):
+        if 'text_mark' in entry and entry['text_mark']:
+            assert len(entry['offset']) == num_groups
+            for j, (xo, yo) in enumerate(entry['offset']):
+                value = bars[j][i]
+                ax.text(j - width / 2 + width_per_entry * (i + 0.5) + xo, value + yo,
+                        '{:.2f}×'.format(value), fontsize=fontsize, fontweight=fontweight,
+                        ha='center')
+
 def extract_latency(csv: os.PathLike):
     assert os.path.exists(csv) and os.path.splitext(csv)[1] == ".csv", os.path.splitext(
         csv

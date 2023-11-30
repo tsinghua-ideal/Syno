@@ -109,7 +109,7 @@ if __name__ == "__main__":
         all_kernels.append((name, kernels))
 
     # Trend figure
-    plt.figure(figsize=(6, 2), dpi=300)
+    plt.figure(figsize=(5, 2), dpi=300)
     for name, kernels in all_kernels:
         x, y, _, _, hash_value = zip(*kernels)
         
@@ -127,12 +127,15 @@ if __name__ == "__main__":
     plt.xlabel("Time" if args.time else "Samples")
     plt.ylabel("Accuracy")
     plt.legend()
-    plt.savefig(os.path.join(args.output, f"average_sample_accuracy.png"))
+    plt.tight_layout()
+    plt.savefig(os.path.join(args.output, f"mcts_ablation_average_accuracy.pdf"))
 
     # Max figure
-    plt.figure(figsize=(6, 2), dpi=300)
+    plt.figure(figsize=(5, 2), dpi=300)
+    colors = ["#8ECFC9", "#FFBE7A", "#FA6F6F", "#82B0D2", "#BEB8DC"]
     for name, kernels in all_kernels:
         x, y, _, _, hash_value = zip(*kernels)
+        c = colors.pop(0)
         
         ys = y
         ys = np.array(ys)
@@ -146,20 +149,21 @@ if __name__ == "__main__":
         #     label=f"{name}-scatter",
         #     s=2,
         # )
-        plt.plot(xs, y_max, label=name, markersize=1)
+        plt.plot(xs, y_max, label=name, markersize=1, color=c)
 
     # Plot and save into file
-    plt.xlabel("Time" if args.time else "Samples")
+    plt.xlabel("Time" if args.time else "# Samples")
     plt.ylabel("Accuracy")
     # plt.ylim(0, 0.79)
     # plt.gca().set_yscale('custom')
     plt.legend()
-    plt.savefig(os.path.join(args.output, f"max_sample_accuracy.png"))
+    plt.tight_layout()
+    plt.savefig(os.path.join(args.output, f"mcts_ablation_cummax_accuracy.pdf"))
 
     # Histogram figure
     plt.figure(figsize=(5, 3), dpi=300)
     markers = ["o", "v", "^", "<", ">", "s", "p", "*", "h", "H", "D", "d"]
-    colors = ["b", "g", "r", "c", "m", "y", "k"]
+    colors = ["#8ECFC9", "#FFBE7A", "#FA6F6F", "#82B0D2", "#BEB8DC"]
     for name, kernels in all_kernels:
         x, y, _, _, _ = zip(*kernels)
         m, c = markers.pop(0), colors.pop(0)
@@ -171,4 +175,5 @@ if __name__ == "__main__":
     plt.xlabel("Accuracy")
     plt.ylabel("Density")
     plt.legend()
-    plt.savefig(os.path.join(args.output, f"sample_accuracy_distribution.png"))
+    plt.tight_layout()
+    plt.savefig(os.path.join(args.output, f"mcts_ablation_distribution.pdf"))

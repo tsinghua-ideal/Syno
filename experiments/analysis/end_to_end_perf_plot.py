@@ -51,7 +51,7 @@ if __name__ == '__main__':
     num_groups = len(names)
 
     # Figures
-    pp, fig = epp.pdf.plot_setup(os.path.join(args.output, f'{name}.pdf'), figsize=(6, 3.5), font='default')
+    pp, fig = epp.pdf.plot_setup(os.path.join(args.output, f'{name}.pdf'), figsize=(5, 2), font='default')
     ax = fig.gca()
 
     # Draw bars
@@ -62,17 +62,18 @@ if __name__ == '__main__':
                       entry_names=names,
                       breakdown=False,
                       colors=[ansor_color, nas_pte_color, micro_nas_color],
-                      xticklabelfontsize=10,
+                      xticklabelfontsize=8,
                       xticklabelrotation=20,
                     #   xticklabelrotationalignment='right'
                       )
 
     # Mark numbers
-    text_numbers(ax, width, entries, bars, fontsize=9)
+    text_numbers(ax, width, entries, bars, fontsize=7, extra_height=0.06)
 
     # Y axis
     ax.yaxis.grid(True)
-    ax.set_ylabel('Speedup ×', multialignment='center', fontsize=10)
+    ax.set_ylabel('Speedup ×', multialignment='center', fontsize=8)
+    ax.set_ylim(0,5.5)
 
     # Finish
     fig.tight_layout()
