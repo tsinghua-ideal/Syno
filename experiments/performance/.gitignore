@@ -1,4 +1,5 @@
 measurements/
 /model_onnx/
 /model_relax/
+/model_torch/
 /results/

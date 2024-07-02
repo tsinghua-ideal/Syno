@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-import importlib
+from importlib.util import spec_from_file_location, module_from_spec
 import logging
 import os
 import sys
@@ -17,14 +17,16 @@ class KernelMetadata:
     sinfo_input: relax.StructInfo
     sinfo_output: relax.StructInfo
 
-def import_templated_model(working_dir: os.PathLike, model_name: str, batch_size: int, vanilla: bool = False) -> Tuple[IRModule, List[Dict[str, int]], Tuple]:
+def import_templated_model(working_dir: str, model_name: str, batch_size: int, vanilla: bool = False) -> Tuple[IRModule, List[Dict[str, int]], Tuple]:
     """Import an exported model. Returns the imported model, all mappings and the input shape."""
     specialized_mode_name = get_specialized_model_name(model_name, batch_size, vanilla=vanilla)
     # import the Relax model
     py_mod_name = f"model_relax_{specialized_mode_name.replace('/', '_').replace('=', '_')}"
     if py_mod_name not in sys.modules:
-        spec = importlib.util.spec_from_file_location(py_mod_name, os.path.join(working_dir, f"{specialized_mode_name}.py"))
-        py_mod = importlib.util.module_from_spec(spec)
+        py_mod_path = os.path.join(working_dir, f"{specialized_mode_name}.py")
+        spec = spec_from_file_location(py_mod_name, py_mod_path)
+        assert spec is not None, f"Failed to load module from {py_mod_path}"
+        py_mod = module_from_spec(spec)
         sys.modules[py_mod_name] = py_mod
         spec.loader.exec_module(py_mod)
     else:

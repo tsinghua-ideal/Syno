@@ -1,4 +1,4 @@
-# Ansor for KAS
+# MetaSchedule for KAS
 
 ## Exporting the Network
 
@@ -33,13 +33,51 @@ to start the client.
 ## How to run
 
 ```bash
-python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --kernels-dir "/path/to/kernels/dir"
+python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --target-preset "jetson_orin_nano-cpu" --kernels-dir "/path/to/kernels/dir"
 ```
 
-If `--kernels-dir` is not specified, the original network will be benchmarked.
+If you need a custom target, you can specify that by `--target <your-target> --target-host <your-target-host>`. GPU targets must specify `--target-host` because host-side code generation requires that.
 
-### How to use GPU
+If `--kernels-dir` is not specified, the original network will be benchmarked, but still the placeholders will be substituted, which may alter the original convolution sizes or strides. To benchmark the original network, use `--vanilla`.
 
-Add option `--target "cuda -arch=sm_87 -max_threads_per_block=128 -max_num_threads=1024 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"`.
+### How to make a few trials instead of the full run
 
-This does not work for the time being.
+Use `--num-trials 60 --max-trials-per-task 2 --num-trials-per-iter 2` for a quick proof-of-concept run. Moreover, you can specify the working directory by `--working-dir <your-testing-directory>`.
+
+### Presets
+
+RPC run, NVIDIA Jetson Orin Nano CPU:
+```
+python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --target-preset "jetson_orin_nano-cpu"
+```
+
+RPC run, NVIDIA Jetson Orin Nano GPU:
+```
+python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --target-preset "jetson_orin_nano-gpu"
+```
+
+Local run, x86_64 16-core CPU:
+```
+python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --target-preset "x86_64-16_core_cpu" --no-rpc
+```
+
+Local run, RTX 3060 Laptop on x86_64 16-core CPU host:
+```
+python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --target-preset "rtx_3060_laptop_gpu" --no-rpc
+```
+
+# PyTorch Benchmark
+
+## Exporting the Network
+
+```bash
+python export_torch.py --batch-size 1 --model torchvision/resnet18
+```
+
+## How to run
+
+First `rsync` the exported network to the target device. Then
+
+```bash
+python benchmark_torch.py --batch-size 1 --model torchvision/resnet18 --device cuda
+```

@@ -20,23 +20,25 @@
 import os
 import csv
 import argparse
-from distutils.util import strtobool
 from typing import Dict, List, Optional
 import numpy as np
-import importlib
+from importlib.util import spec_from_file_location, module_from_spec
+from contextlib import redirect_stdout, redirect_stderr
 
 import tvm
 from tvm import relax, runtime, transform
 from tvm.ir.module import IRModule
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
+from tvm.meta_schedule.testing.local_rpc import LocalRPC
+from tvm.contrib.tar import tar
 
 from common import get_specialized_model_name
 from model import import_templated_model, substitute_kernels, construct_kernel_builder
 
 
 class KernelSpecificTuner:
-    def __init__(self, parent: 'MetaScheduleTuner', working_dir: os.PathLike, relax_mod: IRModule) -> None:
+    def __init__(self, parent: 'MetaScheduleTuner', working_dir: str, relax_mod: IRModule) -> None:
         self.parent = parent
         self.working_dir = working_dir
         self.relax_mod = relax_mod
@@ -46,6 +48,9 @@ class KernelSpecificTuner:
         return self.relax_mod
 
     def optimize_model_before_tuning(self, show: bool = False) -> None:
+        if show:
+            print("Before optimization passes:")
+            self.relax_mod.show()
         seq = transform.Sequential([
             relax.transform.DecomposeOpsForInference(),
             relax.transform.LegalizeOps(enable_warning=True),
@@ -54,19 +59,21 @@ class KernelSpecificTuner:
             relax.transform.FuseOps(),
             relax.transform.FuseTIR(),
         ])
-        with transform.PassContext(opt_level=3):
+        with self.parent.target, transform.PassContext(opt_level=3):
             self.relax_mod = seq(self.relax_mod)
         if show:
             print("After optimization passes:")
             self.relax_mod.show()
 
-    def tune(self, num_trials: int = 10) -> None:
+    def tune(self, num_trials: int = 10, max_trials_per_task: Optional[int] = None, num_trials_per_iter: int = 64) -> None:
+        if max_trials_per_task is None:
+            max_trials_per_task = num_trials
         self.db = ms.relax_integration.tune_relax(
             mod=self.relax_mod,
             target=self.parent.target,
             params=None,
-            num_trials_per_iter=64,
-            max_trials_per_task=num_trials,
+            num_trials_per_iter=num_trials_per_iter,
+            max_trials_per_task=max_trials_per_task,
             max_trials_global=num_trials,
             runner=self.parent._get_runner(),
             work_dir=self.working_dir,
@@ -74,7 +81,7 @@ class KernelSpecificTuner:
 
     def build(self, show: bool = False) -> relax.Executable:
         if self.db is None:
-            with transform.PassContext(opt_level=3):
+            with self.parent.target, transform.PassContext(opt_level=3):
                 executable = relax.build(self.relax_mod, target=self.parent.target)
         else:
             with self.parent.target, self.db, transform.PassContext(opt_level=3):
@@ -85,7 +92,6 @@ class KernelSpecificTuner:
                 with open(os.path.join(self.working_dir, "kernels_tvm_tuned.py"), "w") as out_file:
                     out_file.write(relax_mod.script(show_meta=True))
                 executable = relax.build(relax_mod, target=self.parent.target)
-        from tvm.contrib.tar import tar
         executable.export_library(os.path.join(self.working_dir, "kernels_tvm_tuned.tar.gz"), tar)
         return executable
 
@@ -113,19 +119,20 @@ class MetaScheduleTuner:
         vanilla: bool,
         batch_size: int,
         target: str,
-        rpc_host: Optional[str] = "127.0.0.1",
-        rpc_port: Optional[int] = 9190,
-        rpc_key: Optional[str] = "jetson-orin-nano",
-        working_dir: os.PathLike = "./measurements",
-        rpc_timeout_sec: int = 180,
+        target_host: str,
+        rpc_host: Optional[str],
+        rpc_port: Optional[int],
+        rpc_key: Optional[str],
+        working_dir: str,
+        rpc_timeout_sec: int = 10,
         num_measurement_repeats: int = 3,
-        num_measurements: int = 2
+        num_measurements: int = 2,
     ) -> None:
         # Basic configurations.
         self.model_name = model
         self.vanilla = vanilla
         self.batch_size = batch_size
-        self.target = tvm.target.Target(target, host="llvm -mtriple=aarch64-linux-gnu -mattr=+neon -num-cores=6")
+        self.target = tvm.target.Target(target, host=target_host)
         if self.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
             self.alloc_repeat = 3
         else:
@@ -164,7 +171,7 @@ class MetaScheduleTuner:
     def get_all_mappings(self) -> List[Dict[str, int]]:
         return self.all_mappings
 
-    def get_kernel_specific_tuner(self, kernels_dir: Optional[os.PathLike], show: bool = False) -> KernelSpecificTuner:
+    def get_kernel_specific_tuner(self, kernels_dir: Optional[str]) -> KernelSpecificTuner:
         """Construct kernels according to the directory generated by Sampler.realize(). If the directory is None, return the original model."""
         if kernels_dir is None:
             working_dir = self.working_dir
@@ -177,15 +184,13 @@ class MetaScheduleTuner:
             else:
                 kernels_file = os.path.join(kernels_dir, "kernels_tvm.py")
             global _TOTAL_KERNELS_SUBSTITUTED
-            spec = importlib.util.spec_from_file_location(f"kas_tvm_kernels_mod_{_TOTAL_KERNELS_SUBSTITUTED}", kernels_file)
+            spec = spec_from_file_location(f"kas_tvm_kernels_mod_{_TOTAL_KERNELS_SUBSTITUTED}", kernels_file)
+            assert spec is not None, f"Failed to load module from {kernels_file}"
             _TOTAL_KERNELS_SUBSTITUTED += 1
-            mod = importlib.util.module_from_spec(spec)
+            mod = module_from_spec(spec)
             spec.loader.exec_module(mod)
             kernel_builder = construct_kernel_builder(self.all_mappings, mod.weights, mod.build)
             relax_mod = substitute_kernels(self.templated_mod, kernel_builder)
-        if show:
-            print("After substitution of kernels:")
-            relax_mod.show()
         return KernelSpecificTuner(self, working_dir, relax_mod)
 
     def _get_runner(self) -> ms.Runner:
@@ -246,17 +251,36 @@ class MetaScheduleTuner:
             result = self._perform_measurement(executable.mod, dev, input_data)
         return result
 
+_cortex_a78_6_core = "llvm -mtriple=aarch64-linux-gnu -mcpu=cortex-a78 -mattr=+neon -num-cores=6"
+_jetson_orin_nano_gpu = "cuda -arch=sm_87 -max_threads_per_block=1024 -max_num_threads=1024 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
+_x86_64_16_core = "llvm -mtriple=x86_64-pc-linux-gnu -num-cores=16"
+_rtx_3060_laptop = "cuda -arch=sm_86 -max_threads_per_block=1024 -max_num_threads=1536 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
+
+PRESET_TARGETS = {
+    "jetson_orin_nano-cpu": (_cortex_a78_6_core, _cortex_a78_6_core),
+    "jetson_orin_nano-gpu": (_jetson_orin_nano_gpu, _cortex_a78_6_core),
+    "x86_64-16_core_cpu": (_x86_64_16_core, _x86_64_16_core),
+    "rtx_3060_laptop_gpu": (_rtx_3060_laptop, _x86_64_16_core),
+}
+
 def _parse_args():
     args = argparse.ArgumentParser()
     args.add_argument(
         "--model",
         type=str,
         default="resnet34layers",
+        help="The model to tune.",
     )
     args.add_argument(
         "--vanilla",
-        type=lambda x: bool(strtobool(x)),
+        action="store_true",
         default=None,
+        help="If enabled, do not perform substitution in models. This preserves the kernel parameters, including convolution window size, stride, etc.",
+    )
+    args.add_argument(
+        "--no-vanilla",
+        dest="vanilla",
+        action="store_false",
     )
     args.add_argument(
         "--batch-size",
@@ -266,17 +290,52 @@ def _parse_args():
     args.add_argument(
         "--target",
         type=str,
-        default="llvm -mtriple=aarch64-linux-gnu -mattr=+neon -num-cores=6",
+        default=None,
+    )
+    args.add_argument(
+        "--target-host",
+        type=str,
+        default=None,
+        help="If target is GPU, host code is required to launch the kernel on the GPU, so a host-side target is also required."
+    )
+    args.add_argument(
+        "--target-preset",
+        type=str,
+        default=None,
+        help="Use a preset configuration for --target and --target-host."
     )
     args.add_argument(
         "--kernels-dir",
         type=str,
         default=None,
+        help="The substitute kernel to be tuned."
     )
     args.add_argument(
         "--num-trials",
         type=int,
         default=4000,
+    )
+    args.add_argument(
+        "--max-trials-per-task",
+        type=int,
+        default=None,
+    )
+    args.add_argument(
+        "--num-trials-per-iter",
+        type=int,
+        default=64,
+    )
+    args.add_argument(
+        "--rpc",
+        action="store_true",
+        default=None,
+        help="Use RPC to run on local host. For remote RPC, set --rpc-host, --rpc-port, and --rpc-key."
+    )
+    args.add_argument(
+        "--no-rpc",
+        dest="rpc",
+        action="store_false",
+        help="Directly run on local host."
     )
     args.add_argument(
         "--rpc-host",
@@ -302,20 +361,58 @@ def _parse_args():
 
 if __name__ == "__main__":
     args = _parse_args()
+
+    # Model
     vanilla = args.vanilla if args.vanilla is not None else args.kernels_dir is None
+
+    # RPC
+    local_rpc: Optional[LocalRPC] = None
+    if args.rpc is False:
+        rpc_host = rpc_port = rpc_key = None
+    elif args.rpc is True:
+        local_rpc = LocalRPC()
+        local_rpc.__enter__()
+        rpc_host = local_rpc.tracker_host
+        rpc_port = local_rpc.tracker_port
+        rpc_key = local_rpc.tracker_key
+    else:
+        rpc_host = args.rpc_host
+        rpc_port = args.rpc_port
+        rpc_key = args.rpc_key
+
+    # Target
+    if args.target_preset is not None:
+        assert (args.target is None) and (args.target_host is None), "--target-preset is already specified."
+        target, target_host = PRESET_TARGETS[args.target_preset]
+    else:
+        target = args.target
+        target_host = args.target_host
+        if target_host is None:
+            target_host = target
+
     tuner = MetaScheduleTuner(
         model=args.model,
         vanilla=vanilla,
         batch_size=args.batch_size,
-        target=args.target,
-        rpc_host=args.rpc_host,
-        rpc_port=args.rpc_port,
-        rpc_key=args.rpc_key,
+        target=target,
+        target_host=target_host,
+        rpc_host=rpc_host,
+        rpc_port=rpc_port,
+        rpc_key=rpc_key,
         working_dir=args.working_dir,
     )
-    kernels_tuner = tuner.get_kernel_specific_tuner(args.kernels_dir, show=True)
-    kernels_tuner.optimize_model_before_tuning(show=True)
-    kernels_tuner.tune(args.num_trials)
-    executable = kernels_tuner.build(show=True)
-    results = kernels_tuner.measure(executable)
-    print("results:", results)
+    kernels_tuner = tuner.get_kernel_specific_tuner(args.kernels_dir)
+    # Redirect output to a log file.
+    log_path = os.path.join(kernels_tuner.working_dir, "tuning.log")
+    with open(log_path, "w") as log, redirect_stdout(log), redirect_stderr(log):
+        kernels_tuner.optimize_model_before_tuning(show=True)
+        kernels_tuner.tune(
+            num_trials=args.num_trials,
+            max_trials_per_task=args.max_trials_per_task,
+            num_trials_per_iter=args.num_trials_per_iter,
+        )
+        executable = kernels_tuner.build(show=True)
+        results = kernels_tuner.measure(executable)
+        print("results:", results)
+    if local_rpc is not None:
+        local_rpc.__exit__(None, None, None)
