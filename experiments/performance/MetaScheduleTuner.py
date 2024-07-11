@@ -20,10 +20,10 @@
 import os
 import csv
 import argparse
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Union
 import numpy as np
 from importlib.util import spec_from_file_location, module_from_spec
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import nullcontext, redirect_stdout, redirect_stderr
 
 import tvm
 from tvm import relax, runtime, transform
@@ -71,7 +71,7 @@ class KernelSpecificTuner:
         self.db = ms.relax_integration.tune_relax(
             mod=self.relax_mod,
             target=self.parent.target,
-            params=None,
+            params={},
             num_trials_per_iter=num_trials_per_iter,
             max_trials_per_task=max_trials_per_task,
             max_trials_global=num_trials,
@@ -79,7 +79,10 @@ class KernelSpecificTuner:
             work_dir=self.working_dir,
         )
 
-    def build(self, show: bool = False) -> relax.Executable:
+    def _get_exported_library_path(self) -> str:
+        return os.path.join(self.working_dir, "kernels_tvm_tuned.tar")
+
+    def build(self, show: bool = False) -> str:
         if self.db is None:
             with self.parent.target, transform.PassContext(opt_level=3):
                 executable = relax.build(self.relax_mod, target=self.parent.target)
@@ -92,11 +95,17 @@ class KernelSpecificTuner:
                 with open(os.path.join(self.working_dir, "kernels_tvm_tuned.py"), "w") as out_file:
                     out_file.write(relax_mod.script(show_meta=True))
                 executable = relax.build(relax_mod, target=self.parent.target)
-        executable.export_library(os.path.join(self.working_dir, "kernels_tvm_tuned.tar.gz"), tar)
-        return executable
+        exported_path = self._get_exported_library_path()
+        executable.export_library(exported_path, tar)
+        return exported_path
 
-    def measure(self, executable: relax.Executable) -> runtime.module.BenchmarkResult:
-        result = self.parent._measure(executable)
+    def load(self) -> str:
+        exported_path = self._get_exported_library_path()
+        assert os.path.exists(exported_path), f"Cannot find {exported_path}. You need to tune and build the model first."
+        return exported_path
+
+    def measure(self, mod_path: str) -> runtime.module.BenchmarkResult:
+        result = self.parent._measure(mod_path)
         out_path = os.path.join(self.working_dir, "benchmark_results.csv")
         with open(out_path, "w") as out_file:
             writer = csv.writer(out_file)
@@ -104,11 +113,31 @@ class KernelSpecificTuner:
             writer.writerow(["model", self.parent.model_name])
             writer.writerow(["input_shape", self.parent.input_shape])
             writer.writerow(["target", self.parent.target])
-            writer.writerow(["num_measurement_repeats", self.parent.num_measurement_repeats])
+            writer.writerow(["num_measurement_repeats", -1]) # We no longer use this field
             writer.writerow(["latency_mean", result.mean])
             for res in result.results:
                 writer.writerow([str(res)])
         return result
+
+def _perform_measurement(
+    rt_mod: runtime.Module,
+    device: runtime.ndarray.Device,
+    input_data: Dict[str, np.ndarray],
+    num_measurement_repeats: int = 3,
+    num_measurements: int = 2,
+) -> runtime.module.BenchmarkResult:
+    print(f"num_measurement_repeats: {num_measurement_repeats}, num_measurements: {num_measurements}")
+    vm = relax.VirtualMachine(rt_mod, device=device)
+    nd_args = {k: runtime.ndarray.array(v, device) for k, v in input_data.items()}
+    vm.save_function("main", "measure_func", **nd_args, include_return=False)
+    evaluator = vm.time_evaluator(
+        func_name="measure_func",
+        dev=device,
+        repeat=num_measurement_repeats,
+        number=num_measurements,
+        min_repeat_ms=500,
+    )
+    return evaluator()
 
 _TOTAL_KERNELS_SUBSTITUTED = 0
 
@@ -124,9 +153,7 @@ class MetaScheduleTuner:
         rpc_port: Optional[int],
         rpc_key: Optional[str],
         working_dir: str,
-        rpc_timeout_sec: int = 10,
-        num_measurement_repeats: int = 3,
-        num_measurements: int = 2,
+        rpc_timeout_sec: int = 5,
     ) -> None:
         # Basic configurations.
         self.model_name = model
@@ -155,8 +182,6 @@ class MetaScheduleTuner:
         self.specialized_dir_name = os.path.join(self.target.kind.name, get_specialized_model_name(self.model_name, self.batch_size, vanilla=self.vanilla))
         self.working_dir = os.path.join(working_dir, self.specialized_dir_name)
         os.makedirs(self.working_dir, exist_ok=True)
-        self.num_measurement_repeats = num_measurement_repeats
-        self.num_measurements = num_measurements
 
         # Load the model.
         self.templated_mod, self.all_mappings, self.input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self.model_name, self.batch_size, vanilla=self.vanilla)
@@ -211,44 +236,28 @@ class MetaScheduleTuner:
             runner = ms.runner.LocalRunner(**runner_config)
         return runner
 
-    def _get_input_data(self) -> Dict[str, runtime.NDArray]:
-        input_data: Dict[str, runtime.NDArray] = {}
+    def _get_input_data(self) -> Dict[str, np.ndarray]:
+        input_data: Dict[str, np.ndarray] = {}
         for input_name, input_shape in self.input_info.items():
-            if self.input_dtype.startswith("float"):
-                input_data[input_name] = np.random.uniform(size=input_shape).astype(self.input_dtype)
-            else:
-                input_data[input_name] = np.random.randint(
-                    low=0, high=10000, size=input_shape, dtype=self.input_dtype
-                )
+            assert self.input_dtype.startswith("float"), "Only float input is supported."
+            input_data[input_name] = np.random.uniform(size=input_shape).astype(self.input_dtype)
         return input_data
 
-    def _perform_measurement(
-        self, rt_mod: runtime.Module, device: runtime.ndarray.Device, input_data: Dict[str, runtime.NDArray]
-    ) -> runtime.module.BenchmarkResult:
-        vm = relax.VirtualMachine(rt_mod, device=device)
-        vm.save_function("main", "measure_func", **input_data, include_return=False)
-        evaluator = vm.time_evaluator(
-            func_name="measure_func",
-            dev=device,
-            repeat=self.num_measurement_repeats,
-            number=self.num_measurements,
-            min_repeat_ms=500,
-        )
-        return evaluator()
-
-    def _measure(self, executable: relax.Executable) -> runtime.module.BenchmarkResult:
+    def _measure(self, mod_path: str) -> runtime.module.BenchmarkResult:
         input_data = self._get_input_data()
+        dev_type = self.target.kind.name
         if self.rpc_config:
-            result = run_module_via_rpc(
-                rpc_config=self.rpc_config,
-                lib=executable.mod,
-                dev_type=self.target.kind.name,
-                args=input_data,
-                continuation=self._perform_measurement,
-            )
+            # Give longer timeout for RPC
+            rpc_config = self.rpc_config._replace(session_timeout_sec=20)
+            session = rpc_config.connect_server()
+            session.upload(mod_path)
+            filename = os.path.basename(mod_path)
+            mod: runtime.Module = session.load_module(filename)
+            dev = session.device(dev_type=dev_type, dev_id=0)
         else:
-            dev = tvm.device(self.target.kind.name)
-            result = self._perform_measurement(executable.mod, dev, input_data)
+            mod = runtime.load_module(mod_path)
+            dev = tvm.device(dev_type=dev_type, dev_id=0)
+        result = _perform_measurement(mod, dev, input_data)
         return result
 
 _cortex_a78_6_core = "llvm -mtriple=aarch64-linux-gnu -mcpu=cortex-a78 -mattr=+neon -num-cores=6"
@@ -326,6 +335,12 @@ def _parse_args():
         default=64,
     )
     args.add_argument(
+        "--load",
+        action="store_true",
+        default=False,
+        help="Load the tuned model from the save instead of tuning it."
+    )
+    args.add_argument(
         "--rpc",
         action="store_true",
         default=None,
@@ -365,21 +380,6 @@ if __name__ == "__main__":
     # Model
     vanilla = args.vanilla if args.vanilla is not None else args.kernels_dir is None
 
-    # RPC
-    local_rpc: Optional[LocalRPC] = None
-    if args.rpc is False:
-        rpc_host = rpc_port = rpc_key = None
-    elif args.rpc is True:
-        local_rpc = LocalRPC()
-        local_rpc.__enter__()
-        rpc_host = local_rpc.tracker_host
-        rpc_port = local_rpc.tracker_port
-        rpc_key = local_rpc.tracker_key
-    else:
-        rpc_host = args.rpc_host
-        rpc_port = args.rpc_port
-        rpc_key = args.rpc_key
-
     # Target
     if args.target_preset is not None:
         assert (args.target is None) and (args.target_host is None), "--target-preset is already specified."
@@ -390,29 +390,46 @@ if __name__ == "__main__":
         if target_host is None:
             target_host = target
 
-    tuner = MetaScheduleTuner(
-        model=args.model,
-        vanilla=vanilla,
-        batch_size=args.batch_size,
-        target=target,
-        target_host=target_host,
-        rpc_host=rpc_host,
-        rpc_port=rpc_port,
-        rpc_key=rpc_key,
-        working_dir=args.working_dir,
-    )
-    kernels_tuner = tuner.get_kernel_specific_tuner(args.kernels_dir)
-    # Redirect output to a log file.
-    log_path = os.path.join(kernels_tuner.working_dir, "tuning.log")
-    with open(log_path, "w") as log, redirect_stdout(log), redirect_stderr(log):
-        kernels_tuner.optimize_model_before_tuning(show=True)
-        kernels_tuner.tune(
-            num_trials=args.num_trials,
-            max_trials_per_task=args.max_trials_per_task,
-            num_trials_per_iter=args.num_trials_per_iter,
+    # RPC
+    local_rpc: Union[LocalRPC, nullcontext] = nullcontext()
+    if args.rpc is False:
+        rpc_host = rpc_port = rpc_key = None
+    elif args.rpc is True:
+        local_rpc = LocalRPC()
+        rpc_host = local_rpc.tracker_host
+        rpc_port = local_rpc.tracker_port
+        rpc_key = local_rpc.tracker_key
+    else:
+        rpc_host = args.rpc_host
+        rpc_port = args.rpc_port
+        rpc_key = args.rpc_key
+
+    with local_rpc:
+        tuner = MetaScheduleTuner(
+            model=args.model,
+            vanilla=vanilla,
+            batch_size=args.batch_size,
+            target=target,
+            target_host=target_host,
+            rpc_host=rpc_host,
+            rpc_port=rpc_port,
+            rpc_key=rpc_key,
+            working_dir=args.working_dir,
         )
-        executable = kernels_tuner.build(show=True)
-        results = kernels_tuner.measure(executable)
-        print("results:", results)
-    if local_rpc is not None:
-        local_rpc.__exit__(None, None, None)
+        kernels_tuner = tuner.get_kernel_specific_tuner(args.kernels_dir)
+        # Redirect output to a log file.
+        log_path = os.path.join(kernels_tuner.working_dir, "tuning.log")
+        with open(log_path, "w") as log, redirect_stdout(log), redirect_stderr(log):
+            if args.load:
+                print("Loading the tuned model...")
+                mod_path = kernels_tuner.load()
+            else:
+                kernels_tuner.optimize_model_before_tuning(show=True)
+                kernels_tuner.tune(
+                    num_trials=args.num_trials,
+                    max_trials_per_task=args.max_trials_per_task,
+                    num_trials_per_iter=args.num_trials_per_iter,
+                )
+                mod_path = kernels_tuner.build(show=True)
+            results = kernels_tuner.measure(mod_path)
+            print("results:", results)

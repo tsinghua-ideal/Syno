@@ -66,6 +66,12 @@ Local run, RTX 3060 Laptop on x86_64 16-core CPU host:
 python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --target-preset "rtx_3060_laptop_gpu" --no-rpc
 ```
 
+Recommended number of trials:
+
+| Network | Target | Trials |
+| ResNet-18 | GPU | 7500 |
+| ResNet-34 | GPU | 9000 |
+
 # PyTorch Benchmark
 
 ## Exporting the Network
