@@ -18,30 +18,51 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
+import sys
 import csv
 import argparse
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, Optional
 import numpy as np
 from importlib.util import spec_from_file_location, module_from_spec
 from contextlib import ExitStack, nullcontext, redirect_stdout, redirect_stderr
+from enum import Enum
+from functools import wraps
 
 import tvm
 from tvm import relax, runtime, transform
 from tvm.ir.module import IRModule
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-from tvm.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.contrib.tar import tar
 
 from common import get_specialized_model_name
 from model import import_templated_model, substitute_kernels, construct_kernel_builder
 
 
+class TunerState(Enum):
+    UNTUNED = 0
+    TUNING = 1
+    TUNED = 2
+
+class LogRedirector(ExitStack):
+    def __init__(self, log_path: str) -> None:
+        super().__init__()
+        self._log_path = log_path
+    def __enter__(self) -> 'LogRedirector':
+        try:
+            log = self.enter_context(open(self._log_path, "a"))
+            self.enter_context(redirect_stdout(log))
+            self.enter_context(redirect_stderr(log))
+        except:
+            if not self.__exit__(*sys.exc_info()):
+                raise
+        return self
+
 class KernelSpecificTuner:
     def __init__(self, parent: 'MetaScheduleTuner', working_dir: str, relax_mod: IRModule) -> None:
         self._parent = parent
         self._target = self._parent._target
         self._working_dir = working_dir
+        os.makedirs(self._working_dir, exist_ok=True)
         self._relax_mod = relax_mod
         self._db = None
 
@@ -81,7 +102,7 @@ class KernelSpecificTuner:
             print("After optimization passes:")
             self._relax_mod.show()
 
-    def tune(self, num_trials: int = 10, max_trials_per_task: Optional[int] = None, num_trials_per_iter: int = 64) -> None:
+    def tune(self, num_trials: int = 10, max_trials_per_task: Optional[int] = None, num_trials_per_iter: int = 64, on_eval: Optional[Callable[[], None]] = None) -> None:
         if max_trials_per_task is None:
             max_trials_per_task = num_trials
         self._db = ms.relax_integration.tune_relax(
@@ -91,7 +112,7 @@ class KernelSpecificTuner:
             num_trials_per_iter=num_trials_per_iter,
             max_trials_per_task=max_trials_per_task,
             max_trials_global=num_trials,
-            runner=self._parent.get_runner(),
+            runner=self._parent.get_runner(on_eval),
             work_dir=self._working_dir,
         )
 
@@ -120,11 +141,34 @@ class KernelSpecificTuner:
         assert os.path.exists(exported_path), f"Cannot find {exported_path}. You need to tune and build the model first."
         return exported_path
 
+    @staticmethod
+    def benchmark_results_path(working_dir: str) -> str:
+        return os.path.join(working_dir, "benchmark_results.csv")
+
     def get_benchmark_results_path(self) -> str:
-        return os.path.join(self._working_dir, "benchmark_results.csv")
+        return self.benchmark_results_path(self._working_dir)
+
+    @staticmethod
+    def tuning_log_path(working_dir: str) -> str:
+        return os.path.join(working_dir, "tuning.log")
 
     def get_tuning_log_path(self) -> str:
-        return os.path.join(self._working_dir, "tuning.log")
+        return self.tuning_log_path(self._working_dir)
+
+    @staticmethod
+    def tuner_state(working_dir: str) -> TunerState:
+        if os.path.exists(KernelSpecificTuner.benchmark_results_path(working_dir)):
+            return TunerState.TUNED
+        elif os.path.exists(KernelSpecificTuner.tuning_log_path(working_dir)):
+            return TunerState.TUNING
+        else:
+            return TunerState.UNTUNED
+
+    def get_tuner_state(self) -> TunerState:
+        return self.tuner_state(self._working_dir)
+
+    def redirect_log(self) -> LogRedirector:
+        return LogRedirector(self.get_tuning_log_path())
 
     def measure_and_write(self, mod_path: str) -> runtime.module.BenchmarkResult:
         result = self._parent.measure(mod_path)
@@ -192,7 +236,6 @@ class MetaScheduleTuner:
         self._rpc_config = rpc_config
         self._specialized_dir_name = os.path.join(self._target.kind.name, get_specialized_model_name(self._model_name, batch_size, vanilla=vanilla))
         self._working_dir = os.path.join(working_dir, self._specialized_dir_name)
-        os.makedirs(self._working_dir, exist_ok=True)
 
         # Load the model.
         self._templated_mod, self._all_mappings, self._input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self._model_name, batch_size, vanilla=vanilla)
@@ -201,14 +244,21 @@ class MetaScheduleTuner:
         self.input_dtype = "float32"
         self.input_info = {"inp_0": self._input_shape}
 
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    def get_kernel_specific_tuner_working_dir(self, kernels_dir: Optional[str]) -> str:
+        if kernels_dir is None:
+            return self._working_dir
+        else:
+            return os.path.join(kernels_dir, "perf", self._specialized_dir_name)
+
     def get_kernel_specific_tuner(self, kernels_dir: Optional[str]) -> KernelSpecificTuner:
         """Construct kernels according to the directory generated by Sampler.realize(). If the directory is None, return the original model."""
-        if kernels_dir is None:
-            working_dir = self._working_dir
-            relax_mod = substitute_kernels(self._templated_mod, None)
-        else:
-            working_dir = os.path.join(kernels_dir, "perf", self._specialized_dir_name)
-            os.makedirs(working_dir, exist_ok=True)
+        working_dir = self.get_kernel_specific_tuner_working_dir(kernels_dir)
+        kernel_builder = None
+        if kernels_dir is not None:
             if os.path.exists(os.path.join(kernels_dir, "kernel_scheduler_dir")):
                 kernels_file = os.path.join(kernels_dir, "kernel_scheduler_dir", "kernels_tvm.py")
             else:
@@ -220,8 +270,11 @@ class MetaScheduleTuner:
             mod = module_from_spec(spec)
             spec.loader.exec_module(mod)
             kernel_builder = construct_kernel_builder(self._all_mappings, mod.weights, mod.build)
-            relax_mod = substitute_kernels(self._templated_mod, kernel_builder)
+        relax_mod = substitute_kernels(self._templated_mod, kernel_builder)
         return KernelSpecificTuner(self, working_dir, relax_mod)
+
+    def query_kernel_specific_tuner_state(self, kernels_dir: Optional[str]) -> TunerState:
+        return KernelSpecificTuner.tuner_state(self.get_kernel_specific_tuner_working_dir(kernels_dir))
 
     def _get_num_workers(self) -> int:
         if self._rpc_config is not None:
@@ -229,13 +282,32 @@ class MetaScheduleTuner:
         else:
             return 1
 
-    def get_runner(self) -> ms.Runner:
+    @staticmethod
+    def _wrap_run_evaluator(callback: Optional[Callable[[], None]]):
+        def _wrap(f):
+            if callback is not None:
+                cb = callback
+                @wraps(f)
+                def _wrapped_f(*args, **kwargs):
+                    ret = f(*args, **kwargs)
+                    cb()
+                    return ret
+                return _wrapped_f
+            else:
+                return f
+        return _wrap
+
+    def get_runner(self, on_eval: Optional[Callable[[], None]] = None) -> ms.Runner:
         if self._rpc_config is not None:
+            default_run_evaluator = ms.runner.rpc_runner.default_run_evaluator
+            f_run_evaluator = self._wrap_run_evaluator(on_eval)(default_run_evaluator)
             runner = ms.runner.RPCRunner(
-                rpc_config=self._rpc_config, max_workers=self._get_num_workers(), **self._runner_config
+                rpc_config=self._rpc_config, max_workers=self._get_num_workers(), **self._runner_config, f_run_evaluator=f_run_evaluator
             )
         else:
-            runner = ms.runner.LocalRunner(**self._runner_config)
+            default_run_evaluator = ms.runner.local_runner.default_run_evaluator
+            f_run_evaluator = self._wrap_run_evaluator(on_eval)(default_run_evaluator)
+            runner = ms.runner.LocalRunner(**self._runner_config, f_run_evaluator=f_run_evaluator)
         return runner
 
     def _get_input_data(self) -> Dict[str, np.ndarray]:
@@ -351,14 +423,13 @@ def _parse_args():
     args.add_argument(
         "--rpc",
         action="store_true",
-        default=None,
-        help="Use RPC to run on local host. For remote RPC, set --rpc-host, --rpc-port, and --rpc-key."
+        default=True,
+        help="Use RPC. Please further set --rpc-host, --rpc-port, and --rpc-key."
     )
     args.add_argument(
         "--no-rpc",
         dest="rpc",
         action="store_false",
-        help="Directly run on local host."
     )
     args.add_argument(
         "--rpc-host",
@@ -399,81 +470,67 @@ def _parse_args():
     )
     return args.parse_args()
 
+def parse_target(target: Optional[str], target_host: Optional[str], target_preset: Optional[str]) -> tvm.target.Target:
+    if target_preset is not None:
+        assert (target is None) and (target_host is None), "target_preset is already specified."
+        target, target_host = PRESET_TARGETS[target_preset]
+    else:
+        assert target is not None, "target must be specified."
+        if target_host is None:
+            target_host = target
+    return tvm.target.Target(target, host=target_host)
+
+def parse_rpc_config(rpc: bool, host: Optional[str], port: Optional[int], key: Optional[str], timeout: int = 5) -> Optional[ms.runner.RPCConfig]:
+    if not rpc:
+        return None
+    assert (host is not None) and (port is not None) and (key is not None), "RPC is enabled, so host, port, and key must be specified."
+    return ms.runner.RPCConfig(
+        tracker_host=host,
+        tracker_port=port,
+        tracker_key=key,
+        session_timeout_sec=timeout,
+    )
+
 def main():
     args = _parse_args()
 
-    # Model
     vanilla = args.vanilla if args.vanilla is not None else args.kernels_dir is None
+    target = parse_target(args.target, args.target_host, args.target_preset)
+    rpc_config = parse_rpc_config(args.rpc, args.rpc_host, args.rpc_port, args.rpc_key)
 
-    # Target
-    if args.target_preset is not None:
-        assert (args.target is None) and (args.target_host is None), "--target-preset is already specified."
-        target, target_host = PRESET_TARGETS[args.target_preset]
-    else:
-        target = args.target
-        target_host = args.target_host
-        if target_host is None:
-            target_host = target
-    tgt = tvm.target.Target(target, host=target_host)
+    tuner = MetaScheduleTuner(
+        model=args.model,
+        vanilla=vanilla,
+        batch_size=args.batch_size,
+        target=target,
+        rpc_config=rpc_config,
+        working_dir=args.working_dir,
+    )
+    kernels_tuner = tuner.get_kernel_specific_tuner(args.kernels_dir)
 
-    # RPC
-    local_rpc: Union[LocalRPC, nullcontext] = nullcontext()
-    if args.rpc is False:
-        rpc_config = None
-    else:
-        if args.rpc is True:
-            local_rpc = LocalRPC()
-            rpc_host = local_rpc.tracker_host
-            rpc_port = local_rpc.tracker_port
-            rpc_key = local_rpc.tracker_key
+    # Check if the configuration has already been tuned.
+    assert args.overwrite or (kernels_tuner.get_tuner_state() != TunerState.TUNED), f"This configuration has already been tuned. Use --overwrite to overwrite it."
+
+    # Redirect output to a log file.
+    redirect_log = kernels_tuner.redirect_log() if args.redirect_log else nullcontext()
+
+    with redirect_log:
+        if args.load:
+            assert not args.dry_run
+            print("Loading the tuned model...")
+            mod_path = kernels_tuner.load()
         else:
-            rpc_host = args.rpc_host
-            rpc_port = args.rpc_port
-            rpc_key = args.rpc_key
-        rpc_config = ms.runner.RPCConfig(
-            tracker_host=rpc_host,
-            tracker_port=rpc_port,
-            tracker_key=rpc_key,
-            session_timeout_sec=5,
-        )
-
-    with local_rpc:
-        tuner = MetaScheduleTuner(
-            model=args.model,
-            vanilla=vanilla,
-            batch_size=args.batch_size,
-            target=tgt,
-            rpc_config=rpc_config,
-            working_dir=args.working_dir,
-        )
-        kernels_tuner = tuner.get_kernel_specific_tuner(args.kernels_dir)
-
-        # Check if the configuration has already been tuned.
-        benchmark_results_path = kernels_tuner.get_benchmark_results_path()
-        assert args.overwrite or not os.path.exists(benchmark_results_path), f"This configuration has already been tuned, because {benchmark_results_path} exists. Use --overwrite to overwrite it."
-
-        with ExitStack() as stack:
-            if args.redirect_log:
-                # Redirect output to a log file.
-                log = stack.enter_context(open(kernels_tuner.get_tuning_log_path(), "a"))
-                stack.enter_context(redirect_stdout(log))
-                stack.enter_context(redirect_stderr(log))
-            if args.load:
-                assert not args.dry_run
-                print("Loading the tuned model...")
-                mod_path = kernels_tuner.load()
-            else:
-                kernels_tuner.optimize_model_before_tuning(show=True)
-                if args.dry_run:
-                    return
-                kernels_tuner.tune(
-                    num_trials=args.num_trials,
-                    max_trials_per_task=args.max_trials_per_task,
-                    num_trials_per_iter=args.num_trials_per_iter,
-                )
-                mod_path = kernels_tuner.build(show=True)
-            results = kernels_tuner.measure_and_write(mod_path)
-            print("results:", results)
+            kernels_tuner.optimize_model_before_tuning(show=True)
+            if args.dry_run:
+                return
+            kernels_tuner.tune(
+                num_trials=args.num_trials,
+                max_trials_per_task=args.max_trials_per_task,
+                num_trials_per_iter=args.num_trials_per_iter,
+            )
+            mod_path = kernels_tuner.build(show=True)
+        results = kernels_tuner.measure_and_write(mod_path)
+        print("results:", results)
 
 if __name__ == "__main__":
     main()

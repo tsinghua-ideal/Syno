@@ -69,8 +69,8 @@ python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --target
 Recommended number of trials:
 
 | Network | Target | Trials |
-| ResNet-18 | GPU | 7500 |
-| ResNet-34 | GPU | 9000 |
+| ResNet-18 | GPU | 8000 |
+| ResNet-34 | GPU | 10000 |
 
 # PyTorch Benchmark
 
