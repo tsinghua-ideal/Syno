@@ -1,4 +1,5 @@
-measurements/
+/measurements/
+perf/
 /model_onnx/
 /model_relax/
 /model_torch/

@@ -20,10 +20,10 @@
 import os
 import csv
 import argparse
-from typing import Callable, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 import numpy as np
 from importlib.util import spec_from_file_location, module_from_spec
-from contextlib import nullcontext, redirect_stdout, redirect_stderr
+from contextlib import ExitStack, nullcontext, redirect_stdout, redirect_stderr
 
 import tvm
 from tvm import relax, runtime, transform
@@ -39,62 +39,78 @@ from model import import_templated_model, substitute_kernels, construct_kernel_b
 
 class KernelSpecificTuner:
     def __init__(self, parent: 'MetaScheduleTuner', working_dir: str, relax_mod: IRModule) -> None:
-        self.parent = parent
-        self.working_dir = working_dir
-        self.relax_mod = relax_mod
-        self.db = None
+        self._parent = parent
+        self._target = self._parent._target
+        self._working_dir = working_dir
+        self._relax_mod = relax_mod
+        self._db = None
 
     def get_relax_mod(self) -> IRModule:
-        return self.relax_mod
+        return self._relax_mod
 
     def optimize_model_before_tuning(self, show: bool = False) -> None:
         if show:
             print("Before optimization passes:")
-            self.relax_mod.show()
+            self._relax_mod.show()
+        # Refer to tests/python/relax/test_meta_schedule_integration.py in in https://github.com/apache/tvm.
         seq = transform.Sequential([
+            # Get TIR.
             relax.transform.DecomposeOpsForInference(),
             relax.transform.LegalizeOps(enable_warning=True),
-            relax.transform.AnnotateTIROpPattern(),
             relax.transform.FoldConstant(),
+
+            # Run fusion passes twice to ensure all possible fusions are done.
+            # It is observed that some elementwise ops are not fused in the first pass.
+            relax.transform.AnnotateTIROpPattern(),
             relax.transform.FuseOps(),
             relax.transform.FuseTIR(),
+            relax.transform.AnnotateTIROpPattern(),
+            relax.transform.FuseOps(),
+            relax.transform.FuseTIR(),
+
+            # Remove redundant reshape ops, because they are no-ops.
+            relax.transform.RewriteDataflowReshape(),
+            # For debug purpose.
+            relax.transform.AnnotateTIROpPattern(),
+            # Clean up.
+            relax.transform.DeadCodeElimination(),
         ])
-        with self.parent.target, transform.PassContext(opt_level=3):
-            self.relax_mod = seq(self.relax_mod)
+        with self._target, transform.PassContext(opt_level=3):
+            self._relax_mod = seq(self._relax_mod)
         if show:
             print("After optimization passes:")
-            self.relax_mod.show()
+            self._relax_mod.show()
 
     def tune(self, num_trials: int = 10, max_trials_per_task: Optional[int] = None, num_trials_per_iter: int = 64) -> None:
         if max_trials_per_task is None:
             max_trials_per_task = num_trials
-        self.db = ms.relax_integration.tune_relax(
-            mod=self.relax_mod,
-            target=self.parent.target,
+        self._db = ms.relax_integration.tune_relax(
+            mod=self._relax_mod,
+            target=self._target,
             params={},
             num_trials_per_iter=num_trials_per_iter,
             max_trials_per_task=max_trials_per_task,
             max_trials_global=num_trials,
-            runner=self.parent._get_runner(),
-            work_dir=self.working_dir,
+            runner=self._parent.get_runner(),
+            work_dir=self._working_dir,
         )
 
     def _get_exported_library_path(self) -> str:
-        return os.path.join(self.working_dir, "kernels_tvm_tuned.tar")
+        return os.path.join(self._working_dir, "kernels_tvm_tuned.tar")
 
     def build(self, show: bool = False) -> str:
-        if self.db is None:
-            with self.parent.target, transform.PassContext(opt_level=3):
-                executable = relax.build(self.relax_mod, target=self.parent.target)
+        if self._db is None:
+            with self._target, transform.PassContext(opt_level=3):
+                executable = relax.build(self._relax_mod, target=self._target)
         else:
-            with self.parent.target, self.db, transform.PassContext(opt_level=3):
-                relax_mod = relax.transform.MetaScheduleApplyDatabase(enable_warning=True)(self.relax_mod)
+            with self._target, self._db, transform.PassContext(opt_level=3):
+                relax_mod = relax.transform.MetaScheduleApplyDatabase(enable_warning=True)(self._relax_mod)
                 if show:
                     print("After applying tuning database:")
                     relax_mod.show()
-                with open(os.path.join(self.working_dir, "kernels_tvm_tuned.py"), "w") as out_file:
+                with open(os.path.join(self._working_dir, "kernels_tvm_tuned.py"), "w") as out_file:
                     out_file.write(relax_mod.script(show_meta=True))
-                executable = relax.build(relax_mod, target=self.parent.target)
+                executable = relax.build(relax_mod, target=self._target)
         exported_path = self._get_exported_library_path()
         executable.export_library(exported_path, tar)
         return exported_path
@@ -104,15 +120,21 @@ class KernelSpecificTuner:
         assert os.path.exists(exported_path), f"Cannot find {exported_path}. You need to tune and build the model first."
         return exported_path
 
-    def measure(self, mod_path: str) -> runtime.module.BenchmarkResult:
-        result = self.parent._measure(mod_path)
-        out_path = os.path.join(self.working_dir, "benchmark_results.csv")
+    def get_benchmark_results_path(self) -> str:
+        return os.path.join(self._working_dir, "benchmark_results.csv")
+
+    def get_tuning_log_path(self) -> str:
+        return os.path.join(self._working_dir, "tuning.log")
+
+    def measure_and_write(self, mod_path: str) -> runtime.module.BenchmarkResult:
+        result = self._parent.measure(mod_path)
+        out_path = self.get_benchmark_results_path()
         with open(out_path, "w") as out_file:
             writer = csv.writer(out_file)
             # write experiment parameters at the top as a record
-            writer.writerow(["model", self.parent.model_name])
-            writer.writerow(["input_shape", self.parent.input_shape])
-            writer.writerow(["target", self.parent.target])
+            writer.writerow(["model", self._parent._model_name])
+            writer.writerow(["input_shape", self._parent._input_shape])
+            writer.writerow(["target", self._target])
             writer.writerow(["num_measurement_repeats", -1]) # We no longer use this field
             writer.writerow(["latency_mean", result.mean])
             for res in result.results:
@@ -147,62 +169,45 @@ class MetaScheduleTuner:
         model: str,
         vanilla: bool,
         batch_size: int,
-        target: str,
-        target_host: str,
-        rpc_host: Optional[str],
-        rpc_port: Optional[int],
-        rpc_key: Optional[str],
+        target: tvm.target.Target,
+        rpc_config: Optional[ms.runner.RPCConfig],
         working_dir: str,
-        rpc_timeout_sec: int = 5,
     ) -> None:
         # Basic configurations.
-        self.model_name = model
-        self.vanilla = vanilla
-        self.batch_size = batch_size
-        self.target = tvm.target.Target(target, host=target_host)
-        if self.target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
-            self.alloc_repeat = 3
+        self._model_name = model
+        self._target = target
+        if self._target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
+            alloc_repeat = 3
         else:
-            self.alloc_repeat = 1
-        if rpc_host and rpc_port and rpc_key:
-            self.rpc_config = ms.runner.RPCConfig(
-                tracker_host=rpc_host,
-                tracker_port=rpc_port,
-                tracker_key=rpc_key,
-                session_timeout_sec=rpc_timeout_sec,
-            )
-            self.workers = self.rpc_config.count_num_servers(allow_missing=False)
-        else:
-            # check all rpc configs are None
-            assert (
-                (rpc_host is None) and (rpc_port is None) and (rpc_key is None)
-            ), "Please set all 'rpc_host', 'rpc_port' and 'rpc_key' to use PRC server"
-            self.rpc_config = None
-            self.workers = 1
-        self.specialized_dir_name = os.path.join(self.target.kind.name, get_specialized_model_name(self.model_name, self.batch_size, vanilla=self.vanilla))
-        self.working_dir = os.path.join(working_dir, self.specialized_dir_name)
-        os.makedirs(self.working_dir, exist_ok=True)
+            alloc_repeat = 1
+        self._runner_config = {
+            "evaluator_config": ms.runner.EvaluatorConfig(
+                number=3,
+                repeat=1,
+                min_repeat_ms=100,
+                enable_cpu_cache_flush=False,
+            ),
+            "alloc_repeat": alloc_repeat,
+        }
+        self._rpc_config = rpc_config
+        self._specialized_dir_name = os.path.join(self._target.kind.name, get_specialized_model_name(self._model_name, batch_size, vanilla=vanilla))
+        self._working_dir = os.path.join(working_dir, self._specialized_dir_name)
+        os.makedirs(self._working_dir, exist_ok=True)
 
         # Load the model.
-        self.templated_mod, self.all_mappings, self.input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self.model_name, self.batch_size, vanilla=self.vanilla)
+        self._templated_mod, self._all_mappings, self._input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self._model_name, batch_size, vanilla=vanilla)
 
         # Input shape for runtime.
         self.input_dtype = "float32"
-        self.input_info = {"inp_0": self.input_shape}
-
-    def get_templated_mod(self) -> IRModule:
-        return self.templated_mod
-
-    def get_all_mappings(self) -> List[Dict[str, int]]:
-        return self.all_mappings
+        self.input_info = {"inp_0": self._input_shape}
 
     def get_kernel_specific_tuner(self, kernels_dir: Optional[str]) -> KernelSpecificTuner:
         """Construct kernels according to the directory generated by Sampler.realize(). If the directory is None, return the original model."""
         if kernels_dir is None:
-            working_dir = self.working_dir
-            relax_mod = substitute_kernels(self.templated_mod, None)
+            working_dir = self._working_dir
+            relax_mod = substitute_kernels(self._templated_mod, None)
         else:
-            working_dir = os.path.join(kernels_dir, "perf", self.specialized_dir_name)
+            working_dir = os.path.join(kernels_dir, "perf", self._specialized_dir_name)
             os.makedirs(working_dir, exist_ok=True)
             if os.path.exists(os.path.join(kernels_dir, "kernel_scheduler_dir")):
                 kernels_file = os.path.join(kernels_dir, "kernel_scheduler_dir", "kernels_tvm.py")
@@ -214,26 +219,23 @@ class MetaScheduleTuner:
             _TOTAL_KERNELS_SUBSTITUTED += 1
             mod = module_from_spec(spec)
             spec.loader.exec_module(mod)
-            kernel_builder = construct_kernel_builder(self.all_mappings, mod.weights, mod.build)
-            relax_mod = substitute_kernels(self.templated_mod, kernel_builder)
+            kernel_builder = construct_kernel_builder(self._all_mappings, mod.weights, mod.build)
+            relax_mod = substitute_kernels(self._templated_mod, kernel_builder)
         return KernelSpecificTuner(self, working_dir, relax_mod)
 
-    def _get_runner(self) -> ms.Runner:
-        runner_config = {
-            "evaluator_config": ms.runner.EvaluatorConfig(
-                number=3,
-                repeat=1,
-                min_repeat_ms=100,
-                enable_cpu_cache_flush=False,
-            ),
-            "alloc_repeat": self.alloc_repeat,
-        }
-        if self.rpc_config:
+    def _get_num_workers(self) -> int:
+        if self._rpc_config is not None:
+            return self._rpc_config.count_num_servers(allow_missing=False)
+        else:
+            return 1
+
+    def get_runner(self) -> ms.Runner:
+        if self._rpc_config is not None:
             runner = ms.runner.RPCRunner(
-                rpc_config=self.rpc_config, max_workers=self.workers, **runner_config
+                rpc_config=self._rpc_config, max_workers=self._get_num_workers(), **self._runner_config
             )
         else:
-            runner = ms.runner.LocalRunner(**runner_config)
+            runner = ms.runner.LocalRunner(**self._runner_config)
         return runner
 
     def _get_input_data(self) -> Dict[str, np.ndarray]:
@@ -243,12 +245,12 @@ class MetaScheduleTuner:
             input_data[input_name] = np.random.uniform(size=input_shape).astype(self.input_dtype)
         return input_data
 
-    def _measure(self, mod_path: str) -> runtime.module.BenchmarkResult:
+    def measure(self, mod_path: str) -> runtime.module.BenchmarkResult:
         input_data = self._get_input_data()
-        dev_type = self.target.kind.name
-        if self.rpc_config:
+        dev_type = self._target.kind.name
+        if self._rpc_config is not None:
             # Give longer timeout for RPC
-            rpc_config = self.rpc_config._replace(session_timeout_sec=20)
+            rpc_config = self._rpc_config._replace(session_timeout_sec=20)
             session = rpc_config.connect_server()
             session.upload(mod_path)
             filename = os.path.basename(mod_path)
@@ -341,6 +343,12 @@ def _parse_args():
         help="Load the tuned model from the save instead of tuning it."
     )
     args.add_argument(
+        "--overwrite",
+        action="store_true",
+        default=False,
+        help="Overwrite the existing tuning results."
+    )
+    args.add_argument(
         "--rpc",
         action="store_true",
         default=None,
@@ -370,11 +378,28 @@ def _parse_args():
     args.add_argument(
         "--working-dir",
         type=str,
-        default="./measurements",
+        default="./perf",
+    )
+    args.add_argument(
+        "--redirect-log",
+        action="store_true",
+        default=True,
+        help="Redirect the output to tuning.log in the kernel-specific working directory.",
+    )
+    args.add_argument(
+        "--no-redirect-log",
+        dest="redirect_log",
+        action="store_false",
+    )
+    args.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Do not run the actual tuning, but show the model after optimization passes."
     )
     return args.parse_args()
 
-if __name__ == "__main__":
+def main():
     args = _parse_args()
 
     # Model
@@ -389,47 +414,66 @@ if __name__ == "__main__":
         target_host = args.target_host
         if target_host is None:
             target_host = target
+    tgt = tvm.target.Target(target, host=target_host)
 
     # RPC
     local_rpc: Union[LocalRPC, nullcontext] = nullcontext()
     if args.rpc is False:
-        rpc_host = rpc_port = rpc_key = None
-    elif args.rpc is True:
-        local_rpc = LocalRPC()
-        rpc_host = local_rpc.tracker_host
-        rpc_port = local_rpc.tracker_port
-        rpc_key = local_rpc.tracker_key
+        rpc_config = None
     else:
-        rpc_host = args.rpc_host
-        rpc_port = args.rpc_port
-        rpc_key = args.rpc_key
+        if args.rpc is True:
+            local_rpc = LocalRPC()
+            rpc_host = local_rpc.tracker_host
+            rpc_port = local_rpc.tracker_port
+            rpc_key = local_rpc.tracker_key
+        else:
+            rpc_host = args.rpc_host
+            rpc_port = args.rpc_port
+            rpc_key = args.rpc_key
+        rpc_config = ms.runner.RPCConfig(
+            tracker_host=rpc_host,
+            tracker_port=rpc_port,
+            tracker_key=rpc_key,
+            session_timeout_sec=5,
+        )
 
     with local_rpc:
         tuner = MetaScheduleTuner(
             model=args.model,
             vanilla=vanilla,
             batch_size=args.batch_size,
-            target=target,
-            target_host=target_host,
-            rpc_host=rpc_host,
-            rpc_port=rpc_port,
-            rpc_key=rpc_key,
+            target=tgt,
+            rpc_config=rpc_config,
             working_dir=args.working_dir,
         )
         kernels_tuner = tuner.get_kernel_specific_tuner(args.kernels_dir)
-        # Redirect output to a log file.
-        log_path = os.path.join(kernels_tuner.working_dir, "tuning.log")
-        with open(log_path, "w") as log, redirect_stdout(log), redirect_stderr(log):
+
+        # Check if the configuration has already been tuned.
+        benchmark_results_path = kernels_tuner.get_benchmark_results_path()
+        assert args.overwrite or not os.path.exists(benchmark_results_path), f"This configuration has already been tuned, because {benchmark_results_path} exists. Use --overwrite to overwrite it."
+
+        with ExitStack() as stack:
+            if args.redirect_log:
+                # Redirect output to a log file.
+                log = stack.enter_context(open(kernels_tuner.get_tuning_log_path(), "a"))
+                stack.enter_context(redirect_stdout(log))
+                stack.enter_context(redirect_stderr(log))
             if args.load:
+                assert not args.dry_run
                 print("Loading the tuned model...")
                 mod_path = kernels_tuner.load()
             else:
                 kernels_tuner.optimize_model_before_tuning(show=True)
+                if args.dry_run:
+                    return
                 kernels_tuner.tune(
                     num_trials=args.num_trials,
                     max_trials_per_task=args.max_trials_per_task,
                     num_trials_per_iter=args.num_trials_per_iter,
                 )
                 mod_path = kernels_tuner.build(show=True)
-            results = kernels_tuner.measure(mod_path)
+            results = kernels_tuner.measure_and_write(mod_path)
             print("results:", results)
+
+if __name__ == "__main__":
+    main()
