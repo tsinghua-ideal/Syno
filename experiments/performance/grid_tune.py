@@ -86,22 +86,49 @@ _RESNET_KERNELS_DIRS = KernelsDirs([
     "./results/resnet-good-kernels/0.7x",
 ])
 
+_RESNEXT_KERNELS_DIRS = KernelsDirs([
+    "./results/resnext-good-kernels",
+])
+
+_EFFICIENTNET_KERNELS_DIRS = KernelsDirs([
+    "./results/efficientnet-good-kernels",
+])
+
+_DENSENET_KERNELS_DIRS = KernelsDirs([
+    "./results/densenet-good-kernels",
+])
+
+def _make_targets_and_trials(trials: int) -> List[Tuple[str, int]]:
+    return [
+        ("jetson_orin_nano-gpu", trials),
+        ("jetson_orin_nano-cpu", trials),
+    ]
+
 GRIDS = [
     Grid(
         "torchvision/resnet18",
-        [
-            ("jetson_orin_nano-gpu", 8000),
-            ("jetson_orin_nano-cpu", 8000),
-        ],
+        _make_targets_and_trials(10000),
         _RESNET_KERNELS_DIRS,
     ),
     Grid(
         "torchvision/resnet34",
-        [
-            ("jetson_orin_nano-gpu", 10000),
-            ("jetson_orin_nano-cpu", 10000),
-        ],
+        _make_targets_and_trials(10000),
         _RESNET_KERNELS_DIRS,
+    ),
+    Grid(
+        "torchvision/resnext29_2x64d",
+        _make_targets_and_trials(15000),
+        _RESNEXT_KERNELS_DIRS,
+    ),
+    Grid(
+        "torchvision/efficientnet_v2_s",
+        _make_targets_and_trials(30000),
+        _EFFICIENTNET_KERNELS_DIRS,
+    ),
+    Grid(
+        "torchvision/densenet121",
+        _make_targets_and_trials(50000),
+        _DENSENET_KERNELS_DIRS,
     ),
 ]
 
@@ -138,7 +165,6 @@ def _count_trials() -> Stats:
         else:
             assert state == TunerState.UNTUNED
         total_trials += kernel_tuner.trials
-    logging.info(f"total trials: {total_trials}, tuned trials: {tuned_trials}")
     has_tuning = len(tuning_instances) > 0
     if has_tuning:
         logging.warning("WARNING: The following instances are still being tuned. Unless you want to overwrite them, please wait for them to finish.")
@@ -201,22 +227,27 @@ def start_tuning(instance: SerializableInstance, index: int, progress: queue.Que
 def _parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--parallelism", type=int, default=2)
-    parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--overwrite", action="store_true", default=False)
+    parser.add_argument("--dry-run", action="store_true", default=False)
     return parser.parse_args()
 
 def main():
     args = _parse_args()
     logging.basicConfig(level=logging.INFO)
-    mp.set_start_method("spawn")
 
     stats = _count_trials()
-    total_trials, tuned_trials, has_tuning = stats.total_trials, stats.tuned_trials, stats.has_tuning
-    if has_tuning:
+    logging.info(str(stats))
+    if args.dry_run:
+        return
+    total_trials, tuned_trials = stats.total_trials, stats.tuned_trials
+    if stats.has_tuning:
         if args.overwrite:
             logging.info("Overwriting instances being tuned...")
         else:
             logging.error("Please wait for the instances being tuned to finish.")
             return
+
+    mp.set_start_method("spawn")
 
     kernel_tuners = get_instances(GRIDS)
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.parallelism) as executor, tqdm(total=total_trials, initial=tuned_trials) as pbar, logging_redirect_tqdm():
@@ -246,7 +277,7 @@ def main():
             else:
                 raise ValueError(f"Unexpected progress: {p}")
 
-    logging.info("All tuning finished.")
+        logging.info("All tuning finished.")
 
 if __name__ == "__main__":
     main()

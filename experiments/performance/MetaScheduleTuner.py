@@ -89,8 +89,6 @@ class KernelSpecificTuner:
             relax.transform.FuseOps(),
             relax.transform.FuseTIR(),
 
-            # Remove redundant reshape ops, because they are no-ops.
-            relax.transform.RewriteDataflowReshape(),
             # For debug purpose.
             relax.transform.AnnotateTIROpPattern(),
             # Clean up.
