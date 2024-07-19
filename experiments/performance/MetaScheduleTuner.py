@@ -17,17 +17,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
-import sys
-import csv
 import argparse
-from typing import Callable, Dict, Optional
-import numpy as np
-from importlib.util import spec_from_file_location, module_from_spec
 from contextlib import ExitStack, nullcontext, redirect_stdout, redirect_stderr
+import csv
+from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
+from importlib.util import spec_from_file_location, module_from_spec
+import multiprocessing as mp
+import os
+import queue
+import sys
+import threading
+from typing import Any, Callable, cast, Dict, Optional, Tuple, Union
 
+import numpy as np
+from tqdm import tqdm
 import tvm
 from tvm import relax, runtime, transform
 from tvm.ir.module import IRModule
@@ -37,6 +42,55 @@ from tvm.contrib.tar import tar
 from common import get_specialized_model_name
 from model import import_templated_model, substitute_kernels, construct_kernel_builder
 
+
+def parse_target_preset(target_preset: str) -> Tuple[str, str]:
+    return PRESET_TARGETS[target_preset]
+
+def parse_target(target: Optional[str], target_host: Optional[str], target_preset: Optional[str] = None) -> tvm.target.Target:
+    if target_preset is not None:
+        assert (target is None) and (target_host is None), "target_preset is already specified."
+        target, target_host = parse_target_preset(target_preset)
+    else:
+        assert target is not None, "target must be specified."
+        if target_host is None:
+            target_host = target
+    return tvm.target.Target(target, host=target_host)
+
+def parse_rpc_config(rpc: bool, host: Optional[str], port: Optional[int], key: Optional[str], timeout: int = 5) -> Optional[ms.runner.RPCConfig]:
+    if not rpc:
+        return None
+    assert (host is not None) and (port is not None) and (key is not None), "RPC is enabled, so host, port, and key must be specified."
+    return ms.runner.RPCConfig(
+        tracker_host=host,
+        tracker_port=port,
+        tracker_key=key,
+        session_timeout_sec=timeout,
+    )
+
+PRESET_VANILLA = False
+
+PRESET_BATCH_SIZE = 1
+
+_cortex_a78_6_core = "llvm -mtriple=aarch64-linux-gnu -mcpu=cortex-a78 -mattr=+neon -num-cores=6"
+_jetson_orin_nano_gpu = "cuda -arch=sm_87 -max_threads_per_block=1024 -max_num_threads=1024 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
+_x86_64_16_core = "llvm -mtriple=x86_64-pc-linux-gnu -num-cores=16"
+_rtx_3060_laptop = "cuda -arch=sm_86 -max_threads_per_block=1024 -max_num_threads=1536 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
+
+PRESET_TARGETS = {
+    "jetson_orin_nano-cpu": (_cortex_a78_6_core, _cortex_a78_6_core),
+    "jetson_orin_nano-gpu": (_jetson_orin_nano_gpu, _cortex_a78_6_core),
+    "x86_64-16_core_cpu": (_x86_64_16_core, _x86_64_16_core),
+    "rtx_3060_laptop_gpu": (_rtx_3060_laptop, _x86_64_16_core),
+}
+PRESET_TARGET = parse_target(None, None, "jetson_orin_nano-cpu")
+
+PRESET_RPC = True
+PRESET_RPC_HOST = "127.0.0.1"
+PRESET_RPC_PORT = 9190
+PRESET_RPC_KEY = "jetson-orin-nano"
+PRESET_RPC_CONFIG = parse_rpc_config(PRESET_RPC, PRESET_RPC_HOST, PRESET_RPC_PORT, PRESET_RPC_KEY)
+
+PRESET_WORKING_DIR = "./perf"
 
 class TunerState(Enum):
     UNTUNED = 0
@@ -58,9 +112,10 @@ class LogRedirector(ExitStack):
         return self
 
 class KernelSpecificTuner:
-    def __init__(self, parent: 'MetaScheduleTuner', working_dir: str, relax_mod: IRModule) -> None:
+    def __init__(self, parent: 'MetaScheduleTuner', kernels_dir: Optional[str], working_dir: str, relax_mod: IRModule) -> None:
         self._parent = parent
         self._target = self._parent._target
+        self._kernels_dir = kernels_dir
         self._working_dir = working_dir
         os.makedirs(self._working_dir, exist_ok=True)
         self._relax_mod = relax_mod
@@ -100,7 +155,7 @@ class KernelSpecificTuner:
             print("After optimization passes:")
             self._relax_mod.show()
 
-    def tune(self, num_trials: int = 10, max_trials_per_task: Optional[int] = None, num_trials_per_iter: int = 64, on_eval: Optional[Callable[[], None]] = None) -> None:
+    def tune(self, num_trials: int, max_trials_per_task: Optional[int] = None, num_trials_per_iter: int = 64, on_eval: Optional[Callable[[], None]] = None) -> None:
         if max_trials_per_task is None:
             max_trials_per_task = num_trials
         self._db = ms.relax_integration.tune_relax(
@@ -183,6 +238,17 @@ class KernelSpecificTuner:
                 writer.writerow([str(res)])
         return result
 
+    def tune_e2e(self, num_trials: int, redirect_log: bool = True, on_eval: Optional[Callable[[], None]] = None) -> None:
+        with self.redirect_log() if redirect_log else nullcontext():
+            self.optimize_model_before_tuning(show=True)
+            self.tune(
+                num_trials=num_trials,
+                on_eval=on_eval,
+            )
+            mod_path = self.build(show=True)
+            results = self.measure_and_write(mod_path)
+            print("results:", results)
+
 def _perform_measurement(
     rt_mod: runtime.Module,
     device: runtime.ndarray.Device,
@@ -209,14 +275,16 @@ class MetaScheduleTuner:
     def __init__(
         self,
         model: str,
-        vanilla: bool,
-        batch_size: int,
-        target: tvm.target.Target,
-        rpc_config: Optional[ms.runner.RPCConfig],
-        working_dir: str,
+        vanilla: bool = PRESET_VANILLA,
+        batch_size: int = PRESET_BATCH_SIZE,
+        target: tvm.target.Target = PRESET_TARGET,
+        rpc_config: Optional[ms.runner.RPCConfig] = PRESET_RPC_CONFIG,
+        working_dir: str = PRESET_WORKING_DIR,
     ) -> None:
         # Basic configurations.
         self._model_name = model
+        self._vanilla = vanilla
+        self._batch_size = batch_size
         self._target = target
         if self._target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
             alloc_repeat = 3
@@ -230,13 +298,16 @@ class MetaScheduleTuner:
                 enable_cpu_cache_flush=False,
             ),
             "alloc_repeat": alloc_repeat,
+            # TVM uses Popen (in subprocess) to start workers, which does not inherit the authkey (in multiprocessing) of the parent process.
+            "initializer": _inherit_process_authkey(),
         }
         self._rpc_config = rpc_config
-        self._specialized_dir_name = os.path.join(self._target.kind.name, get_specialized_model_name(self._model_name, batch_size, vanilla=vanilla))
+        self._raw_working_dir = working_dir
+        self._specialized_dir_name = os.path.join(self._target.kind.name, get_specialized_model_name(self._model_name, self._batch_size, vanilla=self._vanilla))
         self._working_dir = os.path.join(working_dir, self._specialized_dir_name)
 
         # Load the model.
-        self._templated_mod, self._all_mappings, self._input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self._model_name, batch_size, vanilla=vanilla)
+        self._templated_mod, self._all_mappings, self._input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self._model_name, self._batch_size, vanilla=self._vanilla)
 
         # Input shape for runtime.
         self.input_dtype = "float32"
@@ -245,6 +316,22 @@ class MetaScheduleTuner:
     @property
     def model_name(self) -> str:
         return self._model_name
+
+    @property
+    def vanilla(self) -> bool:
+        return self._vanilla
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    @property
+    def rpc_config(self) -> Optional[ms.runner.RPCConfig]:
+        return self._rpc_config
+
+    @property
+    def raw_working_dir(self) -> str:
+        return self._raw_working_dir
 
     def get_kernel_specific_tuner_working_dir(self, kernels_dir: Optional[str]) -> str:
         if kernels_dir is None:
@@ -269,7 +356,7 @@ class MetaScheduleTuner:
             spec.loader.exec_module(mod)
             kernel_builder = construct_kernel_builder(self._all_mappings, mod.weights, mod.build)
         relax_mod = substitute_kernels(self._templated_mod, kernel_builder)
-        return KernelSpecificTuner(self, working_dir, relax_mod)
+        return KernelSpecificTuner(self, kernels_dir, working_dir, relax_mod)
 
     def query_kernel_specific_tuner_state(self, kernels_dir: Optional[str]) -> TunerState:
         return KernelSpecificTuner.tuner_state(self.get_kernel_specific_tuner_working_dir(kernels_dir))
@@ -320,7 +407,7 @@ class MetaScheduleTuner:
         dev_type = self._target.kind.name
         if self._rpc_config is not None:
             # Give longer timeout for RPC
-            rpc_config = self._rpc_config._replace(session_timeout_sec=20)
+            rpc_config = self._rpc_config._replace(session_timeout_sec=60)
             session = rpc_config.connect_server()
             session.upload(mod_path)
             filename = os.path.basename(mod_path)
@@ -331,18 +418,6 @@ class MetaScheduleTuner:
             dev = tvm.device(dev_type=dev_type, dev_id=0)
         result = _perform_measurement(mod, dev, input_data)
         return result
-
-_cortex_a78_6_core = "llvm -mtriple=aarch64-linux-gnu -mcpu=cortex-a78 -mattr=+neon -num-cores=6"
-_jetson_orin_nano_gpu = "cuda -arch=sm_87 -max_threads_per_block=1024 -max_num_threads=1024 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
-_x86_64_16_core = "llvm -mtriple=x86_64-pc-linux-gnu -num-cores=16"
-_rtx_3060_laptop = "cuda -arch=sm_86 -max_threads_per_block=1024 -max_num_threads=1536 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
-
-PRESET_TARGETS = {
-    "jetson_orin_nano-cpu": (_cortex_a78_6_core, _cortex_a78_6_core),
-    "jetson_orin_nano-gpu": (_jetson_orin_nano_gpu, _cortex_a78_6_core),
-    "x86_64-16_core_cpu": (_x86_64_16_core, _x86_64_16_core),
-    "rtx_3060_laptop_gpu": (_rtx_3060_laptop, _x86_64_16_core),
-}
 
 def _parse_args():
     args = argparse.ArgumentParser()
@@ -366,7 +441,7 @@ def _parse_args():
     args.add_argument(
         "--batch-size",
         type=int,
-        default=1,
+        default=PRESET_BATCH_SIZE,
     )
     args.add_argument(
         "--target",
@@ -421,7 +496,7 @@ def _parse_args():
     args.add_argument(
         "--rpc",
         action="store_true",
-        default=True,
+        default=PRESET_RPC,
         help="Use RPC. Please further set --rpc-host, --rpc-port, and --rpc-key."
     )
     args.add_argument(
@@ -432,22 +507,22 @@ def _parse_args():
     args.add_argument(
         "--rpc-host",
         type=str,
-        default="127.0.0.1",
+        default=PRESET_RPC_HOST,
     )
     args.add_argument(
         "--rpc-port",
         type=int,
-        default=9190,
+        default=PRESET_RPC_PORT,
     )
     args.add_argument(
         "--rpc-key",
         type=str,
-        default="jetson-orin-nano",
+        default=PRESET_RPC_KEY,
     )
     args.add_argument(
         "--working-dir",
         type=str,
-        default="./perf",
+        default=PRESET_WORKING_DIR,
     )
     args.add_argument(
         "--redirect-log",
@@ -466,28 +541,151 @@ def _parse_args():
         default=False,
         help="Do not run the actual tuning, but show the model after optimization passes."
     )
+    args.add_argument(
+        "--progress",
+        action="store_true",
+        default=False,
+        help="Use tqdm to show the progress.",
+    )
     return args.parse_args()
 
-def parse_target(target: Optional[str], target_host: Optional[str], target_preset: Optional[str]) -> tvm.target.Target:
-    if target_preset is not None:
-        assert (target is None) and (target_host is None), "target_preset is already specified."
-        target, target_host = PRESET_TARGETS[target_preset]
-    else:
-        assert target is not None, "target must be specified."
-        if target_host is None:
-            target_host = target
-    return tvm.target.Target(target, host=target_host)
+@dataclass
+class TuningConfig:
+    model: str
+    target: str
+    target_host: str
+    kernels_dir: Optional[str]
+    num_trials: int
+    vanilla: bool = False
+    batch_size: int = 1
+    rpc: bool = True
+    rpc_host: Optional[str] = PRESET_RPC_HOST
+    rpc_port: Optional[int] = PRESET_RPC_PORT
+    rpc_key: Optional[str] = PRESET_RPC_KEY
+    working_dir: str = PRESET_WORKING_DIR
 
-def parse_rpc_config(rpc: bool, host: Optional[str], port: Optional[int], key: Optional[str], timeout: int = 5) -> Optional[ms.runner.RPCConfig]:
-    if not rpc:
-        return None
-    assert (host is not None) and (port is not None) and (key is not None), "RPC is enabled, so host, port, and key must be specified."
-    return ms.runner.RPCConfig(
-        tracker_host=host,
-        tracker_port=port,
-        tracker_key=key,
-        session_timeout_sec=timeout,
+    def to_model_tuner(self) -> MetaScheduleTuner:
+        return MetaScheduleTuner(
+            model=self.model,
+            vanilla=self.vanilla,
+            batch_size=self.batch_size,
+            target=parse_target(self.target, self.target_host),
+            rpc_config=parse_rpc_config(self.rpc, self.rpc_host, self.rpc_port, self.rpc_key),
+            working_dir=self.working_dir,
+        )
+
+    @staticmethod
+    def from_model_tuner(
+        tuner: MetaScheduleTuner,
+        kernels_dir: Optional[str],
+        num_trials: int,
+    ) -> "TuningConfig":
+        target = tuner._target
+        rpc_config = tuner.rpc_config
+        if rpc_config is not None:
+            rpc = True
+            rpc_host = rpc_config.tracker_host
+            rpc_port = int(cast(Union[int, str], rpc_config.tracker_port))
+            rpc_key = rpc_config.tracker_key
+        else:
+            rpc = False
+            rpc_host = rpc_port = rpc_key = None
+        return TuningConfig(
+            model=tuner.model_name,
+            target=repr(target),
+            target_host=repr(target.host),
+            kernels_dir=kernels_dir,
+            num_trials=num_trials,
+            vanilla=tuner.vanilla,
+            batch_size=tuner.batch_size,
+            rpc=rpc,
+            rpc_host=rpc_host,
+            rpc_port=rpc_port,
+            rpc_key=rpc_key,
+            working_dir=tuner.raw_working_dir,
+        )
+
+    def to_kernel_tuner(self, model_tuner: Optional[MetaScheduleTuner]) -> KernelSpecificTuner:
+        if model_tuner is None:
+            model_tuner = self.to_model_tuner()
+        return model_tuner.get_kernel_specific_tuner(self.kernels_dir)
+
+    @staticmethod
+    def from_kernel_tuner(tuner: KernelSpecificTuner, num_trials: int) -> "TuningConfig":
+        return TuningConfig.from_model_tuner(
+            tuner._parent, tuner._kernels_dir, num_trials,
+        )
+
+def tune_e2e(config: TuningConfig, on_eval: Optional[Callable[[], None]] = None) -> None:
+    model_tuner = MetaScheduleTuner(
+        model=config.model,
+        vanilla=config.vanilla,
+        batch_size=config.batch_size,
+        target=parse_target(config.target, config.target_host),
+        rpc_config=parse_rpc_config(config.rpc, config.rpc_host, config.rpc_port, config.rpc_key),
+        working_dir=config.working_dir,
     )
+    kernel_tuner = model_tuner.get_kernel_specific_tuner(config.kernels_dir)
+    kernel_tuner.tune_e2e(num_trials=config.num_trials, on_eval=on_eval)
+
+def _tune_e2e_mp_wrapper(config: TuningConfig, progress: "mp.Queue[Optional[int]]") -> None:
+    """A wrapper for multiprocessing."""
+    def on_eval():
+        progress.put(1)
+    tune_e2e(config, on_eval=on_eval)
+    # Done
+    progress.put(None)
+
+def _inherit_process_authkey() -> Callable[[], None]:
+    authkey = bytes(mp.current_process().authkey)
+    def _set_authkey():
+        mp.current_process().authkey = authkey
+    return _set_authkey
+
+@dataclass
+class ProgressUpdate:
+    trials: int
+@dataclass
+class ProgressDone:
+    ctx: Any
+    error: bool
+Progress = Union[ProgressUpdate, ProgressDone]
+
+def tune_e2e_mp(
+    config: TuningConfig,
+    progress: queue.Queue[Progress],
+    ctx: Any = None,
+    timeout: Optional[float] = None,
+) -> None:
+    """Tune the model in a separate process and report the progress. Had better run on a worker thread."""
+    mp_ctx = mp.get_context("spawn")
+    with mp_ctx.Manager() as manager:
+        mp_progress = cast("mp.Queue[Optional[int]]", manager.Queue())
+        proc = mp_ctx.Process(target=_tune_e2e_mp_wrapper, args=(config, mp_progress))
+        proc.start()
+        done_trials = 0
+        error = False
+        while True:
+            try:
+                p = mp_progress.get(timeout=timeout)
+            except queue.Empty:
+                error = True
+                proc.terminate()
+                break
+            if p is None:
+                # Done
+                break
+            done_trials += p
+            progress.put(ProgressUpdate(p))
+        proc.join()
+    if error:
+        # Set back the progress
+        progress.put(ProgressUpdate(-done_trials))
+    else:
+        # Ensure consistency
+        progress.put(ProgressUpdate(config.num_trials - done_trials))
+    # Notify the main thread that the task is done
+    progress.put(ProgressDone(ctx, error=error))
 
 def main():
     args = _parse_args()
@@ -508,6 +706,25 @@ def main():
 
     # Check if the configuration has already been tuned.
     assert args.overwrite or (kernels_tuner.get_tuner_state() != TunerState.TUNED), f"This configuration has already been tuned. Use --overwrite to overwrite it."
+
+    if args.progress:
+        assert args.redirect_log, "Progress bar is not supported without redirecting log."
+        assert (not args.load) and (not args.dry_run), "Progress bar is not supported for loading or dry run."
+        config = TuningConfig.from_kernel_tuner(kernels_tuner, args.num_trials)
+        progress: queue.Queue[Progress] = queue.Queue()
+        thread = threading.Thread(target=tune_e2e_mp, args=(config, progress))
+        thread.start()
+        with tqdm(total=args.num_trials) as pbar:
+            while True:
+                p = progress.get()
+                if isinstance(p, ProgressUpdate):
+                    pbar.update(p.trials)
+                elif isinstance(p, ProgressDone):
+                    break
+                else:
+                    raise ValueError(f"Unknown progress type: {p}")
+        thread.join()
+        return
 
     # Redirect output to a log file.
     redirect_log = kernels_tuner.redirect_log() if args.redirect_log else nullcontext()
