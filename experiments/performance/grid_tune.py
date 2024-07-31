@@ -7,7 +7,7 @@ import os
 import queue
 import sys
 import time
-from typing import Dict, Generator, List, Optional, Tuple, cast
+from typing import Dict, Generator, Iterable, List, Optional, Tuple, cast
 
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -16,16 +16,20 @@ from MetaScheduleTuner import MetaScheduleTuner, ProgressDone, ProgressQueue, Pr
 
 
 @dataclass
-class KernelsDirs:
-    content: List[str]
-    def __iter__(self):
+class KernelsDirs(Iterable[Optional[str]]):
+    content: List[Optional[str]]
+    def __iter__(self) -> Generator[Optional[str], None, None]:
         for d in self.content:
-            for f in os.listdir(d):
-                yield os.path.join(d, f)
+            if d is None:
+                yield None
+            else:
+                for f in os.listdir(d):
+                    yield os.path.join(d, f)
 
 @dataclass
-class KernelsGrid:
+class KernelsGrid(Iterable[TuningConfig]):
     model: str
+    vanilla: bool
     target: str
     target_host: str
     trials: int
@@ -34,7 +38,7 @@ class KernelsGrid:
     def to_model_tuner(self) -> MetaScheduleTuner:
         return MetaScheduleTuner(
             model=self.model,
-            vanilla=False,
+            vanilla=self.vanilla,
             target=parse_target(self.target, self.target_host),
         )
 
@@ -46,18 +50,20 @@ class KernelsGrid:
                 target_host=self.target_host,
                 kernels_dir=k,
                 num_trials=self.trials,
+                vanilla=self.vanilla,
             )
 
 @dataclass
 class Grid:
     model: str
+    vanilla: bool
     targets_and_trials: List[Tuple[str, int]]
     kernels_dirs: KernelsDirs
 
     def __iter__(self) -> Generator[KernelsGrid, None, None]:
         for target_preset, trials in self.targets_and_trials:
             target, target_host = parse_target_preset(target_preset)
-            yield KernelsGrid(self.model, target, target_host, trials, self.kernels_dirs)
+            yield KernelsGrid(self.model, self.vanilla, target, target_host, trials, self.kernels_dirs)
 
 _RESNET_KERNELS_DIRS = KernelsDirs([
     "./results/resnet-good-kernels/0.2x",
@@ -85,30 +91,50 @@ def _make_targets_and_trials(trials: int) -> List[Tuple[str, int]]:
         ("jetson_orin_nano-cpu", trials),
     ]
 
+def _make_grid(model: str, trials: int, kernels_dirs: KernelsDirs) -> Grid:
+    return Grid(
+        model,
+        False,
+        _make_targets_and_trials(trials),
+        kernels_dirs,
+    )
+
+def _make_vanilla(grid: Grid) -> Grid:
+    return Grid(
+        grid.model,
+        True,
+        grid.targets_and_trials,
+        KernelsDirs([None]),
+    )
+
+def _make_both(model: str, trials: int, kernels_dirs: KernelsDirs) -> List[Grid]:
+    grid = _make_grid(model, trials, kernels_dirs)
+    return [_make_vanilla(grid), grid]
+
 GRIDS = [
-    Grid(
+    *_make_both(
         "torchvision/resnet18",
-        _make_targets_and_trials(10000),
+        10000,
         _RESNET_KERNELS_DIRS,
     ),
-    Grid(
+    *_make_both(
         "torchvision/resnet34",
-        _make_targets_and_trials(10000),
+        10000,
         _RESNET_KERNELS_DIRS,
     ),
-    Grid(
+    *_make_both(
         "torchvision/resnext29_2x64d",
-        _make_targets_and_trials(15000),
+        15000,
         _RESNEXT_KERNELS_DIRS,
     ),
-    Grid(
+    *_make_both(
         "torchvision/efficientnet_v2_s",
-        _make_targets_and_trials(30000),
+        30000,
         _EFFICIENTNET_KERNELS_DIRS,
     ),
-    Grid(
+    *_make_both(
         "torchvision/densenet121",
-        _make_targets_and_trials(50000),
+        50000,
         _DENSENET_KERNELS_DIRS,
     ),
 ]
