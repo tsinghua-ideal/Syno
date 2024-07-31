@@ -26,10 +26,8 @@ from functools import wraps
 from importlib.util import spec_from_file_location, module_from_spec
 import multiprocessing as mp
 import os
-import queue
 import sys
-import threading
-from typing import Callable, cast, Dict, Optional, Tuple, Union
+from typing import Callable, cast, Dict, Optional, Tuple, TypeVar, Union
 
 import numpy as np
 from tqdm import tqdm
@@ -41,7 +39,7 @@ from tvm.contrib.tar import tar
 
 from common import get_specialized_model_name
 from model import import_templated_model, substitute_kernels, construct_kernel_builder
-from progress_utils import MultiprocessingProgressQueue, ProgressDone, ProgressUpdate, ThreadingProgressQueue, ignore_sigint, inherit_process_authkey_and_ignore_sigint, to_mp_with_progress
+from progress_utils import ProgressDone, ProgressQueue, ProgressUpdate, ignore_sigint, inherit_process_authkey_and_ignore_sigint
 
 
 def parse_target_preset(target_preset: str) -> Tuple[str, str]:
@@ -621,18 +619,24 @@ def tune_e2e(config: TuningConfig, on_eval: Optional[Callable[[], None]] = None)
     kernel_tuner = config.to_kernel_tuner()
     kernel_tuner.tune_e2e(num_trials=config.num_trials, on_eval=on_eval)
 
-def _tune_e2e_mp_impl(config: TuningConfig, progress: MultiprocessingProgressQueue) -> None:
-    """A wrapper for multiprocessing."""
+Context = TypeVar("Context")
+def tune_e2e_mp_runner(
+    config: TuningConfig,
+    progress: "ProgressQueue[Context]",
+    ctx: Context = None,
+) -> None:
     # Ignore Ctrl+C in the child process.
     ignore_sigint()
     def on_eval():
-        progress.put(1)
-    tune_e2e(config, on_eval=on_eval)
-    # Done
-    progress.put(None)
-
-tune_e2e_mp = to_mp_with_progress(_tune_e2e_mp_impl)
-tune_e2e_mp.__name__ = "tune_e2e_mp"
+        progress.put(ProgressUpdate(ctx=ctx, trials=1))
+    error = False
+    try:
+        tune_e2e(config, on_eval=on_eval)
+    except:
+        error = True
+        raise
+    finally:
+        progress.put(ProgressDone(ctx=ctx, error=error))
 
 def main() -> int:
     args = _parse_args()
@@ -658,16 +662,19 @@ def main() -> int:
         assert args.redirect_log, "Progress bar is not supported without redirecting log."
         assert (not args.load) and (not args.dry_run), "Progress bar is not supported for loading or dry run."
         config = TuningConfig.from_kernel_tuner(kernels_tuner, args.num_trials)
-        progress: ThreadingProgressQueue[int] = queue.Queue()
-        thread = threading.Thread(target=tune_e2e_mp, args=(config, progress))
-        thread.start()
-        with tqdm(total=args.num_trials, smoothing=0.0) as pbar:
+        mp_ctx = mp.get_context("spawn")
+        with mp_ctx.Manager() as manager, tqdm(total=args.num_trials, smoothing=0.0) as pbar:
+            progress = cast("ProgressQueue[None]", manager.Queue())
+            proc = mp_ctx.Process(target=tune_e2e_mp_runner, args=(config, progress), daemon=True)
+            proc.start()
             should_stop = False
             while True:
                 try:
                     p = progress.get()
                 except KeyboardInterrupt:
                     if should_stop:
+                        print("Exiting...")
+                        proc.terminate()
                         return 1
                     print("Interrupted. Press Ctrl+C again to exit.")
                     should_stop = True
@@ -678,7 +685,7 @@ def main() -> int:
                     break
                 else:
                     raise ValueError(f"Unknown progress type: {p}")
-        thread.join()
+            proc.join()
         return 0
 
     # Redirect output to a log file.

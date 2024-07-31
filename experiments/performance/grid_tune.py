@@ -1,17 +1,18 @@
 import argparse
-import concurrent.futures
-from concurrent.futures import Future
+import dataclasses
 from dataclasses import dataclass
 import logging
+import multiprocessing as mp
 import os
 import queue
 import sys
-from typing import Generator, List, Tuple
+import time
+from typing import Dict, Generator, List, Optional, Tuple, cast
 
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from MetaScheduleTuner import MetaScheduleTuner, ProgressDone, ProgressUpdate, ThreadingProgressQueue, TunerState, TuningConfig, parse_target, parse_target_preset, tune_e2e_mp
+from MetaScheduleTuner import MetaScheduleTuner, ProgressDone, ProgressQueue, ProgressUpdate, TunerState, TuningConfig, parse_target, parse_target_preset, tune_e2e_mp_runner
 
 
 @dataclass
@@ -145,17 +146,52 @@ def _count_trials() -> Stats:
         logging.warning("If you do want to overwrite, please add option --overwrite.")
     return Stats(total_trials, tuned_trials, has_tuning)
 
-def start_tuning(config: TuningConfig, progress: ThreadingProgressQueue[int], index: int, timeout: float) -> int:
-    """This runs on a worker thread."""
-    logging.info(f"Started tuning {config}")
-    tune_e2e_mp(
-        config,
-        progress,
-        ctx=index,
-        timeout=timeout,
-    )
-    logging.info(f"Finished tuning {config}")
-    return index
+@dataclass
+class Tracker:
+    index: int
+    config: TuningConfig
+    process: Optional[mp.Process] = None
+    actual_trials: int = 0
+    last_updated: float = dataclasses.field(default_factory=time.time)
+
+    def start(self, mp_ctx, progress: "ProgressQueue[int]") -> None:
+        assert self.process is None
+        self.process = mp_ctx.Process(target=tune_e2e_mp_runner, args=(self.config, progress, self.index), daemon=True)
+        self.process.start()
+        self.update(0)
+        logging.info(f"Started tuning {self.config}")
+
+    def join(self) -> None:
+        assert self.process is not None
+        self.process.join()
+        self.process = None
+
+    def cancel_and_join(self) -> None:
+        assert self.process is not None
+        self.process.terminate()
+        self.process.join()
+        self.process = None
+
+    # Return pbar update
+    def update(self, trials: int) -> int:
+        self.actual_trials += trials
+        self.last_updated = time.time()
+        return trials
+
+    # Return pbar update
+    def success(self) -> int:
+        logging.info(f"Finished tuning {self.config}")
+        # Ensure consistency
+        return self.config.num_trials - self.actual_trials
+
+    # Return pbar update
+    def failure(self) -> int:
+        logging.error(f"Error tuning {self.config}")
+        # Ensure consistency
+        return -self.actual_trials
+
+    def timed_out(self, timeout: float) -> bool:
+        return time.time() - self.last_updated > timeout
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -173,6 +209,7 @@ def main(args: argparse.Namespace) -> int:
     if args.dry_run:
         return 0
     total_trials, tuned_trials = stats.total_trials, stats.tuned_trials
+    objective_trials = total_trials - tuned_trials
     if stats.has_tuning:
         if args.overwrite:
             logging.info("Overwriting instances being tuned...")
@@ -186,70 +223,95 @@ def main(args: argparse.Namespace) -> int:
 
     success = 0
     failure = 0
+    timed_out = 0
     cancelled = 0
-    with concurrent.futures.ThreadPoolExecutor(max_workers=parallelism) as executor, tqdm(total=total_trials - tuned_trials, smoothing=0.0) as pbar, logging_redirect_tqdm():
-        progress: ThreadingProgressQueue[int] = queue.Queue()
+    mp_ctx = mp.get_context("spawn")
+    with mp_ctx.Manager() as manager, tqdm(total=objective_trials, smoothing=0.0) as pbar, logging_redirect_tqdm():
+        progress = cast("ProgressQueue[int]", manager.Queue())
         index = 0
-        futures: List[Tuple[Future[int], TuningConfig]] = []
-        actual_trials: List[int] = []
+        trackers: List[Tracker] = []
         for kernels_grid in get_kernels_grids(GRIDS):
             model_tuner = kernels_grid.to_model_tuner()
             for config in kernels_grid:
                 state = model_tuner.query_kernel_specific_tuner_state(config.kernels_dir)
                 if state == TunerState.TUNED:
                     continue
-                future = executor.submit(start_tuning, config, progress, index, timeout)
-                futures.append((future, config))
-                actual_trials.append(0)
+                trackers.append(Tracker(index=index, config=config))
                 index += 1
-        assert index == len(futures)
-        remaining = index
+        assert index == len(trackers)
 
-        # Collect progress
+        cursor = 0
+        trackers_running: Dict[int, Tracker] = {}
+
+        def enqueue_trackers() -> None:
+            nonlocal cursor
+            while len(trackers_running) < parallelism and cursor < len(trackers):
+                tracker = trackers[cursor]
+                cursor += 1
+                trackers_running[tracker.index] = tracker
+                tracker.start(mp_ctx, progress)
+
+        def cancel_running_tracker(tracker: Tracker) -> None:
+            tracker.cancel_and_join()
+            del trackers_running[tracker.index]
+            pbar.update(tracker.failure())
+
+        enqueue_trackers()
+
         should_stop = False
-        while remaining > 0:
+        while len(trackers_running) > 0:
             try:
-                p = progress.get()
+                p = progress.get(timeout=timeout)
+                tracker = trackers_running[p.ctx]
+                if isinstance(p, ProgressUpdate):
+                    pbar.update(tracker.update(p.trials))
+                elif isinstance(p, ProgressDone):
+                    tracker.join()
+                    del trackers_running[tracker.index]
+                    if p.error:
+                        pbar.update(tracker.failure())
+                        failure += 1
+                    else:
+                        pbar.update(tracker.success())
+                        success += 1
+                else:
+                    raise ValueError(f"Unexpected progress: {p}")
+            except queue.Empty:
+                # Some of the running tasks have timed out
+                pass
             except KeyboardInterrupt:
                 if should_stop:
-                    logging.info("Exiting...")
-                    return 1
-                logging.info("Interrupted. Clearing all uninitiated tasks...")
-                logging.info("Pending tasks:")
-                should_stop = True
-                executor.shutdown(wait=False, cancel_futures=True)
-                cancelled_trials = 0
-                for index, (future, config) in enumerate(futures):
-                    if future.cancelled():
+                    logging.info("Terminating all running tasks...")
+                    for index in list(trackers_running.keys()):
+                        cancel_running_tracker(trackers_running[index])
                         cancelled += 1
-                        remaining -= 1
-                        cancelled_trials += config.num_trials
-                    elif future.running():
-                        logging.info(f"  {config} ({actual_trials[index]}/{config.num_trials})")
+                    break
+                should_stop = True
+                logging.info("Interrupted. Clearing all uninitiated tasks...")
+                cancelled_trials = 0
+                while cursor < len(trackers):
+                    tracker = trackers[cursor]
+                    cursor += 1
+                    cancelled_trials += tracker.config.num_trials
+                    cancelled += 1
                 pbar.total -= cancelled_trials
                 pbar.refresh()
                 logging.info("Cleared. Press Ctrl+C again to exit.")
-                continue
-            if isinstance(p, ProgressUpdate):
-                actual_trials[p.ctx] += p.trials
-                pbar.update(p.trials)
-            elif isinstance(p, ProgressDone):
-                remaining -= 1
-                index, config = futures[p.ctx]
-                index = index.result()
-                assert index == p.ctx
-                if p.error:
-                    expected_trials = 0
-                    failure += 1
-                else:
-                    expected_trials = config.num_trials
-                    success += 1
-                # Ensure consistency
-                pbar.update(expected_trials - actual_trials[index])
-            else:
-                raise ValueError(f"Unexpected progress: {p}")
+                logging.info("Pending tasks:")
+                for tracker in trackers_running.values():
+                    logging.info(f"  {tracker.config} ({tracker.actual_trials}/{tracker.config.num_trials})")
 
-        logging.info(f"All tuning finished: existing trials {tuned_trials}, success {success}, failure {failure}, cancelled {cancelled}")
+            # Check for timed out tasks
+            for index in list(trackers_running.keys()):
+                tracker = trackers_running[index]
+                if tracker.timed_out(timeout):
+                    cancel_running_tracker(tracker)
+                    timed_out += 1
+
+            # Enqueue new trackers
+            enqueue_trackers()
+
+        logging.info(f"All tuning finished: existing trials {tuned_trials}, objective_trials {objective_trials}, success {success}, failure {failure}, timed out {timed_out}, cancelled {cancelled}")
 
     return 0
 
