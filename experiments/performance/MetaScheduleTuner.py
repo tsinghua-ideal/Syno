@@ -29,7 +29,7 @@ import os
 import queue
 import sys
 import threading
-from typing import Any, Callable, cast, Dict, Optional, Tuple, Union
+from typing import Callable, cast, Dict, Optional, Tuple, Union
 
 import numpy as np
 from tqdm import tqdm
@@ -41,6 +41,7 @@ from tvm.contrib.tar import tar
 
 from common import get_specialized_model_name
 from model import import_templated_model, substitute_kernels, construct_kernel_builder
+from progress_utils import MultiprocessingProgressQueue, ProgressDone, ProgressUpdate, ThreadingProgressQueue, ignore_sigint, inherit_process_authkey_and_ignore_sigint, to_mp_with_progress
 
 
 def parse_target_preset(target_preset: str) -> Tuple[str, str]:
@@ -299,7 +300,7 @@ class MetaScheduleTuner:
             ),
             "alloc_repeat": alloc_repeat,
             # TVM uses Popen (in subprocess) to start workers, which does not inherit the authkey (in multiprocessing) of the parent process.
-            "initializer": _inherit_process_authkey(),
+            "initializer": inherit_process_authkey_and_ignore_sigint(),
         }
         self._rpc_config = rpc_config
         self._raw_working_dir = working_dir
@@ -605,7 +606,7 @@ class TuningConfig:
             working_dir=tuner.raw_working_dir,
         )
 
-    def to_kernel_tuner(self, model_tuner: Optional[MetaScheduleTuner]) -> KernelSpecificTuner:
+    def to_kernel_tuner(self, model_tuner: Optional[MetaScheduleTuner] = None) -> KernelSpecificTuner:
         if model_tuner is None:
             model_tuner = self.to_model_tuner()
         return model_tuner.get_kernel_specific_tuner(self.kernels_dir)
@@ -617,77 +618,23 @@ class TuningConfig:
         )
 
 def tune_e2e(config: TuningConfig, on_eval: Optional[Callable[[], None]] = None) -> None:
-    model_tuner = MetaScheduleTuner(
-        model=config.model,
-        vanilla=config.vanilla,
-        batch_size=config.batch_size,
-        target=parse_target(config.target, config.target_host),
-        rpc_config=parse_rpc_config(config.rpc, config.rpc_host, config.rpc_port, config.rpc_key),
-        working_dir=config.working_dir,
-    )
-    kernel_tuner = model_tuner.get_kernel_specific_tuner(config.kernels_dir)
+    kernel_tuner = config.to_kernel_tuner()
     kernel_tuner.tune_e2e(num_trials=config.num_trials, on_eval=on_eval)
 
-def _tune_e2e_mp_wrapper(config: TuningConfig, progress: "mp.Queue[Optional[int]]") -> None:
+def _tune_e2e_mp_impl(config: TuningConfig, progress: MultiprocessingProgressQueue) -> None:
     """A wrapper for multiprocessing."""
+    # Ignore Ctrl+C in the child process.
+    ignore_sigint()
     def on_eval():
         progress.put(1)
     tune_e2e(config, on_eval=on_eval)
     # Done
     progress.put(None)
 
-def _inherit_process_authkey() -> Callable[[], None]:
-    authkey = bytes(mp.current_process().authkey)
-    def _set_authkey():
-        mp.current_process().authkey = authkey
-    return _set_authkey
+tune_e2e_mp = to_mp_with_progress(_tune_e2e_mp_impl)
+tune_e2e_mp.__name__ = "tune_e2e_mp"
 
-@dataclass
-class ProgressUpdate:
-    trials: int
-@dataclass
-class ProgressDone:
-    ctx: Any
-    error: bool
-Progress = Union[ProgressUpdate, ProgressDone]
-
-def tune_e2e_mp(
-    config: TuningConfig,
-    progress: queue.Queue[Progress],
-    ctx: Any = None,
-    timeout: Optional[float] = None,
-) -> None:
-    """Tune the model in a separate process and report the progress. Had better run on a worker thread."""
-    mp_ctx = mp.get_context("spawn")
-    with mp_ctx.Manager() as manager:
-        mp_progress = cast("mp.Queue[Optional[int]]", manager.Queue())
-        proc = mp_ctx.Process(target=_tune_e2e_mp_wrapper, args=(config, mp_progress))
-        proc.start()
-        done_trials = 0
-        error = False
-        while True:
-            try:
-                p = mp_progress.get(timeout=timeout)
-            except queue.Empty:
-                error = True
-                proc.terminate()
-                break
-            if p is None:
-                # Done
-                break
-            done_trials += p
-            progress.put(ProgressUpdate(p))
-        proc.join()
-    if error:
-        # Set back the progress
-        progress.put(ProgressUpdate(-done_trials))
-    else:
-        # Ensure consistency
-        progress.put(ProgressUpdate(config.num_trials - done_trials))
-    # Notify the main thread that the task is done
-    progress.put(ProgressDone(ctx, error=error))
-
-def main():
+def main() -> int:
     args = _parse_args()
 
     vanilla = args.vanilla if args.vanilla is not None else args.kernels_dir is None
@@ -711,12 +658,20 @@ def main():
         assert args.redirect_log, "Progress bar is not supported without redirecting log."
         assert (not args.load) and (not args.dry_run), "Progress bar is not supported for loading or dry run."
         config = TuningConfig.from_kernel_tuner(kernels_tuner, args.num_trials)
-        progress: queue.Queue[Progress] = queue.Queue()
+        progress: ThreadingProgressQueue[int] = queue.Queue()
         thread = threading.Thread(target=tune_e2e_mp, args=(config, progress))
         thread.start()
-        with tqdm(total=args.num_trials) as pbar:
+        with tqdm(total=args.num_trials, smoothing=0.0) as pbar:
+            should_stop = False
             while True:
-                p = progress.get()
+                try:
+                    p = progress.get()
+                except KeyboardInterrupt:
+                    if should_stop:
+                        return 1
+                    print("Interrupted. Press Ctrl+C again to exit.")
+                    should_stop = True
+                    continue
                 if isinstance(p, ProgressUpdate):
                     pbar.update(p.trials)
                 elif isinstance(p, ProgressDone):
@@ -724,7 +679,7 @@ def main():
                 else:
                     raise ValueError(f"Unknown progress type: {p}")
         thread.join()
-        return
+        return 0
 
     # Redirect output to a log file.
     redirect_log = kernels_tuner.redirect_log() if args.redirect_log else nullcontext()
@@ -737,7 +692,7 @@ def main():
         else:
             kernels_tuner.optimize_model_before_tuning(show=True)
             if args.dry_run:
-                return
+                return 0
             kernels_tuner.tune(
                 num_trials=args.num_trials,
                 max_trials_per_task=args.max_trials_per_task,
@@ -746,6 +701,8 @@ def main():
             mod_path = kernels_tuner.build(show=True)
         results = kernels_tuner.measure_and_write(mod_path)
         print("results:", results)
+    
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

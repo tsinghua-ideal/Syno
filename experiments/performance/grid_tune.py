@@ -1,15 +1,17 @@
 import argparse
 import concurrent.futures
+from concurrent.futures import Future
 from dataclasses import dataclass
 import logging
 import os
 import queue
+import sys
 from typing import Generator, List, Tuple
 
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from MetaScheduleTuner import MetaScheduleTuner, Progress, ProgressDone, ProgressUpdate, TunerState, TuningConfig, parse_target, parse_target_preset, tune_e2e_mp
+from MetaScheduleTuner import MetaScheduleTuner, ProgressDone, ProgressUpdate, ThreadingProgressQueue, TunerState, TuningConfig, parse_target, parse_target_preset, tune_e2e_mp
 
 
 @dataclass
@@ -123,7 +125,7 @@ def _count_trials() -> Stats:
     """Returns total trials and tuned trials."""
     total_trials = 0
     tuned_trials = 0
-    in_tuning_configs: List[TuningConfig] = []
+    in_tuning_dirs: List[str] = []
     for kernels_grid in get_kernels_grids(GRIDS):
         model_tuner = kernels_grid.to_model_tuner()
         for config in kernels_grid:
@@ -131,19 +133,19 @@ def _count_trials() -> Stats:
             if state == TunerState.TUNED:
                 tuned_trials += config.num_trials
             elif state == TunerState.TUNING:
-                in_tuning_configs.append(config)
+                in_tuning_dirs.append(model_tuner.get_kernel_specific_tuner_working_dir(config.kernels_dir))
             else:
                 assert state == TunerState.UNTUNED
             total_trials += config.num_trials
-    has_tuning = len(in_tuning_configs) > 0
+    has_tuning = len(in_tuning_dirs) > 0
     if has_tuning:
         logging.warning("WARNING: The following instances are still being tuned. Unless you want to overwrite them, please wait for them to finish.")
-        for config in in_tuning_configs:
-            logging.warning(f"  {model_tuner.get_kernel_specific_tuner_working_dir(config.kernels_dir)}")
+        for d in in_tuning_dirs:
+            logging.warning(f"  {d}")
         logging.warning("If you do want to overwrite, please add option --overwrite.")
     return Stats(total_trials, tuned_trials, has_tuning)
 
-def start_tuning(config: TuningConfig, progress: queue.Queue[Progress], index: int, timeout: float) -> int:
+def start_tuning(config: TuningConfig, progress: ThreadingProgressQueue[int], index: int, timeout: float) -> int:
     """This runs on a worker thread."""
     logging.info(f"Started tuning {config}")
     tune_e2e_mp(
@@ -163,20 +165,20 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true", default=False)
     return parser.parse_args()
 
-def main(args: argparse.Namespace):
+def main(args: argparse.Namespace) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     stats = _count_trials()
     logging.info(str(stats))
     if args.dry_run:
-        return
+        return 0
     total_trials, tuned_trials = stats.total_trials, stats.tuned_trials
     if stats.has_tuning:
         if args.overwrite:
             logging.info("Overwriting instances being tuned...")
         else:
             logging.error("Please wait for the instances being tuned to finish.")
-            return
+            return 1
 
     parallelism: int = args.parallelism
     assert parallelism > 0
@@ -184,10 +186,12 @@ def main(args: argparse.Namespace):
 
     success = 0
     failure = 0
-    with concurrent.futures.ThreadPoolExecutor(max_workers=parallelism) as executor, tqdm(total=total_trials, initial=tuned_trials) as pbar, logging_redirect_tqdm():
-        progress: queue.Queue[Progress] = queue.Queue()
+    cancelled = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=parallelism) as executor, tqdm(total=total_trials - tuned_trials, smoothing=0.0) as pbar, logging_redirect_tqdm():
+        progress: ThreadingProgressQueue[int] = queue.Queue()
         index = 0
-        futures = []
+        futures: List[Tuple[Future[int], TuningConfig]] = []
+        actual_trials: List[int] = []
         for kernels_grid in get_kernels_grids(GRIDS):
             model_tuner = kernels_grid.to_model_tuner()
             for config in kernels_grid:
@@ -195,29 +199,60 @@ def main(args: argparse.Namespace):
                 if state == TunerState.TUNED:
                     continue
                 future = executor.submit(start_tuning, config, progress, index, timeout)
-                futures.append(future)
+                futures.append((future, config))
+                actual_trials.append(0)
                 index += 1
         assert index == len(futures)
         remaining = index
 
         # Collect progress
+        should_stop = False
         while remaining > 0:
-            p = progress.get()
+            try:
+                p = progress.get()
+            except KeyboardInterrupt:
+                if should_stop:
+                    logging.info("Exiting...")
+                    return 1
+                logging.info("Interrupted. Clearing all uninitiated tasks...")
+                logging.info("Pending tasks:")
+                should_stop = True
+                executor.shutdown(wait=False, cancel_futures=True)
+                cancelled_trials = 0
+                for index, (future, config) in enumerate(futures):
+                    if future.cancelled():
+                        cancelled += 1
+                        remaining -= 1
+                        cancelled_trials += config.num_trials
+                    elif future.running():
+                        logging.info(f"  {config} ({actual_trials[index]}/{config.num_trials})")
+                pbar.total -= cancelled_trials
+                pbar.refresh()
+                logging.info("Cleared. Press Ctrl+C again to exit.")
+                continue
             if isinstance(p, ProgressUpdate):
+                actual_trials[p.ctx] += p.trials
                 pbar.update(p.trials)
             elif isinstance(p, ProgressDone):
                 remaining -= 1
-                index = futures[p.ctx].result()
+                index, config = futures[p.ctx]
+                index = index.result()
                 assert index == p.ctx
                 if p.error:
+                    expected_trials = 0
                     failure += 1
                 else:
+                    expected_trials = config.num_trials
                     success += 1
+                # Ensure consistency
+                pbar.update(expected_trials - actual_trials[index])
             else:
                 raise ValueError(f"Unexpected progress: {p}")
 
-        logging.info(f"All tuning finished: existing {tuned_trials}, success {success}, failure {failure}, total {success + failure}")
+        logging.info(f"All tuning finished: existing trials {tuned_trials}, success {success}, failure {failure}, cancelled {cancelled}")
+
+    return 0
 
 if __name__ == "__main__":
     args = _parse_args()
-    main(args)
+    sys.exit(main(args))
