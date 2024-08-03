@@ -1,12 +1,10 @@
 thop
 timm
-oss2
 matplotlib
 seaborn
 tqdm
-fmt
-nlohmann_json
 datasets
 transformers
 multiset
 easypyplot
+torch_geometric

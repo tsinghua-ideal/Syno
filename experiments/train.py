@@ -21,7 +21,7 @@ if __name__ == '__main__':
     logging.info('Start training ...')
     losses = trainer.train(model, train_dataloader, val_dataloader, args)
 
-    if 'gpt' in args.model:
+    if 'gpt' in args.model or 'rwkv' in args.model:
         if args.gpt_loss_output:
             with open(args.gpt_loss_output, "w") as f:
                 f.write(f"{losses}")
@@ -31,3 +31,4 @@ if __name__ == '__main__':
         len_not_avg = max(int(len(losses) * 0.8), 1)
         loss = np.mean(losses[len_not_avg - 1:])
         logging.debug(f"Meaned loss of last 20%: {loss}")
+

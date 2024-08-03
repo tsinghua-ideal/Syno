@@ -13,6 +13,7 @@ from .conv_net import ConvNet, SpeedyResNet
 from .fc_net import FCNet
 from .common import get_common_model, get_vanilla_common_model
 from .gpt import GPTConfig, GPT
+from .rwkv import RWKV
 from .gcn import GCN
 from .mobilenetv2 import MobileNetV2
 from .manual_kernels import ManualImpl
@@ -128,6 +129,12 @@ def get_model(
         config.vocab_size = GPT2Tokenizer.from_pretrained(args.gpt_tokenizer).vocab_size
         config.block_size = args.gpt_seq_len
         model = GPT(config)
+    elif args.model.startswith("rwkv/"):
+        config = RWKV.get_default_config()
+        config.model_type = args.model[len("rwkv/") :]
+        config.vocab_size = GPT2Tokenizer.from_pretrained(args.gpt_tokenizer).vocab_size
+        config.block_size = args.gpt_seq_len
+        model = RWKV(config)
     elif args.model == "gcn":
         model = GCN()
     elif args.model == "mobilenet_v2":

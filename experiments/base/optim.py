@@ -10,17 +10,26 @@ def get_optimizer(model: nn.Module, args):
 def get_gpt_optimizer(model: nn.Module, args):
     decay = set()
     no_decay = set()
-    whitelist_weight_modules = (nn.Linear, )
-    blacklist_weight_modules = (nn.LayerNorm, nn.Embedding)
-    for mn, m in model.named_modules():
-        for pn, p in m.named_parameters():
-            fpn = '%s.%s' % (mn, pn) if mn else pn
-            if pn.endswith("bias"):
-                no_decay.add(fpn)
-            elif (pn.endswith("weight") and isinstance(m, whitelist_weight_modules)) or ("kernel" in pn and "weights" in pn):
-                decay.add(fpn)
-            elif pn.endswith("weight") and isinstance(m, blacklist_weight_modules):
-                no_decay.add(fpn)
+    if "gpt" in args.model:
+        whitelist_weight_modules = (nn.Linear, )
+        blacklist_weight_modules = (nn.LayerNorm, nn.Embedding)
+        for mn, m in model.named_modules():
+            for pn, p in m.named_parameters():
+                fpn = '%s.%s' % (mn, pn) if mn else pn
+                if pn.endswith("bias"):
+                    no_decay.add(fpn)
+                elif (pn.endswith("weight") and isinstance(m, whitelist_weight_modules)) or ("kernel" in pn and "weights" in pn):
+                    decay.add(fpn)
+                elif pn.endswith("weight") and isinstance(m, blacklist_weight_modules):
+                    no_decay.add(fpn)
+    else: # "rwkv" in args.model
+        for mn, m in model.named_modules():
+            for pn, p in m.named_parameters():
+                fpn = '%s.%s' % (mn, pn) if mn else pn
+                if p.dim() >= 2 and 'time_' not in mn:
+                    decay.add(fpn)
+                else:
+                    no_decay.add(fpn)
 
     param_dict = {pn: p for pn, p in model.named_parameters()}
     inter_params = decay & no_decay

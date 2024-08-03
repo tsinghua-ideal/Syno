@@ -17,7 +17,7 @@ class FCNet(KASModel):
         )
 
     def sample_input_shape(self, seq_len=None):
-        return (1, 28, 28)
+        return (1, 224, 224)
     
     def sampler_parameters(self, seq_len=None):
         return {
@@ -29,6 +29,7 @@ class FCNet(KASModel):
         }
 
     def forward(self, x):
+        x = nn.functional.interpolate(x, size=(28, 28))
         x = x.view(x.size(0), -1)
         x = self.layers(x)
         return x

@@ -29,7 +29,7 @@ def train(
     use_bf16_train=False,
     use_bf16_test=False,
 ) -> List[float]:
-    if "gpt" in args.model:
+    if "gpt" in args.model or "rwkv" in args.model:
         return train_gpt(model, train_dataloader, val_dataloader, args)
     if "gcn" in args.model:
         return train_gnn(model, train_dataloader, val_dataloader, args)

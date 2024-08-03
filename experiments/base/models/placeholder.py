@@ -32,10 +32,13 @@ class LinearPlaceholder(Placeholder):
 
     @staticmethod
     def mapping(in_size, out_size):
-        n, seq_len, in_features = in_size
-        n2, seq_len2, out_features = out_size
-        assert n == n2 and seq_len == seq_len2
-        return {"N": n, "seq_len": seq_len, "H_in": in_features}
+        assert in_size[:-1] == out_size[:-1]
+        if len(in_size) == 3:
+            n, seq_len, in_features = in_size
+            return {"N": n, "seq_len": seq_len, "H_in": in_features}
+        else:
+            n, in_features = in_size
+            return {"N": n, "H_in": in_features}
 
 
 class ViTLinearPlaceholder(Placeholder):

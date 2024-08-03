@@ -23,7 +23,7 @@ mamba install zlib libpng libzlib ncurses -c conda-forge
 mamba install cudatoolkit=11.7 cudnn=8.8.0 -c conda-forge
 mamba install cudatoolkit-dev=11.7 -c conda-forge
 mamba install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
-mamba install boost nlohmann_json fmt pybind11 gtest gmock pytest -c conda-forge
+mamba install boost nlohmann_json fmt=10 pybind11 gtest gmock pytest -c conda-forge
 pip install -r requirements.txt
 ```
 
@@ -35,11 +35,12 @@ CMake tests are available.
 
 ```bash
 cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=true -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` .
-cmake --build build
+cmake --build build --parallel
 cd build && ctest
 ```
 
 This project uses [`scikit-build`](https://github.com/scikit-build/scikit-build-core), so installing the Python module is fairly simple.
+Note: please prepare at least 10GB RAM. 
 
 ```bash
 pip install . --config-settings=cmake.define.CMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'`

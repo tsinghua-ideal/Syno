@@ -183,7 +183,7 @@ class CommonModel(KASModel):
 def get_common_model_args(args) -> Dict:
     assert args.model.startswith("torchvision/")
     return {
-        "name": args.model[len("torchvision/") :],
+        "name": args.model[len("torchvision/") :].replace('/', '.'),
         "num_classes": args.num_classes,
         "input_size": args.input_size,
     }
