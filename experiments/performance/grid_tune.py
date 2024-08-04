@@ -1,4 +1,5 @@
 import argparse
+from contextlib import ExitStack
 import dataclasses
 from dataclasses import dataclass
 import logging
@@ -143,36 +144,6 @@ def get_kernels_grids(grids: List[Grid]) -> List[KernelsGrid]:
     return [k for g in grids for k in g]
 
 @dataclass
-class Stats:
-    total_trials: int
-    tuned_trials: int
-    has_tuning: bool
-
-def _count_trials() -> Stats:
-    """Returns total trials and tuned trials."""
-    total_trials = 0
-    tuned_trials = 0
-    in_tuning_dirs: List[str] = []
-    for kernels_grid in get_kernels_grids(GRIDS):
-        model_tuner = kernels_grid.to_model_tuner()
-        for config in kernels_grid:
-            state = model_tuner.query_kernel_specific_tuner_state(config.kernels_dir)
-            if state == TunerState.TUNED:
-                tuned_trials += config.num_trials
-            elif state == TunerState.TUNING:
-                in_tuning_dirs.append(model_tuner.get_kernel_specific_tuner_working_dir(config.kernels_dir))
-            else:
-                assert state == TunerState.UNTUNED
-            total_trials += config.num_trials
-    has_tuning = len(in_tuning_dirs) > 0
-    if has_tuning:
-        logging.warning("WARNING: The following instances are still being tuned. Unless you want to overwrite them, please wait for them to finish.")
-        for d in in_tuning_dirs:
-            logging.warning(f"  {d}")
-        logging.warning("If you do want to overwrite, please add option --overwrite.")
-    return Stats(total_trials, tuned_trials, has_tuning)
-
-@dataclass
 class Tracker:
     index: int
     config: TuningConfig
@@ -186,6 +157,9 @@ class Tracker:
         self.process.start()
         self.update(0)
         logging.info(f"Started tuning {self.config}")
+
+    def is_active(self) -> bool:
+        return self.process is not None
 
     def join(self) -> None:
         assert self.process is not None
@@ -216,8 +190,178 @@ class Tracker:
         # Ensure consistency
         return -self.actual_trials
 
-    def timed_out(self, timeout: float) -> bool:
+    def is_timed_out(self, timeout: float) -> bool:
         return time.time() - self.last_updated > timeout
+
+class TrackerManager(ExitStack):
+    """Lifecycle of a tracker:
+    1. Pending
+    2. Running (from pending trackers)
+    3. Done (can be either success or failure, from running trackers)
+    4. Skipped (upon graceful shutdown, from pending trackers)
+    5. Aborted (upon forced shutdown or timeout, from running trackers)
+    """
+    def __init__(self, trackers: List[Tracker], parallelism: int, timeout: float) -> None:
+        super().__init__()
+
+        self._trackers = trackers
+        self._parallelism = parallelism
+        self._timeout = timeout
+        self._mp_ctx = mp.get_context("spawn")
+
+        # State
+        self.trackers_running: Dict[int, Tracker] = {}
+        self._cursor = 0
+
+        # Resources
+        self._manager = self._mp_ctx.Manager()
+        self._progress = cast("ProgressQueue[int]", self._manager.Queue())
+        objective_trials = sum(t.config.num_trials for t in trackers)
+        self._pbar = tqdm(total=objective_trials, smoothing=0.0)
+
+        # Stats
+        self.success = 0
+        self.failure = 0
+        self.skipped = 0
+        self.cancelled = 0
+        self.timed_out = 0
+
+    def __enter__(self) -> "TrackerManager":
+        super().__enter__()
+        self.enter_context(self._manager)
+        self.enter_context(self._pbar)
+        self.enter_context(logging_redirect_tqdm())
+        return self
+
+    def __exit__(self, *exc_info) -> None:
+        self.cancel_all_running()
+        self.skip_all_pending()
+        super().__exit__(*exc_info)
+
+    def _update_pbar(self, delta: int, delta_total: Optional[int] = None) -> None:
+        self._pbar.update(delta)
+        if delta_total is not None:
+            self._pbar.total += delta_total
+        self._pbar.refresh()
+
+    def _next_pending_tracker(self) -> Optional[Tracker]:
+        if self._cursor < len(self._trackers):
+            tracker = self._trackers[self._cursor]
+            self._cursor += 1
+            return tracker
+        return None
+
+    def _run_tracker(self, tracker: Tracker) -> None:
+        """Pending -> Running."""
+        self.trackers_running[tracker.index] = tracker
+        tracker.start(self._mp_ctx, self._progress)
+
+    def launch_trackers(self) -> None:
+        """Pending -> Running. Launch as many trackers as possible."""
+        while len(self.trackers_running) < self._parallelism:
+            tracker = self._next_pending_tracker()
+            if tracker is None:
+                break
+            self._run_tracker(tracker)
+
+    def _abort_tracker(self, tracker: Tracker) -> None:
+        """Running -> Aborted."""
+        tracker.cancel_and_join()
+        del self.trackers_running[tracker.index]
+        self._update_pbar(tracker.failure(), delta_total=-tracker.config.num_trials)
+
+    def cancel_all_running(self) -> None:
+        """Running -> Aborted (Cancelled)."""
+        for tracker in list(self.trackers_running.values()):
+            assert tracker.is_active()
+            self._abort_tracker(tracker)
+            self.cancelled += 1
+
+    def skip_all_pending(self) -> None:
+        """Pending -> Skipped."""
+        while True:
+            tracker = self._next_pending_tracker()
+            if tracker is None:
+                break
+            assert not tracker.is_active()
+            assert tracker.actual_trials == 0
+            self._update_pbar(0, delta_total=-tracker.config.num_trials)
+            self.skipped += 1
+
+    def timeout_tracker(self, tracker: Tracker) -> None:
+        """Running -> Aborted (Timed out)."""
+        assert tracker.is_active()
+        self._abort_tracker(tracker)
+        self.timed_out += 1
+
+    def on_update(self, tracker: Tracker, trials: int) -> None:
+        """Running -> Running."""
+        self._update_pbar(tracker.update(trials))
+
+    def _on_done(self, tracker: Tracker) -> None:
+        tracker.join()
+        del self.trackers_running[tracker.index]
+
+    def on_success(self, tracker: Tracker) -> None:
+        """Running -> Done (Success)."""
+        self._on_done(tracker)
+        self._update_pbar(tracker.success())
+        self.success += 1
+
+    def on_failure(self, tracker: Tracker) -> None:
+        """Running -> Done (Failure)."""
+        self._on_done(tracker)
+        self._update_pbar(tracker.failure(), delta_total=-tracker.config.num_trials)
+        self.failure += 1
+
+    def check_timed_out_trackers(self) -> None:
+        for tracker in list(self.trackers_running.values()):
+            if tracker.is_timed_out(self._timeout):
+                self.timeout_tracker(tracker)
+
+    def run(self) -> None:
+        """The main loop."""
+
+        # Fill the pipeline.
+        self.launch_trackers()
+
+        should_stop = False
+        while len(self.trackers_running) > 0:
+            try:
+                p = self._progress.get(timeout=self._timeout)
+                tracker = self.trackers_running[p.ctx]
+                if isinstance(p, ProgressUpdate):
+                    self.on_update(tracker, p.trials)
+                elif isinstance(p, ProgressDone):
+                    if p.error:
+                        self.on_failure(tracker)
+                    else:
+                        self.on_success(tracker)
+                else:
+                    raise ValueError(f"Unexpected progress: {p}")
+            except queue.Empty:
+                # Some of the running tasks have timed out
+                pass
+            except KeyboardInterrupt:
+                if should_stop:
+                    logging.info("Terminating all running tasks...")
+                    self.cancel_all_running()
+                    break
+                should_stop = True
+                logging.info("Interrupted. Clearing all uninitiated tasks...")
+                self.skip_all_pending()
+                logging.info("Cleared. Press Ctrl+C again to exit.")
+                logging.info("Pending tasks:")
+                for tracker in self.trackers_running.values():
+                    logging.info(f"  {tracker.config} ({tracker.actual_trials}/{tracker.config.num_trials})")
+
+            # Check for timed out tasks
+            self.check_timed_out_trackers()
+
+            # Enqueue new trackers
+            self.launch_trackers()
+
+        logging.info(f"All tuning finished: success {self.success}, failure {self.failure}, skipped {self.skipped}, timed out {self.timed_out}, cancelled {self.cancelled}")
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -230,13 +374,32 @@ def _parse_args() -> argparse.Namespace:
 def main(args: argparse.Namespace) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    stats = _count_trials()
-    logging.info(str(stats))
+    index = 0
+    trackers: List[Tracker] = []
+    in_tuning_dirs: List[str] = []
+    for kernels_grid in get_kernels_grids(GRIDS):
+        model_tuner = kernels_grid.to_model_tuner()
+        for config in kernels_grid:
+            state = model_tuner.query_kernel_specific_tuner_state(config.kernels_dir)
+            if state == TunerState.TUNED:
+                continue
+            if state == TunerState.TUNING:
+                in_tuning_dirs.append(model_tuner.get_kernel_specific_tuner_working_dir(config.kernels_dir))
+            trackers.append(Tracker(index=index, config=config))
+            index += 1
+    assert index == len(trackers)
+
+    has_tuning = len(in_tuning_dirs) > 0
+    if has_tuning:
+        logging.warning("WARNING: The following instances are still being tuned. Unless you want to overwrite them, please wait for them to finish.")
+        for d in in_tuning_dirs:
+            logging.warning(f"  {d}")
+        logging.warning("If you do want to overwrite, please add option --overwrite.")
+
     if args.dry_run:
         return 0
-    total_trials, tuned_trials = stats.total_trials, stats.tuned_trials
-    objective_trials = total_trials - tuned_trials
-    if stats.has_tuning:
+
+    if has_tuning:
         if args.overwrite:
             logging.info("Overwriting instances being tuned...")
         else:
@@ -246,98 +409,10 @@ def main(args: argparse.Namespace) -> int:
     parallelism: int = args.parallelism
     assert parallelism > 0
     timeout: float = args.timeout
+    assert timeout > 0
 
-    success = 0
-    failure = 0
-    timed_out = 0
-    cancelled = 0
-    mp_ctx = mp.get_context("spawn")
-    with mp_ctx.Manager() as manager, tqdm(total=objective_trials, smoothing=0.0) as pbar, logging_redirect_tqdm():
-        progress = cast("ProgressQueue[int]", manager.Queue())
-        index = 0
-        trackers: List[Tracker] = []
-        for kernels_grid in get_kernels_grids(GRIDS):
-            model_tuner = kernels_grid.to_model_tuner()
-            for config in kernels_grid:
-                state = model_tuner.query_kernel_specific_tuner_state(config.kernels_dir)
-                if state == TunerState.TUNED:
-                    continue
-                trackers.append(Tracker(index=index, config=config))
-                index += 1
-        assert index == len(trackers)
-
-        cursor = 0
-        trackers_running: Dict[int, Tracker] = {}
-
-        def enqueue_trackers() -> None:
-            nonlocal cursor
-            while len(trackers_running) < parallelism and cursor < len(trackers):
-                tracker = trackers[cursor]
-                cursor += 1
-                trackers_running[tracker.index] = tracker
-                tracker.start(mp_ctx, progress)
-
-        def cancel_running_tracker(tracker: Tracker) -> None:
-            tracker.cancel_and_join()
-            del trackers_running[tracker.index]
-            pbar.update(tracker.failure())
-
-        enqueue_trackers()
-
-        should_stop = False
-        while len(trackers_running) > 0:
-            try:
-                p = progress.get(timeout=timeout)
-                tracker = trackers_running[p.ctx]
-                if isinstance(p, ProgressUpdate):
-                    pbar.update(tracker.update(p.trials))
-                elif isinstance(p, ProgressDone):
-                    tracker.join()
-                    del trackers_running[tracker.index]
-                    if p.error:
-                        pbar.update(tracker.failure())
-                        failure += 1
-                    else:
-                        pbar.update(tracker.success())
-                        success += 1
-                else:
-                    raise ValueError(f"Unexpected progress: {p}")
-            except queue.Empty:
-                # Some of the running tasks have timed out
-                pass
-            except KeyboardInterrupt:
-                if should_stop:
-                    logging.info("Terminating all running tasks...")
-                    for index in list(trackers_running.keys()):
-                        cancel_running_tracker(trackers_running[index])
-                        cancelled += 1
-                    break
-                should_stop = True
-                logging.info("Interrupted. Clearing all uninitiated tasks...")
-                cancelled_trials = 0
-                while cursor < len(trackers):
-                    tracker = trackers[cursor]
-                    cursor += 1
-                    cancelled_trials += tracker.config.num_trials
-                    cancelled += 1
-                pbar.total -= cancelled_trials
-                pbar.refresh()
-                logging.info("Cleared. Press Ctrl+C again to exit.")
-                logging.info("Pending tasks:")
-                for tracker in trackers_running.values():
-                    logging.info(f"  {tracker.config} ({tracker.actual_trials}/{tracker.config.num_trials})")
-
-            # Check for timed out tasks
-            for index in list(trackers_running.keys()):
-                tracker = trackers_running[index]
-                if tracker.timed_out(timeout):
-                    cancel_running_tracker(tracker)
-                    timed_out += 1
-
-            # Enqueue new trackers
-            enqueue_trackers()
-
-        logging.info(f"All tuning finished: existing trials {tuned_trials}, objective_trials {objective_trials}, success {success}, failure {failure}, timed out {timed_out}, cancelled {cancelled}")
+    with TrackerManager(trackers, parallelism=parallelism, timeout=timeout) as manager:
+        manager.run()
 
     return 0
 
