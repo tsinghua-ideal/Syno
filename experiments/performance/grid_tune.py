@@ -151,12 +151,15 @@ class Tracker:
     actual_trials: int = 0
     last_updated: float = dataclasses.field(default_factory=time.time)
 
+    @property
+    def total_trials(self) -> int:
+        return self.config.num_trials
+
     def start(self, mp_ctx, progress: "ProgressQueue[int]") -> None:
         assert self.process is None
         self.process = mp_ctx.Process(target=tune_e2e_mp_runner, args=(self.config, progress, self.index), daemon=True)
         self.process.start()
         self.update(0)
-        logging.info(f"Started tuning {self.config}")
 
     def is_active(self) -> bool:
         return self.process is not None
@@ -172,23 +175,9 @@ class Tracker:
         self.process.join()
         self.process = None
 
-    # Return pbar update
-    def update(self, trials: int) -> int:
+    def update(self, trials: int) -> None:
         self.actual_trials += trials
         self.last_updated = time.time()
-        return trials
-
-    # Return pbar update
-    def success(self) -> int:
-        logging.info(f"Finished tuning {self.config}")
-        # Ensure consistency
-        return self.config.num_trials - self.actual_trials
-
-    # Return pbar update
-    def failure(self) -> int:
-        logging.error(f"Error tuning {self.config}")
-        # Ensure consistency
-        return -self.actual_trials
 
     def is_timed_out(self, timeout: float) -> bool:
         return time.time() - self.last_updated > timeout
@@ -216,7 +205,7 @@ class TrackerManager(ExitStack):
         # Resources
         self._manager = self._mp_ctx.Manager()
         self._progress = cast("ProgressQueue[int]", self._manager.Queue())
-        objective_trials = sum(t.config.num_trials for t in trackers)
+        objective_trials = sum(t.total_trials for t in trackers)
         self._pbar = tqdm(total=objective_trials, smoothing=0.0)
 
         # Stats
@@ -238,10 +227,9 @@ class TrackerManager(ExitStack):
         self.skip_all_pending()
         super().__exit__(*exc_info)
 
-    def _update_pbar(self, delta: int, delta_total: Optional[int] = None) -> None:
+    def _update_pbar(self, delta: int, delta_total: int = 0) -> None:
+        self._pbar.total += delta_total
         self._pbar.update(delta)
-        if delta_total is not None:
-            self._pbar.total += delta_total
         self._pbar.refresh()
 
     def _next_pending_tracker(self) -> Optional[Tracker]:
@@ -255,6 +243,7 @@ class TrackerManager(ExitStack):
         """Pending -> Running."""
         self.trackers_running[tracker.index] = tracker
         tracker.start(self._mp_ctx, self._progress)
+        logging.info(f"Started tuning {tracker.config}")
 
     def launch_trackers(self) -> None:
         """Pending -> Running. Launch as many trackers as possible."""
@@ -268,7 +257,10 @@ class TrackerManager(ExitStack):
         """Running -> Aborted."""
         tracker.cancel_and_join()
         del self.trackers_running[tracker.index]
-        self._update_pbar(tracker.failure(), delta_total=-tracker.config.num_trials)
+        self._update_pbar(
+            delta=0,
+            delta_total=tracker.actual_trials - tracker.total_trials,
+        )
 
     def cancel_all_running(self) -> None:
         """Running -> Aborted (Cancelled)."""
@@ -285,33 +277,40 @@ class TrackerManager(ExitStack):
                 break
             assert not tracker.is_active()
             assert tracker.actual_trials == 0
-            self._update_pbar(0, delta_total=-tracker.config.num_trials)
+            self._update_pbar(0, delta_total=-tracker.total_trials)
             self.skipped += 1
 
     def timeout_tracker(self, tracker: Tracker) -> None:
         """Running -> Aborted (Timed out)."""
         assert tracker.is_active()
         self._abort_tracker(tracker)
+        logging.error(f"Timed out: {tracker.config}")
         self.timed_out += 1
 
     def on_update(self, tracker: Tracker, trials: int) -> None:
         """Running -> Running."""
-        self._update_pbar(tracker.update(trials))
+        tracker.update(trials)
+        self._update_pbar(delta=trials)
 
     def _on_done(self, tracker: Tracker) -> None:
         tracker.join()
         del self.trackers_running[tracker.index]
+        self._update_pbar(
+            delta=0,
+            # Ensure consistency.
+            delta_total=tracker.actual_trials - tracker.total_trials,
+        )
 
     def on_success(self, tracker: Tracker) -> None:
         """Running -> Done (Success)."""
         self._on_done(tracker)
-        self._update_pbar(tracker.success())
+        logging.info(f"Finished tuning: {tracker.config}")
         self.success += 1
 
     def on_failure(self, tracker: Tracker) -> None:
         """Running -> Done (Failure)."""
         self._on_done(tracker)
-        self._update_pbar(tracker.failure(), delta_total=-tracker.config.num_trials)
+        logging.error(f"Failed to tune: {tracker.config}")
         self.failure += 1
 
     def check_timed_out_trackers(self) -> None:
@@ -353,7 +352,7 @@ class TrackerManager(ExitStack):
                 logging.info("Cleared. Press Ctrl+C again to exit.")
                 logging.info("Pending tasks:")
                 for tracker in self.trackers_running.values():
-                    logging.info(f"  {tracker.config} ({tracker.actual_trials}/{tracker.config.num_trials})")
+                    logging.info(f"  {tracker.config} ({tracker.actual_trials}/{tracker.total_trials})")
 
             # Check for timed out tasks
             self.check_timed_out_trackers()
