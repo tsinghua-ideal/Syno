@@ -34,7 +34,7 @@ class KernelsGrid(Iterable[TuningConfig]):
     target: str
     target_host: str
     trials: int
-    kernels_dirs: KernelsDirs
+    kernels_dirs: Iterable[Optional[str]]
 
     def to_model_tuner(self) -> MetaScheduleTuner:
         return MetaScheduleTuner(
@@ -59,7 +59,7 @@ class Grid:
     model: str
     vanilla: bool
     targets_and_trials: List[Tuple[str, int]]
-    kernels_dirs: KernelsDirs
+    kernels_dirs: Iterable[Optional[str]]
 
     def __iter__(self) -> Generator[KernelsGrid, None, None]:
         for target_preset, trials in self.targets_and_trials:
@@ -86,13 +86,44 @@ _DENSENET_KERNELS_DIRS = KernelsDirs([
     "./results/densenet-good-kernels",
 ])
 
+_RESNET_34_LAYERS_KERNELS_DIRS = [
+    # KAS
+    "./results/resnet-good-kernels/0.6x/07889_15252107013978896537",
+    "./results/resnet-good-kernels/0.2x/07754_18091915762600937904",
+    # NAS-PTE
+    "./results/nas-pte/seq_1",
+    "./results/nas-pte/seq_2",
+    "./results/nas-pte/seq_3",
+]
+
+_RESNET_34_LAYERS_NAMES = [
+    # Same
+    "conv_io64",
+    "conv_io128",
+    "conv_io256",
+    "conv_io512",
+    # Down
+    "conv_i64_o128",
+    "conv_i128_o256",
+    "conv_i256_o512",
+    # Residual
+    "residual_i64_o128",
+    "residual_i128_o256",
+    "residual_i256_o512",
+]
+
+_RESNET_34_LAYERS_MODELS = [
+    f"resnet34layers/{layer}"
+    for layer in _RESNET_34_LAYERS_NAMES
+]
+
 def _make_targets_and_trials(trials: int) -> List[Tuple[str, int]]:
     return [
         ("jetson_orin_nano-gpu", trials),
         ("jetson_orin_nano-cpu", trials),
     ]
 
-def _make_grid(model: str, trials: int, kernels_dirs: KernelsDirs) -> Grid:
+def _make_grid(model: str, trials: int, kernels_dirs: Iterable[Optional[str]]) -> Grid:
     return Grid(
         model,
         False,
@@ -100,17 +131,24 @@ def _make_grid(model: str, trials: int, kernels_dirs: KernelsDirs) -> Grid:
         kernels_dirs,
     )
 
-def _make_vanilla(grid: Grid) -> Grid:
+def _make_vanilla(grid: Grid, vanilla: bool = True) -> Grid:
     return Grid(
         grid.model,
-        True,
+        vanilla,
         grid.targets_and_trials,
         KernelsDirs([None]),
     )
 
-def _make_both(model: str, trials: int, kernels_dirs: KernelsDirs) -> List[Grid]:
+def _make_both(model: str, trials: int, kernels_dirs: Iterable[Optional[str]], vanilla_for_vanilla: bool = True) -> List[Grid]:
     grid = _make_grid(model, trials, kernels_dirs)
-    return [_make_vanilla(grid), grid]
+    return [_make_vanilla(grid, vanilla=vanilla_for_vanilla), grid]
+
+def _make_both_for_models(models: List[str], trials: int, kernels_dirs: Iterable[Optional[str]], vanilla_for_vanilla: bool = True) -> List[Grid]:
+    return [
+        grid
+        for model in models
+        for grid in _make_both(model, trials, kernels_dirs, vanilla_for_vanilla=vanilla_for_vanilla)
+    ]
 
 GRIDS = [
     *_make_both(
@@ -137,6 +175,12 @@ GRIDS = [
         "torchvision/densenet121",
         50000,
         _DENSENET_KERNELS_DIRS,
+    ),
+    *_make_both_for_models(
+        _RESNET_34_LAYERS_MODELS,
+        4000,
+        _RESNET_34_LAYERS_KERNELS_DIRS,
+        vanilla_for_vanilla=False,
     ),
 ]
 
