@@ -67,12 +67,12 @@ class RWKV_TimeMix_x051a(nn.Module):
 
         self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
 
-        self.receptance = nn.Linear(config.n_embd, config.n_embd)
-        self.key = nn.Linear(config.n_embd, config.n_embd)
-        self.value = nn.Linear(config.n_embd, config.n_embd)
-        self.gate = nn.Linear(config.n_embd, config.n_embd)
+        self.receptance = LinearPlaceholder(config.n_embd, config.n_embd)
+        self.key = LinearPlaceholder(config.n_embd, config.n_embd)
+        self.value = LinearPlaceholder(config.n_embd, config.n_embd)
+        self.gate = LinearPlaceholder(config.n_embd, config.n_embd)
 
-        self.output = nn.Linear(config.n_embd, config.n_embd)
+        self.output = LinearPlaceholder(config.n_embd, config.n_embd)
         self.ln_x = nn.GroupNorm(self.n_head, config.n_embd, eps=(1e-5)*64)
 
         self.dropout = nn.Dropout(config.dropout)
@@ -156,7 +156,7 @@ class RWKV_ChannelMix_x051a(nn.Module):
 
         self.key = nn.Linear(config.n_embd, 3 * config.n_embd)
         self.value = nn.Linear(3 * config.n_embd, config.n_embd)
-        self.receptance = nn.Linear(config.n_embd, config.n_embd)
+        self.receptance = LinearPlaceholder(config.n_embd, config.n_embd)
         self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, x):
@@ -262,7 +262,7 @@ class RWKV(KASModel):
     def sampler_parameters(self, args=None):
         return {
             "input_shape": "[N, seq_len, H_in: unordered]",
-            "output_shape": "[N, seq_len, t*H_in]",
+            "output_shape": "[N, seq_len, H_in]",
             "primary_specs": ["N: 0", "seq_len: 0", "H_in: 4"],
             "coefficient_specs": ["k_1=2: 3", "k_2=5: 2", "t=3: 3", "g=32: 3"],
             "fixed_io_pairs": [(0, 0)],

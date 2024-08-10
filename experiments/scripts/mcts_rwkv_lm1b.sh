@@ -1,0 +1,13 @@
+./run_tmux.sh 8 kas \
+--kas-server-save-dir results/rwkv-session-v$(date '+%Y%m%d') \
+--kas-search-algo MCTS \
+--model rwkv/rwkv-v5.1a-0.1b --batch-size 1 \
+--lr 3e-4 --weight-decay 0.1 --grad-norm-clip 1.0 \
+--dataset lm1b \
+--compile \
+--gpt-seq-len 2048 --gpt-tokenizer gpt2-large --gpt-max-iters 0 --gpt-max-minutes 30 \
+--kas-sampler-workers 64 --kas-num-virtual-evaluator 4 --kas-reward-power 4 \
+--kas-server-save-interval 1800 \
+--kas-server-port 7070 \
+--kas-max-flops-ratio 1.2 \
+--kas-target loss --gpt-max-loss 6.9 --kas-max-enumerations 5 --kas-max-finalizations 2 --kas-depth 7 --kas-max-reductions 5 --kas-max-merges 2 --kas-max-splits 2 --kas-max-shifts 2 --kas-max-strides 0 --kas-max-size-multiplier 4 --kas-max-variables-in-size 3 --kas-max-chain-length 5 --kas-max-shift-rhs 2 --kas-max-expansion-repeat-multiplier 5 --kas-allow-tile --kas-max-expansion-merge-multiplier 6144 --kas-min-weight-share-dim 8 --kas-max-weight-share-dim 8 --kas-min-unfold-ratio 2.3 --kas-min-weight-nparams 100000 --client-mem-limit 1.0

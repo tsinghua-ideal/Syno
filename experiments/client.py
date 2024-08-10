@@ -162,7 +162,7 @@ def main():
         )
 
         logging.info("Evaluating on real dataset ...")
-        if "gpt" not in args.model:
+        if "gpt" not in args.model and "rwkv" not in args.model:
             if "imagenet" in args.dataset:
                 from fastargs import get_current_config
                 from base.imagenet_trainer import ImageNetTrainer

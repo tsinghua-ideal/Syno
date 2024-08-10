@@ -56,7 +56,7 @@ class MCTSAlgorithm:
 
         self.stuck = None
 
-        self.preconditioned = "gpt" in args.model
+        self.preconditioned = "gpt" in args.model or "rwkv" in args.model
 
     def serialize(self):
         return self.mcts.serialize()
