@@ -68,9 +68,14 @@ python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --target
 
 Recommended number of trials:
 
-| Network | Target | Trials |
-| ResNet-18 | GPU | 7500 |
-| ResNet-34 | GPU | 9000 |
+| Network | Tasks | Trials |
+| ResNet-18 | 18 | 10000 |
+| ResNet-34 | 18 | 10000 |
+| ResNext-29 | 25 | 15000 |
+| EfficientNet-v2 | 47 | 30000 |
+| DenseNet-121 | 134 | 50000 |
+
+These numbers suffice for convergence.
 
 # PyTorch Benchmark
 
