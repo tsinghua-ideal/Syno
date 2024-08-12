@@ -27,6 +27,7 @@ from importlib.util import spec_from_file_location, module_from_spec
 import multiprocessing as mp
 import os
 import sys
+from traceback import print_exc
 from typing import Callable, cast, Dict, Optional, Tuple, TypeVar, Union
 
 import numpy as np
@@ -109,6 +110,11 @@ class LogRedirector(ExitStack):
             if not self.__exit__(*sys.exc_info()):
                 raise
         return self
+    def __exit__(self, exc_type, exc_value, traceback) -> Optional[bool]:
+        # Log exceptions.
+        if exc_type is not None:
+            print_exc()
+        return super().__exit__(exc_type, exc_value, traceback)
 
 class KernelSpecificTuner:
     def __init__(self, parent: 'MetaScheduleTuner', kernels_dir: Optional[str], working_dir: str, relax_mod: IRModule) -> None:
