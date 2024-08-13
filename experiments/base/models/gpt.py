@@ -53,7 +53,7 @@ class CausalSelfAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
         assert config.n_embd % config.n_head == 0
-        self.c_attn = LinearPlaceholder(config.n_embd, 3 * config.n_embd)
+        self.c_attn = LinearPlaceholder(config.n_embd, 3 * config.n_embd, group_identifier="attn")
         self.c_proj = nn.Linear(config.n_embd, config.n_embd)
         self.attn_dropout = nn.Dropout(config.attn_pdrop)
         self.resid_dropout = nn.Dropout(config.resid_pdrop)
@@ -84,6 +84,29 @@ class CausalSelfAttention(nn.Module):
         y = self.resid_dropout(self.c_proj(y))
         return y
 
+class FC1Block(nn.Module):
+    def __init__(self, config, expanding_factor=4):
+        super().__init__()
+        self.layers = nn.ModuleList([LinearPlaceholder(config.n_embd, config.n_embd, group_identifier="fc") for _ in range(expanding_factor)])
+        self.n_embd = config.n_embd
+        self.expanding_factor = expanding_factor
+    
+    def forward(self, x: torch.Tensor):
+        outputs = [self.layers[i](x) for i in range(self.expanding_factor)]
+        outputs = torch.cat(outputs, -1)
+        return outputs
+    
+class FC2Block(nn.Module):
+    def __init__(self, config, expanding_factor=4):
+        super().__init__()
+        self.layers = nn.ModuleList([LinearPlaceholder(config.n_embd, config.n_embd, group_identifier="fc") for _ in range(expanding_factor)])
+        self.n_embd = config.n_embd
+        self.expanding_factor = expanding_factor
+    
+    def forward(self, x: torch.Tensor):
+        input = x.split(self.n_embd, dim=-1)
+        outputs: torch.Tensor = sum(self.layers[i](input[i]) for i in range(self.expanding_factor))
+        return outputs
 
 class Block(nn.Module):
     def __init__(self, config):
@@ -93,8 +116,8 @@ class Block(nn.Module):
         self.ln_2 = nn.LayerNorm(config.n_embd)
         self.mlp = nn.ModuleDict(
             dict(
-                c_fc=nn.Linear(config.n_embd, 4 * config.n_embd),
-                c_proj=nn.Linear(4 * config.n_embd, config.n_embd),
+                c_fc=FC1Block(config),
+                c_proj=FC2Block(config),
                 act=NewGELU(),
                 dropout=nn.Dropout(config.resid_pdrop),
             )
@@ -197,10 +220,10 @@ class GPT(KASModel):
     def sampler_parameters(self, args=None):
         return {
             "input_shape": "[N, seq_len, H_in: unordered]",
-            "output_shape": "[N, seq_len, t*H_in]",
+            "output_shape": "[N, seq_len, H_in]",
             "primary_specs": ["N: 0", "seq_len: 0", "H_in: 4"],
-            "coefficient_specs": ["k_1=2: 3", "k_2=5: 2", "t=3: 3", "g=32: 3"],
-            "fixed_io_pairs": [(0, 0)],
+            "coefficient_specs": ["k_1=2: 6", "k_2=5: 2", "t=3: 6", "g=32: 3"],
+            "fixed_io_pairs": [(0, 0), (1, 1)],
         }
 
     def initialize_weights(self):

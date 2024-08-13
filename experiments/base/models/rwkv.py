@@ -264,8 +264,8 @@ class RWKV(KASModel):
             "input_shape": "[N, seq_len, H_in: unordered]",
             "output_shape": "[N, seq_len, H_in]",
             "primary_specs": ["N: 0", "seq_len: 0", "H_in: 4"],
-            "coefficient_specs": ["k_1=2: 3", "k_2=5: 2", "t=3: 3", "g=32: 3"],
-            "fixed_io_pairs": [(0, 0)],
+            "coefficient_specs": ["k_1=2: 3", "k_2=5: 3", "t=3: 3", "g=32: 3"],
+            "fixed_io_pairs": [(0, 0), (1, 1)],
         }
 
     def initialize_weights(self):

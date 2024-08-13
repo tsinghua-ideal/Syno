@@ -25,7 +25,7 @@ class ONNXKernelMark(torch.autograd.Function):
 
 
 class Placeholder(nn.Module):
-    def __init__(self, mappings: Dict = None, referred_layer: nn.Module = None, mapping_func=None) -> None:
+    def __init__(self, mappings: Dict = None, referred_layer: nn.Module = None, mapping_func=None, group_identifier=None) -> None:
         super(Placeholder, self).__init__()
         assert mappings is not None or referred_layer is not None
         self.mappings = mappings
@@ -39,6 +39,7 @@ class Placeholder(nn.Module):
         # For model export.
         self.export_type: Optional[ExportType] = None
         self.export_id: Optional[int] = None
+        self.group = group_identifier
 
     def reload(self, kernel: KernelPack, compile=False) -> None:
         self.kernel = torch.compile(kernel, backend='inductor', dynamic=False, fullgraph=False) if compile else kernel

@@ -4,6 +4,7 @@ from collections import OrderedDict
 from torch import nn
 from typing import List, Tuple, Union, Optional
 from os import PathLike
+import logging
 import KAS
 from KAS import Placeholder, KernelLoader
 
@@ -54,6 +55,45 @@ class KASModel(nn.Module):
         for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
             placeholder.reload(kernel_pack, compile)
             placeholder.referred_layer = None
+
+        return "LOAD_SUCCESS"
+    
+    def load_kernels(
+        self, kernels: dict[str, KernelLoader], compile=False, batch_size=1, seq_len=None
+    ) -> str:
+        all_placeholders = KAS.Sampler._extract_placeholders(self)
+        for key, kernel in kernels.items():
+            logging.info("Retrieving kernel group {}".format(key))
+            kernel_packs = kernel.construct_kernel_packs()
+            placeholders = [pl for pl in all_placeholders if pl.group == key]
+            assert (
+                len(placeholders) == kernel.get_count_placeholders()
+            ), f"Kernel {kernel} has {kernel.get_count_placeholders()} placeholders, but {len(placeholders)} placeholders are found in the model"
+            flops = []
+            for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
+                placeholder.reload(kernel_pack, False)
+                placeholder.referred_layer = None
+                placeholder.set_flops(kernel.get_flops(i))
+                placeholder.set_params(
+                    sum(weight.numel() for weight in kernel_pack.weights)
+                    if hasattr(kernel_pack, "weights")
+                    else 0
+                )
+                flops.append(kernel.get_flops(i))
+            assert kernel.get_total_flops() == sum(
+                flops
+            ), f"Kernel {kernel} has {kernel.get_total_flops()} flops, but {sum(flops)} flops are found in the model"
+
+            self.flops, self.params = self.profile(
+                batch_size, force_update=True, seq_len=seq_len
+            )
+
+            if compile:
+                torch._dynamo.reset()
+
+            for i, (placeholder, kernel_pack) in enumerate(zip(placeholders, kernel_packs)):
+                placeholder.reload(kernel_pack, compile)
+                placeholder.referred_layer = None
 
         return "LOAD_SUCCESS"
 

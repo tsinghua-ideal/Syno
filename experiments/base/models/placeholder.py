@@ -6,10 +6,11 @@ from KAS import Placeholder
 
 
 class LinearPlaceholder(Placeholder):
-    def __init__(self, in_features, out_features) -> None:
+    def __init__(self, in_features, out_features, group_identifier=None) -> None:
         super(LinearPlaceholder, self).__init__(
             referred_layer=nn.Linear(in_features, out_features, bias=False),
             mapping_func=LinearPlaceholder.mapping,
+            group_identifier=group_identifier
         )
 
     @staticmethod

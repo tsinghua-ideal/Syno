@@ -3,31 +3,34 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import re
-from scipy.signal import savgol_filter
-window_length = 31 
-polyorder = 2  
 
-directory = './logs/manual/rwkv-v1'
+directory = './logs/manual/gpt2'
 output_dir = os.path.join(directory, "loss")
-model_name = "rwkv/rwkv-v5.1a-0.1b"
+model_name = "gpt/gpt2"
 
-baseline = ('baseline.log', 'Original Model')
+baseline = ('test_orig.log', 'Original Model')
 data = [
-     ('04917_579825011801549874.log', 'Kernel 1'), 
-     ('04930_8620085500577985662.log', 'Kernel 2'), 
-     ('04951_13182919585335735127.log', 'Kernel 3'), 
-     ('04966_15475986206679792241.log', 'Kernel 4'),
-     ('04981_15003962989689026618.log', 'Kernel 5'),
-     ('05017_7032845535107897390.log', 'Kernel 6')
+     ('test_ours_6297.log', 'Replacing both QKV Projection and FFN'), 
+     ('test_ours_nofc.log', 'Replacing QKV Projection only')
 ]
+# data = [
+#      ('04917_579825011801549874.log', 'Kernel 1'), 
+#      ('04930_8620085500577985662.log', 'Kernel 2'), 
+#      ('04951_13182919585335735127.log', 'Kernel 3'), 
+#      ('04966_15475986206679792241.log', 'Kernel 4'),
+#      ('04981_15003962989689026618.log', 'Kernel 5'),
+#      ('05017_7032845535107897390.log', 'Kernel 6')
+# ]
 
 os.makedirs(output_dir, exist_ok=True)
 
 def analyze_log(log_content):
     # Regular expression to match the relevant lines
     pattern = re.compile(r"INFO Step: (\d+), train loss: ([\d.]+)")
-    pattern_flops_base = re.compile(r"INFO Base model rwkv/rwkv-v5.1a-0.1b has ([\d.]+) GFLOPs")
-    pattern_flops_replaced = re.compile(r"INFO Loaded model has ([\d]+) FLOPs")
+    pattern_flops_base = re.compile(r"INFO Base model gpt/gpt2 has ([\d.]+) GFLOPs")
+    pattern_flops_replaced = re.compile(r"INFO Replaced model gpt/gpt2 has ([\d.]+)G FLOPs")
+    # pattern_flops_base = re.compile(r"INFO Base model rwkv/rwkv-v5.1a-0.1b has ([\d.]+) GFLOPs")
+    # pattern_flops_replaced = re.compile(r"INFO Loaded model has ([\d]+) FLOPs")
     base_flops = None
     replaced_flops = None
 
@@ -46,10 +49,24 @@ def analyze_log(log_content):
             base_flops = float(match_flops_base.group(1))
         if match_flops_replaced:
             print(match_flops_replaced.group(1))
-            replaced_flops = float(match_flops_replaced.group(1)) / (2 ** 30)
+            replaced_flops = float(match_flops_replaced.group(1)) # / (2 ** 30)
     
     flops = replaced_flops if replaced_flops else base_flops
     return np.array(steps), np.array(losses), flops
+
+def smooth(steps, losses, window_size=50):
+    max_steps = 100000
+    min_steps = 400
+    mask = np.logical_and(steps <= max_steps, steps >= min_steps)
+    losses = losses[mask]
+    steps = steps[mask]
+
+    window = np.ones(window_size) / window_size
+    smoothed_losses = np.convolve(losses, window, 'valid')
+    # smoothed_losses = np.exp(smoothed_losses)
+    smoothed_steps = steps[:len(smoothed_losses)]
+    # smoothed_steps = np.arange(len(smoothed_steps))
+    return smoothed_steps, smoothed_losses
 
 for filename, label in data:
     baseline_fn, baseline_label = baseline
@@ -59,9 +76,12 @@ for filename, label in data:
     fig, ax = plt.subplots()
     steps_baseline, losses_baseline, _ = analyze_log(open(baseline_fn).readlines())
     steps, losses, _ = analyze_log(open(filepath).readlines())
+
+    steps_baseline, losses_baseline = smooth(steps_baseline, losses_baseline, 12)
+    steps, losses = smooth(steps, losses, 5)
     
-    ax.plot(steps_baseline, savgol_filter(losses_baseline, window_length, polyorder), label=baseline_label, color='lightskyblue')
-    ax.plot(steps, savgol_filter(losses, window_length, polyorder), label=label, color='coral')
+    ax.plot(steps_baseline, losses_baseline, label=baseline_label, color='#FA6F6F')
+    ax.plot(steps, losses, label=label, color='#82B0D2')
     ax.set_xlabel('Steps')
     ax.set_ylabel('Log (Perplexity)')
     ax.set_title('Average Perplexity Over Time')
@@ -70,20 +90,23 @@ for filename, label in data:
     plt.savefig(f"{output_dir}/{label}_curve.pdf", dpi=300)
     plt.clf()
 
-fig, ax = plt.subplots()
+fig, ax = plt.subplots(figsize=(5, 3))
 for filename, label in [baseline] + data:
         filepath = os.path.join(directory, filename)
             
         steps, losses, gflops = analyze_log(open(filepath).readlines())
         mean_loss = losses[steps >= 0.8 * steps.max()].mean()
+
+        print(filename, gflops, np.exp(mean_loss))
         
-        ax.scatter([gflops], [mean_loss], label=label)
+        ax.scatter([gflops], [np.exp(mean_loss)], label=label)
 
 ax.set_xlabel('GFLOPs')
-ax.set_ylabel('Log (Perplexity)')
-ax.set_ylim(bottom=4.44, top=4.54)
-ax.set_xlim(left=100, right=260)
+ax.set_ylabel('Perplexity')
+# ax.set_ylim(bottom=4.44, top=4.54)
+# ax.set_xlim(left=100, right=260)
 ax.set_title('Average Perplexity')
 ax.legend()
+plt.tight_layout()
 
 plt.savefig(f"{output_dir}/plot-scatter.pdf", dpi=300)

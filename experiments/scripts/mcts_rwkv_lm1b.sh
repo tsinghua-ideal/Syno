@@ -9,5 +9,6 @@
 --kas-sampler-workers 64 --kas-num-virtual-evaluator 4 --kas-reward-power 4 \
 --kas-server-save-interval 1800 \
 --kas-server-port 7070 \
---kas-max-flops-ratio 1.2 \
---kas-target loss --gpt-max-loss 6.9 --kas-max-enumerations 5 --kas-max-finalizations 2 --kas-depth 7 --kas-max-reductions 5 --kas-max-merges 2 --kas-max-splits 2 --kas-max-shifts 2 --kas-max-strides 0 --kas-max-size-multiplier 4 --kas-max-variables-in-size 3 --kas-max-chain-length 5 --kas-max-shift-rhs 2 --kas-max-expansion-repeat-multiplier 5 --kas-allow-tile --kas-max-expansion-merge-multiplier 6144 --kas-min-weight-share-dim 8 --kas-max-weight-share-dim 8 --kas-min-unfold-ratio 2.3 --kas-min-weight-nparams 100000 --client-mem-limit 1.0
+--kas-max-flops-ratio 1.0 \
+--kas-target loss --gpt-max-loss 6.9 --kas-max-enumerations 7 --kas-max-finalizations 2 --kas-depth 10 --kas-max-reductions 4 --kas-max-merges 4 --kas-max-splits 4 --kas-max-unfold 0 --kas-max-shifts 0 --kas-max-strides 0 --kas-max-size-multiplier 16 --kas-max-variables-in-size 3 --kas-max-chain-length 5 --kas-max-shift-rhs 2 --kas-max-expansion-repeat-multiplier 5 --kas-allow-tile --kas-max-expansion-merge-multiplier 24576 --kas-min-weight-share-dim 4 --kas-max-weight-share-dim 8 --kas-min-unfold-ratio 2.3 --client-mem-limit 1.0 \
+--kas-scheduler-cache-dir .scheduler-cache-rwkv --kas-send-cache-dir .send-cache-rwkv --kas-node-cache-dirs .node-cache-rwkv.txt

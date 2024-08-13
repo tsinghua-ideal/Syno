@@ -43,7 +43,7 @@ def arg_parse():
 
     # Dataset
     parser.add_argument("--dataset", type=str, default="torch/mnist")
-    parser.add_argument("--root", type=str, default="~/data")
+    parser.add_argument("--root", type=str, default="/cephfs/suzhengyuan/data")
     parser.add_argument(
         "--seed", type=int, default=42, metavar="S", help="Random seed (default: 42)"
     )
@@ -334,6 +334,7 @@ def arg_parse():
 
     # KAS preferences
     parser.add_argument("--kas-replace-placeholder", type=str, default=None)
+    parser.add_argument("--kas-group-identifier", type=str, default=None)
     parser.add_argument("--kas-depth", default=12, type=int, help="KAS sampler depth")
     parser.add_argument(
         "--kas-max-enumerations",

@@ -5,7 +5,7 @@ import torch
 from typing import Tuple, Optional, Union
 from transformers import GPT2Tokenizer
 from KAS import Sampler, Path, CodeGenOptions, KernelLoader
-from KAS.Placeholder import build_placeholder_mappings, remove_unsatisfied_placeholders
+from KAS.Placeholder import build_placeholder_mappings, remove_unsatisfied_placeholders, Placeholder
 
 from . import placeholder
 from .model import KASModel
@@ -116,6 +116,16 @@ def get_vanilla_model(args) -> torch.nn.Module:
     else:
         assert False, f"Could not find model {args.model}"
 
+def remove_other_group_placeholders(net: torch.nn.Module, group_identifier: str=None):
+    count = 0
+    for name, child in net.named_children():
+        if isinstance(child, Placeholder):
+            if group_identifier is not None and child.group != group_identifier:
+                count += 1
+                setattr(net, name, child.referred_layer)
+        elif len(list(child.named_children())) > 0:
+            count += remove_other_group_placeholders(child, group_identifier)
+    return count
 
 def get_model(
     args, return_sampler=False, sample_input=None
@@ -145,6 +155,9 @@ def get_model(
         ), f"Could not find model {args.model}"
         model_cls = getattr(sys.modules[__name__], args.model)
         model = model_cls()
+
+    count = remove_other_group_placeholders(model, args.kas_group_identifier)
+    logging.info(f"Recovered {count} placeholders in other groups")
     flops, params = model.profile(seq_len=args.gpt_seq_len)
     logging.info(
         f"Base model {args.model} has {flops / 1e9:.5f} GFLOPs (per batch) and {params / 1e6:.2f}M parameters"
