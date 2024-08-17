@@ -67,6 +67,12 @@ def arg_parse():
         "model default if none)",
     )
     parser.add_argument(
+        "--temporal-size",
+        default=16,
+        type=int,
+        help="The temporal size of input",
+    )
+    parser.add_argument(
         "--crop-pct",
         default=None,
         type=float,
@@ -261,7 +267,7 @@ def arg_parse():
         default="sgd",
         type=str,
         metavar="OPTIMIZER",
-        help='Optimizer (default: "sgd"',
+        help='Optimizer (default: "sgd")',
     )
     parser.add_argument(
         "--momentum",

@@ -7,12 +7,15 @@ from typing import Tuple, List
 from timm.utils import AverageMeter
 from transformers import GPT2Tokenizer
 from KAS import Placeholder, init_weights
+from tqdm import tqdm
 
 from .loss import get_loss_func, get_gnn_loss_func
 from .optim import get_optimizer, get_gpt_optimizer, get_gnn_optimizer
 from .sche import get_schedule
 from .models import KASModel
 
+import warnings
+warnings.filterwarnings("ignore")
 
 def torch_opt_on():
     torch.backends.cudnn.benchmark = True
@@ -68,7 +71,9 @@ def train(
         loss_meter = AverageMeter()
         correct = 0
         total = 0
-        for i, (image, label) in enumerate(train_dataloader):
+        for i, data in tqdm(enumerate(train_dataloader)):
+            image = data[0]
+            label = data[-1]
             # Forward
             image, label = image.cuda(), label.cuda()
             total += label.size(0)
@@ -108,7 +113,9 @@ def train(
         with torch.no_grad():
             correct = 0
             total = 0
-            for i, (image, label) in enumerate(val_dataloader):
+            for i, data in enumerate(val_dataloader):
+                image = data[0]
+                label = data[-1]
                 image, label = image.cuda(), label.cuda()
                 total += label.size(0)
 
@@ -210,10 +217,10 @@ def train_gpt(model: nn.Module, train_dataloader, val_dataloader, args) -> List[
             break
 
         # Pruning
-        if loss.item() < 3:
-            logging.info(f"Illegal kernel, skip")
-            losses.append((time.time(), 2.99))
-            break
+        # if loss.item() < 3:
+        #     logging.info(f"Illegal kernel, skip")
+        #     losses.append((time.time(), 2.99))
+        #     break
 
         if time.time() - start_time > 60 and loss.item() > args.gpt_max_loss:
             logging.info(f"Prune loss (last item): {loss.item()}")

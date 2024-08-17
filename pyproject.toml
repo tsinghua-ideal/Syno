@@ -16,3 +16,11 @@ ninja.make-fallback = false
 [tool.pytest.ini_options]
 minversion = "6.0"
 testpaths = ["tests"]
+
+[tool.pyright]
+include = ["experiments"]
+exclude = [
+    "**/__pycache__",
+    "experiments/results",
+    "experiments/logs"
+]

@@ -6,8 +6,9 @@ from datasets import load_dataset, IterableDataset
 from transformers import GPT2Tokenizer
 from functools import partial
 from torch.utils.data import DataLoader
-from torchvision.datasets import CIFAR10, CIFAR100, MNIST, ImageNet
-from torchvision.transforms import transforms
+from torchvision.datasets import CIFAR10, CIFAR100, MNIST, ImageNet, Kinetics, HMDB51
+from torchvision.transforms import transforms, v2, _presets
+from torchvision.ops import Permute
 
 
 def make_random_square_masks(inputs, mask_size):
@@ -89,6 +90,23 @@ def get_batches(data_dict, key, batch_size, crop_size):
             x = F.interpolate(x, size=(224, 224), mode="bilinear")
             yield x, y
 
+@torch.no_grad()
+def get_batches_video(data_dict, batch_size):
+    num_epoch_examples = len(data_dict["videos"])
+    shuffled = torch.randperm(num_epoch_examples, device="cuda")
+
+    videos = data_dict["images"]
+    labels = data_dict["labels"]
+
+    for idx in range(num_epoch_examples // batch_size):
+        if not (idx + 1) * batch_size > num_epoch_examples:
+            x, y = videos.index_select(
+                0, shuffled[idx * batch_size : (idx + 1) * batch_size]
+            ), labels.index_select(
+                0, shuffled[idx * batch_size : (idx + 1) * batch_size]
+            )
+            # x = F.interpolate(x, size=(224, 224), mode="bilinear")
+            yield x, y
 
 class FuncDataloader:
     def __init__(self, func):
@@ -105,6 +123,8 @@ def get_dataloader(args):
         return get_gpt_dataloader(args)
     if "imagenet" in args.dataset:
         return None, None
+    if "kinetics" or "hmdb" in args.dataset:
+        return get_video_dataloader(args)
 
     # Get tensors
     transform = transforms.Compose([transforms.ToTensor()])
@@ -233,6 +253,80 @@ def get_gpt_dataloader(args):
         tokenizer, dataset["test"], infinite=False, seq_length=args.gpt_seq_len
     )
 
+def get_video_dataloader(args):
+    logging.info(f"Loading Video dataset {args.dataset} ...")
+    if "kinetics" in args.dataset:
+        train_data = Kinetics(
+            root=os.path.join(args.root, "kinetics"), 
+            frames_per_clip=8, 
+            num_classes=str(args.num_classes), 
+            split='train', 
+            step_between_clips=8, 
+            num_workers=args.num_workers
+        )
+        val_data = Kinetics(
+            root=os.path.join(args.root, "kinetics"), 
+            frames_per_clip=8, 
+            num_classes=str(args.num_classes), 
+            split='val', 
+            step_between_clips=8, 
+            num_workers=args.num_workers
+        )
+        exit(0)
+    elif "hmdb" in args.dataset:
+        train_data = HMDB51(
+            root=os.path.join(args.root, "hmdb/videos"), 
+            annotation_path=os.path.join(args.root, "hmdb/annotations"), 
+            frames_per_clip=args.temporal_size, 
+            step_between_clips=args.temporal_size, 
+            num_workers=args.num_workers,
+            # transform=partial(_presets.VideoClassification, crop_size=(112, 112), resize_size=(128, 171)), 
+            transform=torch.nn.Sequential(
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.RandomAffine(degrees=30, translate=(0.1, 0.1)),
+                _presets.VideoClassification(crop_size=args.input_size[1:], resize_size=(128, 171)), 
+            ),
+            output_format="TCHW", 
+            train=True
+        )
+        val_data = HMDB51(
+            root=os.path.join(args.root, "hmdb/videos"), 
+            annotation_path=os.path.join(args.root, "hmdb/annotations"), 
+            frames_per_clip=args.temporal_size, 
+            step_between_clips=args.temporal_size, 
+            num_workers=args.num_workers,
+            transform=_presets.VideoClassification(crop_size=args.input_size[1:], resize_size=(128, 171)), 
+            # transforms.Compose([
+            #     transforms.Resize(args.input_size[1:]),
+            #     transforms.ConvertImageDtype(torch.float),
+            #     transforms.Normalize([0.4322, 0.3947, 0.3765], [0.2280, 0.2215, 0.2170]), 
+            # ]),
+            output_format="TCHW", 
+            train=False
+        )
+    else:
+        raise NotImplementedError()
+
+    # Get dataloaders
+    train_dataloader = DataLoader(
+        train_data,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        persistent_workers=False,
+    )
+    eval_dataloader = DataLoader(
+        val_data,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        persistent_workers=False,
+    )
+    
+    return train_dataloader, eval_dataloader
 
 def get_imagenet_dataloader(args):
     from timm.data import FastCollateMixup, create_loader

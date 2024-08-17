@@ -207,3 +207,77 @@ class ConvPlaceholder(Placeholder):
         n, c1, h, w = in_size
         n2, c2, h2, w2 = out_size
         return not (h >= 4 and w >= 4 and c1 >= 4 and c2 >= 4)
+
+class Conv3dPlaceholder(Placeholder):
+    def __init__(self, in_features, out_features, kernel_size, groups=1) -> None:
+        if isinstance(kernel_size, tuple):
+            assert len(kernel_size) == 3 and kernel_size[0] == kernel_size[1] == kernel_size[2]
+            kernel_size = kernel_size[0]
+        super(Conv3dPlaceholder, self).__init__(
+            referred_layer=nn.Conv3d(
+                in_features,
+                out_features,
+                kernel_size,
+                bias=False,
+                padding=kernel_size // 2,
+                groups=groups,
+            ),
+            mapping_func=Conv3dPlaceholder.mapping,
+        )
+
+    @staticmethod
+    def impl(assembler):
+        N, H, W, T, k, C_in, C_out = assembler.get_sizes(
+            "N", "H", "W", "T", "k_1", "C_in", "C_out"
+        )
+        (
+            in_N,
+            in_H,
+            in_W,
+            in_T, 
+            in_C,
+            out_C,
+            w_in_C,
+            w_k_1,
+            w_k_2,
+            w_k_3,
+        ) = assembler.make_dims_of_sizes(N, H, W, T, C_in, C_out, C_in, k, k, k)
+
+        main_H, windows_H = assembler.create_unfold(in_H, k)
+        main_W, windows_W = assembler.create_unfold(in_W, k)
+        main_T, windows_T = assembler.create_unfold(in_T, k)
+
+        shared_k_1 = assembler.create_share(windows_H, w_k_1)
+        shared_k_2 = assembler.create_share(windows_W, w_k_2)
+        shared_k_3 = assembler.create_share(windows_T, w_k_3)
+        shared_C_in = assembler.create_share(in_C, w_in_C)
+
+        in_N.output(0)
+        out_C.output(1)
+        main_T.output(2)
+        main_H.output(3)
+        main_W.output(4)
+        shared_k_1.sum()
+        shared_k_2.sum()
+        shared_k_3.sum()
+        shared_C_in.sum()
+
+        return assembler.assemble(
+            "conv",
+            "in_0 * in_1",
+            [in_N, in_C, in_T, in_H, in_W],
+            [out_C, w_in_C, w_k_1, w_k_2, w_k_3],
+        )
+
+    @staticmethod
+    def mapping(in_size, out_size):
+        n, c1, t, h, w = in_size
+        n2, c2, t2, h2, w2 = out_size
+        assert n == n2
+        return {"N": n, "C_in": c1, "C_out": c2, "H": h, "T": t}
+
+    @staticmethod
+    def exclusion_condition(in_size, out_size) -> bool:
+        n, c1, t, h, w = in_size
+        n2, c2, t2, h2, w2 = out_size
+        return not (h >= 4 and w >= 4 and c1 >= 4 and c2 >= 4)

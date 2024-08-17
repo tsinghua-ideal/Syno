@@ -13,6 +13,7 @@ from .placeholder import (
     ConvPlaceholder,
     ViTLinearPlaceholder,
     ConvNeXtLinearPlaceholder,
+    Conv3dPlaceholder
 )
 
 
@@ -148,6 +149,7 @@ class KASModel(nn.Module):
                 Placeholder: count_placeholder,
                 LinearPlaceholder: count_placeholder,
                 ConvPlaceholder: count_placeholder,
+                Conv3dPlaceholder: count_placeholder,
                 ViTLinearPlaceholder: count_placeholder,
                 ConvNeXtLinearPlaceholder: count_placeholder,
             },
