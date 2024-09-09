@@ -38,7 +38,7 @@ def replace_layer_filter(
                 )
         return layer
 
-    elif isinstance(layer, nn.Conv2d) and ("video" not in name):
+    elif isinstance(layer, nn.Conv2d) and ("3d" not in name):
 
         def same_padding(k, p):
             return k[0] == 2 * p[0] + 1 and k[1] == 2 * p[1] + 1
@@ -112,10 +112,13 @@ def replace_layer_filter(
                 ),
             )
         
-    elif isinstance(layer, nn.Conv3d) and ("video" in name):
+    elif isinstance(layer, nn.Conv3d) and ("3d" in name):
         
-        if "r3d" in name:
-            if layer.kernel_size not in [(1, 1, 1), (3, 3, 3)] or layer.stride not in [
+        if "r3d" in name or "c3d" in name:
+            if layer.kernel_size not in [
+                # (1, 1, 1), 
+                (3, 3, 3)
+            ] or layer.stride not in [
                 (1, 1, 1),
                 (2, 2, 2),
             ]:
@@ -187,7 +190,7 @@ class CommonModel(KASModel):
         # Replace conv2d
         self.model = _get_vanilla_common_model(name, num_classes, input_size, temporal_size)
         C, H, W = input_size
-        self.input_size = (C, temporal_size, H, W) if "video" in name else input_size
+        self.input_size = (C, temporal_size, H, W) if "3d" in name else input_size
         self.name = name
         count = replace_layers_to_placeholder(self.model, name)
         logging.info(f"Replaced {count} Conv layers to Placeholder")
@@ -204,12 +207,12 @@ class CommonModel(KASModel):
                 "coefficient_specs": ["k_1=3: 3", "s=2: 3", "g=384: 3"],
                 "fixed_io_pairs": [(0, 0)],
             }
-        elif "video" in self.name:
+        elif "3d" in self.name:
             return {
                 "input_shape": "[N, C_in: unordered, T, H, H]",
                 "output_shape": "[N, C_out: unordered, T, H, H]",
-                "primary_specs": ["N: 0", "C_in: 3", "C_out: 4", "T: 0", "H: 0"],
-                "coefficient_specs": ["k_1=3: 2", "k_2=7: 2", "s=2: 2", "g=32: 3"],
+                "primary_specs": ["N: 0", "C_in: 3", "C_out: 5", "T: 0", "H: 0"],
+                "coefficient_specs": ["k_1=3: 3", "k_2=7: 3", "s=2: 3", "g=32: 4"],
                 "fixed_io_pairs": [(0, 0)],
             }
         else:

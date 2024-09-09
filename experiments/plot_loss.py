@@ -1,36 +1,33 @@
-import os
+import os, glob
 import math
 import numpy as np
 import matplotlib.pyplot as plt
 import re
 
-directory = './logs/manual/gpt2'
+directory = './logs/manual/rwkv-v2'
 output_dir = os.path.join(directory, "loss")
-model_name = "gpt/gpt2"
 
-baseline = ('test_orig.log', 'Original Model')
-data = [
-     ('test_ours_6297.log', 'Replacing both QKV Projection and FFN'), 
-     ('test_ours_nofc.log', 'Replacing QKV Projection only')
-]
+mode = "rwkv"
+
+# baseline = ('test_orig.log', 'Original Model')
 # data = [
-#      ('04917_579825011801549874.log', 'Kernel 1'), 
-#      ('04930_8620085500577985662.log', 'Kernel 2'), 
-#      ('04951_13182919585335735127.log', 'Kernel 3'), 
-#      ('04966_15475986206679792241.log', 'Kernel 4'),
-#      ('04981_15003962989689026618.log', 'Kernel 5'),
-#      ('05017_7032845535107897390.log', 'Kernel 6')
+#      ('test_ours_6297.log', 'Replacing both QKV Projection and FFN'), 
+#      ('test_ours_nofc.log', 'Replacing QKV Projection only')
 # ]
+baseline = ('baseline.log', 'Original Model')
+data = [(f.split('/')[-1], f"Kernel {i}") for i, f in enumerate(glob.glob(os.path.join(directory, '0*.log')))]
 
 os.makedirs(output_dir, exist_ok=True)
 
 def analyze_log(log_content):
     # Regular expression to match the relevant lines
     pattern = re.compile(r"INFO Step: (\d+), train loss: ([\d.]+)")
-    pattern_flops_base = re.compile(r"INFO Base model gpt/gpt2 has ([\d.]+) GFLOPs")
-    pattern_flops_replaced = re.compile(r"INFO Replaced model gpt/gpt2 has ([\d.]+)G FLOPs")
-    # pattern_flops_base = re.compile(r"INFO Base model rwkv/rwkv-v5.1a-0.1b has ([\d.]+) GFLOPs")
-    # pattern_flops_replaced = re.compile(r"INFO Loaded model has ([\d]+) FLOPs")
+    if mode == "gpt":
+        pattern_flops_base = re.compile(r"INFO Base model gpt/gpt2 has ([\d.]+) GFLOPs")
+        pattern_flops_replaced = re.compile(r"INFO Replaced model gpt/gpt2 has ([\d.]+)G FLOPs")
+    else:
+        pattern_flops_base = re.compile(r"INFO Base model rwkv/rwkv-v5.1a-0.1b has ([\d.]+) GFLOPs")
+        pattern_flops_replaced = re.compile(r"INFO Loaded model has ([\d]+) FLOPs")
     base_flops = None
     replaced_flops = None
 
@@ -48,8 +45,9 @@ def analyze_log(log_content):
         if match_flops_base:
             base_flops = float(match_flops_base.group(1))
         if match_flops_replaced:
-            print(match_flops_replaced.group(1))
-            replaced_flops = float(match_flops_replaced.group(1)) # / (2 ** 30)
+            replaced_flops = float(match_flops_replaced.group(1)) 
+            if mode == "rwkv":
+                replaced_flops /= (2 ** 30)
     
     flops = replaced_flops if replaced_flops else base_flops
     return np.array(steps), np.array(losses), flops
@@ -109,4 +107,4 @@ ax.set_title('Average Perplexity')
 ax.legend()
 plt.tight_layout()
 
-plt.savefig(f"{output_dir}/plot-scatter.pdf", dpi=300)
+plt.savefig(f"{output_dir}/plot-scatter.jpg", dpi=300)

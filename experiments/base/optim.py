@@ -48,3 +48,28 @@ def get_gpt_optimizer(model: nn.Module, args):
 
 def get_gnn_optimizer(model: nn.Module, args):
     return optim.Adam(filter(lambda p : p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.weight_decay)
+
+def get_c3d_optimizer(model: nn.Module, args):
+
+    def get_1x_lr_params(model):
+        """
+        This generator returns all the parameters for conv and two fc layers of the net.
+        """
+        b = [model.conv1, model.conv2, model.conv3a, model.conv3b, model.conv4a, model.conv4b, model.conv5a, model.conv5b, model.fc6, model.fc7]
+        # b = [model.conv1, model.conv2, model.conv3a, model.conv4a, model.conv5a, model.fc6]
+        for i in range(len(b)):
+            for k in b[i].parameters():
+                if k.requires_grad:
+                    yield k
+
+    def get_10x_lr_params(model):
+        """
+        This generator returns all the parameters for the last fc layer of the net.
+        """
+        b = [model.fc8]
+        for j in range(len(b)):
+            for k in b[j].parameters():
+                if k.requires_grad:
+                    yield k
+    return optim.SGD([{'params': get_1x_lr_params(model), 'lr': args.lr},
+                        {'params': get_10x_lr_params(model), 'lr': args.lr * 10}], lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)

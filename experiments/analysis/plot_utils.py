@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import re
+from tqdm import tqdm
 
 ansor_color = '#a7d0e3'
 nas_pte_color = '#fa8074'
@@ -165,7 +166,7 @@ def fetch_baseline_latency(model, args):
 def parser():
     parser = argparse.ArgumentParser(description="KAS session plot")
     parser.add_argument("--dirs", type=str, nargs="+", default=[])
-    parser.add_argument("--output", type=str, default="plot")
+    parser.add_argument("--output", type=str, default="analysis/results")
     parser.add_argument("--time", default=False, action="store_true")
     parser.add_argument("--max-acc-decrease", type=float, default=0.01)
     parser.add_argument("--model", type=str, default="resnet18")
@@ -211,7 +212,7 @@ def collect_kernels(dir, model, args):
         return [k for res in results for k in res]
     
     kernels = []
-    for kernel_fmt in subdirs:
+    for kernel_fmt in tqdm(subdirs):
         kernel_dir = os.path.join(dir, kernel_fmt)
         if not os.path.isdir(kernel_dir):
             continue
@@ -231,6 +232,9 @@ def collect_kernels(dir, model, args):
             meta_path = os.path.join(kernel_dir, "meta_new.json")
         with open(meta_path, "r") as f:
             meta = json.load(f)
+        
+        if meta["accuracy"] < args.min_acc:
+            continue
 
         kernel_hash = kernel_dir.split("_")[1]
 

@@ -258,21 +258,28 @@ def get_video_dataloader(args):
     if "kinetics" in args.dataset:
         train_data = Kinetics(
             root=os.path.join(args.root, "kinetics"), 
-            frames_per_clip=8, 
+            frames_per_clip=args.temporal_size, 
             num_classes=str(args.num_classes), 
             split='train', 
-            step_between_clips=8, 
-            num_workers=args.num_workers
+            step_between_clips=args.temporal_size, 
+            num_workers=args.num_workers,
+            transform=torch.nn.Sequential(
+                transforms.RandomAffine(degrees=45, translate=(0.2, 0.2), scale=(0.7, 1.3)),
+                transforms.RandomHorizontalFlip(p=0.5),
+                _presets.VideoClassification(crop_size=args.input_size[1:], resize_size=(128, 171), mean=(0.3694, 0.3572, 0.3161), std=(0.2708, 0.2652, 0.2678)), 
+            ),
+            output_format="TCHW", 
         )
         val_data = Kinetics(
             root=os.path.join(args.root, "kinetics"), 
-            frames_per_clip=8, 
+            frames_per_clip=args.temporal_size, 
             num_classes=str(args.num_classes), 
             split='val', 
-            step_between_clips=8, 
-            num_workers=args.num_workers
+            step_between_clips=args.temporal_size, 
+            num_workers=args.num_workers,
+            transform=_presets.VideoClassification(crop_size=args.input_size[1:], resize_size=(128, 171), mean=(0.3694, 0.3572, 0.3161), std=(0.2708, 0.2652, 0.2678)), 
+            output_format="TCHW", 
         )
-        exit(0)
     elif "hmdb" in args.dataset:
         train_data = HMDB51(
             root=os.path.join(args.root, "hmdb/videos"), 
@@ -280,12 +287,11 @@ def get_video_dataloader(args):
             frames_per_clip=args.temporal_size, 
             step_between_clips=args.temporal_size, 
             num_workers=args.num_workers,
-            # transform=partial(_presets.VideoClassification, crop_size=(112, 112), resize_size=(128, 171)), 
+            fold=args.fold,
             transform=torch.nn.Sequential(
+                transforms.RandomAffine(degrees=45, translate=(0.2, 0.2), scale=(0.7, 1.3)),
                 transforms.RandomHorizontalFlip(p=0.5),
-                transforms.RandomVerticalFlip(p=0.5),
-                transforms.RandomAffine(degrees=30, translate=(0.1, 0.1)),
-                _presets.VideoClassification(crop_size=args.input_size[1:], resize_size=(128, 171)), 
+                _presets.VideoClassification(crop_size=args.input_size[1:], resize_size=(128, 171), mean=(0.3694, 0.3572, 0.3161), std=(0.2708, 0.2652, 0.2678)), 
             ),
             output_format="TCHW", 
             train=True
@@ -296,12 +302,8 @@ def get_video_dataloader(args):
             frames_per_clip=args.temporal_size, 
             step_between_clips=args.temporal_size, 
             num_workers=args.num_workers,
-            transform=_presets.VideoClassification(crop_size=args.input_size[1:], resize_size=(128, 171)), 
-            # transforms.Compose([
-            #     transforms.Resize(args.input_size[1:]),
-            #     transforms.ConvertImageDtype(torch.float),
-            #     transforms.Normalize([0.4322, 0.3947, 0.3765], [0.2280, 0.2215, 0.2170]), 
-            # ]),
+            fold=args.fold,
+            transform=_presets.VideoClassification(crop_size=args.input_size[1:], resize_size=(128, 171), mean=(0.3694, 0.3572, 0.3161), std=(0.2708, 0.2652, 0.2678)), 
             output_format="TCHW", 
             train=False
         )
@@ -316,6 +318,7 @@ def get_video_dataloader(args):
         num_workers=args.num_workers,
         pin_memory=True,
         persistent_workers=False,
+        drop_last=True,
     )
     eval_dataloader = DataLoader(
         val_data,
@@ -324,6 +327,7 @@ def get_video_dataloader(args):
         num_workers=args.num_workers,
         pin_memory=True,
         persistent_workers=False,
+        drop_last=True,
     )
     
     return train_dataloader, eval_dataloader

@@ -2,6 +2,14 @@ python analysis/plot-models.py --dirs \
 results/imagenet-session-reevaluate results/imagenet-session-resnet34-reevaluate results/imagenet_reevaluate_kernels/densenet121 results/imagenet_reevaluate_kernels/resnext29_2x64d results/imagenet_reevaluate_kernels/efficientnet_v2_s \
 --models resnet18-imagenet resnet34-imagenet densenet121-imagenet resnext29_2x64d-imagenet efficientnet_v2_s-imagenet --output analysis/results/imagenet --max-acc-decrease 0.1
 
+python analysis/plot.py --dirs \
+ results/r3d18-session-v20240821 \
+ --model r3d18-hmdb --output analysis/results/video --max-acc-decrease 0.03 --flops
+ 
+python analysis/plot.py --dirs \
+ results/r3d18-good-kernels \
+ --model r3d18-hmdb --output analysis/results/video --max-acc-decrease 0.01 --flops
+
 # python analysis/plot-models.py --dirs results/imagenet-session-reevaluate results/imagenet-session-resnet34-reevaluate \
 # --models resnet18-imagenet resnet34-imagenet --output analysis/results/imagenet/resnet --max-acc-decrease 1
 

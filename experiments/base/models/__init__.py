@@ -16,6 +16,7 @@ from .gpt import GPTConfig, GPT
 from .rwkv import RWKV
 from .gcn import GCN
 from .mobilenetv2 import MobileNetV2
+from .c3d import C3D
 from .manual_kernels import ManualImpl
 
 
@@ -149,6 +150,9 @@ def get_model(
         model = GCN()
     elif args.model == "mobilenet_v2":
         model = MobileNetV2(args.num_classes, args.input_size)
+    elif args.model == "c3d":
+        input_size = (args.input_size[0], args.temporal_size, *args.input_size[1:])
+        model = C3D(args.num_classes, input_size)
     else:
         assert hasattr(
             sys.modules[__name__], args.model
@@ -160,7 +164,7 @@ def get_model(
     logging.info(f"Recovered {count} placeholders in other groups")
     flops, params = model.profile(seq_len=args.gpt_seq_len)
     logging.info(
-        f"Base model {args.model} has {flops / 1e9:.5f} GFLOPs (per batch) and {params / 1e6:.2f}M parameters"
+        f"Base model {args.model} has {flops / 1e9} GFLOPs (per batch) and {params / 1e6}M parameters"
     )
 
     # Build mapping for usages

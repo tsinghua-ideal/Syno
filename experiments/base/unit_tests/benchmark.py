@@ -35,9 +35,12 @@ def train(
         if args.model.startswith("torchvision/"):
             model = models.common.get_vanilla_common_model(args)
             model.apply(init_weights)
+            C, H, W = args.input_size
+            input_size = (C, args.temporal_size, H, W) if "3d" in args.model else args.input_size
             flops, params = thop.profile(
-                model, (torch.ones((args.batch_size, *args.input_size)),)
+                model, (torch.ones((args.batch_size, *input_size)),)
             )
+            print("size", (args.batch_size, *input_size))
             flops /= args.batch_size
             # if args.compile:
             #     torch._dynamo.reset()
@@ -150,7 +153,10 @@ def test_semantic_conv2d(test_kernels: List[str], test_run: bool) -> None:
     device.initialize(args)
 
     logging.info("Loading dataset ...")
-    train_dataloader, val_dataloader = dataset.get_dataloader(args)
+    if test_run:
+        train_dataloader, val_dataloader = dataset.get_dataloader(args)
+    else:
+        train_dataloader, val_dataloader = None, None
 
     result_file = "base/unit_tests/results.json"
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
@@ -186,10 +192,12 @@ if __name__ == "__main__":
     log.setup(level=logging.INFO)
 
     test_kernels = [
-        "Baseline",
+        # "Baseline",
         # "linear_simple",
         # "MQA",
         # "Conv2d_simple",
+        "Conv3d_simple",
+        # "Conv3d_group",
         # "Conv1x1_simple",
         # "Conv2d_dilation",
         # "Conv2d_group",
@@ -202,6 +210,6 @@ if __name__ == "__main__":
         # "Shift2d",
         # "kernel_07923",
     ]
-    test_run = False
+    test_run = True
 
     test_semantic_conv2d(test_kernels, test_run)

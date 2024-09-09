@@ -12,7 +12,8 @@ if __name__ == "__main__":
         all_kernels.append((dir, collect_kernels(dir, args.model.split('-')[0], args)))
         
     print(f"Total kernels: {sum([len(kernels) for _, kernels in all_kernels])}")
-    print(f"Total kernels (sorted by latency): {sorted([kernel for _, kernels in all_kernels for kernel in kernels], key=lambda x: x[6])}")
+    print(f"Total kernels (sorted by flops): {sorted([kernel for _, kernels in all_kernels for kernel in kernels], key=lambda x: x[2])}")
+    # print(f"Total kernels (sorted by latency): {sorted([kernel for _, kernels in all_kernels for kernel in kernels], key=lambda x: x[6])}")
 
     # Accuracy vs FLOPs/param distribution
 
@@ -90,13 +91,17 @@ if __name__ == "__main__":
                 if flops_delta <= 0.03 or acc_delta <= 0.001:
                     print(all_kernel_dir[i])
                     mask[i] = True
-        # plt.scatter(
-        #     all_flops_ratio[mask],
-        #     all_y[mask],
-        #     label="FLOPs",
-        #     s=20,
-        #     c="#8ECFC9",
-        # )
+        id = np.argsort(all_flops_ratio[pareto_mask])
+        plt.plot(
+            all_flops_ratio[pareto_mask][id],
+            all_y[pareto_mask][id],
+            label="Pareto",
+            c="#8ECFC9",
+            linewidth=1.3,
+            # where="post",
+            linestyle="--",
+        )
+
     
     if args.latency:
         all_latency_ratio = np.array(all_latency_ratio)
@@ -127,39 +132,40 @@ if __name__ == "__main__":
         )
 
     plot_baseline(args.model, args)
-    plt.xlabel("FLOPs and Latency (ratio to baseline)")
+    # plt.xlabel("FLOPs and Latency (ratio to baseline)")
+    plt.xlabel("FLOPs (ratio to baseline)")
     plt.ylabel("Accuracy")
     plt.legend()
-    plt.title(f"Samples of {args.model.split('-')[0]}")
-    plt.savefig(os.path.join(args.output, f"acc-vs-flops.png"))
+    # plt.title(f"Samples of {args.model.split('-')[0]}")
+    plt.savefig(os.path.join(args.output, f"acc-vs-flops.pdf"))
 
     # Params
-    plt.figure(figsize=(10, 6), dpi=300)
-    for i, (name, kernels) in enumerate(all_kernels):
-        try:
-            if "gpt" in args.model:
-                x, y, flops, params, loss, hash_value, latency, kernel_dir = zip(
-                    *filter(lambda x: x[4] < args.max_loss, kernels)
-                )
-            else:
-                x, y, flops, params, loss, hash_value, latency, kernel_dir = zip(
-                    *filter(lambda x: x[1] > args.min_acc, kernels)
-                )
-        except ValueError:
-            continue
+    # plt.figure(figsize=(10, 6), dpi=300)
+    # for i, (name, kernels) in enumerate(all_kernels):
+    #     try:
+    #         if "gpt" in args.model:
+    #             x, y, flops, params, loss, hash_value, latency, kernel_dir = zip(
+    #                 *filter(lambda x: x[4] < args.max_loss, kernels)
+    #             )
+    #         else:
+    #             x, y, flops, params, loss, hash_value, latency, kernel_dir = zip(
+    #                 *filter(lambda x: x[1] > args.min_acc, kernels)
+    #             )
+    #     except ValueError:
+    #         continue
 
-        assert (
-            len(x)
-            == len(y)
-            == len(flops)
-            == len(params)
-            == len(hash_value)
-            == len(latency)
-        )
+    #     assert (
+    #         len(x)
+    #         == len(y)
+    #         == len(flops)
+    #         == len(params)
+    #         == len(hash_value)
+    #         == len(latency)
+    #     )
 
-        plt.scatter(np.array(params) / args.reference_params, y, label=name, s=10)
-    plot_baseline(args.model, args)
-    plt.xlabel("Params (ratio to baseline)")
-    plt.ylabel("Accuracy")
-    plt.legend()
-    plt.savefig(os.path.join(args.output, f"acc-vs-params.png"))
+    #     plt.scatter(np.array(params) / args.reference_params, y, label=name, s=10)
+    # plot_baseline(args.model, args)
+    # plt.xlabel("Params (ratio to baseline)")
+    # plt.ylabel("Accuracy")
+    # plt.legend()
+    # plt.savefig(os.path.join(args.output, f"acc-vs-params.png"))

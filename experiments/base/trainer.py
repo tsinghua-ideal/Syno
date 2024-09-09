@@ -10,7 +10,7 @@ from KAS import Placeholder, init_weights
 from tqdm import tqdm
 
 from .loss import get_loss_func, get_gnn_loss_func
-from .optim import get_optimizer, get_gpt_optimizer, get_gnn_optimizer
+from .optim import get_optimizer, get_gpt_optimizer, get_gnn_optimizer, get_c3d_optimizer
 from .sche import get_schedule
 from .models import KASModel
 
@@ -49,7 +49,12 @@ def train(
 
     # Loss, optimizer and scheduler
     loss_func = get_loss_func(args)
-    optimizer = get_optimizer(model, args)
+    if "c3d" in args.model:
+        logging.info("Using c3d optim and sched")
+        optimizer = get_c3d_optimizer(model, args)
+    else:
+        optimizer = get_optimizer(model, args)
+
     scheduler, sched_epochs = get_schedule(optimizer, args)
 
     val_accuracy = []
@@ -71,7 +76,7 @@ def train(
         loss_meter = AverageMeter()
         correct = 0
         total = 0
-        for i, data in tqdm(enumerate(train_dataloader)):
+        for i, data in enumerate(train_dataloader):
             image = data[0]
             label = data[-1]
             # Forward
@@ -98,6 +103,8 @@ def train(
             num_updates += 1
             loss_meter.update(loss.item(), image.size(0))
             scheduler.step_update(num_updates=num_updates)
+            if (i+1) % 100 == 0:
+                logging.info(f"Iteration {i}: loss={loss_meter.avg}")
         scheduler.step(epoch=epoch + 1)
         elapsed_train_time = time.time() - start_time
 
@@ -136,6 +143,8 @@ def train(
                 # Statistic
                 pred = torch.argmax(logits, 1)
                 correct += torch.sum(pred == label).item()
+                if (i+1) % 100 == 0:
+                    logging.info(f"Iteration {i}: correct={correct}, total={total}")
             val_accuracy.append(correct / total)
         elapsed_valid_time = time.time() - start_time
         logging.info(

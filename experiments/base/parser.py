@@ -44,6 +44,7 @@ def arg_parse():
     # Dataset
     parser.add_argument("--dataset", type=str, default="torch/mnist")
     parser.add_argument("--root", type=str, default="/cephfs/suzhengyuan/data")
+    parser.add_argument("--fold", type=int, default=1)
     parser.add_argument(
         "--seed", type=int, default=42, metavar="S", help="Random seed (default: 42)"
     )
@@ -322,6 +323,9 @@ def arg_parse():
     )
     parser.add_argument(
         "--decay-rate", type=float, default=0.1, metavar="RATE", help="LR decay rate"
+    )
+    parser.add_argument(
+        "--decay-epochs", type=int, default=10, metavar="STEP", help="LR decay step"
     )
     parser.add_argument(
         "--decay-milestones",

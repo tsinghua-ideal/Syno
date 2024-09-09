@@ -280,4 +280,4 @@ class Conv3dPlaceholder(Placeholder):
     def exclusion_condition(in_size, out_size) -> bool:
         n, c1, t, h, w = in_size
         n2, c2, t2, h2, w2 = out_size
-        return not (h >= 4 and w >= 4 and c1 >= 4 and c2 >= 4)
+        return not (t >= 4 and h >= 4 and w >= 4 and c1 >= 4 and c2 >= 4)

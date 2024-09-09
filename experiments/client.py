@@ -202,6 +202,6 @@ if __name__ == "__main__":
     args = parser.arg_parse()
 
     # Set memory limit
-    mem.memory_limit(args.client_mem_limit)
+    mem.memory_limit(min(1.0, args.client_mem_limit))
 
     main()

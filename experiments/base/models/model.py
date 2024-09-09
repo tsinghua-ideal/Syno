@@ -141,7 +141,7 @@ class KASModel(nn.Module):
         if seq_len:
             sample_input = sample_input.long()
         flops, params = thop.profile(
-            self.float(),
+            self,
             inputs=(sample_input,),
             verbose=False,
             report_missing=False,
