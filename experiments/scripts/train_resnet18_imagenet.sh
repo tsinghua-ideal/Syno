@@ -1,0 +1,3 @@
+# CUDA_VISIBLE_DEVICES=0 python test_run.py --model torchvision/resnet18 --dataset imagenet --kas-use-orig-model --imagenet-log-folder logs/resnet18_orig --num-classes 1000
+
+CUDA_VISIBLE_DEVICES=0 python test_run.py --model torchvision/resnet18 --dataset imagenet --kas-test-path results/07889_15252107013978896537 --imagenet-log-folder logs/resnet18_ours --num-classes 1000 > logs/imagenet_ours.log 2>&1

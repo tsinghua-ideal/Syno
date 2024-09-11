@@ -120,7 +120,7 @@ def train(
                 config.summary()
 
                 accuracy = ImageNetTrainer.launch_from_args(
-                    model, args.imagenet_log_folder, args.batch_size
+                    model, args.imagenet_log_folder, args.batch_size, False
                 )
             else:
                 accuracy = max(

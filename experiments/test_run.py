@@ -76,7 +76,7 @@ if __name__ == "__main__":
         config.summary()
 
         accuracy = ImageNetTrainer.launch_from_args(
-            model, args.imagenet_log_folder, args.batch_size, args.imagenet_config_file
+            model, args.imagenet_log_folder, args.batch_size, False, args.imagenet_config_file
         )
     else:
         accuracy = max(

@@ -1,6 +1,6 @@
 import torch as ch
-from torch.cuda.amp import GradScaler
-from torch.cuda.amp import autocast
+from torch.amp import GradScaler
+from torch.amp import autocast
 import torch.nn.functional as F
 import torch.distributed as dist
 
@@ -376,10 +376,13 @@ class ImageNetTrainer:
                 }
 
                 self.eval_and_log(extra_dict)
+                
+            if (epoch + 1) % 10 == 0 and self.gpu == 0:
+                ch.save(self.model.state_dict(), self.log_folder / f"weights_{epoch + 1}.pt")
 
         stats = self.eval_and_log({"epoch": epoch})
-        if self.gpu == 0:
-            ch.save(self.model.state_dict(), self.log_folder / "final_weights.pt")
+        # if self.gpu == 0:
+        #     ch.save(self.model.state_dict(), self.log_folder / "final_weights.pt")
         return stats["top_1"]
 
     def eval_and_log(self, extra_dict={}):
@@ -412,7 +415,7 @@ class ImageNetTrainer:
     @param("training.distributed")
     @param("training.use_blurpool")
     def create_model_and_scaler(self, model, distributed, use_blurpool):
-        scaler = GradScaler()
+        scaler = GradScaler("cuda")
 
         def apply_blurpool(mod: ch.nn.Module):
             for name, child in mod.named_children():
@@ -456,7 +459,7 @@ class ImageNetTrainer:
 
             self.optimizer.zero_grad(set_to_none=True)
             if enable_amp:
-                with autocast():
+                with autocast("cuda"):
                     output = self.model(images)
                     loss_train = self.loss(output, target)
 
@@ -515,7 +518,7 @@ class ImageNetTrainer:
         stats = {k: m.compute().item() for k, m in self.val_meters.items()}
         [meter.reset() for meter in self.val_meters.values()]
         return stats
-
+        
     def initialize_logger(self, folder):
         self.val_meters = {
             "top_1": torchmetrics.Accuracy(task="multiclass", num_classes=1000).to(
@@ -567,7 +570,7 @@ class ImageNetTrainer:
     @param("training.distributed")
     @param("dist.world_size")
     def launch_from_args(
-        cls, model, folder, batch_size, config_file, distributed, world_size
+        cls, model, folder, batch_size, eval_only, config_file, distributed, world_size
     ):
         ch.backends.cudnn.benchmark = True
         ch.backends.cuda.matmul.allow_tf32 = True
@@ -575,22 +578,22 @@ class ImageNetTrainer:
         if distributed:
             ch.multiprocessing.spawn(
                 cls._exec_wrapper,
-                args=(model, folder, batch_size, config_file),
+                args=(model, folder, batch_size, eval_only, config_file),
                 nprocs=world_size,
                 join=True,
             )
         else:
-            return cls.exec(model, folder, batch_size, 0)
+            return cls.exec(model, folder, batch_size, 0, eval_only)
 
     @classmethod
-    def _exec_wrapper(cls, i, model, folder, batch_size, config_file, **kwargs):
+    def _exec_wrapper(cls, i, model, folder, batch_size, eval_only, config_file, **kwargs):
         make_config(config_file, quiet=True)
-        cls.exec(model, folder, batch_size, i, **kwargs)
+        cls.exec(model, folder, batch_size, i, eval_only, **kwargs)
 
     @classmethod
     @param("training.distributed")
-    @param("training.eval_only")
-    def exec(cls, model, folder, batch_size, gpu, distributed, eval_only):
+    # @param("training.eval_only")
+    def exec(cls, model, folder, batch_size, gpu, eval_only, distributed):
         trainer = cls(model=model, folder=folder, batch_size=batch_size, gpu=gpu)
         if eval_only:
             trainer.eval_and_log()
