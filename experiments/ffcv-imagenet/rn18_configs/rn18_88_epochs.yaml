@@ -2,8 +2,8 @@ data:
   gpu: 0
   in_memory: 1
   num_workers: 12
-  train_dataset: /scratch/zsu/data/imagenet-ffcv/train_400_0.10_90.ffcv
-  val_dataset: /scratch/zsu/data/imagenet-ffcv/val_400_0.10_90.ffcv
+  train_dataset: /localssd/zhengyuan/imagenet-ffcv/train_400_0.10_90.ffcv
+  val_dataset: /localssd/zhengyuan/imagenet-ffcv/val_400_0.10_90.ffcv
 dist:
   world_size: 1
 logging:
@@ -31,6 +31,5 @@ training:
   weight_decay: 5e-5
   use_blurpool: 0
 validation:
-  batch_size: 1024
   lr_tta: true
   resolution: 224

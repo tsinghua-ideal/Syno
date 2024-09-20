@@ -64,6 +64,13 @@ if __name__ == "__main__":
         f"Loaded model has {flops} FLOPs per batch and {params} parameters in total."
     )
 
+    eval_flag = (args.ckpt_path != "")
+    if eval_flag:
+        model.load_state_dict(torch.load(args.ckpt_path, weights_only=True))
+        logging.info(
+            f"Loaded weights."
+        )
+
     logging.info("Evaluating on real dataset ...")
 
     if "imagenet" in args.dataset:
@@ -76,7 +83,7 @@ if __name__ == "__main__":
         config.summary()
 
         accuracy = ImageNetTrainer.launch_from_args(
-            model, args.imagenet_log_folder, args.batch_size, False, args.imagenet_config_file
+            model, args.imagenet_log_folder, args.batch_size, eval_flag, args.quant, args.imagenet_config_file
         )
     else:
         accuracy = max(

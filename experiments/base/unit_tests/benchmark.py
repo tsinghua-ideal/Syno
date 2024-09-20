@@ -87,6 +87,7 @@ def train(
         result = {"path": str(path), "Inspace": Inspace}
 
         kernel_loader = sampler.realize(model, kernel, name)
+        kernel_loader.archive_to(f"results/manual_kernels/{name}.tar.gz")
         try:
             model.load_kernel(
                 kernel_loader,
@@ -150,7 +151,7 @@ def test_semantic_conv2d(test_kernels: List[str], test_run: bool) -> None:
     device.initialize(args)
 
     logging.info("Loading dataset ...")
-    train_dataloader, val_dataloader = dataset.get_dataloader(args)
+    train_dataloader, val_dataloader = dataset.get_dataloader(args) if test_run else None, None
 
     result_file = "base/unit_tests/results.json"
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
@@ -187,6 +188,8 @@ if __name__ == "__main__":
 
     test_kernels = [
         "Baseline",
+        # "Conv2d_Conv1d", 
+        # "kernel_07889", 
         # "linear_simple",
         # "MQA",
         # "Conv2d_simple",

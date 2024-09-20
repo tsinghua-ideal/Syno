@@ -23,7 +23,8 @@ mamba install zlib libpng libzlib ncurses -c conda-forge
 mamba install cudatoolkit=11.7 cudnn=8.8.0 -c conda-forge
 mamba install cudatoolkit-dev=11.7 -c conda-forge
 mamba install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
-mamba install boost nlohmann_json fmt pybind11 gtest gmock pytest -c conda-forge
+mamba install boost nlohmann_json fmt=10.2.1 pybind11 gtest gmock pytest -c conda-forge
+mamba install cupy pkg-config libjpeg-turbo opencv -c conda-forge # To enable ffcv-imagenet
 pip install -r requirements.txt
 ```
 
