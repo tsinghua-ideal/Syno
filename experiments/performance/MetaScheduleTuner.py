@@ -177,6 +177,9 @@ class KernelSpecificTuner:
     def _get_exported_library_path(self) -> str:
         return os.path.join(self._working_dir, "kernels_tvm_tuned.tar")
 
+    def _has_exported_library(self) -> bool:
+        return os.path.exists(self._get_exported_library_path())
+
     def build(self, show: bool = False) -> str:
         if self._db is None:
             with self._target, transform.PassContext(opt_level=3):
@@ -196,7 +199,7 @@ class KernelSpecificTuner:
 
     def load(self) -> str:
         exported_path = self._get_exported_library_path()
-        assert os.path.exists(exported_path), f"Cannot find {exported_path}. You need to tune and build the model first."
+        assert self._has_exported_library(), f"Cannot find {exported_path}. You need to tune and build the model first."
         return exported_path
 
     @staticmethod
@@ -245,12 +248,16 @@ class KernelSpecificTuner:
 
     def tune_e2e(self, num_trials: int, redirect_log: bool = True, on_eval: Optional[Callable[[], None]] = None) -> None:
         with self.redirect_log() if redirect_log else nullcontext():
-            self.optimize_model_before_tuning(show=True)
-            self.tune(
-                num_trials=num_trials,
-                on_eval=on_eval,
-            )
-            mod_path = self.build(show=True)
+            if self._has_exported_library():
+                # Fast path: load the tuned model.
+                mod_path = self.load()
+            else:
+                self.optimize_model_before_tuning(show=True)
+                self.tune(
+                    num_trials=num_trials,
+                    on_eval=on_eval,
+                )
+                mod_path = self.build(show=True)
             results = self.measure_and_write(mod_path)
             print("results:", results)
 
@@ -714,7 +721,7 @@ def main() -> int:
             mod_path = kernels_tuner.build(show=True)
         results = kernels_tuner.measure_and_write(mod_path)
         print("results:", results)
-    
+
     return 0
 
 if __name__ == "__main__":
