@@ -72,6 +72,7 @@ _RESNET_KERNELS_DIRS = KernelsDirs([
     "./results/resnet-good-kernels/0.5x",
     "./results/resnet-good-kernels/0.6x",
     "./results/resnet-good-kernels/0.7x",
+    "./results/resnet-good-kernels/ablation",
 ])
 
 _RESNEXT_KERNELS_DIRS = KernelsDirs([
