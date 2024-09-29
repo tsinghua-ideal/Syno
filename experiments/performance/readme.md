@@ -71,6 +71,7 @@ Recommended number of trials:
 | Network | Tasks | Trials |
 | ResNet-18 | 18 | 10000 |
 | ResNet-34 | 18 | 10000 |
+| ResNet-34 Layers | 1 | 4000 |
 | ResNext-29 | 25 | 15000 |
 | EfficientNet-v2 | 47 | 30000 |
 | DenseNet-121 | 134 | 50000 |

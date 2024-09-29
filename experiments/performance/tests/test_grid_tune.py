@@ -22,7 +22,7 @@ MetaScheduleTuner.tune_e2e = mock_tune_e2e
 import grid_tune
 
 # reduce the number of trials to speed up the test
-grid_tune.GRIDS = grid_tune.GRIDS[-1:]
+grid_tune.GRIDS = grid_tune.GRIDS[-2:]
 
 class TestGridTune(unittest.TestCase):
     def test_success(self):
