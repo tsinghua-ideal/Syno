@@ -199,7 +199,7 @@ class ImageNetTrainer:
         self.initialize_logger(folder)
 
         if quant:
-            quantize(self.model)
+            quantize(self.model, self.val_loader, 1)
 
     @param("dist.address")
     @param("dist.port")
