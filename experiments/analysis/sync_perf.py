@@ -1,6 +1,7 @@
 import argparse
 import json
 import os, shutil
+import logging
 
 if __name__ == "__main__":
     # Get Path
@@ -26,7 +27,7 @@ if __name__ == "__main__":
             if "uncanon" in kernel_dir:
                 continue
             files = list(os.listdir(kernel_dir))
-            assert "graph.dot" in files and "loop.txt" in files and "meta.json" in files
+            assert "graph.dot" in files and "loop.txt" in files and "meta.json" in files, kernel_dir
 
             meta_path = os.path.join(kernel_dir, "meta.json")
             with open(meta_path, "r") as f:
@@ -35,7 +36,7 @@ if __name__ == "__main__":
                 continue
             path2perf[meta["path"]] = os.path.join(kernel_dir, "perf")
 
-    # json.dump(path2perf, open("path2perf.json", "w"))
+    json.dump(path2perf, open("path2perf.json", "w"))
 
     for dest_dir in args.destinations:
         for kernel_fmt in os.listdir(dest_dir):
@@ -55,6 +56,7 @@ if __name__ == "__main__":
                 shutil.rmtree(os.path.join(kernel_dir, "perf"))
 
             if meta["path"] not in path2perf:
+                logging.warn(f"Sync failed for {kernel_dir}")
                 continue
 
             assert os.path.exists(path2perf[meta["path"]]), path2perf[meta["path"]]

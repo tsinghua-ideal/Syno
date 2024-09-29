@@ -17,12 +17,8 @@
 Note: If you are using anaconda to manage your packages, you may also install the dependency via 
 
 ```[language=bash]
-mamba create -n kas python=3.10 gcc=12 gxx=12 clang=16 clangdev llvm llvm-openmp=16 llvmdev lld lit python-clang -c conda-forge
-mamba install cmake ninja -c conda-forge
-mamba install zlib libpng libzlib ncurses -c conda-forge
-mamba install cudatoolkit=11.7 cudnn=8.8.0 -c conda-forge
-mamba install cudatoolkit-dev=11.7 -c conda-forge
-mamba install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
+mamba create -n kas python=3.10 gcc=12 gxx=12 cmake ninja zlib libpng libzlib ncurses -c conda-forge
+mamba install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
 mamba install boost nlohmann_json fmt=10 pybind11 gtest gmock pytest -c conda-forge
 pip install -r requirements.txt
 ```

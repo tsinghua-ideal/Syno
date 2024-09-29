@@ -67,7 +67,7 @@ def check_baseline(entries: [], relative: bool):
     return copy.deepcopy(baseline) if baseline and relative else None
 
 
-def simplify(entries: [], baseline: dict, speedup: bool):
+def simplify(entries: list, baseline: dict, speedup: bool):
     names = get_data_dims(entries, 'name')
     labels = get_data_dims(entries[0]['data'], 0)
     bars = []
@@ -155,7 +155,7 @@ def fetch_baseline_perf(model):
 def fetch_baseline_latency(model, args):
     baseline_file = os.path.join(
         args.baseline_latency_folder,
-        "llvm",
+        "cuda" if args.gpu else "llvm",
         "torchvision",
         f"{model}-N=1-orig",
         "benchmark_results.csv",
@@ -173,6 +173,7 @@ def parser():
     parser.add_argument("--models", type=str, nargs="+", default=[])
     parser.add_argument("--flops", default=False, action="store_true")
     parser.add_argument("--latency", default=False, action="store_true")
+    parser.add_argument("--gpu", default=False, action="store_true")
     parser.add_argument("--offset-bar", default=False, action="store_true")
     parser.add_argument(
         "--baseline-latency-folder",
@@ -206,7 +207,7 @@ def parser():
 
 def collect_kernels(dir, model, args):
     subdirs = os.listdir(dir)
-    
+
     if any(re.match("0\.\dx", subdir) for subdir in subdirs):
         results = [collect_kernels(os.path.join(dir, subdir), model, args) for subdir in subdirs if re.match("0\.\dx", subdir)]
         return [k for res in results for k in res]
@@ -244,7 +245,7 @@ def collect_kernels(dir, model, args):
         if args.latency and not os.path.exists(os.path.join(
                     kernel_dir,
                     "perf",
-                    "llvm",
+                    "cuda" if args.gpu else "llvm",
                     "torchvision",
                     f"{model}-N=1",
                     "benchmark_results.csv",
@@ -256,7 +257,7 @@ def collect_kernels(dir, model, args):
                 os.path.join(
                     kernel_dir,
                     "perf",
-                    "llvm",
+                    "cuda" if args.gpu else "llvm",
                     "torchvision",
                     f"{model}-N=1",
                     "benchmark_results.csv",

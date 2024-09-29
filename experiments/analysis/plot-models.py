@@ -2,24 +2,12 @@ import argparse
 import json
 import os, shutil
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 import numpy as np
 import pandas as pd
 from plot_utils import *
 
-
-if __name__ == "__main__":
-    # Get Path
-    args = parser()
-
-    assert len(args.models) == len(args.dirs)
-    
-    assert args.dirs is not None
-    for dir in args.dirs:
-        assert os.path.exists(dir) and os.path.isdir(dir)
-        
-    os.makedirs(args.output, exist_ok=True)
-    
-    plt.figure(figsize=(5, 4), dpi=300)
+def draw(ax: Axes, args):
     for model, dir, color in zip(args.models, args.dirs, ["#8ECFC9", "#FFBE7A", "#FA6F6F", "#82B0D2", "#BEB8DC"]):
         
         baseline_perf = fetch_baseline_perf(model)
@@ -64,7 +52,7 @@ if __name__ == "__main__":
                     os.path.join(
                         kernel_dir,
                         "perf",
-                        "llvm",
+                        "cuda" if args.gpu else "llvm",
                         "torchvision",
                         f"{model}-N=1",
                         "benchmark_results.csv",
@@ -101,21 +89,13 @@ if __name__ == "__main__":
         
         latency = np.array(latency)
         y = np.array(y)
-        
-        # plt.scatter(
-        #     latency,
-        #     y,
-        #     label=model,
-        #     s=20,
-        #     c=color,
-        # )
 
         # Pareto
         score = np.array([1 - latency, y]).transpose()
         pareto_mask = identify_pareto(score)
 
         id = np.argsort(latency[pareto_mask])
-        plt.plot(
+        ax.plot(
             latency[pareto_mask][id],
             y[pareto_mask][id],
             # label=f"{model}-pareto",
@@ -124,7 +104,7 @@ if __name__ == "__main__":
             # where="post",
             linestyle="--",
         )
-        plt.scatter(
+        ax.scatter(
             latency[pareto_mask][id],
             y[pareto_mask][id],
             label=model2name[model],
@@ -132,11 +112,41 @@ if __name__ == "__main__":
             c=color,
         )
 
-        plt.scatter([baseline_latency], [reference_acc], s=50, c=color, marker="^")
+        ax.scatter([baseline_latency], [reference_acc], s=50, c=color, marker="^")
         
         print(f"Speedup for model {model2name[model]} is from {baseline_latency / np.max(latency[pareto_mask]):.2f}x to {baseline_latency / np.min(latency[pareto_mask]):.2f}x. ")
         
-    plt.xlabel("End-to-end inference time (ms)")
-    plt.ylabel("ImageNet Classification Accuracy")
-    plt.legend(loc="lower right")
-    plt.savefig(os.path.join(args.output, "imagenet-performance.pdf"))
+    ax.set_xlabel(('GPU' if args.gpu else 'CPU') + " Inference time (ms)")
+
+if __name__ == "__main__":
+    # Get Path
+    args = parser()
+
+    assert len(args.models) == len(args.dirs)
+    
+    assert args.dirs is not None
+    for dir in args.dirs:
+        assert os.path.exists(dir) and os.path.isdir(dir)
+        
+    os.makedirs(args.output, exist_ok=True)
+    
+    fig = plt.figure(figsize=(7, 2.5), dpi=300)
+
+    ax1 = fig.add_subplot(1, 2, 1)
+    args.gpu = False
+    draw(ax1, args)
+    ax1.set_ylabel("Top-1 Accuracy")
+    
+    ax2 = fig.add_subplot(1, 2, 2)
+    args.gpu = True
+    draw(ax2, args)
+    ax2.yaxis.set_visible(False)
+    ax2.legend(loc="lower right")
+
+    # handles, labels = ax1.get_legend_handles_labels()
+    # fig.legend(handles, labels, loc='center right', bbox_to_anchor=(1.3, 0.5))
+    
+    # plt.legend(loc="lower right")
+    fig.tight_layout()
+    fig.subplots_adjust(wspace=0.05)
+    fig.savefig(os.path.join(args.output, f"imagenet-performance.pdf"))

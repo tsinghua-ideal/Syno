@@ -30,3 +30,5 @@ python analysis/end_to_end_perf_plot.py --latency --output analysis/results/cifa
 python analysis/compression_plot.py --latency --output analysis/results/cifar100-histogram/
 
 python analysis/layerwise.py
+
+python analysis/sync_perf.py --dirs results/resnet-good-kernels/0.2x results/resnet-good-kernels/0.4x results/resnet-good-kernels/0.5x results/resnet-good-kernels/0.6x results/resnet-good-kernels/0.7x results/densenet-good-kernels results/resnext-good-kernels results/efficientnet-good-kernels --destinations results/imagenet-session-reevaluate results/imagenet-session-resnet34-reevaluate results/imagenet_reevaluate_kernels/densenet121 results/imagenet_reevaluate_kernels/resnext29_2x64d results/imagenet_reevaluate_kernels/efficientnet_v2_s
