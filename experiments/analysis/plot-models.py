@@ -6,9 +6,14 @@ from matplotlib.axes import Axes
 import numpy as np
 import pandas as pd
 from plot_utils import *
+from statistics import geometric_mean
 
 def draw(ax: Axes, args):
-    for model, dir, color in zip(args.models, args.dirs, ["#8ECFC9", "#FFBE7A", "#FA6F6F", "#82B0D2", "#BEB8DC"]):
+
+    min_speedups = []
+    max_speedups = []
+
+    for model, dir, color, marker in zip(args.models, args.dirs, ["#8ECFC9", "#FFBE7A", "#FA6F6F", "#82B0D2", "#BEB8DC"], ['p', '^', '*', '+', 'x']):
         
         baseline_perf = fetch_baseline_perf(model)
         reference_acc = baseline_perf["accuracy"]
@@ -16,6 +21,8 @@ def draw(ax: Axes, args):
 
         model = model.split('-')[0]
         baseline_latency = fetch_baseline_latency(model, args)
+        if args.flops:
+            baseline_latency = baseline_perf["flops"]
 
         # FLOPs
         
@@ -86,6 +93,9 @@ def draw(ax: Axes, args):
             == len(hash_value)
             == len(latency)
         )
+
+        if args.flops:
+            latency = flops
         
         latency = np.array(latency)
         y = np.array(y)
@@ -100,7 +110,7 @@ def draw(ax: Axes, args):
             y[pareto_mask][id],
             # label=f"{model}-pareto",
             c=color,
-            linewidth=1.3,
+            linewidth=4,
             # where="post",
             linestyle="--",
         )
@@ -108,15 +118,26 @@ def draw(ax: Axes, args):
             latency[pareto_mask][id],
             y[pareto_mask][id],
             label=model2name[model],
-            s=20,
+            s=50,
             c=color,
+            marker=marker,
         )
 
-        ax.scatter([baseline_latency], [reference_acc], s=50, c=color, marker="^")
+        ax.scatter([baseline_latency], [reference_acc], s=50, c=color, marker=marker)
+
+        min_speedup = baseline_latency / np.max(latency[pareto_mask])
+        max_speedup = baseline_latency / np.min(latency[pareto_mask])
+        min_speedups.append(min_speedup)
+        max_speedups.append(max_speedup)
         
-        print(f"Speedup for model {model2name[model]} is from {baseline_latency / np.max(latency[pareto_mask]):.2f}x to {baseline_latency / np.min(latency[pareto_mask]):.2f}x. ")
+        print(f"Speedup for model {model2name[model]}: {min_speedup:.2f} to {max_speedup:.2f}. Ratio for model {model2name[model]}: {1 / min_speedup:.2f} to {1 / max_speedup:.2f}.  ")
+
+    print(f"Average speedup is from {geometric_mean(min_speedups):.2f}x to {geometric_mean(max_speedups):.2f}x. ")
         
-    ax.set_xlabel(('GPU' if args.gpu else 'CPU') + " Inference time (ms)")
+    ax.set_xlabel(('GPU' if args.gpu else 'CPU') + " Inference time (ms)", fontsize=14)
+    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.set_xlim(left=0)
+    ax.grid(linestyle='--')
 
 if __name__ == "__main__":
     # Get Path
@@ -130,23 +151,20 @@ if __name__ == "__main__":
         
     os.makedirs(args.output, exist_ok=True)
     
-    fig = plt.figure(figsize=(7, 2.5), dpi=300)
+    fig, axs = plt.subplots(1, 2, figsize=(7, 3.5), gridspec_kw={'width_ratios': [1, 1], 'wspace': 0.05})
 
-    ax1 = fig.add_subplot(1, 2, 1)
+    ax1 = axs[0]
     args.gpu = False
     draw(ax1, args)
-    ax1.set_ylabel("Top-1 Accuracy")
+    ax1.set_ylabel("Top-1 Accuracy", fontsize=14)
     
-    ax2 = fig.add_subplot(1, 2, 2)
+    ax2 = axs[1]
     args.gpu = True
     draw(ax2, args)
-    ax2.yaxis.set_visible(False)
-    ax2.legend(loc="lower right")
+    ax2.set_yticklabels([])
 
-    # handles, labels = ax1.get_legend_handles_labels()
-    # fig.legend(handles, labels, loc='center right', bbox_to_anchor=(1.3, 0.5))
+    handles, labels = ax1.get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper center', ncol=3, fontsize=14, bbox_to_anchor=(0.5, 1.0))
     
-    # plt.legend(loc="lower right")
-    fig.tight_layout()
-    fig.subplots_adjust(wspace=0.05)
+    fig.subplots_adjust(top=0.75, bottom=0.2, left=0.13, right=0.98)
     fig.savefig(os.path.join(args.output, f"imagenet-performance.pdf"))

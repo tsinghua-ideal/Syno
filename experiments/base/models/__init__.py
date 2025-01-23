@@ -20,9 +20,9 @@ from .c3d import C3D
 from .manual_kernels import ManualImpl
 
 
-def get_sampler(args, model) -> Sampler:
+def get_sampler(args, model: KASModel) -> Sampler:
     # FLOPs ratio
-    raw_flops, _ = model.profile(not_count_placeholder=True, seq_len=args.gpt_seq_len)
+    raw_flops, raw_params = model.profile(not_count_placeholder=True, seq_len=args.gpt_seq_len)
     flops, _ = model.profile(seq_len=args.gpt_seq_len)
     min_flops = args.kas_min_flops_ratio * flops
     max_flops = args.kas_max_flops_ratio * flops
@@ -34,7 +34,8 @@ def get_sampler(args, model) -> Sampler:
         min_flops = raw_flops
     max_placeholder_flops = max_flops - raw_flops
     min_placeholder_flops = min_flops - raw_flops
-    logging.info(f"Raw FLOPs per batch: {raw_flops / 1e9:.5f}G")
+    logging.info(f"Raw FLOPs per batch: {raw_flops / 1e9}G")
+    logging.info(f"Raw Params per batch: {raw_params}")
     logging.info(
         f"Maximum total placeholder FLOPs per batch: {max_placeholder_flops / 1e9:.5f}G"
     )

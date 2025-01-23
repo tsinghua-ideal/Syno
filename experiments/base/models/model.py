@@ -1,3 +1,5 @@
+import thop.vision
+import thop.vision.basic_hooks
 import torch
 import thop
 from collections import OrderedDict
@@ -126,11 +128,11 @@ class KASModel(nn.Module):
             else:
                 m.total_ops += m.referred_layer.total_ops
 
-        def count_placeholder_zero(m: Placeholder, x, y):
-            pass
+        # def count_placeholder_zero(m: Placeholder, x, y):
+        #     pass
 
         count_placeholder = (
-            count_placeholder_zero
+            thop.vision.basic_hooks.zero_ops
             if not_count_placeholder
             else count_placeholder_non_zero
         )
@@ -154,10 +156,15 @@ class KASModel(nn.Module):
                 ConvNeXtLinearPlaceholder: count_placeholder,
             },
         )
+        if not_count_placeholder:
+            for m in self.modules():
+                if isinstance(m, Placeholder):
+                    for p in m.parameters():
+                        params -= torch.DoubleTensor([p.numel()])
         flops = flops // batch_size
         return int(flops), int(params)
 
-    def sample_input_shape(self, seq_len=None):
+    def sample_input_shape(self, seq_len=None) -> tuple:
         assert False, "Not implemented"
 
     def sampler_parameters(self, seq_len=None):

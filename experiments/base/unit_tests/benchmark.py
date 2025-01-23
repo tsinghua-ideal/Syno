@@ -196,7 +196,8 @@ if __name__ == "__main__":
         # "linear_simple",
         # "MQA",
         # "Conv2d_simple",
-        "Conv3d_simple",
+        # "Conv3d_simple",
+        "kernel2",
         # "Conv3d_group",
         # "Conv1x1_simple",
         # "Conv2d_dilation",
@@ -210,6 +211,6 @@ if __name__ == "__main__":
         # "Shift2d",
         # "kernel_07923",
     ]
-    test_run = True
+    test_run = False
 
     test_semantic_conv2d(test_kernels, test_run)

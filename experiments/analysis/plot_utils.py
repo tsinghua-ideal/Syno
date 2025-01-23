@@ -8,6 +8,8 @@ import pandas as pd
 import re
 from tqdm import tqdm
 
+plt.rcParams['font.family'] = 'DejaVu Sans'
+
 ansor_color = '#a7d0e3'
 nas_pte_color = '#fa8074'
 micro_nas_color = '#d56050'
@@ -114,7 +116,7 @@ def text_numbers_custom(ax, width, entries, bars,
                         '{:.2f}×'.format(value), fontsize=fontsize, fontweight=fontweight,
                         ha='center')
 
-def extract_latency(csv: os.PathLike):
+def extract_latency(csv: str):
     assert os.path.exists(csv) and os.path.splitext(csv)[1] == ".csv", os.path.splitext(
         csv
     )

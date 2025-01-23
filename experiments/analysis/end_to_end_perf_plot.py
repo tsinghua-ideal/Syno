@@ -1,4 +1,11 @@
-import easypyplot as epp
+from easypyplot import pdf, barchart
+from matplotlib.patches import Patch
+from statistics import geometric_mean
+from matplotlib.ticker import MultipleLocator
+from matplotlib.axes import Axes
+
+from matplotlib.pyplot import rcParams
+rcParams.update({'font.size': 14})
 
 from plot_utils import *
 
@@ -6,7 +13,7 @@ def get_best_latency(folder, model, args, min_acc):
     result = min([kernel for kernel in collect_kernels(folder, model, args) if kernel[1] > min_acc], key=lambda x:x[6])
     return result[6]
 
-def draw(ax, args):
+def draw(ax: Axes, args):
 
     models = [
         ('ResNet-18', 'resnet18', 'results/resnet-good-kernels'), 
@@ -26,7 +33,7 @@ def draw(ax, args):
             'baseline': True
         },
         {
-            'name': 'Ours',
+            'name': 'Syno',
             'data': [
                 (name, get_best_latency(folder, model, args, fetch_baseline_perf(model)["accuracy"] - args.max_acc_decrease))
                 for name, model, folder in models
@@ -47,27 +54,41 @@ def draw(ax, args):
     baseline = check_baseline(entries, True)
     names, labels, bars = simplify(entries, baseline, True)
     num_groups = len(names)
+
+    colors=[ansor_color, nas_pte_color, micro_nas_color]
+    hatchs=['*', '\\']
     
     # Draw bars
-    epp.barchart.draw(ax, bars,
+    barchart.draw(ax, bars,
                       width=width,
                       linewidth=linewidth,
                       group_names=labels,
                       entry_names=names,
                       breakdown=False,
-                      colors=[ansor_color, nas_pte_color, micro_nas_color],
-                      xticklabelfontsize=8,
+                      colors=colors,
+                      hatchs=hatchs, 
+                      xticklabelfontsize=14,
                       xticklabelrotation=20,
                     #   xticklabelrotationalignment='right'
                       )
 
     # Mark numbers
-    text_numbers(ax, width, entries, bars, fontsize=7, extra_height=0.04 if args.gpu else 0.05)
+    text_numbers(ax, width, entries, bars, fontsize=14, extra_height=0.04 if args.gpu else 0.05)
+    print("Geomean speedup", geometric_mean([x[1] for x in bars]))
 
     # Y axis
-    ax.yaxis.grid(True)
-    ax.set_ylabel(('GPU' if args.gpu else 'CPU') + ' Speedup ×', multialignment='center', fontsize=8)
+    ax.grid(axis='y', linestyle='--')
+    ax.set_ylabel(('GPU' if args.gpu else 'CPU') + ' Speedup', multialignment='center', fontsize=14)
     ax.set_ylim(0, 3.5 if args.gpu else 4.5)
+    ax.yaxis.set_major_locator(MultipleLocator(1))
+    # ax.set_xticklabels([])
+    # ax.set_yticklabels([])
+    ax.tick_params(axis='both', which='major', labelsize=14)
+    legend_elements = [
+        Patch(facecolor=c, edgecolor='black', hatch=h, label=l)
+        for c, h, l in zip(colors, hatchs, names)
+    ]
+    ax.legend(handles=legend_elements, fontsize=14)
 
 if __name__ == '__main__':
     args = parser()
@@ -75,20 +96,17 @@ if __name__ == '__main__':
     name = 'end-to-end-performance'
 
     # Figures
-    pp, fig = epp.pdf.plot_setup(os.path.join(args.output, f'{name}.pdf'), figsize=(5, 3), font='default')
+    fig, axs = plt.subplots(2, 1, figsize=(7, 4), gridspec_kw={'hspace': 0.05, 'bottom': 0.22, 'top': 0.98, 'left': 0.08, 'right': 0.99})
 
-    ax1 = fig.add_subplot(2, 1, 1)
+    ax1 = axs[0]
     args.gpu = False
     draw(ax1, args)
     ax1.xaxis.set_visible(False)
     
-    ax2 = fig.add_subplot(2, 1, 2)
+    ax2 = axs[1]
     args.gpu = True
     draw(ax2, args)
     ax2.legend().remove()
 
     # Finish
-    fig.tight_layout()
-    fig.subplots_adjust(hspace=0.05)
-    fig.show()
-    epp.pdf.plot_teardown(pp, fig)
+    fig.savefig(os.path.join(args.output, f"{name}.pdf"))

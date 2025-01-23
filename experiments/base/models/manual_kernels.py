@@ -672,3 +672,66 @@ class ManualImpl:
             [in_N, in_C, in_H, in_W, expanded_s, tmp_dim],
             [w_s, w_out_C, w_k, w_in_C],
         )
+    
+    
+    def kernel2(self) -> Assembled:
+        N, H, k_1, g, s, C_in, C_out = self.assembler.get_sizes(
+            "N", "H", "k_1", "g", "s", "C_in", "C_out"
+        )
+        k = k_1
+        (
+            in_N,
+            in_H,
+            in_W,
+            in_C,
+            w1_out_C, 
+            w1_k, 
+            w1_g, 
+            w1_shared_C,
+            w2_in_C, 
+            w2_k, 
+            w2_shared_C,
+        ) = self.assembler.make_dims_of_sizes(N, H, H, C_in, C_out, k, g, C_out / g / s, C_in, k, C_out / g / s)
+
+        # Stage 1
+        # Spatial dimensions
+        main_W, windows_W = self.assembler.create_unfold(in_W, k)
+        shared_k_2 = self.assembler.create_share(windows_W, w2_k)
+
+        # channel dimensions
+        shared_C_in = self.assembler.create_share(in_C, w2_in_C)
+        split_left, split_right = self.assembler.create_split(shared_C_in, C_in / g)
+
+        tmp_dim = self.assembler.create_expand(C_out / g / s)
+        shared_C_masked = self.assembler.create_share(tmp_dim, w2_shared_C)
+
+        # Stage 2
+        # Spatial dimensions
+        shift_H = self.assembler.create_shift(in_H, 1)
+        main_H, windows_H = self.assembler.create_unfold(shift_H, k)
+        shared_k_1 = self.assembler.create_share(windows_H, w1_k)
+
+        # channel dimensions
+        shared_g = self.assembler.create_share(split_left, w1_g)
+        shared_C = self.assembler.create_share(shared_C_masked, w1_shared_C)
+
+        tmp_dim1 = self.assembler.create_expand(C_out)
+        final_C_out = self.assembler.create_share(tmp_dim1, w1_out_C)
+
+        in_N.output(0)
+        final_C_out.output(1)
+        main_H.output(2)
+        main_W.output(3)
+        split_right.sum()
+        shared_g.sum()
+        shared_C.sum()
+        shared_k_1.sum()
+        shared_k_2.sum()
+
+        return self.assembler.assemble(
+            "conv",
+            "in_0 * in_1 * in_2",
+            [in_N, in_C, in_H, in_W, tmp_dim, tmp_dim1],
+            [w1_g, w1_k, w1_out_C, w1_shared_C],
+            [w2_in_C, w2_k, w2_shared_C],
+        )

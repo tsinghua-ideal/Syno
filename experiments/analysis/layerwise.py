@@ -1,7 +1,9 @@
 from typing import Literal
 
-import matplotlib.pyplot
-import easypyplot as epp
+from matplotlib.patches import Patch
+from matplotlib.axes import Axes
+from easypyplot import pdf, barchart
+from statistics import geometric_mean, mean
 
 from plot_utils import *
 
@@ -49,7 +51,7 @@ offset = {
     }
 }
 
-def draw(ax, target):
+def draw(ax: Axes, target):
     entries = [
         {
             'name': 'TVM',
@@ -57,29 +59,29 @@ def draw(ax, target):
             'baseline': True
         },
         {
-            'name': 'Seq.1',
+            'name': 'NAS-PTE Seq 1',
             'data': read_entries(SEQ_1_PATH, target),
             'baseline': False
         },
         {
-            'name': 'Seq.2',
+            'name': 'NAS-PTE Seq 2',
             'data': read_entries(SEQ_2_PATH, target),
             'baseline': False
         },
         {
-            'name': 'Seq.3',
+            'name': 'NAS-PTE Seq 3',
             'data': read_entries(SEQ_3_PATH, target),
             'baseline': False
         },
         {
-            'name': 'Kernel 1',
+            'name': 'Syno Operator 1',
             'data': read_entries(KERNEL_1_PATH, target),
             'baseline': False,
             'text_mark': True, 
             'offset': offset[target]['Kernel 1'],
         },
         {
-            'name': 'Kernel 2',
+            'name': 'Syno Operator 2',
             'data': read_entries(KERNEL_2_PATH, target),
             'baseline': False,
             'text_mark': True, 
@@ -97,30 +99,50 @@ def draw(ax, target):
     check_format(entries)
     baseline = check_baseline(entries, True)
     names, labels, bars = simplify(entries, baseline, True)
-    num_groups = len(names)
 
+    colors=[ansor_color, seq1_color, seq2_color, seq3_color, micro_nas_color, micro_nas_compress_color]
+    hatchs=['o', 'x', '*', '-', '+', '|']
 
     # Draw bars
-    epp.barchart.draw(ax, bars,
+    barchart.draw(ax, bars,
                       width=width,
                       linewidth=linewidth,
                       group_names=labels,
-                      colors=[ansor_color, seq1_color, seq2_color, seq3_color, micro_nas_color, micro_nas_compress_color],
+                      colors=colors,
+                      hatchs=hatchs, 
                       entry_names=names,
-                      xticklabelfontsize=10,
+                      xticklabelfontsize=14,
                       breakdown=False)
+    
+    # print("Geomean speedup (Seq 1)", geometric_mean([x[1] for x in bars]))
+    # print("Geomean speedup (Seq 2)", geometric_mean([x[2] for x in bars]))
+    # print("Geomean speedup (Seq 3)", geometric_mean([x[3] for x in bars if x[3] > 0]))
+    # print("Geomean speedup (Kernel 1)", geometric_mean([x[4] for x in bars]))
+    # print("Geomean speedup (Kernel 2)", geometric_mean([x[5] for x in bars]))
+
+    print("Geomean speedup (Kernel 1&2)", geometric_mean([max(x[4], x[5]) / max(x[1], x[2], x[3]) for x in bars]))
 
     # Mark numbers
-    text_numbers_custom(ax, width, entries, bars, fontsize=8)
+    text_numbers_custom(ax, width, entries, bars, fontsize=11)
 
     # Y axis
     ax.yaxis.grid(True)
-    ax.set_ylabel(('GPU' if target == 'cuda' else 'CPU') + ' Speedup ×', multialignment='center', fontsize=10)
     YLIMS = {
-        'cuda': 8,
+        'cuda': 8.5,
         'llvm': 25,
     }
     ax.set_ylim(0, YLIMS[target])
+    
+    legend_elements = [
+        Patch(facecolor=c, edgecolor='black', hatch=h, label=l)
+        for c, h, l in zip(colors, hatchs, names)
+    ]
+    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.legend().remove()
+
+    ax.set_ylabel(('GPU' if target == 'cuda' else 'CPU') + ' Speedup', multialignment='center', fontsize=14)
+    ax.grid(axis='y', linestyle='--')
+    return legend_elements
 
 if __name__ == '__main__':
     target = "cuda"
@@ -129,19 +151,18 @@ if __name__ == '__main__':
     name = f'kernel-performance'
     
     # Figures
-    pp, fig = epp.pdf.plot_setup(f'analysis/results/{name}.pdf',
-                                 font='default', figsize=(10.2, 4))
-
-    ax1 = fig.add_subplot(2, 1, 1)
-    draw(ax1, "llvm")
-    ax1.xaxis.set_visible(False)
+    fig, axs = plt.subplots(2, 1, figsize=(14, 5), gridspec_kw={'hspace': 0.05, 'bottom': 0.08, 'top': 0.9, 'left': 0.05, 'right': 0.99})
     
-    ax2 = fig.add_subplot(2, 1, 2)
+    ax1 = axs[0]
+    legend_elements = draw(ax1, "llvm")
+    ax1.xaxis.set_visible(False)
+    ax1.yaxis.set_label_coords(-0.03, 0.5)
+    
+    ax2 = axs[1]
     draw(ax2, 'cuda')
-    ax2.legend().remove()
+    ax2.yaxis.set_label_coords(-0.03, 0.5)
+
+    fig.legend(handles=legend_elements, loc='upper center', ncol=6, fontsize=14, bbox_to_anchor=(0.5, 1.0))
 
     # Finish
-    fig.tight_layout()
-    fig.subplots_adjust(hspace=0.05)
-    fig.show()
-    epp.pdf.plot_teardown(pp, fig)
+    fig.savefig(os.path.join("analysis/results", f"{name}.pdf"))
