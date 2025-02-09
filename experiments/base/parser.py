@@ -36,9 +36,18 @@ def arg_parse():
         default=False,
         action="store_true",
     )
+    parser.add_argument(
+        "--ckpt-path",
+        default="",
+        type=str,
+        help="Path to model checkpoint",
+    )
     parser.add_argument("--num-classes", type=int, default=100)
     parser.add_argument(
         "--compile", action="store_true", default=False, help="Compile kernel"
+    )
+    parser.add_argument(
+        "--quant", action="store_true", default=False, help="Compile kernel"
     )
 
     # Dataset

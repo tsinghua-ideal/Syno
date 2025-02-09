@@ -20,4 +20,4 @@ if __name__ == "__main__":
     folder = config["logging.folder"]
     batch_size = config["training.batch_size"]
 
-    ImageNetTrainer.launch_from_args(model, folder, batch_size)
+    ImageNetTrainer.launch_from_args(model, folder, batch_size, False)

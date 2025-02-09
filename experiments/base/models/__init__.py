@@ -161,8 +161,8 @@ def get_model(
         if (args.kas_replace_placeholder or return_sampler)
         else None
     )
+    logging.info(f"Mappings: {Sampler._extract_all_mappings(model)}")
     if sampler:
-        logging.info(f"Mappings: {sampler._extract_all_mappings(model)}")
         if any(
             isinstance(pl.referred_layer, torch.nn.Conv2d)
             for pl in sampler._extract_placeholders(model)

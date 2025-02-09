@@ -17,6 +17,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from abc import ABC, abstractmethod
 import argparse
 from contextlib import ExitStack, nullcontext, redirect_stdout, redirect_stderr
 import csv
@@ -117,10 +118,9 @@ class LogRedirector(ExitStack):
         return super().__exit__(exc_type, exc_value, traceback)
 
 class KernelSpecificTuner:
-    def __init__(self, parent: 'MetaScheduleTuner', kernels_dir: Optional[str], working_dir: str, relax_mod: IRModule) -> None:
+    def __init__(self, parent: 'BaseMetaScheduleTuner', working_dir: str, relax_mod: IRModule) -> None:
         self._parent = parent
         self._target = self._parent._target
-        self._kernels_dir = kernels_dir
         self._working_dir = working_dir
         os.makedirs(self._working_dir, exist_ok=True)
         self._relax_mod = relax_mod
@@ -181,6 +181,7 @@ class KernelSpecificTuner:
         return os.path.exists(self._get_exported_library_path())
 
     def build(self, show: bool = False) -> str:
+        exported_path = self._get_exported_library_path()
         if self._db is None:
             with self._target, transform.PassContext(opt_level=3):
                 executable = relax.build(self._relax_mod, target=self._target)
@@ -190,10 +191,9 @@ class KernelSpecificTuner:
                 if show:
                     print("After applying tuning database:")
                     relax_mod.show()
-                with open(os.path.join(self._working_dir, "kernels_tvm_tuned.py"), "w") as out_file:
+                with open(exported_path, "w") as out_file:
                     out_file.write(relax_mod.script(show_meta=True))
                 executable = relax.build(relax_mod, target=self._target)
-        exported_path = self._get_exported_library_path()
         executable.export_library(exported_path, tar)
         return exported_path
 
@@ -237,8 +237,8 @@ class KernelSpecificTuner:
         with open(out_path, "w") as out_file:
             writer = csv.writer(out_file)
             # write experiment parameters at the top as a record
-            writer.writerow(["model", self._parent._model_name])
-            writer.writerow(["input_shape", self._parent._input_shape])
+            writer.writerow(["model", self._parent.model_name])
+            writer.writerow(["input_shape", self._parent.input_shape])
             writer.writerow(["target", self._target])
             writer.writerow(["num_measurement_repeats", -1]) # We no longer use this field
             writer.writerow(["latency_mean", result.mean])
@@ -281,22 +281,13 @@ def _perform_measurement(
     )
     return evaluator()
 
-_TOTAL_KERNELS_SUBSTITUTED = 0
-
-class MetaScheduleTuner:
+class BaseMetaScheduleTuner(ABC):
     def __init__(
         self,
-        model: str,
-        vanilla: bool = PRESET_VANILLA,
-        batch_size: int = PRESET_BATCH_SIZE,
         target: tvm.target.Target = PRESET_TARGET,
         rpc_config: Optional[ms.runner.RPCConfig] = PRESET_RPC_CONFIG,
-        working_dir: str = PRESET_WORKING_DIR,
     ) -> None:
         # Basic configurations.
-        self._model_name = model
-        self._vanilla = vanilla
-        self._batch_size = batch_size
         self._target = target
         if self._target.attrs.get("mtriple", None) == "aarch64-linux-gnu":
             alloc_repeat = 3
@@ -314,64 +305,25 @@ class MetaScheduleTuner:
             "initializer": inherit_process_authkey_and_ignore_sigint(),
         }
         self._rpc_config = rpc_config
-        self._raw_working_dir = working_dir
-        self._specialized_dir_name = os.path.join(self._target.kind.name, get_specialized_model_name(self._model_name, self._batch_size, vanilla=self._vanilla))
-        self._working_dir = os.path.join(working_dir, self._specialized_dir_name)
-
-        # Load the model.
-        self._templated_mod, self._all_mappings, self._input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self._model_name, self._batch_size, vanilla=self._vanilla)
-
-        # Input shape for runtime.
-        self.input_dtype = "float32"
-        self.input_info = {"inp_0": self._input_shape}
 
     @property
+    @abstractmethod
+    def input_dtype(self) -> str:
+        ...
+
+    @property
+    @abstractmethod
+    def input_shape(self) -> Tuple[int, ...]:
+        ...
+
+    @property
+    @abstractmethod
     def model_name(self) -> str:
-        return self._model_name
-
-    @property
-    def vanilla(self) -> bool:
-        return self._vanilla
-
-    @property
-    def batch_size(self) -> int:
-        return self._batch_size
+        ...
 
     @property
     def rpc_config(self) -> Optional[ms.runner.RPCConfig]:
         return self._rpc_config
-
-    @property
-    def raw_working_dir(self) -> str:
-        return self._raw_working_dir
-
-    def get_kernel_specific_tuner_working_dir(self, kernels_dir: Optional[str]) -> str:
-        if kernels_dir is None:
-            return self._working_dir
-        else:
-            return os.path.join(kernels_dir, "perf", self._specialized_dir_name)
-
-    def get_kernel_specific_tuner(self, kernels_dir: Optional[str]) -> KernelSpecificTuner:
-        """Construct kernels according to the directory generated by Sampler.realize(). If the directory is None, return the original model."""
-        working_dir = self.get_kernel_specific_tuner_working_dir(kernels_dir)
-        kernel_builder = None
-        if kernels_dir is not None:
-            if os.path.exists(os.path.join(kernels_dir, "kernel_scheduler_dir")):
-                kernels_file = os.path.join(kernels_dir, "kernel_scheduler_dir", "kernels_tvm.py")
-            else:
-                kernels_file = os.path.join(kernels_dir, "kernels_tvm.py")
-            global _TOTAL_KERNELS_SUBSTITUTED
-            spec = spec_from_file_location(f"kas_tvm_kernels_mod_{_TOTAL_KERNELS_SUBSTITUTED}", kernels_file)
-            assert spec is not None, f"Failed to load module from {kernels_file}"
-            _TOTAL_KERNELS_SUBSTITUTED += 1
-            mod = module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            kernel_builder = construct_kernel_builder(self._all_mappings, mod.weights, mod.build)
-        relax_mod = substitute_kernels(self._templated_mod, kernel_builder)
-        return KernelSpecificTuner(self, kernels_dir, working_dir, relax_mod)
-
-    def query_kernel_specific_tuner_state(self, kernels_dir: Optional[str]) -> TunerState:
-        return KernelSpecificTuner.tuner_state(self.get_kernel_specific_tuner_working_dir(kernels_dir))
 
     def _get_num_workers(self) -> int:
         if self._rpc_config is not None:
@@ -407,14 +359,22 @@ class MetaScheduleTuner:
             runner = ms.runner.LocalRunner(**self._runner_config, f_run_evaluator=f_run_evaluator)
         return runner
 
+    def _get_input_shape(self) -> Dict[str, Tuple[int, ...]]:
+        return {"inp_0": self.input_shape}
+
     def _get_input_data(self) -> Dict[str, np.ndarray]:
-        input_data: Dict[str, np.ndarray] = {}
-        for input_name, input_shape in self.input_info.items():
-            assert self.input_dtype.startswith("float"), "Only float input is supported."
-            input_data[input_name] = np.random.uniform(size=input_shape).astype(self.input_dtype)
+        assert self.input_dtype.startswith("float"), "Only float input is supported."
+        input_data: Dict[str, np.ndarray] = {"inp_0": np.random.uniform(size=self.input_shape).astype(self.input_dtype)}
         return input_data
 
-    def measure(self, mod_path: str) -> runtime.module.BenchmarkResult:
+    def measure(
+        self,
+        mod_path: str,
+        perform_measurement_f: Callable[
+            [runtime.Module, runtime.ndarray.Device, Dict[str, np.ndarray]],
+            runtime.module.BenchmarkResult,
+        ] = _perform_measurement,
+    ) -> runtime.module.BenchmarkResult:
         input_data = self._get_input_data()
         dev_type = self._target.kind.name
         if self._rpc_config is not None:
@@ -428,8 +388,84 @@ class MetaScheduleTuner:
         else:
             mod = runtime.load_module(mod_path)
             dev = tvm.device(dev_type=dev_type, dev_id=0)
-        result = _perform_measurement(mod, dev, input_data)
+        result = perform_measurement_f(mod, dev, input_data)
         return result
+
+_TOTAL_KERNELS_SUBSTITUTED = 0
+
+class MetaScheduleTuner(BaseMetaScheduleTuner):
+    def __init__(
+        self,
+        model: str,
+        vanilla: bool = PRESET_VANILLA,
+        batch_size: int = PRESET_BATCH_SIZE,
+        target: tvm.target.Target = PRESET_TARGET,
+        rpc_config: Optional[ms.runner.RPCConfig] = PRESET_RPC_CONFIG,
+        working_dir: str = PRESET_WORKING_DIR,
+    ) -> None:
+        super().__init__(target, rpc_config)
+        # Basic configurations.
+        self._model_name = model
+        self._vanilla = vanilla
+        self._batch_size = batch_size
+        self._raw_working_dir = working_dir
+        self._specialized_dir_name = os.path.join(self._target.kind.name, get_specialized_model_name(self._model_name, self._batch_size, vanilla=self._vanilla))
+        self._working_dir = os.path.join(working_dir, self._specialized_dir_name)
+
+        # Load the model.
+        self._templated_mod, self._all_mappings, self._input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self._model_name, self._batch_size, vanilla=self._vanilla)
+
+    @property
+    def input_dtype(self) -> str:
+        return "float32"
+
+    @property
+    def input_shape(self) -> Tuple[int, ...]:
+        return self._input_shape
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    @property
+    def vanilla(self) -> bool:
+        return self._vanilla
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
+
+    @property
+    def raw_working_dir(self) -> str:
+        return self._raw_working_dir
+
+    def get_kernel_specific_tuner_working_dir(self, kernels_dir: Optional[str]) -> str:
+        if kernels_dir is None:
+            return self._working_dir
+        else:
+            return os.path.join(kernels_dir, "perf", self._specialized_dir_name)
+
+    def get_kernel_specific_tuner(self, kernels_dir: Optional[str]) -> KernelSpecificTuner:
+        """Construct kernels according to the directory generated by Sampler.realize(). If the directory is None, return the original model."""
+        working_dir = self.get_kernel_specific_tuner_working_dir(kernels_dir)
+        kernel_builder = None
+        if kernels_dir is not None:
+            if os.path.exists(os.path.join(kernels_dir, "kernel_scheduler_dir")):
+                kernels_file = os.path.join(kernels_dir, "kernel_scheduler_dir", "kernels_tvm.py")
+            else:
+                kernels_file = os.path.join(kernels_dir, "kernels_tvm.py")
+            global _TOTAL_KERNELS_SUBSTITUTED
+            spec = spec_from_file_location(f"kas_tvm_kernels_mod_{_TOTAL_KERNELS_SUBSTITUTED}", kernels_file)
+            assert spec is not None, f"Failed to load module from {kernels_file}"
+            _TOTAL_KERNELS_SUBSTITUTED += 1
+            mod = module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            kernel_builder = construct_kernel_builder(self._all_mappings, mod.weights, mod.build)
+        relax_mod = substitute_kernels(self._templated_mod, kernel_builder)
+        return KernelSpecificTuner(self, working_dir, relax_mod)
+
+    def query_kernel_specific_tuner_state(self, kernels_dir: Optional[str]) -> TunerState:
+        return KernelSpecificTuner.tuner_state(self.get_kernel_specific_tuner_working_dir(kernels_dir))
 
 def _parse_args():
     args = argparse.ArgumentParser()
@@ -623,9 +659,9 @@ class TuningConfig:
         return model_tuner.get_kernel_specific_tuner(self.kernels_dir)
 
     @staticmethod
-    def from_kernel_tuner(tuner: KernelSpecificTuner, num_trials: int) -> "TuningConfig":
+    def from_kernel_tuner(tuner: KernelSpecificTuner, kernels_dir: str, num_trials: int) -> "TuningConfig":
         return TuningConfig.from_model_tuner(
-            tuner._parent, tuner._kernels_dir, num_trials,
+            cast(MetaScheduleTuner, tuner._parent), kernels_dir, num_trials,
         )
 
 def tune_e2e(config: TuningConfig, on_eval: Optional[Callable[[], None]] = None) -> None:
@@ -674,7 +710,7 @@ def main() -> int:
     if args.progress:
         assert args.redirect_log, "Progress bar is not supported without redirecting log."
         assert (not args.load) and (not args.dry_run), "Progress bar is not supported for loading or dry run."
-        config = TuningConfig.from_kernel_tuner(kernels_tuner, args.num_trials)
+        config = TuningConfig.from_kernel_tuner(kernels_tuner, args.kernels_dir, args.num_trials)
         mp_ctx = mp.get_context("spawn")
         with mp_ctx.Manager() as manager, tqdm(total=args.num_trials, smoothing=0.0) as pbar:
             progress = cast("ProgressQueue[None]", manager.Queue())
