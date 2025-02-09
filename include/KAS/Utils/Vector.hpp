@@ -10,6 +10,7 @@
 #include <sstream>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include "KAS/Utils/Algorithm.hpp"
 

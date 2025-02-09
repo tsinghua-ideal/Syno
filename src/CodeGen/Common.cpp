@@ -2,6 +2,7 @@
 #include <ranges>
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include "KAS/CodeGen/Common.hpp"
 

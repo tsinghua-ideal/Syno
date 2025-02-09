@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "fmt/format.h"
+#include "fmt/ranges.h"
 
 #include "KAS/Core/Colors.hpp"
 #include "KAS/Core/Shape.hpp"
