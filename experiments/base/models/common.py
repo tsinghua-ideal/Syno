@@ -46,7 +46,7 @@ def replace_layer_filter(
             return None
 
         if "resnet" in name:
-            if layer.kernel_size not in [(3, 3)] or layer.stride not in [
+            if layer.kernel_size not in [(1, 1), (3, 3)] or layer.stride not in [
                 (1, 1),
                 (2, 2),
             ]:
