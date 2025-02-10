@@ -28,6 +28,12 @@ for example, if you are running the tracker on the host machine, then it is
 python -m tvm.exec.rpc_server --tracker=127.0.0.1:9190 --key=jetson-orin-nano
 ```
 
+or, on A100 GPU, run
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python -m tvm.exec.rpc_server --tracker=127.0.0.1:9190 --key=a100
+```
+
 to start the client.
 
 ## How to run

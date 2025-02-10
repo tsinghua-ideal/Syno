@@ -76,19 +76,22 @@ _cortex_a78_6_core = "llvm -mtriple=aarch64-linux-gnu -mcpu=cortex-a78 -mattr=+n
 _jetson_orin_nano_gpu = "cuda -arch=sm_87 -max_threads_per_block=1024 -max_num_threads=1024 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
 _x86_64_16_core = "llvm -mtriple=x86_64-pc-linux-gnu -num-cores=16"
 _rtx_3060_laptop = "cuda -arch=sm_86 -max_threads_per_block=1024 -max_num_threads=1536 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
+_epyc_7542_128_core = "llvm -mtriple=x86_64-pc-linux-gnu -num-cores=128"
+_a100_gpu = "cuda -arch=sm_80 -max_threads_per_block=1024 -max_num_threads=2048 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
 
 PRESET_TARGETS = {
     "jetson_orin_nano-cpu": (_cortex_a78_6_core, _cortex_a78_6_core),
     "jetson_orin_nano-gpu": (_jetson_orin_nano_gpu, _cortex_a78_6_core),
     "x86_64-16_core_cpu": (_x86_64_16_core, _x86_64_16_core),
     "rtx_3060_laptop_gpu": (_rtx_3060_laptop, _x86_64_16_core),
+    "a100_gpu": (_a100_gpu, _epyc_7542_128_core),
 }
-PRESET_TARGET = parse_target(None, None, "jetson_orin_nano-cpu")
+PRESET_TARGET = parse_target(None, None, "a100_gpu")
 
 PRESET_RPC = True
 PRESET_RPC_HOST = "127.0.0.1"
 PRESET_RPC_PORT = 9190
-PRESET_RPC_KEY = "jetson-orin-nano"
+PRESET_RPC_KEY = "a100"
 PRESET_RPC_CONFIG = parse_rpc_config(PRESET_RPC, PRESET_RPC_HOST, PRESET_RPC_PORT, PRESET_RPC_KEY)
 
 PRESET_WORKING_DIR = "./perf"
