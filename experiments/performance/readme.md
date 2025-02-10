@@ -93,3 +93,9 @@ First `rsync` the exported network to the target device. Then
 ```bash
 python benchmark_torch.py --batch-size 1 --model torchvision/resnet18 --device cuda
 ```
+
+If you need to profile the network, use `--profile`.
+
+```bash
+nsys profile -w true -t cuda,nvtx,osrt,cudnn,cublas -s cpu --capture-range=cudaProfilerApi --cudabacktrace=true -x true -o profile_resnet18 python benchmark_torch.py --batch-size 1 --model torchvision/resnet18 --device cuda --profile
+```

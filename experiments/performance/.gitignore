@@ -1,8 +1,9 @@
-measurements/
-perf/
+/measurements/
 /model_onnx/
 /model_relax/
 /model_relax_quant/
 /model_torch/
+/perf/
+/perf_torch/
 /results/
 *.bak/

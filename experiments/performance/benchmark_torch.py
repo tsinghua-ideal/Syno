@@ -4,10 +4,11 @@ import os
 from typing import Tuple, Type
 
 import torch
-import torch.utils.benchmark as benchmark
-from torch.utils.benchmark.utils.common import Measurement
+torch.set_float32_matmul_precision('high')
 
-from .common import get_specialized_model_name
+import triton
+
+from common import get_specialized_model_name
 
 
 def import_torch_model(
@@ -21,30 +22,92 @@ def import_torch_model(
     return mod.ExportedModel, mod.INPUT_SHAPE
 
 
+def do_profile(fn, warmup=100, rep=500, grad_to_none=None):
+    outputs = fn()
+    torch.cuda.synchronize()
+
+    cache = torch.empty(int(256e6 // 4), dtype=torch.int, device=outputs.device)
+
+    # Estimate the runtime of the function
+    start_event = torch.cuda.Event(enable_timing=True)
+    end_event = torch.cuda.Event(enable_timing=True)
+    start_event.record()
+    for _ in range(5):
+        cache.zero_()
+        fn()
+    end_event.record()
+    torch.cuda.synchronize()
+    estimate_ms = start_event.elapsed_time(end_event) / 5
+
+    # compute number of warmup and repeat
+    n_warmup = max(1, int(warmup / estimate_ms))
+    n_repeat = min(6, max(1, int(rep / estimate_ms)))
+    # Warm-up
+    for _ in range(n_warmup):
+        fn()
+    torch.cuda.cudart().cudaProfilerStart()
+    # Benchmark
+    for i in range(n_repeat):
+        # we don't want `fn` to accumulate gradient values
+        # if it contains a backward pass. So we clear the
+        # provided gradients
+        if grad_to_none is not None:
+            for x in grad_to_none:
+                x.grad = None
+        # we clear the L2 cache before each run
+        cache.zero_()
+        # record time of `fn`
+        torch.cuda.nvtx.range_push("iteration")
+        fn()
+        torch.cuda.nvtx.range_pop()
+    torch.cuda.synchronize()
+    torch.cuda.cudart().cudaProfilerStop()
+
+
 def run_benchmark(
     Model: Type[torch.nn.Module],
     input_shape: Tuple[int, ...],
     device: torch.device,
-) -> Measurement:
-    model = torch.compile(
-        Model().to(device),
-        backend="inductor",
-        mode="max-autotune",
-        dynamic=False,
-        fullgraph=True,
-    )
-    model.eval()
-    inputs = torch.randn(input_shape, device=device)
-    print("Compiling model...")
-    # Warmup
-    model(inputs)
-    print("Running benchmark...")
-    timer = benchmark.Timer(
-        stmt="model(inputs)",
-        globals={"model": model, "inputs": inputs},
-        label="torchscript",
-    )
-    return timer.blocked_autorange(min_run_time=1)
+    mode: str = "none",
+    profile: bool = False,
+):
+    model = Model().to(device).eval()
+    inputs = torch.randn(input_shape, device=device, requires_grad=False)
+    # model = torch.cuda.make_graphed_callables(model, (inputs,))
+    with torch.no_grad():
+        if mode != "none":
+            model = torch.compile(
+                model,
+                backend="inductor",
+                mode=mode,
+                dynamic=False,
+                fullgraph=True,
+            )
+        print("Compiling model...")
+        # Warmup
+        model(inputs)
+        print("Running benchmark...")
+        # Use triton benchmark if using CUDA
+        if device.type == "cuda":
+            if profile:
+                return do_profile(
+                    lambda: model(inputs),
+                )
+            else:
+                return triton.testing.do_bench(
+                    lambda: model(inputs),
+                    warmup=100,
+                    rep=500,
+                    return_mode="median",
+                )
+        else:
+            import torch.utils.benchmark as benchmark
+            timer = benchmark.Timer(
+                stmt="model(inputs)",
+                globals={"model": model, "inputs": inputs},
+                label="torchscript",
+            )
+            return timer.blocked_autorange(min_run_time=1)
 
 
 def _parse_args():
@@ -52,6 +115,8 @@ def _parse_args():
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--mode", type=str, default="none")
+    parser.add_argument("--profile", action="store_true")
     return parser.parse_args()
 
 
@@ -63,5 +128,5 @@ if __name__ == "__main__":
     model_path = os.path.join("model_torch", specialized_model_name)
     Model, input_shape = import_torch_model(model_path)
     device = torch.device(args.device)
-    print(run_benchmark(Model, input_shape, device))
+    print(run_benchmark(Model, input_shape, device, mode=args.mode, profile=args.profile))
     print("Done.")
