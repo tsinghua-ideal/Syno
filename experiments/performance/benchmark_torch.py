@@ -71,18 +71,17 @@ def do_profile(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REPEAT, gr
 
 
 def run_benchmark(
-    Model: Type[torch.nn.Module],
+    model: torch.nn.Module,
     input_shape: Tuple[int, ...],
     device: torch.device,
     mode: str = "none",
     profile: bool = False,
 ):
-    model = Model().to(device).eval()
+    model = model.to(device).eval()
     inputs = torch.randn(input_shape, device=device, requires_grad=False)
-    # model = torch.cuda.make_graphed_callables(model, (inputs,))
     with torch.no_grad():
         if mode != "none":
-            model = torch.compile(
+            run_model = torch.compile(
                 model,
                 backend="inductor",
                 mode=mode,
@@ -91,17 +90,17 @@ def run_benchmark(
             )
         print("Compiling model...")
         # Warmup
-        model(inputs)
+        run_model(inputs)
         print("Running benchmark...")
         # Use triton benchmark if using CUDA
         if device.type == "cuda":
             if profile:
                 return do_profile(
-                    lambda: model(inputs),
+                    lambda: run_model(inputs),
                 )
             else:
                 return triton.testing.do_bench(
-                    lambda: model(inputs),
+                    lambda: run_model(inputs),
                     warmup=_BENCHMARK_TIME_WARMUP,
                     rep=_BENCHMARK_TIME_REPEAT,
                     return_mode="median",
@@ -109,8 +108,8 @@ def run_benchmark(
         else:
             import torch.utils.benchmark as benchmark
             timer = benchmark.Timer(
-                stmt="model(inputs)",
-                globals={"model": model, "inputs": inputs},
+                stmt="run_model(inputs)",
+                globals={"run_model": run_model, "inputs": inputs},
                 label="torchscript",
             )
             return timer.blocked_autorange(min_run_time=1)
@@ -146,7 +145,7 @@ def main() -> int:
     model_path = os.path.join("model_torch", specialized_model_name)
     Model, input_shape = import_torch_model(model_path)
     device = torch.device(args.device)
-    print(run_benchmark(Model, input_shape, device, mode=args.mode, profile=args.profile))
+    print(run_benchmark(Model(), input_shape, device, mode=args.mode, profile=args.profile))
     print("Done.")
 
     return 0
