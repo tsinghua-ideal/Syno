@@ -92,6 +92,18 @@ These numbers suffice for convergence.
 
 # PyTorch Benchmark
 
+## How to run
+
+```bash
+python perf_torch.py --device cuda --mode max-autotune --model torchvision/resnet18 --result-dir /path/to/results
+```
+
+For `mode`, there are several options: `none` (eager mode), `max-autotune` (best autotuning), and other `torch.compile` modes. Default it `none`.
+
+You can also optionally specify whether to disable TF32 by `--disable-tf32`.
+
+# PyTorch Benchmark (Legacy)
+
 ## Exporting the Network
 
 ```bash

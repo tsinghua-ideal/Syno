@@ -17,7 +17,7 @@ _BENCHMARK_TIME_REPEAT = 500
 
 def run_benchmark(
     model: torch.nn.Module,
-    input_shape: tuple[int, int, int],
+    input_shape: tuple[int, int, int, int],
     device: torch.device,
     mode: str = "none",
 ):
