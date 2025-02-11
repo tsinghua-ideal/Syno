@@ -1,14 +1,20 @@
 import argparse
 from importlib.util import spec_from_file_location, module_from_spec
 import os
+import sys
 from typing import Tuple, Type
 
+# Disable all TorchInductor caching, so that different experiments are not affected by each other.
+os.environ["TORCHINDUCTOR_FORCE_DISABLE_CACHES"] = "1"
+
 import torch
-torch.set_float32_matmul_precision('high')
 
 import triton
 
 from common import get_specialized_model_name
+
+_BENCHMARK_TIME_WARMUP = 100
+_BENCHMARK_TIME_REPEAT = 500
 
 
 def import_torch_model(
@@ -22,7 +28,7 @@ def import_torch_model(
     return mod.ExportedModel, mod.INPUT_SHAPE
 
 
-def do_profile(fn, warmup=100, rep=500, grad_to_none=None):
+def do_profile(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REPEAT, grad_to_none=None):
     outputs = fn()
     torch.cuda.synchronize()
 
@@ -96,8 +102,8 @@ def run_benchmark(
             else:
                 return triton.testing.do_bench(
                     lambda: model(inputs),
-                    warmup=100,
-                    rep=500,
+                    warmup=_BENCHMARK_TIME_WARMUP,
+                    rep=_BENCHMARK_TIME_REPEAT,
                     return_mode="median",
                 )
         else:
@@ -117,11 +123,23 @@ def _parse_args():
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--mode", type=str, default="none")
     parser.add_argument("--profile", action="store_true")
+    parser.add_argument("--disable-tf32", action="store_true")
     return parser.parse_args()
 
 
-if __name__ == "__main__":
+def main() -> int:
     args = _parse_args()
+
+    # Enable benchmarking mode
+    torch.backends.cudnn.benchmark = True
+    # Disable TF32 if requested
+    if args.disable_tf32:
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+    else:
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+
     specialized_model_name = get_specialized_model_name(
         args.model, args.batch_size, vanilla=True
     )
@@ -130,3 +148,9 @@ if __name__ == "__main__":
     device = torch.device(args.device)
     print(run_benchmark(Model, input_shape, device, mode=args.mode, profile=args.profile))
     print("Done.")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

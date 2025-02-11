@@ -42,6 +42,12 @@ to start the client.
 python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --target-preset "jetson_orin_nano-cpu" --kernels-dir "/path/to/kernels/dir"
 ```
 
+or, on A100 GPU,
+
+```bash
+python MetaScheduleTuner.py --batch-size 1 --model torchvision/resnet18 --target-preset "a100_gpu" --kernels-dir "/path/to/kernels/dir"
+```
+
 If you need a custom target, you can specify that by `--target <your-target> --target-host <your-target-host>`. GPU targets must specify `--target-host` because host-side code generation requires that.
 
 If `--kernels-dir` is not specified, the original network will be benchmarked, but still the placeholders will be substituted, which may alter the original convolution sizes or strides. To benchmark the original network, use `--vanilla`.
