@@ -1,0 +1,107 @@
+import argparse
+import os
+import sys
+
+# Disable all TorchInductor caching, so that different experiments are not affected by each other.
+os.environ["TORCHINDUCTOR_FORCE_DISABLE_CACHES"] = "1"
+
+import torch
+
+import triton
+
+from import_kas import get_model
+
+_BENCHMARK_TIME_WARMUP = 100
+_BENCHMARK_TIME_REPEAT = 500
+
+
+def run_benchmark(
+    model: torch.nn.Module,
+    input_shape: tuple[int, int, int],
+    device: torch.device,
+    mode: str = "none",
+):
+    model = model.to(device).eval()
+    inputs = torch.randn(input_shape, device=device, requires_grad=False)
+    with torch.no_grad():
+        if mode != "none":
+            run_model = torch.compile(
+                model,
+                backend="inductor",
+                mode=mode,
+                dynamic=False,
+                fullgraph=True,
+            )
+        else:
+            run_model = model
+        print("Compiling model...")
+        # Warmup
+        run_model(inputs)
+        print("Running benchmark...")
+        # Use triton benchmark if using CUDA
+        if device.type == "cuda":
+            return triton.testing.do_bench(
+                lambda: run_model(inputs),
+                warmup=_BENCHMARK_TIME_WARMUP,
+                rep=_BENCHMARK_TIME_REPEAT,
+                return_mode="median",
+            )
+        else:
+            import torch.utils.benchmark as benchmark
+            timer = benchmark.Timer(
+                stmt="run_model(inputs)",
+                globals={"run_model": run_model, "inputs": inputs},
+                label="torchscript",
+            )
+            return timer.blocked_autorange(min_run_time=1)
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, required=True)
+    parser.add_argument("--result-dir", type=str, default=None)
+    parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--num-classes", type=int, default=100)
+    parser.add_argument(
+        "--input-size",
+        default=(3, 224, 224),
+        nargs=3,
+        type=int,
+        metavar="N N N",
+    )
+    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--mode", type=str, default="none")
+    parser.add_argument("--disable-tf32", action="store_true")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = _parse_args()
+
+    # Enable benchmarking mode
+    torch.backends.cudnn.benchmark = True
+    # Disable TF32 if requested
+    if args.disable_tf32:
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+    else:
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+
+    model = get_model(
+        model_name=args.model,
+        result_dir=args.result_dir,
+        batch_size=args.batch_size,
+        input_size=args.input_size,
+        num_classes=args.num_classes,
+    )
+    input_shape = (args.batch_size, *args.input_size)
+    device = torch.device(args.device)
+    print(run_benchmark(model, input_shape, device, mode=args.mode))
+    print("Done.")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

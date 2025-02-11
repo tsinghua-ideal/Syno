@@ -88,6 +88,8 @@ def run_benchmark(
                 dynamic=False,
                 fullgraph=True,
             )
+        else:
+            run_model = model
         print("Compiling model...")
         # Warmup
         run_model(inputs)

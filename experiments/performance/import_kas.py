@@ -10,7 +10,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pard
 
 from base import models
 
-def get_model(model_name: str, batch_size: int, num_classes: int, input_size: tuple[int, int, int], kernels_dir: str | None) -> torch.nn.Module:
+def get_model(model_name: str, result_dir: str | None, batch_size: int, input_size: tuple[int, int, int], num_classes: int) -> torch.nn.Module:
     assert model_name.startswith("torchvision/")
     model_args = {
         "name": model_name[len("torchvision/"):],
@@ -18,7 +18,7 @@ def get_model(model_name: str, batch_size: int, num_classes: int, input_size: tu
         "input_size": input_size,
     }
 
-    if kernels_dir is None:
+    if result_dir is None:
         model = models.common._get_vanilla_common_model(**model_args)
     else:
         # Replace kernel
@@ -36,11 +36,11 @@ def get_model(model_name: str, batch_size: int, num_classes: int, input_size: tu
         count = remove_unsatisfied_placeholders(model)
         logging.info(f"Recovered {count} unsatisfied placeholders")
 
-        logging.info(f"Replacing kernel with {kernels_dir} ...")
-        assert os.path.isdir(kernels_dir)
+        logging.info(f"Replacing kernel with {result_dir} ...")
+        assert os.path.isdir(result_dir)
         logging.info(f"Loading from directory ...")
         kernel_directory = os.path.join(
-            kernels_dir, "kernel_scheduler_dir"
+            result_dir, "kernel_scheduler_dir"
         )
         kernel_loader = KernelLoader.from_directory(kernel_directory)
         model.load_kernel(
