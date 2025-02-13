@@ -91,13 +91,13 @@ if __name__ == "__main__":
         ("Original", baseline_latency_cpu, 0.706787109375), 
         ("INT8 Quantized", 19.6, 0.6991373896598816), 
         ("Stacked Convolution", 9.72, 0.6873982548713684), 
-        ("Kernel 1", 14.3, 0.7002360224723816), 
+        ("Kernel 1", 14.3, 0.7045084834098816), 
     ]
     orig_gpu_performances = [
         ("Original", baseline_latency_gpu, 0.706787109375), 
         ("INT8 Quantized", 3.25, 0.6991373896598816), # Replace GPU with new value
         ("Stacked Convolution", 4.11, 0.6873982548713684), 
-        ("Kernel 1", 3.35, 0.7002360224723816), 
+        ("Kernel 1", 3.35, 0.7045084834098816), 
     ]
 
     fig, axs = plt.subplots(1, 2, figsize=(7, 3), gridspec_kw={'width_ratios': [1, 1], 'wspace': 0.03})
