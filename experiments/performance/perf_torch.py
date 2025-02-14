@@ -2,9 +2,6 @@ import argparse
 import os
 import sys
 
-# Disable all TorchInductor caching, so that different experiments are not affected by each other.
-os.environ["TORCHINDUCTOR_FORCE_DISABLE_CACHES"] = "1"
-
 import torch
 
 import triton
@@ -44,7 +41,7 @@ def run_benchmark(
                 lambda: run_model(inputs),
                 warmup=_BENCHMARK_TIME_WARMUP,
                 rep=_BENCHMARK_TIME_REPEAT,
-                return_mode="median",
+                return_mode="mean",
             )
         else:
             import torch.utils.benchmark as benchmark
@@ -78,8 +75,13 @@ def _parse_args():
 def main() -> int:
     args = _parse_args()
 
+    # Disable all TorchInductor caching, so that different experiments are not affected by each other.
+    import torch._inductor.config
+    torch._inductor.config.force_disable_caches = True
+
     # Enable benchmarking mode
     torch.backends.cudnn.benchmark = True
+
     # Disable TF32 if requested
     if args.disable_tf32:
         torch.backends.cuda.matmul.allow_tf32 = False
