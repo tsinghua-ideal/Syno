@@ -46,51 +46,8 @@ class QuantizedResnet18Tuner(BaseMetaScheduleTuner):
     def model_name(self) -> str:
         return "resnet18_quantized"
 
-def tune_quantized_resnet18_relay() -> None:
-    target = parse_target(None, None, "jetson_orin_nano-gpu")
-
-    working_dir = os.path.join("./perf", target.kind.name, "qresnet18")
-    os.makedirs(working_dir, exist_ok=True)
-    lib_path = os.path.join(working_dir, "kernels_tvm_tuned.tar")
-
-    base_tuner = QuantizedResnet18Tuner(target)
-    if not os.path.exists(lib_path):
-        model = torchvision.models.quantization.resnet18(pretrained=True).eval()
-        pt_inp = torch.rand(base_tuner.input_shape)
-        quantize_model(model, pt_inp)
-        script_model = torch.jit.trace(model, pt_inp).eval()
-        tvm_model, params = relay.frontend.from_pytorch(script_model, list(base_tuner._get_input_shape().items()))
-        tvm_model.show()
-
-        database = ms.relay_integration.tune_relay(
-            mod=tvm_model,
-            target=target,
-            params=params,
-            work_dir=working_dir,
-            max_trials_global=10000,
-            num_trials_per_iter=64,
-            runner=base_tuner.get_runner(),
-        )
-        lib = ms.relay_integration.compile_relay(database, tvm_model, target=target, params=params)
-        lib.export_library(lib_path, tar)
-
-    def measure_relay(
-        rt_mod: runtime.Module,
-        device: runtime.ndarray.Device,
-        input_data: Dict[str, np.ndarray],
-        num_measurement_repeats: int = 3,
-        num_measurements: int = 2,
-    ) -> runtime.module.BenchmarkResult:
-        print(f"num_measurement_repeats: {num_measurement_repeats}, num_measurements: {num_measurements}")
-        module = graph_executor.GraphModule(rt_mod["default"](device))
-        module.set_input(**input_data)
-        return module.benchmark(device, repeat=num_measurement_repeats, number=num_measurements)
-
-    result = base_tuner.measure(lib_path, measure_relay)
-    print(result)
-
 def tune_quantized_resnet18_relax():
-    target = parse_target(None, None, "jetson_orin_nano-cpu")
+    target = parse_target(None, None, "a100_gpu")
     working_dir = os.path.join("./perf", target.kind.name, "qresnet18")
 
     base_tuner = QuantizedResnet18Tuner(target)

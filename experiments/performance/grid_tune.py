@@ -120,8 +120,7 @@ _RESNET_34_LAYERS_MODELS = [
 
 def _make_targets_and_trials(trials: int) -> List[Tuple[str, int]]:
     return [
-        ("jetson_orin_nano-gpu", trials),
-        ("jetson_orin_nano-cpu", trials),
+        ("a100_gpu", trials),
     ]
 
 def _make_grid(model: str, trials: int, kernels_dirs: Iterable[Optional[str]]) -> Grid:
