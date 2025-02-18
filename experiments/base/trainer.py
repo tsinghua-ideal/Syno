@@ -5,7 +5,6 @@ import time
 from torch import nn
 from typing import Tuple, List
 from timm.utils import AverageMeter
-from transformers import GPT2Tokenizer
 from KAS import Placeholder, init_weights
 
 from .loss import get_loss_func, get_gnn_loss_func

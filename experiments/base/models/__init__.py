@@ -3,7 +3,6 @@ import random
 import os, sys
 import torch
 from typing import Tuple, Optional, Union
-from transformers import GPT2Tokenizer
 from KAS import Sampler, Path, CodeGenOptions, KernelLoader
 from KAS.Placeholder import build_placeholder_mappings, remove_unsatisfied_placeholders
 
@@ -123,6 +122,7 @@ def get_model(
     if args.model.startswith("torchvision/"):
         model = get_common_model(args)
     elif args.model.startswith("gpt/"):
+        from transformers import GPT2Tokenizer
         config = GPT.get_default_config()
         config.model_type = args.model[len("gpt/") :]
         config.vocab_size = GPT2Tokenizer.from_pretrained(args.gpt_tokenizer).vocab_size
