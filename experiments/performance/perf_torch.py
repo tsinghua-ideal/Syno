@@ -108,14 +108,13 @@ def main():
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
 
-    model = get_model(
+    model, input_shape = get_model(
         model_name=args.model,
         result_dir=args.result_dir,
         batch_size=args.batch_size,
         input_size=args.input_size,
         num_classes=args.num_classes,
     )
-    input_shape = (args.batch_size, *args.input_size)
     device = torch.device(args.device)
     benchmark_time = run_benchmark(model, input_shape, device, mode=args.mode)
     print(f"Benchmark time: {benchmark_time:.3f} ms")

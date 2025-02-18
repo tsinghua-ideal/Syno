@@ -10,8 +10,37 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pard
 
 from base import models
 
-def get_model(model_name: str, result_dir: str | None, batch_size: int, input_size: tuple[int, int, int], num_classes: int) -> torch.nn.Module:
-    assert model_name.startswith("torchvision/")
+# name -> (C_in, C_out, H, k, valid_placeholder_index)
+RESNET34_LAYERS = {
+    "conv_io64": (64, 64, 56, 3, 0),
+    "conv_i64_o128": (64, 128, 28, 3, 1),
+    "conv_io128": (128, 128, 28, 3, 2),
+    "residual_i64_o128": (64, 128, 28, 1, 1),
+    "conv_i128_o256": (128, 256, 14, 3, 3),
+    "conv_io256": (256, 256, 14, 3, 4),
+    "residual_i128_o256": (128, 256, 14, 1, 3),
+    "conv_i256_o512": (256, 512, 7, 3, 5),
+    "conv_io512": (512, 512, 7, 3, 6),
+    "residual_i256_o512": (256, 512, 7, 1, 5),
+}
+
+def get_resnet34_layers(layer_name: str, result_dir: str | None, batch_size: int) -> tuple[torch.nn.Module, tuple[int, int, int, int]]:
+    C_in, C_out, H, k, valid_placeholder_index = RESNET34_LAYERS[layer_name]
+    input_shape = (batch_size, C_in, H, H)
+
+    if result_dir is None:
+        return torch.nn.Conv2d(C_in, C_out, (k, k)), input_shape
+    else:
+        kernel_directory = os.path.join(result_dir, "kernel_scheduler_dir")
+        kernel_loader = KernelLoader.from_directory(kernel_directory)
+        kernel_packs = kernel_loader.construct_kernel_packs()
+        assert 35 == kernel_loader.get_count_placeholders(), f"This is not a ResNet-34 kernel, got {kernel_loader.get_count_placeholders()} placeholders"
+        return kernel_packs[valid_placeholder_index], input_shape
+
+def get_model(model_name: str, result_dir: str | None, batch_size: int, input_size: tuple[int, int, int], num_classes: int) -> tuple[torch.nn.Module, tuple[int, int, int, int]]:
+    if model_name.startswith("resnet34layers/"):
+        return get_resnet34_layers(model_name[len("torchvision/"):], result_dir, batch_size)
+    assert model_name.startswith("torchvision/"), f"Invalid model name {model_name}, only torchvision models are supported"
     model_args = {
         "name": model_name[len("torchvision/"):],
         "num_classes": num_classes,
@@ -65,4 +94,4 @@ def get_model(model_name: str, result_dir: str | None, batch_size: int, input_si
             f"Placeholder params change {params - params_base:.2f} -> {params_replaced - params_base:.2f}"
         )
 
-    return model
+    return model, (batch_size, *input_size)
