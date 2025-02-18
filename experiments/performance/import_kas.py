@@ -10,22 +10,22 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pard
 
 from base import models
 
-# name -> (C_in, C_out, H, k, valid_placeholder_index)
+# name -> (C_in, C_out, H, k, placeholder_index)
 RESNET34_LAYERS = {
     "conv_io64": (64, 64, 56, 3, 0),
-    "conv_i64_o128": (64, 128, 28, 3, 1),
-    "conv_io128": (128, 128, 28, 3, 2),
-    "residual_i64_o128": (64, 128, 28, 1, 1),
-    "conv_i128_o256": (128, 256, 14, 3, 3),
-    "conv_io256": (256, 256, 14, 3, 4),
-    "residual_i128_o256": (128, 256, 14, 1, 3),
-    "conv_i256_o512": (256, 512, 7, 3, 5),
-    "conv_io512": (512, 512, 7, 3, 6),
-    "residual_i256_o512": (256, 512, 7, 1, 5),
+    "conv_i64_o128": (64, 128, 28, 3, 6),
+    "conv_io128": (128, 128, 28, 3, 7),
+    "residual_i64_o128": (64, 128, 28, 1, 8),
+    "conv_i128_o256": (128, 256, 14, 3, 15),
+    "conv_io256": (256, 256, 14, 3, 16),
+    "residual_i128_o256": (128, 256, 14, 1, 17),
+    "conv_i256_o512": (256, 512, 7, 3, 28),
+    "conv_io512": (512, 512, 7, 3, 29),
+    "residual_i256_o512": (256, 512, 7, 1, 30),
 }
 
 def get_resnet34_layers(layer_name: str, result_dir: str | None, batch_size: int) -> tuple[torch.nn.Module, tuple[int, int, int, int]]:
-    C_in, C_out, H, k, valid_placeholder_index = RESNET34_LAYERS[layer_name]
+    C_in, C_out, H, k, placeholder_index = RESNET34_LAYERS[layer_name]
     input_shape = (batch_size, C_in, H, H)
 
     if result_dir is None:
@@ -35,7 +35,7 @@ def get_resnet34_layers(layer_name: str, result_dir: str | None, batch_size: int
         kernel_loader = KernelLoader.from_directory(kernel_directory)
         kernel_packs = kernel_loader.construct_kernel_packs()
         assert 35 == kernel_loader.get_count_placeholders(), f"This is not a ResNet-34 kernel, got {kernel_loader.get_count_placeholders()} placeholders"
-        return kernel_packs[valid_placeholder_index], input_shape
+        return kernel_packs[placeholder_index], input_shape
 
 def get_model(model_name: str, result_dir: str | None, batch_size: int, input_size: tuple[int, int, int], num_classes: int) -> tuple[torch.nn.Module, tuple[int, int, int, int]]:
     if model_name.startswith("resnet34layers/"):
