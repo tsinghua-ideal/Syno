@@ -39,7 +39,7 @@ from tvm.ir.module import IRModule
 from tvm import meta_schedule as ms
 from tvm.contrib.tar import tar
 
-from common import get_specialized_model_name
+from common import PRESET_WORKING_DIR, get_specialized_model_name
 from model import import_templated_model, substitute_kernels, construct_kernel_builder
 from progress_utils import ProgressDone, ProgressQueue, ProgressUpdate, ignore_sigint, inherit_process_authkey_and_ignore_sigint
 
@@ -93,8 +93,6 @@ PRESET_RPC_HOST = "127.0.0.1"
 PRESET_RPC_PORT = 9190
 PRESET_RPC_KEY = "a100"
 PRESET_RPC_CONFIG = parse_rpc_config(PRESET_RPC, PRESET_RPC_HOST, PRESET_RPC_PORT, PRESET_RPC_KEY)
-
-PRESET_WORKING_DIR = "./perf"
 
 class TunerState(Enum):
     UNTUNED = 0

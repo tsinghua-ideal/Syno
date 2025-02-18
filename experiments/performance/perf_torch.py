@@ -6,6 +6,7 @@ import torch
 
 import triton
 
+from common import PRESET_WORKING_DIR, get_specialized_model_name
 from import_kas import get_model
 
 _BENCHMARK_TIME_WARMUP = 100
@@ -50,7 +51,7 @@ def run_benchmark(
                 globals={"run_model": run_model, "inputs": inputs},
                 label="torchscript",
             )
-            return timer.blocked_autorange(min_run_time=1)
+            return timer.blocked_autorange(min_run_time=1).mean
 
 
 def _parse_args():
@@ -72,7 +73,24 @@ def _parse_args():
     return parser.parse_args()
 
 
-def main() -> int:
+def get_benchmark_output_path(model_name: str, target_type: str, kernels_dir: str | None, batch_size: int = 1) -> str:
+    specialized_name = os.path.join(
+        f"inductor-{target_type}",
+        get_specialized_model_name(
+            model_name,
+            batch_size=batch_size,
+            vanilla=kernels_dir is None,
+        ),
+    )
+    specialized_file = f"{specialized_name}.txt"
+    if kernels_dir is None:
+        output_path = os.path.join(PRESET_WORKING_DIR, specialized_file)
+    else:
+        output_path = os.path.join(kernels_dir, "perf", specialized_file)
+    return output_path
+
+
+def main():
     args = _parse_args()
 
     # Disable all TorchInductor caching, so that different experiments are not affected by each other.
@@ -99,11 +117,20 @@ def main() -> int:
     )
     input_shape = (args.batch_size, *args.input_size)
     device = torch.device(args.device)
-    print(run_benchmark(model, input_shape, device, mode=args.mode))
+    benchmark_time = run_benchmark(model, input_shape, device, mode=args.mode)
+    print(f"Benchmark time: {benchmark_time:.3f} ms")
+    benchmark_output = get_benchmark_output_path(
+        model_name=args.model,
+        target_type=args.device,
+        kernels_dir=args.result_dir,
+        batch_size=args.batch_size,
+    )
+    print(f"Writing benchmark output to {benchmark_output}")
+    os.makedirs(os.path.dirname(benchmark_output), exist_ok=True)
+    with open(benchmark_output, "w") as f:
+        f.write(f"{benchmark_time}\n")
     print("Done.")
-
-    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
