@@ -93,6 +93,17 @@ def get_benchmark_output_path(model_name: str, target_type: str, kernels_dir: st
 def main():
     args = _parse_args()
 
+    benchmark_output = get_benchmark_output_path(
+        model_name=args.model,
+        target_type=args.device,
+        kernels_dir=args.result_dir,
+        batch_size=args.batch_size,
+    )
+
+    if os.path.exists(benchmark_output):
+        print(f"Benchmark output {benchmark_output} already exists, skipping.")
+        return
+
     # Disable all TorchInductor caching, so that different experiments are not affected by each other.
     import torch._inductor.config
     torch._inductor.config.force_disable_caches = True
@@ -118,12 +129,6 @@ def main():
     device = torch.device(args.device)
     benchmark_time = run_benchmark(model, input_shape, device, mode=args.mode)
     print(f"Benchmark time: {benchmark_time:.3f} ms")
-    benchmark_output = get_benchmark_output_path(
-        model_name=args.model,
-        target_type=args.device,
-        kernels_dir=args.result_dir,
-        batch_size=args.batch_size,
-    )
     print(f"Writing benchmark output to {benchmark_output}")
     os.makedirs(os.path.dirname(benchmark_output), exist_ok=True)
     with open(benchmark_output, "w") as f:
