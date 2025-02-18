@@ -39,7 +39,7 @@ def get_resnet34_layers(layer_name: str, result_dir: str | None, batch_size: int
 
 def get_model(model_name: str, result_dir: str | None, batch_size: int, input_size: tuple[int, int, int], num_classes: int) -> tuple[torch.nn.Module, tuple[int, int, int, int]]:
     if model_name.startswith("resnet34layers/"):
-        return get_resnet34_layers(model_name[len("torchvision/"):], result_dir, batch_size)
+        return get_resnet34_layers(model_name[len("resnet34layers/"):], result_dir, batch_size)
     assert model_name.startswith("torchvision/"), f"Invalid model name {model_name}, only torchvision models are supported"
     model_args = {
         "name": model_name[len("torchvision/"):],
