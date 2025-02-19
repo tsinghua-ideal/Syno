@@ -122,7 +122,11 @@ def main():
         if os.path.exists(benchmark_output):
             print(f"Benchmark output {benchmark_output} already exists, skipping.")
             return
+        # Create the file to prevent other processes from running the same benchmark
+        with open(benchmark_output, "w"):
+            pass
 
+    try:
         model, input_shape = get_model(
             model_name=args.model,
             result_dir=args.result_dir,
@@ -133,10 +137,15 @@ def main():
         device = torch.device(args.device)
         benchmark_time = run_benchmark(model, input_shape, device, mode=args.mode)
         print(f"Benchmark time: {benchmark_time:.3f} ms")
-        print(f"Writing benchmark output to {benchmark_output}")
-        with open(benchmark_output, "w") as f:
-            f.write(f"{benchmark_time}\n")
-        print("Done.")
+    except:
+        # Remove the file if an exception occurs
+        os.remove(benchmark_output)
+        raise
+
+    print(f"Writing benchmark output to {benchmark_output}")
+    with open(benchmark_output, "w") as f:
+        f.write(f"{benchmark_time}\n")
+    print("Done.")
 
 
 if __name__ == "__main__":
