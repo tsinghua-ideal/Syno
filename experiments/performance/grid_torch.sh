@@ -11,6 +11,14 @@ function tune() {
     fi
 }
 
+# # ResNet-18 cannot share codegen with ResNet-34, need to rerun codegen.
+# tune torchvision/resnet18
+# for par_dir in ./results/resnet-good-kernels/*; do
+#     for dir in $par_dir/*; do
+#         tune torchvision/resnet18 $dir
+#     done
+# done
+
 tune torchvision/resnet34
 for par_dir in ./results/resnet-good-kernels/*; do
     for dir in $par_dir/*; do
@@ -22,6 +30,9 @@ for layer in "conv_io64" "conv_io128" "conv_io256" "conv_io512" "conv_i64_o128" 
     tune resnet34layers/$layer
     tune resnet34layers/$layer ./results/resnet-good-kernels/0.6x/07889_15252107013978896537
     tune resnet34layers/$layer ./results/resnet-good-kernels/0.2x/07754_18091915762600937904
+    for seq in ./results/nas-pte/*; do
+        tune resnet34layers/$layer $seq
+    done
 done
 
 tune torchvision/resnext29_2x64d

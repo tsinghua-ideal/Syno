@@ -1,3 +1,4 @@
+import importlib.util
 import logging
 import os
 import sys
@@ -32,10 +33,22 @@ def get_resnet34_layers(layer_name: str, result_dir: str | None, batch_size: int
         return torch.nn.Conv2d(C_in, C_out, (k, k)), input_shape
     else:
         kernel_directory = os.path.join(result_dir, "kernel_scheduler_dir")
-        kernel_loader = KernelLoader.from_directory(kernel_directory)
-        kernel_packs = kernel_loader.construct_kernel_packs()
-        assert 35 == kernel_loader.get_count_placeholders(), f"This is not a ResNet-34 kernel, got {kernel_loader.get_count_placeholders()} placeholders"
-        return kernel_packs[placeholder_index], input_shape
+        if os.path.isdir(kernel_directory):
+            # This is normal Syno-generated kernel
+            kernel_loader = KernelLoader.from_directory(kernel_directory)
+            kernel_packs = kernel_loader.construct_kernel_packs()
+            assert 35 == kernel_loader.get_count_placeholders(), f"This is not a ResNet-34 kernel, got {kernel_loader.get_count_placeholders()} placeholders"
+            return kernel_packs[placeholder_index], input_shape
+        else:
+            # This is NAS-PTE.
+            kernel_file = os.path.join(result_dir, "kernels_torch.py")
+            kernel_name = kernel_file.split(".py")[0].replace("/", ".").replace("-", "_")
+            spec = importlib.util.spec_from_file_location(kernel_name, kernel_file)
+            assert spec is not None, f"Failed to load kernel from {kernel_file}"
+            kernels = importlib.util.module_from_spec(spec)
+            sys.modules[kernel_name] = kernels
+            spec.loader.exec_module(kernels)
+            return kernels.kernel_generated(C_in=C_in, C_out=C_out, H=H, k=k), input_shape
 
 def get_model(model_name: str, result_dir: str | None, batch_size: int, input_size: tuple[int, int, int], num_classes: int) -> tuple[torch.nn.Module, tuple[int, int, int, int]]:
     if model_name.startswith("resnet34layers/"):

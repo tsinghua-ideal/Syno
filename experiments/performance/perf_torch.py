@@ -1,4 +1,5 @@
 import argparse
+import filelock
 import os
 import sys
 
@@ -100,10 +101,6 @@ def main():
         batch_size=args.batch_size,
     )
 
-    if os.path.exists(benchmark_output):
-        print(f"Benchmark output {benchmark_output} already exists, skipping.")
-        return
-
     # Disable all TorchInductor caching, so that different experiments are not affected by each other.
     import torch._inductor.config
     torch._inductor.config.force_disable_caches = True
@@ -119,21 +116,27 @@ def main():
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
 
-    model, input_shape = get_model(
-        model_name=args.model,
-        result_dir=args.result_dir,
-        batch_size=args.batch_size,
-        input_size=args.input_size,
-        num_classes=args.num_classes,
-    )
-    device = torch.device(args.device)
-    benchmark_time = run_benchmark(model, input_shape, device, mode=args.mode)
-    print(f"Benchmark time: {benchmark_time:.3f} ms")
-    print(f"Writing benchmark output to {benchmark_output}")
     os.makedirs(os.path.dirname(benchmark_output), exist_ok=True)
-    with open(benchmark_output, "w") as f:
-        f.write(f"{benchmark_time}\n")
-    print("Done.")
+    benchmark_lock = f"{benchmark_output}.lock"
+    with filelock.FileLock(benchmark_lock):
+        if os.path.exists(benchmark_output):
+            print(f"Benchmark output {benchmark_output} already exists, skipping.")
+            return
+
+        model, input_shape = get_model(
+            model_name=args.model,
+            result_dir=args.result_dir,
+            batch_size=args.batch_size,
+            input_size=args.input_size,
+            num_classes=args.num_classes,
+        )
+        device = torch.device(args.device)
+        benchmark_time = run_benchmark(model, input_shape, device, mode=args.mode)
+        print(f"Benchmark time: {benchmark_time:.3f} ms")
+        print(f"Writing benchmark output to {benchmark_output}")
+        with open(benchmark_output, "w") as f:
+            f.write(f"{benchmark_time}\n")
+        print("Done.")
 
 
 if __name__ == "__main__":
