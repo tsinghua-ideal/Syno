@@ -35,24 +35,26 @@ def run_benchmark(
             run_model = model
         print("Compiling model...")
         # Warmup
-        run_model(inputs)
-        print("Running benchmark...")
-        # Use triton benchmark if using CUDA
-        if device.type == "cuda":
-            return triton.testing.do_bench(
-                lambda: run_model(inputs),
-                warmup=_BENCHMARK_TIME_WARMUP,
-                rep=_BENCHMARK_TIME_REPEAT,
-                return_mode="mean",
-            )
-        else:
-            import torch.utils.benchmark as benchmark
-            timer = benchmark.Timer(
-                stmt="run_model(inputs)",
-                globals={"run_model": run_model, "inputs": inputs},
-                label="torchscript",
-            )
-            return timer.blocked_autorange(min_run_time=1).mean
+        for _ in range(5):
+            run_model(inputs)
+        with torch.compiler.set_stance(skip_guard_eval_unsafe=True):
+            print("Running benchmark...")
+            # Use triton benchmark if using CUDA
+            if device.type == "cuda":
+                return triton.testing.do_bench(
+                    lambda: run_model(inputs),
+                    warmup=_BENCHMARK_TIME_WARMUP,
+                    rep=_BENCHMARK_TIME_REPEAT,
+                    return_mode="mean",
+                )
+            else:
+                import torch.utils.benchmark as benchmark
+                timer = benchmark.Timer(
+                    stmt="run_model(inputs)",
+                    globals={"run_model": run_model, "inputs": inputs},
+                    label="torchscript",
+                )
+                return timer.blocked_autorange(min_run_time=1).mean
 
 
 def _parse_args():

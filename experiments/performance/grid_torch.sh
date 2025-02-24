@@ -11,13 +11,18 @@ function tune() {
     fi
 }
 
-# # ResNet-18 cannot share codegen with ResNet-34, need to rerun codegen.
+# # ResNet-18 cannot share codegen with ResNe-34
+
+# rsync -av ./results/resnet18-kernels/* ./results/resnet-good-kernels/
+
 # tune torchvision/resnet18
 # for par_dir in ./results/resnet-good-kernels/*; do
 #     for dir in $par_dir/*; do
 #         tune torchvision/resnet18 $dir
 #     done
 # done
+
+rsync -av ./results/resnet34-kernels/* ./results/resnet-good-kernels/
 
 tune torchvision/resnet34
 for par_dir in ./results/resnet-good-kernels/*; do
