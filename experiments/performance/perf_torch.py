@@ -1,17 +1,87 @@
 import argparse
 import filelock
+import math
 import os
+import statistics
 import sys
 
 import torch
-
-import triton
 
 from common import PRESET_WORKING_DIR, get_specialized_model_name
 from import_kas import get_model
 
 _BENCHMARK_TIME_WARMUP = 100
 _BENCHMARK_TIME_REPEAT = 500
+
+
+def _quantile(a, q):
+    n = len(a)
+    a = sorted(a)
+
+    def get_quantile(q):
+        if not (0 <= q <= 1):
+            raise ValueError("Quantiles must be in the range [0, 1]")
+        point = q * (n - 1)
+        lower = math.floor(point)
+        upper = math.ceil(point)
+        t = point - lower
+        return (1 - t) * a[lower] + t * a[upper]
+
+    return [get_quantile(q) for q in q]
+
+
+def _summarize_statistics(times, quantiles, return_mode):
+    if quantiles is not None:
+        ret = _quantile(times, quantiles)
+        if len(ret) == 1:
+            ret = ret[0]
+        return ret
+    if return_mode == "all":
+        return times
+    elif return_mode == "min":
+        return min(times)
+    elif return_mode == "max":
+        return max(times)
+    elif return_mode == "mean":
+        return statistics.mean(times)
+    elif return_mode == "median":
+        return statistics.median(times)
+
+
+def do_benchmark_cuda(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REPEAT, quantiles=None, return_mode="mean"):
+    assert return_mode in ["min", "max", "mean", "median", "all"]
+
+    fn()
+    torch.cuda.synchronize()
+
+    # Estimate the runtime of the function
+    start_event = torch.Event(enable_timing=True)
+    end_event = torch.Event(enable_timing=True)
+    start_event.record()
+    for _ in range(5):
+        fn()
+    end_event.record()
+    torch.cuda.synchronize()
+    estimate_ms = start_event.elapsed_time(end_event) / 5
+
+    # compute number of warmup and repeat
+    n_warmup = max(1, int(warmup / estimate_ms))
+    n_repeat = max(6, int(rep / estimate_ms))
+    start_event = [torch.Event(enable_timing=True) for i in range(n_repeat)]
+    end_event = [torch.Event(enable_timing=True) for i in range(n_repeat)]
+    # Warm-up
+    for _ in range(n_warmup):
+        fn()
+    # Benchmark
+    for i in range(n_repeat):
+        # record time of `fn`
+        start_event[i].record()
+        fn()
+        end_event[i].record()
+    # Record clocks
+    torch.cuda.synchronize()
+    times = [s.elapsed_time(e) for s, e in zip(start_event, end_event)]
+    return _summarize_statistics(times, quantiles, return_mode)
 
 
 def run_benchmark(
@@ -41,7 +111,7 @@ def run_benchmark(
             print("Running benchmark...")
             # Use triton benchmark if using CUDA
             if device.type == "cuda":
-                return triton.testing.do_bench(
+                return do_benchmark_cuda(
                     lambda: run_model(inputs),
                     warmup=_BENCHMARK_TIME_WARMUP,
                     rep=_BENCHMARK_TIME_REPEAT,
