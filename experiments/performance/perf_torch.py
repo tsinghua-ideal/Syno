@@ -97,9 +97,12 @@ def run_benchmark(
     input_shape: tuple[int, int, int, int],
     device: torch.device,
     mode: str,
+    channels_last: bool,
 ):
-    model = model.to(device).eval()
+    model = model.to(device).eval().requires_grad_(False)
     inputs = torch.randn(input_shape, device=device, requires_grad=False)
+    if channels_last:
+        inputs = inputs.to(memory_format=torch.channels_last)
     with torch.no_grad():
         if mode != _TORCH_EAGER_MODE:
             run_model = torch.compile(
@@ -151,6 +154,7 @@ def _parse_args():
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--mode", type=str, default=_TORCH_TUNING_MODE)
     parser.add_argument("--disable-tf32", action="store_true")
+    parser.add_argument("--channels-last", action="store_true")
     return parser.parse_args()
 
 
@@ -228,7 +232,7 @@ def main():
             num_classes=args.num_classes,
         )
         device = torch.device(args.device)
-        benchmark_time = run_benchmark(model, input_shape, device, mode=args.mode)
+        benchmark_time = run_benchmark(model, input_shape, device, mode=args.mode, channels_last=args.channels_last)
         print(f"Benchmark time: {benchmark_time:.3f} ms")
     except:
         # Remove the file if an exception occurs
