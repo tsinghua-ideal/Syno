@@ -156,7 +156,7 @@ def _parse_args():
 
 def get_benchmark_output_path(model_name: str, target_type: str, mode: str, kernels_dir: str | None, batch_size: int = 1) -> str:
     specialized_name = os.path.join(
-        f"inductor-{mode}-{target_type}",
+        f"inductor-{target_type}",
         get_specialized_model_name(
             model_name,
             batch_size=batch_size,
@@ -192,9 +192,21 @@ def main():
         with open(benchmark_output, "w"):
             pass
 
-    # Disable all TorchInductor caching, so that different experiments are not affected by each other.
     import torch._inductor.config
+
+    # Disable all TorchInductor caching, so that different experiments are not affected by each other.
     torch._inductor.config.force_disable_caches = True
+
+    # # Enable faster tuning
+    # torch._inductor.config.autotune_in_subproc = True
+    # torch._inductor.config.autotune_multi_device = True
+
+    # Freeze parameters to enable further optimizations
+    torch._inductor.config.freezing = True
+    torch._inductor.config.freezing_discard_parameters = True
+
+    # We do not need to keep outputs the same stride. Just allow free layout conversions.
+    torch._inductor.config.keep_output_stride = False
 
     # Enable benchmarking mode
     torch.backends.cudnn.benchmark = True
