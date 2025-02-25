@@ -88,16 +88,20 @@ def do_benchmark_cuda(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REP
     return _summarize_statistics(times, quantiles, return_mode)
 
 
+_TORCH_TUNING_MODE="max-autotune"
+_TORCH_EAGER_MODE="eager"
+
+
 def run_benchmark(
     model: torch.nn.Module,
     input_shape: tuple[int, int, int, int],
     device: torch.device,
-    mode: str = "none",
+    mode: str,
 ):
     model = model.to(device).eval()
     inputs = torch.randn(input_shape, device=device, requires_grad=False)
     with torch.no_grad():
-        if mode != "none":
+        if mode != _TORCH_EAGER_MODE:
             run_model = torch.compile(
                 model,
                 backend="inductor",
@@ -145,14 +149,14 @@ def _parse_args():
         metavar="N N N",
     )
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--mode", type=str, default="none")
+    parser.add_argument("--mode", type=str, default=_TORCH_TUNING_MODE)
     parser.add_argument("--disable-tf32", action="store_true")
     return parser.parse_args()
 
 
-def get_benchmark_output_path(model_name: str, target_type: str, kernels_dir: str | None, batch_size: int = 1) -> str:
+def get_benchmark_output_path(model_name: str, target_type: str, mode: str, kernels_dir: str | None, batch_size: int = 1) -> str:
     specialized_name = os.path.join(
-        f"inductor-{target_type}",
+        f"inductor-{mode}-{target_type}",
         get_specialized_model_name(
             model_name,
             batch_size=batch_size,
@@ -173,9 +177,20 @@ def main():
     benchmark_output = get_benchmark_output_path(
         model_name=args.model,
         target_type=args.device,
+        mode=args.mode,
         kernels_dir=args.result_dir,
         batch_size=args.batch_size,
     )
+
+    os.makedirs(os.path.dirname(benchmark_output), exist_ok=True)
+    benchmark_lock = f"{benchmark_output}.lock"
+    with filelock.FileLock(benchmark_lock):
+        if os.path.exists(benchmark_output):
+            print(f"Benchmark output {benchmark_output} already exists, skipping.")
+            return
+        # Create the file to prevent other processes from running the same benchmark
+        with open(benchmark_output, "w"):
+            pass
 
     # Disable all TorchInductor caching, so that different experiments are not affected by each other.
     import torch._inductor.config
@@ -191,16 +206,6 @@ def main():
     else:
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
-
-    os.makedirs(os.path.dirname(benchmark_output), exist_ok=True)
-    benchmark_lock = f"{benchmark_output}.lock"
-    with filelock.FileLock(benchmark_lock):
-        if os.path.exists(benchmark_output):
-            print(f"Benchmark output {benchmark_output} already exists, skipping.")
-            return
-        # Create the file to prevent other processes from running the same benchmark
-        with open(benchmark_output, "w"):
-            pass
 
     try:
         model, input_shape = get_model(
