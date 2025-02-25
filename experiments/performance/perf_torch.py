@@ -57,8 +57,10 @@ def do_benchmark_cuda(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REP
     # Estimate the runtime of the function
     start_event = torch.Event(enable_timing=True)
     end_event = torch.Event(enable_timing=True)
+    torch.cuda._sleep(10_000_000)
     start_event.record()
     for _ in range(5):
+        torch.cuda._sleep(1_000_000)
         fn()
     end_event.record()
     torch.cuda.synchronize()
@@ -73,8 +75,10 @@ def do_benchmark_cuda(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REP
     for _ in range(n_warmup):
         fn()
     # Benchmark
+    torch.cuda._sleep(10_000_000)
     for i in range(n_repeat):
         # record time of `fn`
+        torch.cuda._sleep(1_000_000)
         start_event[i].record()
         fn()
         end_event[i].record()
