@@ -19,8 +19,7 @@ function tune() {
         ret=$?
     fi
     if [ $ret -ne 0 ]; then
-        echo "Failed to tune model: $model, result_dir: $result_dir, additional args: $@"
-        exit $ret
+        echo "Failed to tune model: $model, result_dir: $result_dir, additional args: $@, exit code $ret" >> grid_torch.log
     fi
 }
 
