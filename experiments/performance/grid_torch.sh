@@ -12,9 +12,11 @@ function tune() {
     local ret=0
     if [ -z "$result_dir" ]; then
         # Vanilla model, no need to specify result_dir
-        ret=$(python perf_torch.py --device cuda --mode max-autotune --model "$model" "$@")
+        python perf_torch.py --device cuda --mode max-autotune --model "$model" "$@"
+        ret=$?
     else
-        ret=$(python perf_torch.py --device cuda --mode max-autotune --model "$model" --result-dir "$result_dir" "$@")
+        python perf_torch.py --device cuda --mode max-autotune --model "$model" --result-dir "$result_dir" "$@"
+        ret=$?
     fi
     if [ $ret -ne 0 ]; then
         echo "Failed to tune model: $model, result_dir: $result_dir, additional args: $@"
