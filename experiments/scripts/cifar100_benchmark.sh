@@ -1,11 +1,10 @@
-python base/unit_tests/benchmark.py --kas-search-algo MCTS \
---model torchvision/resnet18 --sched cosine --epoch 100 --batch-size 128 \
---warmup-epochs 0 --cooldown-epochs 0 --lr 0.1 --momentum 0.9 --weight-decay 0.001 \
+rm -rf .benchmark-scheduler-cache
+python base/unit_tests/benchmark.py --model torchvision/resnet18 --batch-size 128 \
 --dataset cifar100 --num-classes 100 --compile --kas-sampler-workers 64 \
 --kas-num-virtual-evaluator 8 --kas-reward-power 4 --kas-acc-lower-bound 0.01 \
 --kas-acc-upper-bound 0.7 --kas-server-save-interval 1800 --kas-server-port 7070 \
 --kas-inference-time-limit 300 --kas-max-flops-ratio 1.2 --kas-max-enumerations 5 \
---kas-max-finalizations 2 --kas-depth 16 --kas-max-dim 13 --kas-max-reductions 5 \
+--kas-max-finalizations 2 --kas-depth 16 --kas-max-reductions 5 \
 --kas-max-merges 2 --kas-max-splits 2 --kas-max-shifts 3 --kas-max-strides 2 \
 --kas-max-size-multiplier 2 --kas-max-variables-in-size 3 --kas-max-chain-length 5 \
 --kas-max-shift-rhs 5 --kas-scheduler-cache-dir .benchmark-scheduler-cache
