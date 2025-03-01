@@ -4,6 +4,7 @@ import math
 import os
 import statistics
 import sys
+import time
 
 import torch
 
@@ -88,6 +89,39 @@ def do_benchmark_cuda(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REP
     return _summarize_statistics(times, quantiles, return_mode)
 
 
+def do_benchmark_cpu(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REPEAT, quantiles=None, return_mode="mean"):
+    assert return_mode in ["min", "max", "mean", "median", "all"]
+
+    fn()
+
+    # Estimate the runtime of the function
+    start_time = time.perf_counter_ns()
+    for _ in range(5):
+        time.sleep(0.01)
+        fn()
+    end_time = time.perf_counter_ns()
+    estimate_ms = (end_time - start_time) / 5 / 1_000_000
+
+    # compute number of warmup and repeat
+    n_warmup = max(1, int(warmup / estimate_ms))
+    n_repeat = max(6, int(rep / estimate_ms))
+    start_time = [0.0 for i in range(n_repeat)]
+    end_time = [0.0 for i in range(n_repeat)]
+    # Warm-up
+    for _ in range(n_warmup):
+        fn()
+    # Benchmark
+    for i in range(n_repeat):
+        # record time of `fn`
+        time.sleep(0.01)
+        start_time[i] = time.perf_counter_ns()
+        fn()
+        end_time[i] = time.perf_counter_ns()
+
+    times = [(e - s) / 1_000_000 for s, e in zip(start_time, end_time)]
+    return _summarize_statistics(times, quantiles, return_mode)
+
+
 _TORCH_TUNING_MODE="max-autotune"
 _TORCH_EAGER_MODE="eager"
 
@@ -129,13 +163,12 @@ def run_benchmark(
                     return_mode="mean",
                 )
             else:
-                import torch.utils.benchmark as benchmark
-                timer = benchmark.Timer(
-                    stmt="run_model(inputs)",
-                    globals={"run_model": run_model, "inputs": inputs},
-                    label="torchscript",
+                return do_benchmark_cpu(
+                    lambda: run_model(inputs),
+                    warmup=_BENCHMARK_TIME_WARMUP,
+                    rep=_BENCHMARK_TIME_REPEAT,
+                    return_mode="mean",
                 )
-                return timer.blocked_autorange(min_run_time=1).mean
 
 
 def _parse_args():
