@@ -102,6 +102,8 @@ For `mode`, there are several options: `none` (eager mode), `max-autotune` (best
 
 You can also optionally specify whether to disable TF32 by `--disable-tf32`.
 
+To ignore the saved benchmark results (and to not save the new results), use `--no-save`.
+
 # PyTorch Benchmark (Legacy)
 
 ## Exporting the Network

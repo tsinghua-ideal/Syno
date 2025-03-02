@@ -31,12 +31,13 @@ def _quantile(a, q):
     return [get_quantile(q) for q in q]
 
 
-def _summarize_statistics(times, quantiles, return_mode):
+def summarize_statistics(times, quantiles=None, return_mode="mean"):
     if quantiles is not None:
         ret = _quantile(times, quantiles)
         if len(ret) == 1:
             ret = ret[0]
         return ret
+    assert return_mode in ["min", "max", "mean", "median", "all"]
     if return_mode == "all":
         return times
     elif return_mode == "min":
@@ -49,9 +50,7 @@ def _summarize_statistics(times, quantiles, return_mode):
         return statistics.median(times)
 
 
-def do_benchmark_cuda(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REPEAT, quantiles=None, return_mode="mean"):
-    assert return_mode in ["min", "max", "mean", "median", "all"]
-
+def do_benchmark_cuda(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REPEAT):
     fn()
     torch.cuda.synchronize()
 
@@ -86,12 +85,10 @@ def do_benchmark_cuda(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REP
     # Record clocks
     torch.cuda.synchronize()
     times = [s.elapsed_time(e) for s, e in zip(start_event, end_event)]
-    return _summarize_statistics(times, quantiles, return_mode)
+    return times
 
 
-def do_benchmark_cpu(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REPEAT, quantiles=None, return_mode="mean"):
-    assert return_mode in ["min", "max", "mean", "median", "all"]
-
+def do_benchmark_cpu(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REPEAT):
     fn()
 
     # Estimate the runtime of the function
@@ -119,7 +116,7 @@ def do_benchmark_cpu(fn, warmup=_BENCHMARK_TIME_WARMUP, rep=_BENCHMARK_TIME_REPE
         end_time[i] = time.perf_counter_ns()
 
     times = [(e - s) / 1_000_000 for s, e in zip(start_time, end_time)]
-    return _summarize_statistics(times, quantiles, return_mode)
+    return times
 
 
 _TORCH_TUNING_MODE="max-autotune"
@@ -132,7 +129,7 @@ def run_benchmark(
     device: torch.device,
     mode: str,
     channels_last: bool,
-):
+) -> list[float]:
     model = model.to(device).eval().requires_grad_(False)
     inputs = torch.randn(input_shape, device=device, requires_grad=False)
     if channels_last:
@@ -160,14 +157,12 @@ def run_benchmark(
                     lambda: run_model(inputs),
                     warmup=_BENCHMARK_TIME_WARMUP,
                     rep=_BENCHMARK_TIME_REPEAT,
-                    return_mode="mean",
                 )
             else:
                 return do_benchmark_cpu(
                     lambda: run_model(inputs),
-                    warmup=_BENCHMARK_TIME_WARMUP,
-                    rep=_BENCHMARK_TIME_REPEAT,
-                    return_mode="mean",
+                    warmup=_BENCHMARK_TIME_WARMUP * 5,
+                    rep=_BENCHMARK_TIME_REPEAT * 5,
                 )
 
 
@@ -188,6 +183,7 @@ def _parse_args():
     parser.add_argument("--mode", type=str, default=_TORCH_TUNING_MODE)
     parser.add_argument("--disable-tf32", action="store_true")
     parser.add_argument("--channels-last", action="store_true")
+    parser.add_argument("--no-save", action="store_true")
     return parser.parse_args()
 
 
@@ -219,15 +215,16 @@ def main():
         batch_size=args.batch_size,
     )
 
-    os.makedirs(os.path.dirname(benchmark_output), exist_ok=True)
-    benchmark_lock = f"{benchmark_output}.lock"
-    with filelock.FileLock(benchmark_lock):
-        if os.path.exists(benchmark_output):
-            print(f"Benchmark output {benchmark_output} already exists, skipping.")
-            return
-        # Create the file to prevent other processes from running the same benchmark
-        with open(benchmark_output, "w"):
-            pass
+    if not args.no_save:
+        os.makedirs(os.path.dirname(benchmark_output), exist_ok=True)
+        benchmark_lock = f"{benchmark_output}.lock"
+        with filelock.FileLock(benchmark_lock):
+            if os.path.exists(benchmark_output):
+                print(f"Benchmark output {benchmark_output} already exists, skipping.")
+                return
+            # Create the file to prevent other processes from running the same benchmark
+            with open(benchmark_output, "w"):
+                pass
 
     import torch._inductor.config
 
@@ -265,16 +262,23 @@ def main():
             num_classes=args.num_classes,
         )
         device = torch.device(args.device)
-        benchmark_time = run_benchmark(model, input_shape, device, mode=args.mode, channels_last=args.channels_last)
+        benchmark_times = run_benchmark(model, input_shape, device, mode=args.mode, channels_last=args.channels_last)
+        print(f"Benchmark times: {benchmark_times}")
+        benchmark_time = summarize_statistics(benchmark_times, return_mode="mean")
         print(f"Benchmark time: {benchmark_time:.3f} ms")
     except:
-        # Remove the file if an exception occurs
-        os.remove(benchmark_output)
+        if not args.no_save:
+            # Remove the file if an exception occurs
+            os.remove(benchmark_output)
         raise
 
-    print(f"Writing benchmark output to {benchmark_output}")
-    with open(benchmark_output, "w") as f:
-        f.write(f"{benchmark_time}\n")
+    if not args.no_save:
+        print(f"Writing benchmark output to {benchmark_output}")
+        with open(benchmark_output, "w") as f:
+            f.write(f"{benchmark_time}\n")
+    else:
+        print("Output not saved due to the --no-save flag.")
+
     print("Done.")
 
 
