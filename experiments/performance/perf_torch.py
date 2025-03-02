@@ -31,6 +31,12 @@ def _quantile(a, q):
     return [get_quantile(q) for q in q]
 
 
+def _remove_outliers(a, threshold=3):
+    mean = statistics.mean(a)
+    stdev = statistics.stdev(a)
+    return [x for x in a if abs(x - mean) < threshold * stdev]
+
+
 def summarize_statistics(times, quantiles=None, return_mode="mean"):
     if quantiles is not None:
         ret = _quantile(times, quantiles)
@@ -262,8 +268,10 @@ def main():
             num_classes=args.num_classes,
         )
         device = torch.device(args.device)
-        benchmark_times = run_benchmark(model, input_shape, device, mode=args.mode, channels_last=args.channels_last)
-        print(f"Benchmark times: {benchmark_times}")
+        benchmark_times_raw = run_benchmark(model, input_shape, device, mode=args.mode, channels_last=args.channels_last)
+        print(f"Benchmark times: {benchmark_times_raw}")
+        benchmark_times = _remove_outliers(benchmark_times_raw)
+        print(f"Removed {len(benchmark_times_raw) - len(benchmark_times)} outliers")
         benchmark_time = summarize_statistics(benchmark_times, return_mode="mean")
         print(f"Benchmark time: {benchmark_time:.3f} ms")
     except:
