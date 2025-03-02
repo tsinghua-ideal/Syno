@@ -24,6 +24,8 @@ RESNET34_LAYERS = {
     "conv_io512": (512, 512, 7, 3, 29),
     "residual_i256_o512": (256, 512, 7, 1, 30),
 }
+# In residual layers, we always use k=3 for substituted kernels in KAS, so for fair comparison, we apply that to NAS-PTE as well.
+RESNET34_LAYERS_K_SUBSTITUTED = 3
 
 def get_resnet34_layers(layer_name: str, result_dir: str | None, batch_size: int) -> tuple[torch.nn.Module, tuple[int, int, int, int]]:
     C_in, C_out, H, k, placeholder_index = RESNET34_LAYERS[layer_name]
@@ -48,7 +50,7 @@ def get_resnet34_layers(layer_name: str, result_dir: str | None, batch_size: int
             kernels = importlib.util.module_from_spec(spec)
             sys.modules[kernel_name] = kernels
             spec.loader.exec_module(kernels)
-            return kernels.kernel_generated(C_in=C_in, C_out=C_out, H=H, k=k), input_shape
+            return kernels.kernel_generated(C_in=C_in, C_out=C_out, H=H, k=RESNET34_LAYERS_K_SUBSTITUTED), input_shape
 
 def get_model(model_name: str, result_dir: str | None, batch_size: int, input_size: tuple[int, int, int], num_classes: int) -> tuple[torch.nn.Module, tuple[int, int, int, int]]:
     if model_name.startswith("resnet34layers/"):
