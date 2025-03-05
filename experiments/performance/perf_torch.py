@@ -135,6 +135,7 @@ def run_benchmark(
     device: torch.device,
     mode: str,
     channels_last: bool,
+    do_profile: bool,
 ) -> list[float]:
     model = model.to(device).eval().requires_grad_(False)
     inputs = torch.randn(input_shape, device=device, requires_grad=False)
@@ -155,6 +156,14 @@ def run_benchmark(
         # Warmup
         for _ in range(5):
             run_model(inputs)
+        if do_profile:
+            from torch.profiler import profile, record_function, ProfilerActivity
+            activities = [ProfilerActivity.CPU, ProfilerActivity.CUDA]
+            device_name = "cuda" if device.type == "cuda" else "cpu"
+            sort_by = device_name + "_time_total"
+            with profile(activities=activities, record_shapes=True) as prof, record_function("model_inference"):
+                run_model(inputs)
+            print(prof.key_averages().table(sort_by=sort_by, row_limit=20))
         with torch.compiler.set_stance(skip_guard_eval_unsafe=True):
             print("Running benchmark...")
             # Use triton benchmark if using CUDA
@@ -189,6 +198,7 @@ def _parse_args():
     parser.add_argument("--mode", type=str, default=_TORCH_TUNING_MODE)
     parser.add_argument("--disable-tf32", action="store_true")
     parser.add_argument("--channels-last", action="store_true")
+    parser.add_argument("--profile", action="store_true")
     parser.add_argument("--no-save", action="store_true")
     return parser.parse_args()
 
@@ -268,7 +278,7 @@ def main():
             num_classes=args.num_classes,
         )
         device = torch.device(args.device)
-        benchmark_times_raw = run_benchmark(model, input_shape, device, mode=args.mode, channels_last=args.channels_last)
+        benchmark_times_raw = run_benchmark(model, input_shape, device, mode=args.mode, channels_last=args.channels_last, do_profile=args.profile)
         print(f"Benchmark times: {benchmark_times_raw}")
         benchmark_times = _remove_outliers(benchmark_times_raw)
         print(f"Removed {len(benchmark_times_raw) - len(benchmark_times)} outliers")
