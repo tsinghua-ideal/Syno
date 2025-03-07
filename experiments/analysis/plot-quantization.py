@@ -42,6 +42,61 @@ a100_tf32 = 156 * 1e9 # 156 TFLOPS = 156 GFLOPs / ms
 a100_int8 = 624 * 1e9 # 624 TFLOPS = 624 GFLOPs / ms
 model = "resnet18"
 
+imagenet_accuracies = {
+    "Original": 0.706787109375, 
+    "INT8 Quantized": 0.6991373896598816, 
+    "Stacked Convolution": 0.6924235224723816, 
+    "Operator 1": 0.7045084834098816,
+}
+
+def obtain_kernel_performance(folder: str, base_folder: str, scenario: str):
+
+    if scenario == "Mobile CPU":
+        split = "llvm"
+    elif scenario == "Mobile GPU":
+        split = "cuda"
+    else:
+        assert scenario == "A100"
+        split = "cuda"
+    
+    baseline_latency = extract_latency(os.path.join(
+        base_folder,
+        split,
+        "torchvision",
+        f"{model}-N=1-orig",
+        "benchmark_results.csv",
+    )) # type: ignore
+
+    quant_latency = extract_latency(os.path.join(
+        base_folder,
+        split,
+        "qresnet18",
+        "benchmark_results.csv",
+    )) # type: ignore
+
+    resnet_path = Path(folder) / "resnet-good-kernels"
+    
+    stacked_conv_latency = extract_latency(
+        resnet_path / "ablation/Conv2d_Conv1d/perf" / split / 
+        f"torchvision/{model}-N=1/benchmark_results.csv"
+    )
+    operator1_latency = extract_latency(
+        resnet_path / "0.6x/07889_15252107013978896537/perf" / split / 
+        f"torchvision/{model}-N=1/benchmark_results.csv"
+    )
+    operator2_latency = extract_latency(
+        resnet_path / "0.2x/07754_18091915762600937904/perf" / split / 
+        f"torchvision/{model}-N=1/benchmark_results.csv"
+    )
+    print("%s op1 speedup = %.3f x" % (scenario, baseline_latency/operator1_latency))
+    print("%s op2 speedup = %.3f x" % (scenario, baseline_latency/operator2_latency))
+    return [
+        ("Original", baseline_latency, imagenet_accuracies["Original"]), 
+        ("INT8 Quantized", quant_latency, imagenet_accuracies["INT8 Quantized"]), 
+        ("Stacked Convolution", stacked_conv_latency, imagenet_accuracies["Stacked Convolution"]), 
+        ("Operator 1", operator1_latency, imagenet_accuracies["Operator 1"]), 
+    ]
+
 def draw(ax: Axes, perf, tag): 
     xs = []
     ys = []
@@ -61,9 +116,9 @@ def draw(ax: Axes, perf, tag):
     # pareto_mask = identify_pareto(np.stack([-xs, ys], axis=-1))
     # id = np.argsort(xs[pareto_mask])
     # plt.plot(xs[id], ys[id], linewidth=1.3, linestyle="--")
-    ax.set_xlabel(tag + " Inference time (ms)", fontsize=14)
+    ax.set_title(tag, fontsize=14)
     ax.set_xlim(left=0)
-    ax.set_ylim(0.685, 0.715)
+    ax.set_ylim(0.69, 0.71)
     ax.yaxis.set_major_locator(MultipleLocator(0.01))
     ax.tick_params(axis='both', which='major', labelsize=14)
     ax.grid(linestyle='--')
@@ -71,47 +126,34 @@ def draw(ax: Axes, perf, tag):
 if __name__ == "__main__":
 
     args = parser()
-
-    baseline_latency_cpu = extract_latency(os.path.join(
-        args.baseline_latency_folder,
-        "llvm",
-        "torchvision",
-        f"{model}-N=1-orig",
-        "benchmark_results.csv",
-    )) # type: ignore
-    baseline_latency_gpu = extract_latency(os.path.join(
-        args.baseline_latency_folder,
-        "cuda",
-        "torchvision",
-        f"{model}-N=1-orig",
-        "benchmark_results.csv",
-    )) # type: ignore
     
-    orig_cpu_performances = [
-        ("Original", baseline_latency_cpu, 0.706787109375), 
-        ("INT8 Quantized", 19.6, 0.6991373896598816), 
-        ("Stacked Convolution", 9.72, 0.6873982548713684), 
-        ("Kernel 1", 14.3, 0.7045084834098816), 
-    ]
-    orig_gpu_performances = [
-        ("Original", baseline_latency_gpu, 0.706787109375), 
-        ("INT8 Quantized", 3.25, 0.6991373896598816), # Replace GPU with new value
-        ("Stacked Convolution", 4.11, 0.6873982548713684), 
-        ("Kernel 1", 3.35, 0.7045084834098816), 
-    ]
+    mobile_cpu_performances = obtain_kernel_performance("./results", args.baseline_latency_folder, "Mobile CPU")
+    mobile_gpu_performances = obtain_kernel_performance("./results", args.baseline_latency_folder, "Mobile GPU")
+    a100_performances = obtain_kernel_performance("/cephfs/shared/Syno/results", "/cephfs/shared/Syno/perf", "A100")
 
-    fig, axs = plt.subplots(1, 2, figsize=(7, 3), gridspec_kw={'width_ratios': [1, 1], 'wspace': 0.03})
+    fig, axs = plt.subplots(1, 3, figsize=(7, 3.5), gridspec_kw={'width_ratios': [1, 1, 1], 'wspace': 0.1})
     
     ax1: Axes = axs[0] # type: ignore
-    draw(ax1, orig_cpu_performances, "CPU")
+    draw(ax1, mobile_cpu_performances, "Mobile CPU")
     ax1.set_ylabel("Top-1 Accuracy", fontsize=14)
+    ax1.set_xlim(right=45)
+    ax1.xaxis.set_major_locator(MultipleLocator(10))
     
     ax2: Axes = axs[1] # type: ignore
-    draw(ax2, orig_gpu_performances, "GPU")
+    draw(ax2, mobile_gpu_performances, "Mobile GPU")
     ax2.set_yticklabels([])
+    ax2.set_xlim(right=9)
+    ax2.xaxis.set_major_locator(MultipleLocator(2))
+    
+    ax3: Axes = axs[2] # type: ignore
+    draw(ax3, a100_performances, "A100")
+    ax3.set_yticklabels([])
+    ax3.set_xlim(right=1.1)
+    ax3.xaxis.set_major_locator(MultipleLocator(0.3))
 
     handles, labels = ax1.get_legend_handles_labels()
     fig.legend(handles, labels, loc='upper center', ncol=2, fontsize=14, bbox_to_anchor=(0.55, 1.0))
+    fig.supxlabel("Inference time (ms)", fontsize=14)
     
-    fig.subplots_adjust(top=0.73, bottom=0.2, right=0.99)
+    fig.subplots_adjust(top=0.7, bottom=0.18, right=0.98)
     plt.savefig(f"analysis/results/case-study.pdf")

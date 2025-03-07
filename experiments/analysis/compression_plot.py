@@ -53,7 +53,7 @@ if __name__ == '__main__':
                       group_names=labels,
                       entry_names=names,
                       breakdown=False,
-                      colors=[micro_nas_color],
+                      colors=[op1_color],
                       legendloc='upper left',
                       xticklabelfontsize=8,
                       xticklabelrotation=20,

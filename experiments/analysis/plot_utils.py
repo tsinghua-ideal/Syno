@@ -1,22 +1,32 @@
 import copy
 from matplotlib import rcParams
+from matplotlib.axes import Axes
 import argparse
-import os, shutil, json
+import os, json
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import re
-from tqdm import tqdm
+from pathlib import Path
+import logging
+logging.basicConfig(level=logging.INFO, # Set the minimum logging level
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 plt.rcParams['font.family'] = 'DejaVu Sans'
 
-ansor_color = '#a7d0e3'
+ansor_color = '#96CCCB'
 nas_pte_color = '#fa8074'
-micro_nas_color = '#d56050'
-micro_nas_compress_color = '#f0787a'
-seq1_color = '#c2deeb'
-seq2_color = '#90c4dc'
-seq3_color = nas_pte_color
+op1_color = '#d56050'
+op2_color = '#f0787a'
+seq1_color = '#adcbe3'
+seq2_color = '#63ace5'
+seq3_color = '#4b86b4'
+inductor_color = '#BEB8DC'
+op1_inductor_color = '#fce1aa'
+op2_inductor_color = '#e6bb68'
+seq1_inductor_color = '#b9d5bc'
+seq2_inductor_color = '#91b38e'
+seq3_inductor_color = '#5a855f'
 
 model2name = {
     "resnet18": "ResNet18", 
@@ -26,12 +36,13 @@ model2name = {
     "resnext29_2x64d": "ResNeXt29-2x64d", 
 }
 
+Scenarios = ["Mobile CPU", "Mobile GPU", "A100"]
 
 def get_data_dims(data: list, dim):
     return [item[dim] for item in data]
 
 
-def check_format(entries: []):
+def check_format(entries: list):
     assert isinstance(entries, list)
     assert len(entries) > 0
 
@@ -57,7 +68,7 @@ def check_format(entries: []):
             f'Data entry mismatch: {first_data_keys} v.s. {entry_data_keys}'
 
 
-def check_baseline(entries: [], relative: bool):
+def check_baseline(entries: list, relative: bool):
     count, baseline = 0, None
     for entry in entries:
         if 'baseline' in entry and entry['baseline']:
@@ -101,8 +112,8 @@ def text_numbers(ax, width, entries, bars,
                         ha='center')
 
 
-def text_numbers_custom(ax, width, entries, bars, 
-                 fontsize=rcParams['font.size'], fontweight=None):
+def text_numbers_custom(ax: Axes, width, entries, bars, maxy: float, 
+                 fontsize=rcParams['font.size'], fontweight=None, rotation=0, divisor: list=[]):
     num_entries = len(entries)
     width_per_entry = width / num_entries
     num_groups = len(entries[0]['data'])
@@ -112,15 +123,28 @@ def text_numbers_custom(ax, width, entries, bars,
             assert len(entry['offset']) == num_groups
             for j, (xo, yo) in enumerate(entry['offset']):
                 value = bars[j][i]
-                ax.text(j - width / 2 + width_per_entry * (i + 0.5) + xo, value + yo,
-                        '{:.2f}×'.format(value), fontsize=fontsize, fontweight=fontweight,
-                        ha='center')
+                if value > maxy * 0.95:
+                    ax.text(j - width / 2 + width_per_entry * (i + 0.5) + xo*12, maxy * 0.95,
+                        '{:.2f}×'.format(value / divisor[i][j]), fontsize=fontsize, fontweight=fontweight,
+                        ha='center', rotation=0)
+                elif value > maxy * 0.8:
+                    x_offset = xo * 8 if bars[j][i+1] > value else 0
+                    ax.text(j - width / 2 + width_per_entry * (i + 0.5) + x_offset, value + yo * 0.3,
+                        '{:.2f}×'.format(value / divisor[i][j]), fontsize=fontsize, fontweight=fontweight,
+                        ha='center', rotation=0)
+                else:
+                    ax.text(j - width / 2 + width_per_entry * (i + 0.5) + xo, value + yo,
+                        '{:.2f}×'.format(value / divisor[i][j]), fontsize=fontsize, fontweight=fontweight,
+                        ha='center', rotation=rotation)
 
-def extract_latency(csv: str):
-    assert os.path.exists(csv) and os.path.splitext(csv)[1] == ".csv", os.path.splitext(
-        csv
-    )
-    return float(pd.read_csv(csv, index_col=0).iloc[3, 0]) * 1000
+def extract_latency(csv: str | Path):
+    if os.path.splitext(csv)[1] == ".csv":
+        return float(pd.read_csv(csv, index_col=0).iloc[3, 0]) * 1000
+    elif os.path.splitext(csv)[1] == ".txt":
+        with open(csv, "r") as f:
+            return float(f.readline().strip()) * 1000
+    else:
+        raise ValueError("Invalid file format")
 
 def identify_pareto(scores):
     # Acknowledgement: https://stackoverflow.com/questions/68284055/pareto-front-for-matplotlib-scatter-plot
@@ -154,7 +178,20 @@ def fetch_baseline_perf(model):
 
     return baseline_perf
 
-def fetch_baseline_latency(model, args):
+def fetch_torchinductor_latency(model, args):
+    file = os.path.join(
+        args.baseline_latency_folder,
+        "inductor-cuda" if args.gpu else "inductor-cpu",
+        "torchvision",
+        f"{model}-N=1-orig.txt"
+    )
+    with open(file) as f:
+        latency = float(f.readline().strip())
+    return latency
+
+def fetch_baseline_latency(model, args, use_inductor=False):
+    if use_inductor:
+        return fetch_torchinductor_latency(model, args)
     baseline_file = os.path.join(
         args.baseline_latency_folder,
         "cuda" if args.gpu else "llvm",
@@ -207,15 +244,21 @@ def parser():
     
     return args
 
-def collect_kernels(dir, model, args):
+def collect_kernels(dir, model, args, use_inductor=False):
     subdirs = os.listdir(dir)
 
-    if any(re.match("0\.\dx", subdir) for subdir in subdirs):
-        results = [collect_kernels(os.path.join(dir, subdir), model, args) for subdir in subdirs if re.match("0\.\dx", subdir)]
+    if args.gpu: 
+        subfolder_name = "inductor-cuda" if use_inductor else "cuda"
+    else:
+        subfolder_name = "inductor-cpu" if use_inductor else "llvm"
+    file_name = f"{model}-N=1.txt" if use_inductor else f"{model}-N=1/benchmark_results.csv"
+
+    if any(re.match(r"0\.\dx", subdir) for subdir in subdirs):
+        results = [collect_kernels(os.path.join(dir, subdir), model, args, use_inductor) for subdir in subdirs if re.match("0\.\dx", subdir)]
         return [k for res in results for k in res]
     
     kernels = []
-    for kernel_fmt in tqdm(subdirs):
+    for kernel_fmt in subdirs:
         kernel_dir = os.path.join(dir, kernel_fmt)
         if not os.path.isdir(kernel_dir):
             continue
@@ -247,11 +290,11 @@ def collect_kernels(dir, model, args):
         if args.latency and not os.path.exists(os.path.join(
                     kernel_dir,
                     "perf",
-                    "cuda" if args.gpu else "llvm",
+                    subfolder_name,
                     "torchvision",
-                    f"{model}-N=1",
-                    "benchmark_results.csv",
+                    file_name,
                 )):
+            logging.warning(f"{subfolder_name} is not found under {kernel_dir}, skipping this kernel")
             continue
 
         latency = (
@@ -259,15 +302,17 @@ def collect_kernels(dir, model, args):
                 os.path.join(
                     kernel_dir,
                     "perf",
-                    "cuda" if args.gpu else "llvm",
+                    subfolder_name,
                     "torchvision",
-                    f"{model}-N=1",
-                    "benchmark_results.csv",
+                    file_name
                 )
             )
             if args.latency
             else 0
         )
+
+        if use_inductor:
+            latency /= 1000
         
         if "loss" not in meta:
             meta["loss"] = 0

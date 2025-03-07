@@ -52,16 +52,16 @@ if __name__ == "__main__":
             with open(meta_path, "r") as f:
                 meta = json.load(f)
 
-            if os.path.exists(os.path.join(kernel_dir, "perf")):
+            try:
                 shutil.rmtree(os.path.join(kernel_dir, "perf"))
+            except:
+                pass
 
             if meta["path"] not in path2perf:
-                logging.warn(f"Sync failed for {kernel_dir}")
+                logging.warning(f"Sync failed for {kernel_dir}")
                 continue
 
             assert os.path.exists(path2perf[meta["path"]]), path2perf[meta["path"]]
-            shutil.copytree(
-                path2perf[meta["path"]],
-                os.path.join(kernel_dir, "perf"),
-                dirs_exist_ok=True,
-            )
+            assert os.path.isdir(path2perf[meta["path"]]), path2perf[meta["path"]]
+            print(f"linking {path2perf[meta['path']]} to {os.path.join(kernel_dir, 'perf')}")
+            os.symlink(os.path.realpath(path2perf[meta["path"]]), os.path.join(kernel_dir, "perf"), target_is_directory=True)
