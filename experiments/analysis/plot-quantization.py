@@ -44,7 +44,7 @@ model = "resnet18"
 
 imagenet_accuracies = {
     "Original": 0.706787109375, 
-    "INT8 Quantized": 0.6991373896598816, 
+    "INT8 Quantized": 0.7029011845588684, 
     "Stacked Convolution": 0.6924235224723816, 
     "Operator 1": 0.7045084834098816,
 }
