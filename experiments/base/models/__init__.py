@@ -138,19 +138,25 @@ def get_model(
         ), f"Could not find model {args.model}"
         model_cls = getattr(sys.modules[__name__], args.model)
         model = model_cls()
-    flops, params = model.profile(seq_len=args.gpt_seq_len)
+
+    if sample_input is None:
+        sample_input = torch.ones(
+            (args.batch_size, *model.sample_input_shape(args.gpt_seq_len)), device="cuda"
+        )
+        if args.gpt_seq_len:
+            sample_input = sample_input.long()
+
+    model = model.cuda()
+    model.eval()
+
+    flops, params = model.profile(seq_len=args.gpt_seq_len, sample_input=sample_input)
     logging.info(
         f"Base model {args.model} has {flops / 1e9:.5f} GFLOPs (per batch) and {params / 1e6:.2f}M parameters"
     )
 
     # Build mapping for usages
-    if sample_input is None:
-        sample_input = torch.ones(
-            (args.batch_size, *model.sample_input_shape(args.gpt_seq_len))
-        )
-        if args.gpt_seq_len:
-            sample_input = sample_input.long()
-    build_placeholder_mappings(model, sample_input)
+    with torch.inference_mode():
+        build_placeholder_mappings(model, sample_input)
     count = remove_unsatisfied_placeholders(model)
     logging.info(f"Recovered {count} unsatisfied placeholders")
 
@@ -212,13 +218,17 @@ def get_model(
             seq_len=args.gpt_seq_len,
         )
         flops_replaced, params_replaced = model.profile(
-            batch_size=args.batch_size, force_update=True, seq_len=args.gpt_seq_len
+            batch_size=args.batch_size, 
+            force_update=True, 
+            seq_len=args.gpt_seq_len, 
+            sample_input=sample_input
         )
         flops_base, params_base = model.profile(
             batch_size=args.batch_size,
             force_update=True,
             not_count_placeholder=True,
             seq_len=args.gpt_seq_len,
+            sample_input=sample_input
         )
         logging.info(
             f"Replaced model {args.model} has {flops_replaced / 1e9:.5f}G FLOPs and {params_replaced / 1e6:.2f}M parameters"
@@ -229,6 +239,8 @@ def get_model(
         logging.info(
             f"Placeholder params change {params - params_base:.2f} -> {params_replaced - params_base:.2f}"
         )
+    
+    model.train()
 
     if return_sampler:
         assert sampler

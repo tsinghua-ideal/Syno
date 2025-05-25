@@ -68,12 +68,14 @@ class KASModel(nn.Module):
                     if key in m._buffers:
                         m._buffers.pop(key)
 
+    @torch.inference_mode()
     def profile(
         self,
         batch_size=1,
         force_update=False,
         not_count_placeholder=False,
         seq_len=None,
+        sample_input=None,
     ) -> Tuple[int, int]:
         if not (self.flops == 0 and self.params == 0) and not force_update:
             return self.flops, self.params
@@ -93,12 +95,12 @@ class KASModel(nn.Module):
             if not_count_placeholder
             else count_placeholder_non_zero
         )
-        sample_input = torch.ones(
-            (batch_size, *self.sample_input_shape(seq_len))
-        )
-        self.cpu()
-        if seq_len:
-            sample_input = sample_input.long()
+        if sample_input is None:
+            sample_input = torch.ones(
+                (batch_size, *self.sample_input_shape(seq_len)), device="cuda"
+            )
+            if seq_len:
+                sample_input = sample_input.long()
         flops, params = thop.profile(
             self.float(),
             inputs=(sample_input,),

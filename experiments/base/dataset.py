@@ -2,9 +2,9 @@ import logging
 import os, sys
 import torch
 import torch.nn.functional as F
-from datasets import load_dataset, IterableDataset
+from datasets import load_dataset
 from functools import partial
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, IterableDataset
 from torchvision.datasets import CIFAR10, CIFAR100, MNIST, ImageNet
 from torchvision.transforms import transforms
 
@@ -225,7 +225,7 @@ def get_gpt_dataloader(args):
     from transformers import GPT2Tokenizer
     # TODO: add multiple workers
     logging.info(f"Loading GPT dataset {args.dataset} ...")
-    dataset = load_dataset(str(args.dataset))
+    dataset = load_dataset(str(args.dataset), trust_remote_code=True)
     tokenizer = GPT2Tokenizer.from_pretrained(args.gpt_tokenizer)
     return ConstantLengthDataset(
         tokenizer, dataset["train"], infinite=True, seq_length=args.gpt_seq_len

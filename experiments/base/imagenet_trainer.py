@@ -9,7 +9,6 @@ ch.autograd.profiler.emit_nvtx(False)
 ch.autograd.profiler.profile(False)
 
 from torchvision import models
-from torchvision.transforms import RandAugment
 import torchmetrics
 import numpy as np
 

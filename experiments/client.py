@@ -173,7 +173,12 @@ def main():
                 config.summary()
 
                 accuracy = ImageNetTrainer.launch_from_args(
-                    model, args.imagenet_log_folder, args.batch_size, False
+                    model, 
+                    args.imagenet_log_folder, 
+                    args.batch_size, 
+                    eval_only=False, 
+                    quantize=False,
+                    config_file=args.imagenet_config_file,
                 )
             else:
                 accuracy = max(
@@ -202,6 +207,6 @@ if __name__ == "__main__":
     args = parser.arg_parse()
 
     # Set memory limit
-    mem.memory_limit(args.client_mem_limit)
+    mem.memory_limit(min(args.client_mem_limit, 1.0))
 
     main()

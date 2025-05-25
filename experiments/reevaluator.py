@@ -234,17 +234,18 @@ def main(args):
     kernels = collect_kernels(args)
     logging.info(f"collected {len(kernels)} kernels. ")
 
-    for kernel_dir in os.listdir(args.kas_server_save_dir):
-        meta_path = os.path.join(args.kas_server_save_dir, kernel_dir, "meta.json")
-        if not os.path.exists(meta_path):
-            continue
-        with open(meta_path, "r") as f:
-            meta = json.load(f)
-        for _, path in kernels:
-            if meta["path"] == path:
-                kernels.pop(kernels.index((_, path)))
-                break
-    logging.info(f"left {len(kernels)} kernels: {kernels}")
+    if os.path.exists(args.kas_server_save_dir):
+        for kernel_dir in os.listdir(args.kas_server_save_dir):
+            meta_path = os.path.join(args.kas_server_save_dir, kernel_dir, "meta.json")
+            if not os.path.exists(meta_path):
+                continue
+            with open(meta_path, "r") as f:
+                meta = json.load(f)
+            for _, path in kernels:
+                if meta["path"] == path:
+                    kernels.pop(kernels.index((_, path)))
+                    break
+    logging.info(f"Need to evaluate {len(kernels)} kernels")
 
     # Sampler
     logging.info("Preparing sampler ...")
@@ -257,11 +258,19 @@ def main(args):
     id = index_generator()
 
     count = 0
+    logging.info("Testing if all kernels are in the search space ...")
     for _, path in kernels:
         if sampler.visit(Path.deserialize(path)) is None:
             logging.info(f"{path} not in space. ")
+            for parent_path in Path.deserialize(path).hierarchy:
+                if sampler.visit(parent_path) is None:
+                    logging.info(f"{parent_path} is the first one that is not in space. ")
+                    break
             count += 1
-    logging.info(f"{count} kernels not in space. ")
+    if count == 0:
+        logging.info("All kernels are in the search space. ")
+    else:
+        logging.warning(f"{count} kernels not in space. ")
 
     # Start server
     logging.info(
