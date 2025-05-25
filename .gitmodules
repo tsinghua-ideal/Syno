@@ -1,0 +1,3 @@
+[submodule "AE"]
+	path = AE
+	url = git@github.com:Yongqi-Zhuo/Syno-AE.git
