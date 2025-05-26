@@ -207,4 +207,9 @@ if __name__ == "__main__":
     ]
     test_run = False
 
+    if os.environ.get("KERNELS") is not None:
+        test_kernels = os.environ["KERNELS"].split(",")
+
+    logging.info(f"Testing kernels: {test_kernels}")
+
     test_semantic_conv2d(test_kernels, test_run)
