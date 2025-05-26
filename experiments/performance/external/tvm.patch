@@ -1,0 +1,88 @@
+diff --git a/python/tvm/contrib/popen_pool.py b/python/tvm/contrib/popen_pool.py
+index d16cf31bc..1eff478bf 100644
+--- a/python/tvm/contrib/popen_pool.py
++++ b/python/tvm/contrib/popen_pool.py
+@@ -295,7 +295,14 @@ class PopenWorker:
+ 
+         try:
+             recv_bytes = struct.unpack("<i", len_data)[0]
+-            status, value = cloudpickle.loads(self._reader.read(recv_bytes))
++            bytes_recv = b""
++            while len(bytes_recv) < recv_bytes:
++                new_bytes = self._reader.read(recv_bytes - len(bytes_recv))
++                if not new_bytes:
++                    # EOF, but unexpected
++                    raise IOError(f"EOF while reading payload, read {len(bytes_recv)} bytes: {bytes_recv}")
++                bytes_recv += new_bytes
++            status, value = cloudpickle.loads(bytes_recv)
+         except IOError:
+             raise self._child_process_error()
+ 
+diff --git a/python/tvm/exec/popen_worker.py b/python/tvm/exec/popen_worker.py
+index 35571ac58..d705381e3 100644
+--- a/python/tvm/exec/popen_worker.py
++++ b/python/tvm/exec/popen_worker.py
+@@ -74,7 +74,14 @@ def main():
+             # the parent exited
+             return
+         bytes_size = struct.unpack("<i", raw_bytes_size)[0]
+-        fn, args, kwargs, timeout = cloudpickle.loads(reader.read(bytes_size))
++        bytes_recv = b""
++        while len(bytes_recv) < bytes_size:
++            new_bytes = reader.read(bytes_size - len(bytes_recv))
++            if not new_bytes:
++                # EOF, but unexpected
++                raise IOError(f"EOF while reading payload, read {len(bytes_recv)} bytes: {bytes_recv}")
++            bytes_recv += new_bytes
++        fn, args, kwargs, timeout = cloudpickle.loads(bytes_recv)
+         status = TimeoutStatus()
+ 
+         if timeout is not None:
+diff --git a/python/tvm/rpc/server.py b/python/tvm/rpc/server.py
+index 63c0a92ab..05ffeae1b 100644
+--- a/python/tvm/rpc/server.py
++++ b/python/tvm/rpc/server.py
+@@ -165,7 +165,7 @@ def _serving(sock, addr, opts, load_library):
+             pass
+         server_proc.terminate()
+     elif server_proc.exitcode != 0:
+-        raise RuntimeError(
++        logger.error(
+             f"Child process {server_proc.pid} exited unsuccessfully "
+             f"with error code {server_proc.exitcode}"
+         )
+diff --git a/src/tir/schedule/primitive/compute_at.cc b/src/tir/schedule/primitive/compute_at.cc
+index 56d85318d..71675128b 100644
+--- a/src/tir/schedule/primitive/compute_at.cc
++++ b/src/tir/schedule/primitive/compute_at.cc
+@@ -694,7 +694,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
+   // Step 1. Bunch of checks
+   // Check condition 1) : scope stage pipeline
+   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
+-                                          /*require_stage_pipeline=*/true);
++                                          /*require_stage_pipeline=*/check_only);
+   Block scope_root = GetRef<Block>(scope_root_sref->StmtAs<BlockNode>());
+   AddShapeVarBounds(self, scope_root_sref.get(), analyzer);
+   BlockScope scope = self->GetBlockScope(scope_root_sref);
+diff --git a/src/tir/schedule/primitive/compute_inline.cc b/src/tir/schedule/primitive/compute_inline.cc
+index df74497b4..a9253e202 100644
+--- a/src/tir/schedule/primitive/compute_inline.cc
++++ b/src/tir/schedule/primitive/compute_inline.cc
+@@ -858,7 +858,7 @@ void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
+   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
+   // Step 1. Get the scope block
+   StmtSRef scope_root_sref = GetScopeRoot(self, producer_block_sref,
+-                                          /*require_stage_pipeline=*/true);
++                                          /*require_stage_pipeline=*/check_only);
+   // Step 2. Check completeness
+   CheckNotOutputBlock(self, producer_block_sref, scope_root_sref);
+   CheckCompleteBlock(self, producer_block_sref, scope_root_sref);
+@@ -903,7 +903,7 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
+   HasInitBlock::Check(self->mod, consumer_block);
+   // Step 1. Get the scope block
+   StmtSRef scope_root_sref = GetScopeRoot(self, consumer_block_sref,  //
+-                                          /*require_stage_pipeline=*/true);
++                                          /*require_stage_pipeline=*/check_only);
+   Buffer inlined_buffer =
+       NotSingleReadWriteBuffer::GetSingleRead(self, consumer_block, scope_root_sref);
+   // Step 2. Check completeness
