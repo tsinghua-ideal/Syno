@@ -1,6 +1,6 @@
 /measurements/
 /model_onnx/
-/model_relax/
+/model_relax/torchvision/
 /model_relax_quant/
 /model_torch/
 /perf/
