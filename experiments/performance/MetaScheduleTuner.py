@@ -27,6 +27,7 @@ from functools import wraps
 from importlib.util import spec_from_file_location, module_from_spec
 import multiprocessing as mp
 import os
+import shutil
 import sys
 from traceback import print_exc
 from typing import Callable, cast, Dict, Optional, Tuple, TypeVar, Union
@@ -47,14 +48,18 @@ from progress_utils import ProgressDone, ProgressQueue, ProgressUpdate, ignore_s
 def parse_target_preset(target_preset: str) -> Tuple[str, str]:
     return PRESET_TARGETS[target_preset]
 
-def parse_target(target: Optional[str], target_host: Optional[str], target_preset: Optional[str] = None) -> tvm.target.Target:
+def parse_target_preset_or(target: Optional[str], target_host: Optional[str], target_preset: Optional[str] = None) -> Tuple[str, str]:
     if target_preset is not None:
         assert (target is None) and (target_host is None), "target_preset is already specified."
-        target, target_host = parse_target_preset(target_preset)
+        return parse_target_preset(target_preset)
     else:
         assert target is not None, "target must be specified."
         if target_host is None:
             target_host = target
+        return target, target_host
+
+def parse_target(target: Optional[str], target_host: Optional[str], target_preset: Optional[str] = None) -> tvm.target.Target:
+    target, target_host = parse_target_preset_or(target, target_host, target_preset)
     return tvm.target.Target(target, host=target_host)
 
 def parse_rpc_config(rpc: bool, host: Optional[str], port: Optional[int], key: Optional[str], timeout: int = 5) -> Optional[ms.runner.RPCConfig]:
@@ -78,6 +83,8 @@ _x86_64_16_core = "llvm -mtriple=x86_64-pc-linux-gnu -num-cores=16"
 _rtx_3060_laptop = "cuda -arch=sm_86 -max_threads_per_block=1024 -max_num_threads=1536 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
 _epyc_7542_128_core = "llvm -mtriple=x86_64-pc-linux-gnu -num-cores=128"
 _a100_gpu = "cuda -arch=sm_80 -max_threads_per_block=1024 -max_num_threads=2048 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
+_x86_64_32_core = "llvm -mtriple=x86_64-pc-linux-gnu -num-cores=32"
+_rtx_5070ti = "cuda -arch=sm_120 -max_threads_per_block=1024 -max_num_threads=1536 -thread_warp_size=32 -max_shared_memory_per_block=49152 -registers_per_block=65536"
 
 PRESET_TARGETS = {
     "jetson_orin_nano-cpu": (_cortex_a78_6_core, _cortex_a78_6_core),
@@ -85,6 +92,7 @@ PRESET_TARGETS = {
     "x86_64-16_core_cpu": (_x86_64_16_core, _x86_64_16_core),
     "rtx_3060_laptop_gpu": (_rtx_3060_laptop, _x86_64_16_core),
     "a100_gpu": (_a100_gpu, _epyc_7542_128_core),
+    "rtx_5070ti_gpu": (_rtx_5070ti, _x86_64_32_core),
 }
 PRESET_TARGET = parse_target(None, None, "a100_gpu")
 
@@ -225,6 +233,12 @@ class KernelSpecificTuner:
             return TunerState.TUNING
         else:
             return TunerState.UNTUNED
+
+    @staticmethod
+    def clear_tuner_state(working_dir: str) -> None:
+        # Remove tree
+        if os.path.exists(working_dir):
+            shutil.rmtree(working_dir)
 
     def get_tuner_state(self) -> TunerState:
         return self.tuner_state(self._working_dir)
@@ -414,7 +428,7 @@ class MetaScheduleTuner(BaseMetaScheduleTuner):
         self._working_dir = os.path.join(working_dir, self._specialized_dir_name)
 
         # Load the model.
-        self._templated_mod, self._all_mappings, self._input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_relax"), self._model_name, self._batch_size, vanilla=self._vanilla)
+        self._templated_mod, self._all_mappings, self._input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.realpath(__file__)), "model_relax"), self._model_name, self._batch_size, vanilla=self._vanilla)
 
     @property
     def input_dtype(self) -> str:
@@ -467,6 +481,9 @@ class MetaScheduleTuner(BaseMetaScheduleTuner):
 
     def query_kernel_specific_tuner_state(self, kernels_dir: Optional[str]) -> TunerState:
         return KernelSpecificTuner.tuner_state(self.get_kernel_specific_tuner_working_dir(kernels_dir))
+
+    def clear_kernel_specific_tuner_state(self, kernels_dir: Optional[str]) -> None:
+        KernelSpecificTuner.clear_tuner_state(self.get_kernel_specific_tuner_working_dir(kernels_dir))
 
 def _parse_args():
     args = argparse.ArgumentParser()

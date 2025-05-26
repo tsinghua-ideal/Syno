@@ -5,7 +5,7 @@ from typing import Callable, Optional
 import unittest
 
 # go to parent directory
-os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.chdir(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 import MetaScheduleTuner
 from MetaScheduleTuner import TuningConfig

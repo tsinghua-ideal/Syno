@@ -7,7 +7,7 @@ import torch
 from KAS import KernelLoader
 from KAS.Placeholder import build_placeholder_mappings, remove_unsatisfied_placeholders
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
+sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
 
 from base import models
 

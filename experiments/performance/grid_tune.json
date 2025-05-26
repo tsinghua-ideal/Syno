@@ -1,0 +1,24 @@
+{
+    "targets": [
+        {
+            "rpc_key": "jetson-orin-nano",
+            "prefix": ".",
+            "baseline_dir": "./perf",
+            "target_preset": "jetson_orin_nano-gpu"
+        },
+        {
+            "rpc_key": "jetson-orin-nano",
+            "prefix": ".",
+            "baseline_dir": "./perf",
+            "target_preset": "jetson_orin_nano-cpu"
+        }
+    ],
+    "kernels_dirs": {
+        "resnet_18": [],
+        "resnet_34": [],
+        "resnext": [],
+        "efficientnet": [],
+        "densenet": [],
+        "resnet_34_layers": []
+    }
+}

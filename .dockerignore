@@ -254,3 +254,6 @@ experiments/analysis/results*
 logs*/
 results*.json
 *scheduler*
+
+# Git
+.git

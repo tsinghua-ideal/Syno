@@ -1,14 +1,14 @@
 import logging
 import os
 import sys
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
+sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
 
 from tvm import relax
 import numpy as np
 
 from model import KernelMetadata, import_templated_model, substitute_kernels
 
-relax_mod, all_mappings, input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "model_relax"), "ConvNet")
+relax_mod, all_mappings, input_shape = import_templated_model(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir, "model_relax"), "ConvNet")
 
 def test_substitute_none():
     result = substitute_kernels(relax_mod, None)

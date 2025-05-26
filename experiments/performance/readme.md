@@ -4,6 +4,10 @@
 
 ```bash
 python export_relax.py --batch-size 1 --model torchvision/resnet18
+python export_relax.py --batch-size 1 --model torchvision/resnet34
+python export_relax.py --batch-size 1 --model torchvision/resnext29_2x64d
+python export_relax.py --batch-size 1 --model torchvision/efficientnet_v2_s
+python export_relax.py --batch-size 1 --model torchvision/densenet121
 ```
 
 ## How to setup
