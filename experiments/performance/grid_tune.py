@@ -13,7 +13,7 @@ from typing import Dict, Generator, Iterable, List, Optional, Tuple, cast
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from common import PRESET_WORKING_DIR
+from common import PRESET_WORKING_DIR, RESNET_34_LAYERS_MODELS
 from MetaScheduleTuner import (
     MetaScheduleTuner,
     PRESET_RPC_HOST,
@@ -173,26 +173,6 @@ _RESNET_34_LAYERS_KERNELS_DIRS = [
     "./results/nas-pte/seq_3",
 ]
 
-_RESNET_34_LAYERS_NAMES = [
-    # Same
-    "conv_io64",
-    "conv_io128",
-    "conv_io256",
-    "conv_io512",
-    # Down
-    "conv_i64_o128",
-    "conv_i128_o256",
-    "conv_i256_o512",
-    # Residual
-    "residual_i64_o128",
-    "residual_i128_o256",
-    "residual_i256_o512",
-]
-
-_RESNET_34_LAYERS_MODELS = [
-    f"resnet34layers/{layer}" for layer in _RESNET_34_LAYERS_NAMES
-]
-
 
 def _make_grid(
     rpc_host: str,
@@ -317,7 +297,7 @@ def _make_grids(
         *_make_both_for_models(
             rpc_host,
             rpc_port,
-            _RESNET_34_LAYERS_MODELS,
+            RESNET_34_LAYERS_MODELS,
             targets,
             4000,
             resnet_34_layers_kernels_dirs,

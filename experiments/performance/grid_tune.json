@@ -4,13 +4,15 @@
             "rpc_key": "jetson-orin-nano",
             "prefix": ".",
             "baseline_dir": "./perf",
-            "target_preset": "jetson_orin_nano-gpu"
+            "target_preset": "jetson_orin_nano-gpu",
+            "device": "cuda"
         },
         {
             "rpc_key": "jetson-orin-nano",
             "prefix": ".",
             "baseline_dir": "./perf",
-            "target_preset": "jetson_orin_nano-cpu"
+            "target_preset": "jetson_orin_nano-cpu",
+            "device": "cpu"
         }
     ],
     "kernels_dirs": {

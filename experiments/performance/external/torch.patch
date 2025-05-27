@@ -1,0 +1,36 @@
+diff --git a/_dynamo/symbolic_convert.py b/_dynamo/symbolic_convert.py
+index c09b25b..082840a 100644
+--- a/_dynamo/symbolic_convert.py
++++ b/_dynamo/symbolic_convert.py
+@@ -193,6 +193,13 @@ def _import_module(name: str) -> types.ModuleType:
+     return importlib.import_module(name)
+ 
+ 
++def _import_module_from_sys_if_possible(name: str) -> types.ModuleType:
++    if name in sys.modules:
++        return sys.modules[name]
++    else:
++        return _import_module(name)
++
++
+ @dataclasses.dataclass
+ class SpeculationEntry:
+     filename: str
+@@ -1407,7 +1414,7 @@ class InstructionTranslatorBase(
+                 module_name.replace(">", "_").replace("<", "_").replace(".", "_dot_")
+             )
+         else:
+-            value = _import_module(module_name)
++            value = _import_module_from_sys_if_possible(module_name)
+             alias = f"__import_{module_name.replace('.', '_dot_')}"
+         f_globals = self.output.global_scope
+         assert alias not in f_globals or f_globals[alias] is value
+@@ -3840,7 +3847,7 @@ class InliningInstructionTranslator(InstructionTranslatorBase):
+                     ]
+                 )  # type: ignore[assignment]
+             else:
+-                fglobals_value = _import_module(module_name)
++                fglobals_value = _import_module_from_sys_if_possible(module_name)
+             fglobals_vt = VariableTracker.build(self, fglobals_value, module_source)
+             global_source = AttrSource(module_source, name)
+         else:

@@ -54,6 +54,14 @@ RUN \
     popd && \
     rm -rf tvm tvm.*
 
+# Copy PyTorch patch
+COPY ./experiments/performance/external/torch.patch /workspace/
+
+# Patch PyTorch
+RUN \
+    patch /usr/local/lib/python3.12/dist-packages/torch/_dynamo/symbolic_convert.py -p5 < /workspace/torch.patch && \
+    rm /workspace/torch.patch
+
 # Install Python dependencies
 RUN pip3 install --upgrade pip && \
     pip3 install \

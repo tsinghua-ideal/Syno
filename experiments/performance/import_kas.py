@@ -67,16 +67,21 @@ def get_model(model_name: str, result_dir: str | None, batch_size: int, input_si
     else:
         # Replace kernel
         model = models.common.CommonModel(**model_args)
-        flops, params = model.profile()
+
+        sample_input = torch.ones(
+            (batch_size, *model.sample_input_shape()), device="cuda"
+        )
+        model = model.cuda()
+        model.eval()
+
+        flops, params = model.profile(sample_input=sample_input)
         logging.info(
             f"Base model {model_name} has {flops / 1e9:.5f} GFLOPs (per batch) and {params / 1e6:.2f}M parameters"
         )
 
         # Build mapping for usages
-        sample_input = torch.ones(
-            (batch_size, *model.sample_input_shape())
-        )
-        build_placeholder_mappings(model, sample_input)
+        with torch.inference_mode():
+            build_placeholder_mappings(model, sample_input)
         count = remove_unsatisfied_placeholders(model)
         logging.info(f"Recovered {count} unsatisfied placeholders")
 
@@ -92,12 +97,15 @@ def get_model(model_name: str, result_dir: str | None, batch_size: int, input_si
             batch_size=batch_size,
         )
         flops_replaced, params_replaced = model.profile(
-            batch_size=batch_size, force_update=True,
+            batch_size=batch_size,
+            force_update=True,
+            sample_input=sample_input,
         )
         flops_base, params_base = model.profile(
             batch_size=batch_size,
             force_update=True,
             not_count_placeholder=True,
+            sample_input=sample_input,
         )
         logging.info(
             f"Replaced model {model_name} has {flops_replaced / 1e9:.5f}G FLOPs and {params_replaced / 1e6:.2f}M parameters"
@@ -108,5 +116,7 @@ def get_model(model_name: str, result_dir: str | None, batch_size: int, input_si
         logging.info(
             f"Placeholder params change {params - params_base:.2f} -> {params_replaced - params_base:.2f}"
         )
+
+        model.train()
 
     return model, (batch_size, *input_size)

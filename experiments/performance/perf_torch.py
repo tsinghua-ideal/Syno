@@ -1,5 +1,4 @@
 import argparse
-import filelock
 import math
 import os
 import statistics
@@ -235,14 +234,12 @@ def main():
 
     if not args.no_save:
         os.makedirs(os.path.dirname(benchmark_output), exist_ok=True)
-        benchmark_lock = f"{benchmark_output}.lock"
-        with filelock.FileLock(benchmark_lock):
-            if os.path.exists(benchmark_output):
-                print(f"Benchmark output {benchmark_output} already exists, skipping.")
-                return
-            # Create the file to prevent other processes from running the same benchmark
-            with open(benchmark_output, "w"):
-                pass
+        if os.path.exists(benchmark_output):
+            print(f"Benchmark output {benchmark_output} already exists, skipping.")
+            return
+        # Create the file to prevent other processes from running the same benchmark
+        with open(benchmark_output, "w"):
+            pass
 
     import torch._inductor.config
 
