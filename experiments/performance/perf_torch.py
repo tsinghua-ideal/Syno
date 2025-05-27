@@ -184,6 +184,7 @@ def run_benchmark(
 def _parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, required=True)
+    parser.add_argument("--working-dir", type=str, default=PRESET_WORKING_DIR)
     parser.add_argument("--result-dir", type=str, default=None)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--num-classes", type=int, default=100)
@@ -203,7 +204,7 @@ def _parse_args():
     return parser.parse_args()
 
 
-def get_benchmark_output_path(model_name: str, target_type: str, mode: str, kernels_dir: str | None, batch_size: int = 1) -> str:
+def get_benchmark_output_path(model_name: str, target_type: str, mode: str, working_dir: str, kernels_dir: str | None, batch_size: int = 1) -> str:
     specialized_name = os.path.join(
         f"inductor-{target_type}",
         get_specialized_model_name(
@@ -214,7 +215,7 @@ def get_benchmark_output_path(model_name: str, target_type: str, mode: str, kern
     )
     specialized_file = f"{specialized_name}.txt"
     if kernels_dir is None:
-        output_path = os.path.join(PRESET_WORKING_DIR, specialized_file)
+        output_path = os.path.join(working_dir, specialized_file)
     else:
         output_path = os.path.join(kernels_dir, "perf", specialized_file)
     return output_path
@@ -227,6 +228,7 @@ def main():
         model_name=args.model,
         target_type=args.device,
         mode=args.mode,
+        working_dir=args.working_dir,
         kernels_dir=args.result_dir,
         batch_size=args.batch_size,
     )

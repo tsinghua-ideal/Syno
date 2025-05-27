@@ -25,7 +25,7 @@ RUN apt-get update && \
         rsync && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    ln -sv /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1
+    ln -sv /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1
 
 # Fix: /opt/hpcx/ucc/lib/libucc.so.1: undefined symbol: ucs_config_doc_nop
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/hpcx/ucx/lib
@@ -52,7 +52,7 @@ RUN \
     export TVM_LIBRARY_PATH=/usr/local/lib && \
     pip install -vvv ./python && \
     popd && \
-    rm -rf tvm
+    rm -rf tvm tvm.*
 
 # Install Python dependencies
 RUN pip3 install --upgrade pip && \
