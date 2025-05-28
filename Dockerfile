@@ -1,4 +1,6 @@
-FROM nvcr.io/nvidia/pytorch:25.04-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:25.04-py3
+
+FROM ${BASE_IMAGE}
 
 # Install system dependencies
 RUN apt-get update && \
@@ -8,6 +10,7 @@ RUN apt-get update && \
         zlib1g-dev \
         binutils \
         libboost-all-dev \
+        libfmt-dev \
         nlohmann-json3-dev \
         libgtest-dev \
         libgmock-dev \
