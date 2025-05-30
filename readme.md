@@ -6,7 +6,7 @@ We propose a novel end-to-end framework, Syno, for optimizing the inference perf
 
 ## Reproducing Our Results
 
-Please see the instructions in the [Artifact Evaluation Repository](https://github.com/Yongqi-Zhuo/Syno-AE) for detailed steps on how to replicate our experiments in the paper.
+Please see the instructions in the [artifact evaluation repository](https://github.com/Yongqi-Zhuo/Syno-AE) for detailed steps on how to replicate our experiments in the paper.
 
 ## Use Cases
 
@@ -83,12 +83,14 @@ mamba install cupy pkg-config libjpeg-turbo opencv -c conda-forge # To enable ff
 pip install -r requirements.txt
 ```
 
+Or, you can alternatively use the `Dockerfile` provided in this repository to set up the environment. See the section below for more details.
+
 ## Build and Run
 
 CMake tests are available.
 
 ```bash
-cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=true` .
+cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=true .
 cmake --build build
 cd build && ctest
 ```
@@ -96,7 +98,7 @@ cd build && ctest
 This project uses [`scikit-build`](https://github.com/scikit-build/scikit-build-core), so installing the Python module is fairly simple.
 
 ```bash
-pip install .`
+pip install .
 pytest
 ```
 
@@ -128,6 +130,8 @@ Uncomment the line `set(CMAKE_BUILD_TYPE Debug)` in `CMakeLists.txt`, and rebuil
 
 ## Cite
 
+Note: the camera-ready version of the paper is not available yet.
+
 ```
 @inproceedings{zhuo2025syno,
   title={Syno: Structured Synthesis for Neural Operators},
@@ -137,4 +141,3 @@ Uncomment the line `set(CMAKE_BUILD_TYPE Debug)` in `CMakeLists.txt`, and rebuil
   year={2025}
 }
 ```
-

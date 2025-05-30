@@ -60,18 +60,18 @@ class Sampler:
         net: nn.Module = None,
         fixed_io_pairs: List[Tuple[int, int]] = [],
         seed: int = 42,
-        depth: int = 4,
-        max_chain_length: int = 5,
+        depth: int = 12,
+        max_chain_length: int = 6,
         maximum_tensors: int = 2,
-        maximum_reductions: int = 2,
+        maximum_reductions: int = 5,
         max_flops: float = 1e15,
         min_flops: float = 0,
         max_vram: int = 40 * 1024, # 40 GB
-        max_rdom_size_multiplier: int = 32,
+        max_rdom_size_multiplier: int = 4,
         max_pooling_factor: int = 8,
         enable_flops_based_pruning: bool = True,
         maximum_enumerations_per_var: int = 5,
-        maximum_variables_in_size: int = 16,
+        maximum_variables_in_size: int = 3,
         maximum_variables_powers_in_size: int = 16,
         requires_exact_division: bool = True,
         requires_odd_kernel_size_in_unfold: bool = True,
@@ -80,26 +80,26 @@ class Sampler:
         expression_two_tensors: str = "in_0 * in_1",
         expression_three_tensors: str = "in_0 * in_1 * in_2",
         expression_four_tensors: str = "in_0 * in_1 * in_2 * in_3",
-        maximum_finalizations: int = 5,
+        maximum_finalizations: int = 2,
         allow_weight_permutation: bool = False,
         min_single_weight_params: int = 100,
         max_strided_dim_size: int = 30,
         max_unfold_kernel_size: int = 30,
         minimum_unfold_ratio: float = 2.0,
-        maximum_valid_reshape_shift_pattern: float = 5.0,
+        maximum_valid_reshape_shift_pattern: float = 2.0,
         disallow_merge_input_and_weight: bool = False,
-        disallow_tile: bool = True,
+        disallow_tile: bool = False,
         disallow_share_weights: bool = False,
-        max_expansion_repeat_multiplier: int = 1,
-        max_expansion_merge_multiplier: int = 512,
-        max_expansion_weights_sharing_dim_size: int = 3,
-        min_expansion_weights_sharing_dim_size: int = 8,
+        max_expansion_repeat_multiplier: int = 5,
+        max_expansion_merge_multiplier: int = 6144,
+        max_expansion_weights_sharing_dim_size: int = 8,
+        min_expansion_weights_sharing_dim_size: int = 3,
         canonicalize_unfold_order: bool = True,
         maximum_expands: int = -1,
         maximum_merges: int = -1,
         maximum_splits: int = -1,
         maximum_shifts: int = -1,
-        maximum_strides: int = -1,
+        maximum_strides: int = 0,
         maximum_unfolds: int = -1,
         maximum_shares: int = -1,
         num_worker_threads: int = 12,
@@ -362,6 +362,16 @@ class Sampler:
             prefix.abs_path, count, type, steps
         )
         return [VisitedNode(Path(path), node) for path, node in visited_nodes]
+
+    def sample(self) -> VisitedNode:
+        """Sample a random node."""
+        count = 1
+        while True:
+            visited_nodes = self.random_final_nodes_with_prefix([], count)
+            if len(visited_nodes) > 0:
+                return random.choice(visited_nodes)
+            # If no nodes found, double the count and try again.
+            count *= 2
 
     def path_to_strs(self, path: PseudoPath) -> List[str]:
         node = self.root()
