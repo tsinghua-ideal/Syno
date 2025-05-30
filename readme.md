@@ -125,3 +125,16 @@ bash ./run_tmux.sh 8 python -u evaluator.py
 ### How to debug
 
 Uncomment the line `set(CMAKE_BUILD_TYPE Debug)` in `CMakeLists.txt`, and rebuild.
+
+## Cite
+
+```
+@inproceedings{zhuo2025syno,
+  title={Syno: Structured Synthesis for Neural Operators},
+  author={Zhuo, Yongqi and Su, Zhengyuan and Zhao, Chenggang and Gao, Mingyu},
+  booktitle={Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 3},
+  pages={to appear},
+  year={2025}
+}
+```
+
