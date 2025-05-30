@@ -2,6 +2,60 @@
 
 This is the source code repository of the ASPLOS '25 paper "Syno: Structured Synthesis for Neural Operators".
 
+We propose a novel end-to-end framework, Syno, for optimizing the inference performance of neural networks by synthesizing novel operators from scratch.
+
+## Reproducing Our Results
+
+Please see the instructions in the [Artifact Evaluation Repository](https://github.com/Yongqi-Zhuo/Syno-AE) for detailed steps on how to replicate our experiments in the paper.
+
+## Use Cases
+
+Define a neural network with some operators being `Placeholder`s, which are slots to be filled by Syno. For example, Syno can synthesize a convolution operator from scratch: we do not hardcode a convolution within Syno!
+
+Note that this can also be done automatically, by substituting certain type of operator in a given neural network.
+
+```python
+class Model(nn.Module):
+    def __init__(self):
+        super(Model, self).__init__()
+        # `Placeholder`s can provide concrete values for symbolic variables. This can be used to match spatial dimensions of tensors.
+        self.kernel_1 = Placeholder({"H": 32, "W": 32})
+        self.kernel_2 = Placeholder({"H": 16, "W": 16})
+        self.kernel_3 = Placeholder({"H": 16, "W": 16})
+
+    def forward(self, x: torch.Tensor):
+        x = self.kernel_1(x)
+        x = x.view(1, 1, 32, 32)
+        x = F.avg_pool2d(x, 2)
+        x = x.view(16, 16)
+        x = self.kernel_2(x)
+        x = self.kernel_3(x)
+        return x
+```
+
+Then, obtain a `Sampler` to start synthesizing operators.
+
+```python
+# Obtain a model with `Placeholder`s inside
+net = Model()
+# Obtain a sampler that handles operator synthesis for you
+sampler = Sampler(
+    "[H, W]", # Symbolic input shape of the operator
+    "[H, W]", # Symbolic output shape of the operator
+    ["H: 2", "W: 2"], # Some hyperparameters for how many times a symbolic variable can be used
+    ["s_1=2: 2", "s_2=3: 2"], # Some coefficients to be used as auxiliary symbolic variables
+    net=net, # Pass our model in, and `Placeholder`s are analyzed.
+)
+# Synthesize a novel operator to be substituted into the model
+operator = sampler.sample()
+# Code generation
+kernel_packs = operator.construct_kernel_packs()
+# Replace the `Placeholder`s in the model with the novel operators we have just synthesized
+sampler.replace(net, kernel_packs)
+```
+
+We have observed novel operators beyond current knowledge! Please see our paper for more information.
+
 ## Build Dependencies
 
 - A C++20-compatible compiler. (Complete support required, which means, GCC >= 12 if you are using GCC.)
@@ -47,6 +101,15 @@ pytest
 ```
 
 See all the tests in `tests/`.
+
+### Alternative: Using Docker
+
+We have provided a Dockerfile for environment setup.
+
+```bash
+docker build -t syno .
+docker run -it --gpus all --shm-size=16.00gb syno
+```
 
 ## Scripts for Experiments
 
