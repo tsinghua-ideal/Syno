@@ -98,47 +98,36 @@ def _make_grid(
 
 def _make_grids(
     targets: List[TargetSpec],
-    resnet_18_kernels_dirs: List[str],
-    resnet_34_kernels_dirs: List[str],
-    resnext_kernels_dirs: List[str],
-    efficientnet_kernels_dirs: List[str],
-    densenet_kernels_dirs: List[str],
-    resnet_34_layers_kernels_dirs: List[str],
+    resnet_18_kernels_dirs: Optional[List[str]],
+    resnet_34_kernels_dirs: Optional[List[str]],
+    resnext_kernels_dirs: Optional[List[str]],
+    efficientnet_kernels_dirs: Optional[List[str]],
+    densenet_kernels_dirs: Optional[List[str]],
+    resnet_34_layers_kernels_dirs: Optional[List[str]],
 ) -> List[BenchmarkConfig]:
     grids: List[BenchmarkConfig] = []
     for target in targets:
-        grids.extend(_make_grid(
-            target=target,
-            model="torchvision/resnet18",
-            kernels_dirs=resnet_18_kernels_dirs,
-        ))
-        grids.extend(_make_grid(
-            target=target,
-            model="torchvision/resnet34",
-            kernels_dirs=resnet_34_kernels_dirs,
-        ))
-        grids.extend(_make_grid(
-            target=target,
-            model="torchvision/resnext29_2x64d",
-            kernels_dirs=resnext_kernels_dirs,
-        ))
-        grids.extend(_make_grid(
-            target=target,
-            model="torchvision/efficientnet_v2_s",
-            kernels_dirs=efficientnet_kernels_dirs,
-        ))
-        grids.extend(_make_grid(
-            target=target,
-            model="torchvision/densenet121",
-            kernels_dirs=densenet_kernels_dirs,
-        ))
-        for layer in RESNET_34_LAYERS_MODELS:
-            grids.extend(_make_grid(
-                target=target,
-                model=layer,
-                kernels_dirs=resnet_34_layers_kernels_dirs,
-                channels_last=True,
-            ))
+        for (model, kernels_dirs) in [
+            ("torchvision/resnet18", resnet_18_kernels_dirs),
+            ("torchvision/resnet34", resnet_34_kernels_dirs),
+            ("torchvision/resnext29_2x64d", resnext_kernels_dirs),
+            ("torchvision/efficientnet_v2_s", efficientnet_kernels_dirs),
+            ("torchvision/densenet121", densenet_kernels_dirs),
+        ]:
+            if kernels_dirs is not None:
+                grids.extend(_make_grid(
+                    target=target,
+                    model=model,
+                    kernels_dirs=kernels_dirs,
+                ))
+        if resnet_34_layers_kernels_dirs is not None:
+            for layer in RESNET_34_LAYERS_MODELS:
+                grids.extend(_make_grid(
+                    target=target,
+                    model=layer,
+                    kernels_dirs=resnet_34_layers_kernels_dirs,
+                    channels_last=True,
+                ))
     return grids
 
 def _parse_args() -> argparse.Namespace:
@@ -175,15 +164,15 @@ def main(args: argparse.Namespace) -> int:
     with open(config_file, "r") as f:
         config = json.load(f)
     targets = [TargetSpec.from_dict(t) for t in config["targets"]]
-    kernels_dirs = config["kernels_dirs"]
+    kernels_dirs: Dict[str, List[str]] = config["kernels_dirs"]
     grids = _make_grids(
         targets=targets,
-        resnet_18_kernels_dirs=kernels_dirs["resnet_18"],
-        resnet_34_kernels_dirs=kernels_dirs["resnet_34"],
-        resnext_kernels_dirs=kernels_dirs["resnext"],
-        efficientnet_kernels_dirs=kernels_dirs["efficientnet"],
-        densenet_kernels_dirs=kernels_dirs["densenet"],
-        resnet_34_layers_kernels_dirs=kernels_dirs["resnet_34_layers"],
+        resnet_18_kernels_dirs=kernels_dirs.get("resnet_18", None),
+        resnet_34_kernels_dirs=kernels_dirs.get("resnet_34", None),
+        resnext_kernels_dirs=kernels_dirs.get("resnext", None),
+        efficientnet_kernels_dirs=kernels_dirs.get("efficientnet", None),
+        densenet_kernels_dirs=kernels_dirs.get("densenet", None),
+        resnet_34_layers_kernels_dirs=kernels_dirs.get("resnet_34_layers", None),
     )
 
     tasks: List[BenchmarkConfig] = []

@@ -8,12 +8,12 @@ import os
 import queue
 import sys
 import time
-from typing import Dict, Generator, Iterable, List, Optional, Tuple, cast
+from typing import Dict, Generator, Iterable, List, Optional, cast
 
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from common import PRESET_WORKING_DIR, RESNET_34_LAYERS_MODELS
+from common import RESNET_34_LAYERS_MODELS
 from MetaScheduleTuner import (
     MetaScheduleTuner,
     PRESET_RPC_HOST,
@@ -26,8 +26,6 @@ from MetaScheduleTuner import (
     parse_target,
     parse_target_preset_or,
     tune_e2e_mp_runner,
-    _jetson_orin_nano_gpu,
-    _cortex_a78_6_core,
 )
 
 
@@ -82,7 +80,7 @@ class KernelsGrid(Iterable[TuningConfig]):
     target: str
     target_host: str
     trials: int
-    kernels_dirs: Iterable[Optional[str]]
+    kernels_dirs: List[Optional[str]]
 
     @property
     def working_dir(self) -> str:
@@ -123,7 +121,7 @@ class Grid:
     vanilla: bool
     targets: List[TargetSpec]
     trials: int
-    kernels_dirs: Iterable[Optional[str]]
+    kernels_dirs: List[Optional[str]]
 
     def __iter__(self) -> Generator[KernelsGrid, None, None]:
         for spec in self.targets:
@@ -142,45 +140,13 @@ class Grid:
             )
 
 
-_RESNET_KERNELS_DIRS_ROOT: List[Optional[str]] = [
-    "./results/resnet-good-kernels/0.2x",
-    "./results/resnet-good-kernels/0.4x",
-    "./results/resnet-good-kernels/0.5x",
-    "./results/resnet-good-kernels/0.6x",
-    "./results/resnet-good-kernels/0.7x",
-    "./results/resnet-good-kernels/ablation",
-]
-
-_RESNEXT_KERNELS_DIRS_ROOT: List[Optional[str]] = [
-    "./results/resnext-good-kernels",
-]
-
-_EFFICIENTNET_KERNELS_DIRS_ROOT: List[Optional[str]] = [
-    "./results/efficientnet-good-kernels",
-]
-
-_DENSENET_KERNELS_DIRS_ROOT: List[Optional[str]] = [
-    "./results/densenet-good-kernels",
-]
-
-_RESNET_34_LAYERS_KERNELS_DIRS = [
-    # KAS
-    "./results/resnet-good-kernels/0.6x/07889_15252107013978896537",
-    "./results/resnet-good-kernels/0.2x/07754_18091915762600937904",
-    # NAS-PTE
-    "./results/nas-pte/seq_1",
-    "./results/nas-pte/seq_2",
-    "./results/nas-pte/seq_3",
-]
-
-
 def _make_grid(
     rpc_host: str,
     rpc_port: int,
     model: str,
     targets: List[TargetSpec],
     trials: int,
-    kernels_dirs: Iterable[Optional[str]],
+    kernels_dirs: List[str],
 ) -> Grid:
     return Grid(
         rpc_host=rpc_host,
@@ -189,7 +155,7 @@ def _make_grid(
         vanilla=False,
         targets=targets,
         trials=trials,
-        kernels_dirs=kernels_dirs,
+        kernels_dirs=list(kernels_dirs),
     )
 
 
@@ -211,7 +177,7 @@ def _make_both(
     model: str,
     targets: List[TargetSpec],
     trials: int,
-    kernels_dirs: Iterable[Optional[str]],
+    kernels_dirs: List[str],
     vanilla_for_vanilla: bool = True,
 ) -> List[Grid]:
     grid = _make_grid(rpc_host, rpc_port, model, targets, trials, kernels_dirs)
@@ -224,7 +190,7 @@ def _make_both_for_models(
     models: List[str],
     targets: List[TargetSpec],
     trials: int,
-    kernels_dirs: Iterable[Optional[str]],
+    kernels_dirs: List[str],
     vanilla_for_vanilla: bool = True,
 ) -> List[Grid]:
     return [
@@ -246,64 +212,45 @@ def _make_grids(
     rpc_host: str,
     rpc_port: int,
     targets: List[TargetSpec],
-    resnet_18_kernels_dirs: Iterable[Optional[str]],
-    resnet_34_kernels_dirs: Iterable[Optional[str]],
-    resnext_kernels_dirs: Iterable[Optional[str]],
-    efficientnet_kernels_dirs: Iterable[Optional[str]],
-    densenet_kernels_dirs: Iterable[Optional[str]],
-    resnet_34_layers_kernels_dirs: Iterable[Optional[str]],
+    resnet_18_kernels_dirs: Optional[List[str]],
+    resnet_34_kernels_dirs: Optional[List[str]],
+    resnext_kernels_dirs: Optional[List[str]],
+    efficientnet_kernels_dirs: Optional[List[str]],
+    densenet_kernels_dirs: Optional[List[str]],
+    resnet_34_layers_kernels_dirs: Optional[List[str]],
 ) -> List[Grid]:
-    return [
-        *_make_both(
-            rpc_host,
-            rpc_port,
-            "torchvision/resnet18",
-            targets,
-            10000,
-            resnet_18_kernels_dirs,
-        ),
-        *_make_both(
-            rpc_host,
-            rpc_port,
-            "torchvision/resnet34",
-            targets,
-            10000,
-            resnet_34_kernels_dirs,
-        ),
-        *_make_both(
-            rpc_host,
-            rpc_port,
-            "torchvision/resnext29_2x64d",
-            targets,
-            15000,
-            resnext_kernels_dirs,
-        ),
-        *_make_both(
-            rpc_host,
-            rpc_port,
-            "torchvision/efficientnet_v2_s",
-            targets,
-            30000,
-            efficientnet_kernels_dirs,
-        ),
-        *_make_both(
-            rpc_host,
-            rpc_port,
-            "torchvision/densenet121",
-            targets,
-            50000,
-            densenet_kernels_dirs,
-        ),
-        *_make_both_for_models(
-            rpc_host,
-            rpc_port,
-            RESNET_34_LAYERS_MODELS,
-            targets,
-            4000,
-            resnet_34_layers_kernels_dirs,
-            vanilla_for_vanilla=False,
-        ),
-    ]
+    grids: List[Grid] = []
+    for kernels_dirs, model, trials in [
+        (resnet_18_kernels_dirs, "torchvision/resnet18", 10000),
+        (resnet_34_kernels_dirs, "torchvision/resnet34", 10000),
+        (resnext_kernels_dirs, "torchvision/resnext29_2x64d", 15000),
+        (efficientnet_kernels_dirs, "torchvision/efficientnet_v2_s", 30000),
+        (densenet_kernels_dirs, "torchvision/densenet121", 50000),
+    ]:
+        if kernels_dirs is not None:
+            grids.extend(
+                _make_both(
+                    rpc_host=rpc_host,
+                    rpc_port=rpc_port,
+                    model=model,
+                    targets=targets,
+                    trials=trials,
+                    kernels_dirs=kernels_dirs,
+                )
+            )
+    if resnet_34_layers_kernels_dirs is not None:
+        grids.extend(
+            _make_both_for_models(
+                rpc_host=rpc_host,
+                rpc_port=rpc_port,
+                models=RESNET_34_LAYERS_MODELS,
+                targets=targets,
+                trials=4000,
+                kernels_dirs=resnet_34_layers_kernels_dirs,
+                vanilla_for_vanilla=False,
+            )
+        )
+    return grids
 
 
 def get_kernels_grids(grids: List[Grid]) -> List[KernelsGrid]:
@@ -589,8 +536,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=str,
-        default=None,
-        help="Path to a custom configuration file with grids. If not provided, the default grids will be used.",
+        required=True,
+        help="Path to a custom configuration file with grids.",
     )
     return parser.parse_args()
 
@@ -603,56 +550,24 @@ def main(args: argparse.Namespace) -> int:
     rpc_host = args.rpc_host
     rpc_port = args.rpc_port
     config_file = args.config
-    if config_file:
-        logging.info(f"Loading custom configuration from {config_file}")
-        import json
+    logging.info(f"Loading custom configuration from {config_file}")
+    import json
 
-        with open(config_file, "r") as f:
-            config = json.load(f)
-        targets = [TargetSpec.from_dict(t) for t in config["targets"]]
-        kernels_dirs = config["kernels_dirs"]
-        grids = _make_grids(
-            rpc_host=rpc_host,
-            rpc_port=rpc_port,
-            targets=targets,
-            resnet_18_kernels_dirs=kernels_dirs["resnet_18"],
-            resnet_34_kernels_dirs=kernels_dirs["resnet_34"],
-            resnext_kernels_dirs=kernels_dirs["resnext"],
-            efficientnet_kernels_dirs=kernels_dirs["efficientnet"],
-            densenet_kernels_dirs=kernels_dirs["densenet"],
-            resnet_34_layers_kernels_dirs=kernels_dirs["resnet_34_layers"],
-        )
-    else:
-        logging.info("Using default grids")
-        targets = [
-            TargetSpec(
-                rpc_key="jetson-orin-nano",
-                prefix=".",
-                baseline_dir=PRESET_WORKING_DIR,
-                target=_jetson_orin_nano_gpu,
-                target_host=_cortex_a78_6_core,
-            ),
-            TargetSpec(
-                rpc_key="jetson-orin-nano",
-                prefix=".",
-                baseline_dir=PRESET_WORKING_DIR,
-                target=_cortex_a78_6_core,
-                target_host=_cortex_a78_6_core,
-            ),
-        ]
-        grids = _make_grids(
-            rpc_host=rpc_host,
-            rpc_port=rpc_port,
-            targets=targets,
-            resnet_18_kernels_dirs=list(KernelsDirs(_RESNET_KERNELS_DIRS_ROOT)),
-            resnet_34_kernels_dirs=list(KernelsDirs(_RESNET_KERNELS_DIRS_ROOT)),
-            resnext_kernels_dirs=list(KernelsDirs(_RESNEXT_KERNELS_DIRS_ROOT)),
-            efficientnet_kernels_dirs=list(
-                KernelsDirs(_EFFICIENTNET_KERNELS_DIRS_ROOT)
-            ),
-            densenet_kernels_dirs=list(KernelsDirs(_DENSENET_KERNELS_DIRS_ROOT)),
-            resnet_34_layers_kernels_dirs=_RESNET_34_LAYERS_KERNELS_DIRS,
-        )
+    with open(config_file, "r") as f:
+        config = json.load(f)
+    targets = [TargetSpec.from_dict(t) for t in config["targets"]]
+    kernels_dirs: Dict[str, List[str]] = config["kernels_dirs"]
+    grids = _make_grids(
+        rpc_host=rpc_host,
+        rpc_port=rpc_port,
+        targets=targets,
+        resnet_18_kernels_dirs=kernels_dirs.get("resnet_18", None),
+        resnet_34_kernels_dirs=kernels_dirs.get("resnet_34", None),
+        resnext_kernels_dirs=kernels_dirs.get("resnext", None),
+        efficientnet_kernels_dirs=kernels_dirs.get("efficientnet", None),
+        densenet_kernels_dirs=kernels_dirs.get("densenet", None),
+        resnet_34_layers_kernels_dirs=kernels_dirs.get("resnet_34_layers", None),
+    )
 
     index = 0
     trackers: List[Tracker] = []
