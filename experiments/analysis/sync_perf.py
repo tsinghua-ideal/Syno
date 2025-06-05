@@ -51,9 +51,6 @@ if __name__ == "__main__":
             with open(meta_path, "r") as f:
                 meta = json.load(f)
 
-            if os.path.exists(os.path.join(kernel_dir, "perf")):
-                shutil.rmtree(os.path.join(kernel_dir, "perf"))
-
             if meta["path"] not in path2perf:
                 continue
 

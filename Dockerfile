@@ -88,6 +88,7 @@ RUN pip3 install --upgrade pip && \
         matplotlib \
         seaborn \
         easypyplot && \
+    pip3 install datasets==3.6.0 --no-deps && \
     pip3 cache purge
 
 COPY . /workspace/Syno
