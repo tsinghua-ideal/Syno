@@ -68,6 +68,7 @@ RUN \
 # Install Python dependencies
 RUN pip3 install --upgrade pip && \
     pip3 install \
+        pandas==2.2.3 \
         cupy-cuda12x \
         numba \
         thop \
