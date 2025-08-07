@@ -130,14 +130,22 @@ Uncomment the line `set(CMAKE_BUILD_TYPE Debug)` in `CMakeLists.txt`, and rebuil
 
 ## Cite
 
-Note: the camera-ready version of the paper is not available yet.
-
 ```
 @inproceedings{zhuo2025syno,
-  title={Syno: Structured Synthesis for Neural Operators},
-  author={Zhuo, Yongqi and Su, Zhengyuan and Zhao, Chenggang and Gao, Mingyu},
-  booktitle={Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 3},
-  pages={to appear},
-  year={2025}
+author = {Zhuo, Yongqi and Su, Zhengyuan and Zhao, Chenggang and Gao, Mingyu},
+title = {Syno: Structured Synthesis for Neural Operators},
+year = {2025},
+isbn = {9798400710803},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3676642.3736118},
+doi = {10.1145/3676642.3736118},
+abstract = {The desires for better prediction accuracy and higher execution performance in neural networks never end. Neural architecture search (NAS) and tensor compilers are two popular techniques to optimize these two goals, but they are both limited to composing or optimizing existing manually designed operators rather than coming up with completely new designs. In this work, we explore the less studied direction of neural operator synthesis, which aims to automatically and efficiently discover novel neural operators with better accuracy and/or speed. We develop an end-to-end framework Syno, to realize practical neural operator synthesis. Syno makes use of a novel set of fine-grained primitives defined on tensor dimensions, which ensure various desired properties to ease model training, and also enable expression canonicalization techniques to avoid redundant candidates during search. Syno further adopts a novel guided synthesis flow to obtain valid operators matched with the specified input/output dimension sizes, and leverages efficient stochastic tree search algorithms to quickly explore the design space. We demonstrate that Syno discovers better operators with average speedups of 1.37\texttimes{} to 2.06\texttimes{} on various hardware and compiler choices, while keeping less than 1\% accuracy loss even on NAS-optimized models.},
+booktitle = {Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 3},
+pages = {212–229},
+numpages = {18},
+keywords = {neural architecture search, program synthesis},
+location = {Rotterdam, Netherlands},
+series = {ASPLOS '25}
 }
 ```
