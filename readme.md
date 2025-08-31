@@ -1,6 +1,6 @@
 # Syno: Structured Synthesis for Neural Operators
 
-This is the source code repository of the ASPLOS '25 paper "Syno: Structured Synthesis for Neural Operators".
+This is the source code repository of the ASPLOS '25 paper "[Syno: Structured Synthesis for Neural Operators](https://doi.org/10.1145/3676642.3736118)".
 
 We propose a novel end-to-end framework, Syno, for optimizing the inference performance of neural networks by synthesizing novel operators from scratch.
 
